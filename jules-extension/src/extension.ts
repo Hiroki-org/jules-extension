@@ -105,11 +105,11 @@ async function getStoredApiKey(
   return apiKey;
 }
 
-function buildFinalPrompt(userPrompt: string): string {
+export function buildFinalPrompt(userPrompt: string): string {
   const customPrompt = vscode.workspace
     .getConfiguration("jules-extension")
     .get<string>("customPrompt", "");
-  return customPrompt ? `${customPrompt}\n\n${userPrompt}` : userPrompt;
+  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
 }
 
 function resolveSessionId(
