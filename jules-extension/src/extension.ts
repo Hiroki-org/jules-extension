@@ -227,8 +227,7 @@ function startAutoRefresh(
 
   autoRefreshInterval = setInterval(() => {
     console.log("Jules: Auto-refresh triggered");
-    // We call refresh which now calls the unified fetchAndProcessSessions
-    sessionsProvider.refresh();
+    sessionsProvider.refresh(true); // Pass true for background refresh
   }, interval);
 }
 
@@ -512,7 +511,9 @@ class JulesSessionsProvider
 
   constructor(private context: vscode.ExtensionContext) {}
 
-  private async fetchAndProcessSessions(): Promise<void> {
+  private async fetchAndProcessSessions(
+    isBackground: boolean = false
+  ): Promise<void> {
     if (this.isFetching) {
       console.log("Jules: Fetch already in progress. Skipping.");
       return;
@@ -538,7 +539,6 @@ class JulesSessionsProvider
       if (!response.ok) {
         const errorMsg = `Failed to fetch sessions: ${response.status} ${response.statusText}`;
         console.error(`Jules: ${errorMsg}`);
-        // Show error message to user if not background fetch
         if (!isBackground) {
           vscode.window.showErrorMessage(errorMsg);
         }
@@ -610,9 +610,11 @@ class JulesSessionsProvider
     }
   }
 
-  async refresh(): Promise<void> {
-    console.log("Jules: refresh() called, starting fetch.");
-    await this.fetchAndProcessSessions();
+  async refresh(isBackground: boolean = false): Promise<void> {
+    console.log(
+      `Jules: refresh() called (isBackground: ${isBackground}), starting fetch.`
+    );
+    await this.fetchAndProcessSessions(isBackground);
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -1088,7 +1090,7 @@ export function activate(context: vscode.ExtensionContext) {
   const refreshSessionsDisposable = vscode.commands.registerCommand(
     "jules-extension.refreshSessions",
     () => {
-      sessionsProvider.refresh();
+      sessionsProvider.refresh(false); // Pass false for manual refresh
     }
   );
 
