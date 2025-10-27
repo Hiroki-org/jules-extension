@@ -95,6 +95,4 @@ Please check out the Issue Tracker and Pull Requests.
 
 [MIT](LICENSE)
 
-```
 
-```
