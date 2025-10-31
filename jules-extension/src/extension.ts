@@ -181,7 +181,7 @@ async function checkPRStatus(
       Accept: "application/vnd.github.v3+json",
     };
     if (githubToken) {
-      headers.Authorization = `token ${githubToken}`;
+      headers.Authorization = `Bearer ${githubToken}`;
     }
 
     const response = await fetch(apiUrl, { headers });
