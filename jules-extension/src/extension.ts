@@ -1410,15 +1410,41 @@ export function activate(context: vscode.ExtensionContext) {
   const setGithubTokenDisposable = vscode.commands.registerCommand(
     "jules-extension.setGithubToken",
     async () => {
-      const token = await vscode.window.showInputBox({
-        prompt:
-          "GitHub Personal Access Token を入力してください（PRのステータスチェック用）",
-        password: true,
-        placeHolder: "ghp_xxxxxxxxxxxxxxxxxxxx",
-        ignoreFocusOut: true,
-      });
+      try {
+        const token = await vscode.window.showInputBox({
+          prompt:
+            "GitHub Personal Access Token を入力してください（PRのステータスチェック用）",
+          password: true,
+          placeHolder: "ghp_xxxxxxxxxxxxxxxxxxxx",
+          ignoreFocusOut: true,
+        });
 
-      if (token) {
+        if (token === undefined) {
+          // User cancelled the input
+          console.log("Jules: GitHub Token input cancelled by user");
+          return;
+        }
+
+        if (token === "") {
+          vscode.window.showWarningMessage(
+            "GitHub Token を入力してください。キャンセルしました。"
+          );
+          return;
+        }
+
+        // Validate token format
+        if (!token.startsWith("ghp_") && !token.startsWith("github_pat_")) {
+          const proceed = await vscode.window.showWarningMessage(
+            "入力したトークンが GitHub のトークン形式ではないようです。本当に保存しますか？",
+            { modal: true },
+            "保存する",
+            "キャンセル"
+          );
+          if (proceed !== "保存する") {
+            return;
+          }
+        }
+
         await context.secrets.store("jules-github-token", token);
         vscode.window.showInformationMessage(
           "GitHub Token を安全に保存しました。"
@@ -1426,6 +1452,13 @@ export function activate(context: vscode.ExtensionContext) {
         // Clear PR status cache when token changes
         Object.keys(prStatusCache).forEach((key) => delete prStatusCache[key]);
         sessionsProvider.refresh();
+      } catch (error) {
+        console.error("Jules: Error setting GitHub Token:", error);
+        vscode.window.showErrorMessage(
+          `GitHub Token の保存に失敗しました: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       }
     }
   );
