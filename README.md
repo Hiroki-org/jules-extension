@@ -1,6 +1,5 @@
 # Jules Extension for VSCode
 
-
 [![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-blue.svg)](https://marketplace.visualstudio.com/items?itemName=YOUR_PUBLISHER.jules-extension)
 [![Status](https://img.shields.io/badge/status-development-yellow.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -28,14 +27,15 @@ This extension was created to take your development experience to the next level
 
 ## 🚀 Key Features
 
-| Feature                  | Description                                                                                                                                                                                                             | Command / Icon                    |
-| :----------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------- |
-| **API Key Setup**        | Set up your API key to connect to your Jules account on first use. The key is securely stored in VSCode's SecretStorage and automatically used for all subsequent requests.                                             | `jules-extension.setApiKey`       |
-| **Session Management**   | Request new coding tasks from Jules with the `> Jules: Create Session` command. Past sessions are also listed, allowing you to resume work or review the history of completed tasks at any time.                        | `jules-extension.createSession`   |
-| **Real-time Monitoring** | See Jules' current work status (`Running`, `Active`, `Done`, etc.) at a glance in the dedicated view added to the sidebar. No more switching between browser and editor repeatedly.                                     | `julesSessionsView`               |
-| **Progress Updates**     | When you're curious about how far Jules has progressed, click the `↻` (refresh) button. Instantly retrieve and update the session status and the latest activity list performed by Jules.                               | `jules-extension.refreshSessions` |
-| **Activity Display**     | When you select a session, you can check detailed logs of commands Jules executed, files edited, thought processes, and more. Provides a transparent development experience, as if you're peering into Jules' thinking. | `jules-extension.showActivities`  |
-| **PR Status Filtering**  | Automatically hide sessions with closed or merged pull requests from the session list. Helps keep your workspace clean by filtering out completed work. Can be toggled in settings.                                     | `jules-extension.hideClosedPRSessions` (setting) |
+| Feature                     | Description                                                                                                                                                                                                                            | Command / Icon                                   |
+| :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------- |
+| **API Key Setup**           | Set up your API key to connect to your Jules account on first use. The key is securely stored in VSCode's SecretStorage and automatically used for all subsequent requests.                                                            | `jules-extension.setApiKey`                      |
+| **GitHub Token Setup**      | Set up your GitHub Personal Access Token to enable PR status checking. The token is securely stored and used to automatically detect when pull requests are closed or merged, helping keep your session list clean.                    | `jules-extension.setGithubToken`                 |
+| **Session Management**      | Request new coding tasks from Jules with the `> Jules: Create Session` command. Past sessions are also listed, allowing you to resume work or review the history of completed tasks at any time.                                       | `jules-extension.createSession`                  |
+| **Real-time Monitoring**    | See Jules' current work status (`Running`, `Active`, `Done`, etc.) at a glance in the dedicated view added to the sidebar. No more switching between browser and editor repeatedly.                                                    | `julesSessionsView`                              |
+| **Progress Updates**        | When you're curious about how far Jules has progressed, click the `↻` (refresh) button. Instantly retrieve and update the session status and the latest activity list performed by Jules.                                              | `jules-extension.refreshSessions`                |
+| **Activity Display**        | When you select a session, you can check detailed logs of commands Jules executed, files edited, thought processes, and more. Provides a transparent development experience, as if you're peering into Jules' thinking.                | `jules-extension.showActivities`                 |
+| **Smart Session Filtering** | Automatically hide completed sessions (those with closed/merged PRs or failed/cancelled states) from the session list. Prevents unnecessary status checks and keeps your workspace focused on active work. Can be toggled in settings. | `jules-extension.hideClosedPRSessions` (setting) |
 
 ## 📦 Installation
 
@@ -73,8 +73,9 @@ To use Jules Extension, you need a Jules API key. Follow these steps to obtain o
 
 1.  Open the Command Palette with `Ctrl + Shift + P` (or `Cmd + Shift + P`).
 2.  Run `> Jules: Set Jules API Key` to set up your API key.
-3.  Click the `$(robot)` icon in the sidebar to open the Jules Sessions View.
-4.  Run `> Jules: Create Jules Session` to start your first coding session!
+3.  (Optional) Run `> Jules: Set GitHub Token` to enable PR status checking and automatic session filtering.
+4.  Click the `$(robot)` icon in the sidebar to open the Jules Sessions View.
+5.  Run `> Jules: Create Jules Session` to start your first coding session!
 
 ## 📚 References
 
@@ -95,5 +96,3 @@ Please check out the Issue Tracker and Pull Requests.
 ## 📝 License
 
 [MIT](LICENSE)
-
-
