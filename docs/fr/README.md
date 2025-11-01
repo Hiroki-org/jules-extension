@@ -24,10 +24,12 @@ Cette extension a été créée pour faire passer votre expérience de développ
 | Fonctionnalité                    | Description                                                                                                                                                                                                                                                           | Commande / Icône                  |
 | :-------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------- |
 | **Définir la Clé API**            | Lors de la première utilisation, définissez votre clé API pour vous connecter à votre compte Jules. La clé est stockée en toute sécurité dans le SecretStorage de VSCode et utilisée automatiquement pour toutes les requêtes ultérieures.                            | `jules-extension.setApiKey`       |
+| **Définir le Token GitHub**       | Définissez votre Token d'Accès Personnel GitHub pour activer la vérification du statut des PR. Le token est stocké en toute sécurité et utilisé pour détecter automatiquement quand les pull requests sont fermées ou fusionnées, aidant à garder votre liste de sessions propre. | `jules-extension.setGithubToken`  |
 | **Gestion des Sessions**          | Utilisez la commande `> Jules: Create Session` pour assigner une nouvelle tâche de codage à Jules. Les sessions passées sont également listées, vous permettant de reprendre le travail ou de consulter l'historique des tâches terminées à tout moment.              | `jules-extension.createSession`   |
 | **Surveillance en Temps Réel**    | Obtenez un aperçu de l'état de travail actuel de Jules (`Running`, `Active`, `Done`, etc.) dans une vue de la barre latérale dédiée. Plus besoin de basculer entre votre navigateur et votre éditeur.                                                                 | `julesSessionsView`               |
 | **Mise à Jour de la Progression** | Curieux de savoir où en est Jules ? Cliquez sur le bouton `↻` (actualiser) pour récupérer et afficher instantanément le dernier état de la session et la liste des activités.                                                                                         | `jules-extension.refreshSessions` |
 | **Affichage de l'Activité**       | Sélectionnez une session pour afficher les journaux détaillés des commandes que Jules a exécutées, les fichiers qu'il a modifiés et son processus de pensée. Cela offre une expérience de développement transparente, comme si vous regardiez dans l'esprit de Jules. | `jules-extension.showActivities`  |
+| **Filtrage Intelligent des Sessions**| Masque automatiquement les sessions terminées (celles avec des PR fermés/fusionnés ou des états échoués/annulés) de la liste des sessions. Empêche les vérifications de statut inutiles et maintient votre espace de travail concentré sur le travail actif. Peut être basculé dans les paramètres. | `jules-extension.hideClosedPRSessions` (paramètre) |
 
 
 ## 📦 Installation
@@ -66,8 +68,9 @@ Pour utiliser l'extension Jules, vous avez besoin d'une clé API Jules. Suivez c
 
 1.  Ouvrez la Palette de Commandes avec `Ctrl + Shift + P` (ou `Cmd + Shift + P`).
 2.  Exécutez `> Jules: Set Jules API Key` pour configurer votre clé API.
-3.  Cliquez sur l'icône `$(robot)` dans la barre latérale pour ouvrir la Vue des Sessions Jules.
-4.  Exécutez `> Jules: Create Jules Session` pour démarrer votre première session de codage !
+3.  (Optionnel) Exécutez `> Jules: Set GitHub Token` pour activer la vérification du statut des PR et le filtrage automatique des sessions.
+4.  Cliquez sur l'icône `$(robot)` dans la barre latérale pour ouvrir la Vue des Sessions Jules.
+5.  Exécutez `> Jules: Create Jules Session` pour démarrer votre première session de codage !
 
 ## 📚 Références
 
