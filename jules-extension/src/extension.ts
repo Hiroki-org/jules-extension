@@ -779,9 +779,10 @@ class JulesSessionsProvider
     }
 
     // Now, use the cache to build the tree
+    const sourceIdentifier = selectedSource.name || selectedSource.id;
     let filteredSessions = this.sessionsCache.filter(
       (session) =>
-        (session as any).sourceContext?.source === selectedSource.name
+        (session as any).sourceContext?.source === sourceIdentifier
     );
 
     console.log(
@@ -976,12 +977,16 @@ function updateStatusBar(
   const selectedSource = context.globalState.get<Source>("selected-source");
 
   if (selectedSource) {
-    // GitHubリポジトリ名を抽出（例: "sources/github/owner/repo" -> "owner/repo"）
-    const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
-    const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
+    // Use the name, fallback to the id, and then to a default
+    const sourceIdentifier =
+      selectedSource.name || selectedSource.id || "Unnamed Source";
 
-    statusBarItem.text = `$(repo) Jules: ${repoName}`;
-    statusBarItem.tooltip = `Current Source: ${repoName}\nClick to change source`;
+    // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
+    const repoMatch = sourceIdentifier.match(/sources\/github\/(.+)/);
+    const displayName = repoMatch ? repoMatch[1] : sourceIdentifier;
+
+    statusBarItem.text = `$(repo) Jules: ${displayName}`;
+    statusBarItem.tooltip = `Current Source: ${displayName}\nClick to change source`;
     statusBarItem.show();
   } else {
     statusBarItem.text = `$(repo) Jules: No source selected`;
