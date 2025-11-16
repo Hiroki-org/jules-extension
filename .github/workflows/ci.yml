@@ -26,13 +26,11 @@ jobs:
 
       - name: Security Audit (npm)
         working-directory: ./jules-extension
+        shell: bash
         run: |
-          set -e
           npm audit --audit-level=moderate || true
 
-      - name: Lint
-        working-directory: ./jules-extension
-        run: npm run lint
+      # Lint already ran in the 'lint' job which 'test' depends on
 
   test:
     needs: lint
@@ -73,12 +71,6 @@ jobs:
         working-directory: ./jules-extension
         run: npm ci
 
-      - name: Security Audit (npm)
-        working-directory: ./jules-extension
-        run: |
-          set -e
-          npm audit --audit-level=moderate || true
-
       - name: Lint
         working-directory: ./jules-extension
         run: npm run lint
@@ -87,11 +79,14 @@ jobs:
         working-directory: ./jules-extension
         run: npm run compile
 
-      - name: Run tests
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
         working-directory: ./jules-extension
         run: |
-          if [[ "${RUNNER_OS}" == 'Linux' || "${RUNNER_OS}" == 'linux' ]]; then
-            xvfb-run -a npm test
-          else
-            npm test
-          fi
+          xvfb-run -a npm test
+
+      - name: Run tests (macOS & Windows)
+        if: runner.os != 'Linux'
+        working-directory: ./jules-extension
+        shell: bash
+        run: npm test
