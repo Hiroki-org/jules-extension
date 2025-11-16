@@ -45,6 +45,8 @@ jobs:
         uses: "google-github-actions/run-gemini-cli@v0" # ratchet:exclude
         id: "gemini_pr_review"
         env:
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          GOOGLE_API_KEY: "${{ secrets.GOOGLE_API_KEY }}"
           GITHUB_TOKEN: "${{ steps.mint_identity_token.outputs.token || secrets.GITHUB_TOKEN || github.token }}"
           ISSUE_TITLE: "${{ github.event.pull_request.title || github.event.issue.title }}"
           ISSUE_BODY: "${{ github.event.pull_request.body || github.event.issue.body }}"
@@ -77,21 +79,19 @@ jobs:
                 "github": {
                   "command": "docker",
                   "args": [
-                    "run",
-                    "-i",
-                    "--rm",
-                    "-e",
-                    "GITHUB_PERSONAL_ACCESS_TOKEN",
-                    "ghcr.io/github/github-mcp-server"
-                  ],
-                  "includeTools": [
-                    "add_comment_to_pending_review",
-                    "create_pending_pull_request_review",
-                    "get_pull_request_diff",
-                    "get_pull_request_files",
-                    "get_pull_request",
-                    "submit_pending_pull_request_review"
-                  ],
+                      "run",
+                      "-i",
+                      "--rm",
+                      "-e",
+                      "GITHUB_PERSONAL_ACCESS_TOKEN",
+                      "ghcr.io/github/github-mcp-server:v0.18.0"
+                    ],
+                    "includeTools": [
+                      "add_comment_to_pending_review",
+                      "create_pending_pull_request_review",
+                      "pull_request_read",
+                      "submit_pending_pull_request_review"
+                    ],
                   "env": {
                     "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
                   }

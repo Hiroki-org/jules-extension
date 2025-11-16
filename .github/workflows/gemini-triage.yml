@@ -51,6 +51,17 @@ jobs:
             core.info(`Found ${labelNames.length} labels: ${labelNames.join(', ')}`);
             return labelNames;
 
+      - name: "Check GEMINI_API_KEY presence (debug-only)"
+        if: ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
+        env:
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+        run: |-
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY_PRESENT=false"
+          else
+            echo "GEMINI_API_KEY_PRESENT=true"
+          fi
+
       - name: "Run Gemini issue analysis"
         id: "gemini_analysis"
         if: |-
@@ -58,6 +69,8 @@ jobs:
         uses: "google-github-actions/run-gemini-cli@v0" # ratchet:exclude
         env:
           GITHUB_TOKEN: "" # Do NOT pass any auth tokens here since this runs on untrusted inputs
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          GOOGLE_API_KEY: "${{ secrets.GOOGLE_API_KEY }}"
           ISSUE_TITLE: "${{ github.event.issue.title }}"
           ISSUE_BODY: "${{ github.event.issue.body }}"
           AVAILABLE_LABELS: "${{ steps.get_labels.outputs.available_labels }}"
@@ -86,6 +99,27 @@ jobs:
                 "core": [
                   "run_shell_command(echo)"
                 ]
+              },
+              "mcpServers": {
+                "github": {
+                  "command": "docker",
+                  "args": [
+                      "run",
+                      "-i",
+                      "--rm",
+                      "-e",
+                      "GITHUB_PERSONAL_ACCESS_TOKEN",
+                      "ghcr.io/github/github-mcp-server:v0.18.0"
+                    ],
+                  "includeTools": [
+                    "issue_read",
+                    "list_issues",
+                    "search_issues"
+                  ],
+                  "env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+                  }
+                }
               }
             }
           # For reasons beyond my understanding, Gemini CLI cannot set the

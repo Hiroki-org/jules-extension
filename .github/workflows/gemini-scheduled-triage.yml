@@ -81,6 +81,17 @@ jobs:
           ISSUE_COUNT="$(echo "${ISSUES}" | jq 'length')"
           echo "✅ Found ${ISSUE_COUNT} issue(s) to triage! 🎯"
 
+      - name: "Check GEMINI_API_KEY presence (debug-only)"
+        if: ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
+        env:
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+        run: |-
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY_PRESENT=false"
+          else
+            echo "GEMINI_API_KEY_PRESENT=true"
+          fi
+
       - name: "Run Gemini Issue Analysis"
         id: "gemini_issue_analysis"
         if: |-
@@ -91,6 +102,8 @@ jobs:
           ISSUES_TO_TRIAGE: "${{ steps.find_issues.outputs.issues_to_triage }}"
           REPOSITORY: "${{ github.repository }}"
           AVAILABLE_LABELS: "${{ steps.get_labels.outputs.available_labels }}"
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          GOOGLE_API_KEY: "${{ secrets.GOOGLE_API_KEY }}"
         with:
           gcp_location: "${{ vars.GOOGLE_CLOUD_LOCATION }}"
           gcp_project_id: "${{ vars.GOOGLE_CLOUD_PROJECT }}"
@@ -118,6 +131,27 @@ jobs:
                   "run_shell_command(jq)",
                   "run_shell_command(printenv)"
                 ]
+              },
+              "mcpServers": {
+                "github": {
+                  "command": "docker",
+                    "args": [
+                    "run",
+                    "-i",
+                    "--rm",
+                    "-e",
+                    "GITHUB_PERSONAL_ACCESS_TOKEN",
+                    "ghcr.io/github/github-mcp-server:v0.18.0"
+                  ],
+                  "includeTools": [
+                    "issue_read",
+                    "list_issues",
+                    "search_issues"
+                  ],
+                  "env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+                  }
+                }
               }
             }
           prompt: |-
