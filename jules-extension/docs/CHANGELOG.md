@@ -17,4 +17,3 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Output handling: Added `collect_outputs`/`collect_selected` steps to convert environment outputs written by the Gemini CLI into step and job outputs (e.g., `triaged_issues`, `selected_labels`) so downstream jobs can use `needs.*.outputs.*`.
 - Fixed: YAML parse errors caused by stray LLM instruction fragments in scheduled triage workflow and various `with:`/indent issues.
 - Security: Hardened steps to avoid accidental writes in fork contexts (unset `GITHUB_TOKEN` for untrusted runs) and explicitly require tokens for write operations.
-
