@@ -135,6 +135,7 @@ jobs:
       pull-requests: "write"
     with:
       additional_context: "${{ needs.dispatch.outputs.additional_context }}"
+      language: "ja"
     secrets: "inherit"
 
   triage:
@@ -149,6 +150,7 @@ jobs:
       pull-requests: "write"
     with:
       additional_context: "${{ needs.dispatch.outputs.additional_context }}"
+      language: "ja"
     secrets: "inherit"
 
   invoke:
@@ -163,6 +165,7 @@ jobs:
       pull-requests: "write"
     with:
       additional_context: "${{ needs.dispatch.outputs.additional_context }}"
+      language: "ja"
     secrets: "inherit"
 
   fallthrough:
