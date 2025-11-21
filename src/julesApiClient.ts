@@ -4,8 +4,8 @@ export class JulesApiClient {
     private baseUrl: string;
     private apiKey: string;
 
-    constructor(apiKey: string) {
-        this.baseUrl = 'https://jules.googleapis.com/v1alpha';
+    constructor(apiKey: string, baseUrl: string) {
+        this.baseUrl = baseUrl;
         this.apiKey = apiKey;
     }
 

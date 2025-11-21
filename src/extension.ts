@@ -1012,6 +1012,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.createOutputChannel("Jules Activities");
   context.subscriptions.push(activitiesChannel);
 
+  // Create OutputChannel for Logs
+  const logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
+  context.subscriptions.push(logChannel);
+
   const setApiKeyDisposable = vscode.commands.registerCommand(
     "jules-extension.setApiKey",
     async () => {
@@ -1128,18 +1132,22 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const apiClient = new JulesApiClient(apiKey);
+      const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
       try {
         // ブランチ選択ロジック（メッセージ入力前に移動）
-        const { branches, defaultBranch: selectedDefaultBranch, currentBranch } = await getBranchesForSession(selectedSource, apiClient);
+        const { branches, defaultBranch: selectedDefaultBranch, currentBranch } = await getBranchesForSession(selectedSource, apiClient, logChannel);
 
         // QuickPickでブランチ選択
         const selectedBranch = await vscode.window.showQuickPick(
           branches.map(branch => ({
             label: branch,
             picked: branch === selectedDefaultBranch,
-            description: branch === selectedDefaultBranch ? '(default)' : (branch === currentBranch ? '(current)' : undefined)
+            description: (
+              branch === selectedDefaultBranch ? '(default)' : undefined
+            ) || (
+              branch === currentBranch ? '(current)' : undefined
+            )
           })),
           {
             placeHolder: 'Select a branch for this session',
@@ -1180,7 +1188,7 @@ export function activate(context: vscode.ExtensionContext) {
           sourceContext: {
             source: selectedSource.name || selectedSource.id || "",
             githubRepoContext: {
-              startingBranch: startingBranch,
+              startingBranch,
             },
           },
           automationMode,

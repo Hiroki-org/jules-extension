@@ -2,41 +2,65 @@ import * as vscode from "vscode";
 import { JulesApiClient } from './julesApiClient';
 import { Source as SourceType } from './types';
 
+const DEFAULT_FALLBACK_BRANCH = 'main';
+
 /**
  * 現在のGitブランチを取得する
+ * @param outputChannel ログ出力チャンネル
  * @returns 現在のブランチ名、またはnull（Git拡張が利用できない場合など）
  */
-export async function getCurrentBranch(): Promise<string | null> {
+export async function getCurrentBranch(outputChannel: vscode.OutputChannel): Promise<string | null> {
     try {
         const gitExtension = vscode.extensions.getExtension('vscode.git');
         if (!gitExtension) {
-            console.log('Git extension not available');
+            outputChannel.appendLine('Git extension not available');
             return null;
         }
 
         const git = gitExtension.exports.getAPI(1);
         if (!git) {
-            console.log('Git API not available');
+            outputChannel.appendLine('Git API not available');
             return null;
         }
 
         const repositories = git.repositories;
         if (repositories.length === 0) {
-            console.log('No git repositories found');
+            outputChannel.appendLine('No git repositories found');
             return null;
         }
 
-        // Use the first repository (usually the main one)
-        const repository = repositories[0];
+        let repository;
+        if (repositories.length === 1) {
+            repository = repositories[0];
+        } else {
+            // Multi-root workspace: let user select repository
+            interface RepoItem extends vscode.QuickPickItem {
+                repo: any;
+            }
+            const repoItems: RepoItem[] = repositories.map((repo: any, index: number) => ({
+                label: repo.rootUri.fsPath.split('/').pop() || `Repository ${index + 1}`,
+                description: repo.rootUri.fsPath,
+                repo
+            }));
+            const selected = await vscode.window.showQuickPick(repoItems, {
+                placeHolder: 'Select a Git repository'
+            });
+            if (!selected) {
+                outputChannel.appendLine('No repository selected');
+                return null;
+            }
+            repository = selected.repo;
+        }
+
         const head = repository.state.HEAD;
         if (!head) {
-            console.log('No HEAD found');
+            outputChannel.appendLine('No HEAD found');
             return null;
         }
 
         return head.name || null;
     } catch (error) {
-        console.error('Error getting current branch:', error);
+        outputChannel.appendLine(`Error getting current branch: ${error}`);
         return null;
     }
 }
@@ -45,28 +69,30 @@ export async function getCurrentBranch(): Promise<string | null> {
  * セッション作成時のブランチ選択に必要な情報を取得する
  * @param selectedSource 選択されたソース
  * @param apiClient APIクライアント
+ * @param outputChannel ログ出力チャンネル
  * @returns ブランチリスト、デフォルトブランチ、現在のブランチ
  */
 export async function getBranchesForSession(
     selectedSource: SourceType,
-    apiClient: JulesApiClient
+    apiClient: JulesApiClient,
+    outputChannel: vscode.OutputChannel
 ): Promise<{ branches: string[]; defaultBranch: string; currentBranch: string | null }> {
     let branches: string[] = [];
-    let defaultBranch = 'main';
+    let defaultBranch = DEFAULT_FALLBACK_BRANCH;
 
     try {
         const sourceDetail = await apiClient.getSource(selectedSource.name!);
         if (sourceDetail.githubRepo?.branches) {
             branches = sourceDetail.githubRepo.branches.map(b => b.displayName);
-            defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || 'main';
+            defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || DEFAULT_FALLBACK_BRANCH;
         }
     } catch (error) {
-        console.error('Failed to get branches, using default:', error);
+        outputChannel.appendLine(`Failed to get branches, using default: ${error}`);
         branches = [defaultBranch];
     }
 
     // 現在のブランチを取得
-    const currentBranch = await getCurrentBranch();
+    const currentBranch = await getCurrentBranch(outputChannel);
 
     // 設定からデフォルトブランチ選択を取得
     const config = vscode.workspace.getConfiguration('jules');
