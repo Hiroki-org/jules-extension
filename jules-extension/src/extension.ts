@@ -56,6 +56,10 @@ interface SessionResponse {
   // Add other fields if needed
 }
 
+interface SessionsResponse {
+  sessions?: Session[];
+}
+
 interface SessionOutput {
   pullRequest?: {
     url: string;
@@ -759,7 +763,7 @@ class JulesSessionsProvider
 
       console.log(`Jules: Found ${data.sessions.length} total sessions`);
 
-      const allSessionsMapped = data.sessions.map((session) => ({
+      const allSessionsMapped = data.sessions.map((session: Session) => ({
         ...session,
         rawState: session.state,
         state: mapApiStateToSessionState(session.state),
