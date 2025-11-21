@@ -1163,7 +1163,7 @@ export function activate(context: vscode.ExtensionContext) {
         let startingBranch = selectedBranch.label;
 
         // リモートブランチの存在チェック
-        if (!remoteBranches.includes(startingBranch)) {
+        if (!new Set(remoteBranches).has(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(`[Jules] Warning: Branch "${startingBranch}" not found on remote`);
 
