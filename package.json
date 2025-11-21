@@ -88,7 +88,7 @@
           "enumDescriptions": [
             "Use the current Git branch",
             "Use the repository's default branch",
-            "Always use 'main' branch"
+            "Use 'main' branch, or the repository's default if 'main' does not exist"
           ],
           "scope": "resource"
         }
