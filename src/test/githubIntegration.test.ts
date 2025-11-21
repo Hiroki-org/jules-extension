@@ -214,8 +214,9 @@ suite('GitHub Integration Tests', () => {
     });
 
     test('Should accept valid PAT formats in Set GitHub PAT command', async () => {
-        // 有効なPAT形式でテスト
-        showInputBoxStub.resolves('test-valid-pat-placeholder');
+        // 有効なPAT形式でテスト (ghp_ + 36文字)
+        const validPat = 'ghp_' + 'a'.repeat(36);
+        showInputBoxStub.resolves(validPat);
 
         // setGitHubPatコマンドを呼び出し
         await vscode.commands.executeCommand('jules-extension.setGitHubPat');
