@@ -126,6 +126,41 @@ export function buildFinalPrompt(userPrompt: string): string {
   return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
 }
 
+async function getCurrentBranch(): Promise<string | null> {
+  try {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (!gitExtension) {
+      console.log('Git extension not available');
+      return null;
+    }
+
+    const git = gitExtension.exports.getAPI(1);
+    if (!git) {
+      console.log('Git API not available');
+      return null;
+    }
+
+    const repositories = git.repositories;
+    if (repositories.length === 0) {
+      console.log('No git repositories found');
+      return null;
+    }
+
+    // Use the first repository (usually the main one)
+    const repository = repositories[0];
+    const head = repository.state.HEAD;
+    if (!head) {
+      console.log('No HEAD found');
+      return null;
+    }
+
+    return head.name || null;
+  } catch (error) {
+    console.error('Error getting current branch:', error);
+    return null;
+  }
+}
+
 function resolveSessionId(
   context: vscode.ExtensionContext,
   target?: SessionTreeItem | string
@@ -1130,6 +1165,61 @@ export function activate(context: vscode.ExtensionContext) {
       const apiClient = new JulesApiClient(apiKey);
 
       try {
+        // ブランチ選択ロジック（メッセージ入力前に移動）
+        let branches: string[] = [];
+        let defaultBranch = 'main';
+
+        try {
+          const sourceDetail = await apiClient.getSource(selectedSource.name!);
+          if (sourceDetail.githubRepo?.branches) {
+            branches = sourceDetail.githubRepo.branches.map(b => b.displayName);
+            defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || 'main';
+          }
+        } catch (error) {
+          console.error('Failed to get branches, using default:', error);
+          branches = [defaultBranch];
+        }
+
+        // 現在のブランチを取得
+        const currentBranch = await getCurrentBranch();
+
+        // 設定からデフォルトブランチ選択を取得
+        const config = vscode.workspace.getConfiguration('jules');
+        const defaultBranchSetting = config.get<string>('defaultBranch', 'current');
+
+        // 設定に基づいてデフォルトブランチを決定
+        let selectedDefaultBranch = defaultBranch;
+        if (defaultBranchSetting === 'current' && currentBranch) {
+          selectedDefaultBranch = currentBranch;
+        } else if (defaultBranchSetting === 'main') {
+          selectedDefaultBranch = 'main';
+        } // 'default' の場合はAPIから取得したdefaultBranchを使用
+
+        // 現在のブランチをブランチリストの先頭に追加（まだない場合）
+        if (currentBranch && !branches.includes(currentBranch)) {
+          branches.unshift(currentBranch);
+        }
+
+        // QuickPickでブランチ選択
+        const selectedBranch = await vscode.window.showQuickPick(
+          branches.map(branch => ({
+            label: branch,
+            picked: branch === selectedDefaultBranch,
+            description: branch === selectedDefaultBranch ? '(default)' : (branch === currentBranch ? '(current)' : undefined)
+          })),
+          {
+            placeHolder: 'Select a branch for this session',
+            title: 'Branch Selection'
+          }
+        );
+
+        if (!selectedBranch) {
+          vscode.window.showWarningMessage("Branch selection was cancelled.");
+          return;
+        }
+
+        const startingBranch = selectedBranch.label;
+
         const result = await showMessageComposer({
           title: "Create Jules Session",
           placeholder: "Describe the task you want Jules to tackle...",
@@ -1151,41 +1241,6 @@ export function activate(context: vscode.ExtensionContext) {
         const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
-
-        // ブランチ選択ロジック
-        let branches: string[] = [];
-        let defaultBranch = 'main';
-
-        try {
-          const sourceDetail = await apiClient.getSource(selectedSource.name!);
-          if (sourceDetail.githubRepo?.branches) {
-            branches = sourceDetail.githubRepo.branches.map(b => b.displayName);
-            defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || 'main';
-          }
-        } catch (error) {
-          console.error('Failed to get branches, using default:', error);
-          branches = [defaultBranch];
-        }
-
-        // QuickPickでブランチ選択
-        const selectedBranch = await vscode.window.showQuickPick(
-          branches.map(branch => ({
-            label: branch,
-            picked: branch === defaultBranch,
-            description: branch === defaultBranch ? '(default)' : undefined
-          })),
-          {
-            placeHolder: 'Select a branch for this session',
-            title: 'Branch Selection'
-          }
-        );
-
-        if (!selectedBranch) {
-          vscode.window.showWarningMessage("Branch selection was cancelled.");
-          return;
-        }
-
-        const startingBranch = selectedBranch.label;
         const requestBody: CreateSessionRequest = {
           prompt: finalPrompt,
           sourceContext: {
