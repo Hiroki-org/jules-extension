@@ -1272,6 +1272,14 @@ export function activate(context: vscode.ExtensionContext) {
               );
               logChannel.appendLine(`[Jules] Remote branch "${startingBranch}" created successfully`);
               vscode.window.showInformationMessage(`Remote branch "${startingBranch}" created successfully.`);
+
+              // Force refresh branches cache after remote branch creation
+              try {
+                await getBranchesForSession(selectedSource, apiClient, logChannel, context, true);
+                logChannel.appendLine('[Jules] Branches cache refreshed after remote branch creation');
+              } catch (error) {
+                logChannel.appendLine(`[Jules] Failed to refresh branches cache: ${error}`);
+              }
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : "Unknown error";
               logChannel.appendLine(`[Jules] Failed to create remote branch: ${errorMessage}`);
@@ -1678,8 +1686,11 @@ export function activate(context: vscode.ExtensionContext) {
     async () => {
       const keys = context.globalState.keys();
       const cacheKeys = keys.filter(key => key.startsWith('jules.sources') || key.startsWith('jules.branches.'));
-      cacheKeys.forEach(key => context.globalState.update(key, undefined));
-      logChannel.appendLine(`Cleared ${cacheKeys.length} cache entries`);
+      cacheKeys.forEach(key => {
+        context.globalState.update(key, undefined);
+        logChannel.appendLine(`Cleared cache: ${key}`);
+      });
+      logChannel.appendLine(`Total cleared: ${cacheKeys.length} cache entries`);
       vscode.window.showInformationMessage(`Cache cleared: ${cacheKeys.length} entries removed`);
     }
   );

@@ -78,12 +78,13 @@ export async function getBranchesForSession(
     selectedSource: SourceType,
     apiClient: JulesApiClient,
     outputChannel: vscode.OutputChannel,
-    context: vscode.ExtensionContext
+    context: vscode.ExtensionContext,
+    forceRefresh: boolean = false
 ): Promise<{ branches: string[]; defaultBranch: string; currentBranch: string | null; remoteBranches: string[] }> {
     const cacheKey = `jules.branches.${selectedSource.id}`;
     const cached = context.globalState.get<BranchesCache>(cacheKey);
 
-    if (cached && isCacheValid(cached.timestamp)) {
+    if (cached && isCacheValid(cached.timestamp) && !forceRefresh) {
         outputChannel.appendLine('Using cached branches');
         return {
             branches: cached.branches,
@@ -91,6 +92,10 @@ export async function getBranchesForSession(
             currentBranch: cached.currentBranch,
             remoteBranches: cached.remoteBranches
         };
+    }
+
+    if (forceRefresh) {
+        outputChannel.appendLine('Force refreshing branches cache');
     }
 
     let branches: string[] = [];
