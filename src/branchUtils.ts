@@ -138,6 +138,7 @@ export async function getBranchesForSession(
 
     // 現在のブランチをブランチリストの先頭に追加（まだない場合）
     if (currentBranch && !branches.includes(currentBranch)) {
+        branches.unshift(currentBranch);
     }
 
     const result = { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches };

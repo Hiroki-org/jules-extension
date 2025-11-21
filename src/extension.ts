@@ -1685,11 +1685,25 @@ export function activate(context: vscode.ExtensionContext) {
   const clearCacheDisposable = vscode.commands.registerCommand(
     "jules-extension.clearCache",
     async () => {
-      const cacheKeys = ['jules.sources', 'jules.branches'];
-      await Promise.all(
-        cacheKeys.map(key => context.globalState.update(key, undefined))
-      );
-      vscode.window.showInformationMessage("Cache cleared successfully.");
+      try {
+        // すべてのキーを取得
+        const allKeys = context.globalState.keys();
+
+        // Sources & Branches キャッシュをフィルタ
+        const branchCacheKeys = allKeys.filter(key => key.startsWith('jules.branches.'));
+        const cacheKeys = ['jules.sources', ...branchCacheKeys];
+
+        // すべてのキャッシュをクリア
+        await Promise.all(
+          cacheKeys.map(key => context.globalState.update(key, undefined))
+        );
+
+        vscode.window.showInformationMessage(`Jules cache cleared: ${cacheKeys.length} entries removed`);
+        logChannel.appendLine(`[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheKeys.length} branches)`);
+      } catch (error: any) {
+        logChannel.appendLine(`[Jules] Error clearing cache: ${error.message}`);
+        vscode.window.showErrorMessage(`Failed to clear cache: ${error.message}`);
+      }
     }
   );
 
