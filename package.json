@@ -177,6 +177,12 @@
         "command": "jules-extension.signInGitHub",
         "title": "Sign in to GitHub",
         "category": "Jules"
+      },
+      {
+        "command": "jules-extension.openRepository",
+        "title": "Open Repository",
+        "category": "Jules",
+        "icon": "$(github)"
       }
     ],
     "views": {
@@ -215,6 +221,11 @@
           "command": "jules-extension.setApiKey",
           "when": "view == julesSessionsView",
           "group": "navigation@5"
+        },
+        {
+          "command": "jules-extension.openRepository",
+          "when": "view == julesSessionsView",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [

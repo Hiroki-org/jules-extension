@@ -1868,6 +1868,21 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const openRepositoryDisposable = vscode.commands.registerCommand(
+    "jules-extension.openRepository",
+    () => {
+      const packageJson = require("../package.json");
+      const repoUrl = packageJson.repository?.url;
+      if (repoUrl) {
+        // "git+" プレフィックスを削除し、".git" サフィックスを削除
+        const url = repoUrl.replace(/^git\+/, "").replace(/\.git$/, "");
+        vscode.env.openExternal(vscode.Uri.parse(url));
+      } else {
+        vscode.window.showErrorMessage("Repository URL not found in package.json");
+      }
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -1883,7 +1898,8 @@ export function activate(context: vscode.ExtensionContext) {
     deleteSessionDisposable,
     setGithubTokenDisposable,
     setGitHubPatDisposable,
-    clearCacheDisposable
+    clearCacheDisposable,
+    openRepositoryDisposable
   );
 }
 
