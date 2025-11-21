@@ -6,7 +6,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-- Initial release
+- Updated `README.md` to reflect the latest features, commands, and settings.
+- Improved clarity on authentication methods, deprecating PAT in favor of OAuth.
 
 ## [1.0.8] - 2025-11-16
 
