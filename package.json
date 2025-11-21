@@ -83,13 +83,14 @@
             "default",
             "main"
           ],
-          "enumDescriptions": [
-            "Use current Git branch as default",
-            "Use repository's default branch",
-            "Use 'main' branch (fallback to default if not exists)"
-          ],
           "default": "current",
-          "description": "Which branch to select by default when creating a session"
+          "description": "Default branch selection behavior when creating a Jules session",
+          "enumDescriptions": [
+            "Use the current Git branch",
+            "Use the repository's default branch",
+            "Use 'main' branch, or the repository's default if 'main' does not exist"
+          ],
+          "scope": "resource"
         }
       }
     },
