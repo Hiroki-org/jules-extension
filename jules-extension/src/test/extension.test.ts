@@ -4,6 +4,7 @@ import * as assert from "assert";
 // as well as import your extension to test it
 import * as vscode from "vscode";
 import { SessionTreeItem, mapApiStateToSessionState, buildFinalPrompt } from "../extension";
+import { getArtifactsHtml } from "../extension";
 import * as sinon from "sinon";
 
 suite("Extension Test Suite", () => {
@@ -140,7 +141,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should return only user prompt if custom prompt is not set", () => {
-       const workspaceConfig = {
+      const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns(undefined),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
@@ -189,6 +190,34 @@ suite("Extension Test Suite", () => {
       };
 
       assert.ok(!session.outputs || session.outputs.length === 0);
+    });
+  });
+
+  suite("Artifacts UI", () => {
+    test("getArtifactsHtml returns html with media and patch", () => {
+      const fakeWebview: any = { cspSource: "vscode-resource:" };
+      const artifacts = [
+        {
+          media: [{ mimeType: "image/png", data: "RkFN" }],
+        },
+        {
+          changeSet: {
+            gitPatch: {
+              unidiffPatch: "+added\n-deleted\n context\n",
+              baseCommitId: "abc123",
+              suggestedCommitMessage: "Suggested commit",
+            },
+          },
+        },
+        {
+          bashOutput: { command: "ls", output: "file1\nfile2", exitCode: 0 },
+        },
+      ];
+
+      const html = getArtifactsHtml(fakeWebview, artifacts as any);
+      assert.ok(html.includes("<img"));
+      assert.ok(html.includes("added"));
+      assert.ok(html.includes("ls"));
     });
   });
 });

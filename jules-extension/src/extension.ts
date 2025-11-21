@@ -1,6 +1,8 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
+import { Activity, ActivitiesResponse, Artifact } from "./types";
+import { JulesAPIClient } from "./julesApiClient";
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -563,6 +565,96 @@ function getComposerHtml(
 </html>`;
 }
 
+function escapeCss(value: string): string {
+  return value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function getArtifactsHtml(webview: vscode.Webview, artifacts: Artifact[]): string {
+  const nonce = getNonce();
+
+  const mediaHtml = artifacts
+    .filter((a) => a.media && a.media.length > 0)
+    .map((a) =>
+      a.media
+        ?.map((m) => `<div class="media-item"><img src="data:${m.mimeType};base64,${m.data}" /></div>`)
+        .join("")
+    )
+    .join("");
+
+  const changeSetHtml = artifacts
+    .filter((a) => a.changeSet && a.changeSet.gitPatch?.unidiffPatch)
+    .map((a) => {
+      const patch = a.changeSet?.gitPatch?.unidiffPatch || "";
+      const baseCommit = a.changeSet?.gitPatch?.baseCommitId || "";
+      const suggested = a.changeSet?.gitPatch?.suggestedCommitMessage || "";
+      const lines = escapeHtml(patch).split("\n");
+      const rows = lines
+        .map((l) => {
+          const cls = l.startsWith("+") ? "added" : l.startsWith("-") ? "removed" : "context";
+          return `<div class="diff-line ${cls}">${l}</div>`;
+        })
+        .join("");
+      return `
+        <div class="changeset">
+          <div class="meta">Base Commit: ${escapeHtml(baseCommit)}</div>
+          <pre class="patch">${rows}</pre>
+          <div class="commit">Suggested: <input id="suggested" readonly value="${escapeAttribute(suggested)}"/></div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const bashHtml = artifacts
+    .filter((a) => a.bashOutput)
+    .map((a) => {
+      const b = a.bashOutput!;
+      const output = escapeHtml(b.output || "");
+      const cls = (b.exitCode ?? 0) === 0 ? "ok" : "err";
+      return `
+        <div class="bash">
+          <div class="cmd">$ ${escapeHtml(b.command || "")}</div>
+          <pre class="console ${cls}">${output}</pre>
+          <div class="exit">Exit Code: ${escapeHtml(String(b.exitCode ?? 0))}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const content = `
+    <div class="artifacts-root">
+      ${mediaHtml || ""}
+      ${changeSetHtml || ""}
+      ${bashHtml || ""}
+      ${!(mediaHtml || changeSetHtml || bashHtml) ? '<div>No artifacts found.</div>' : ''}
+    </div>
+  `;
+
+  return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}'; style-src ${webview.cspSource} 'nonce-${nonce}';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style nonce="${nonce}">
+    body { margin: 0; padding: 12px; font-family: var(--vscode-font-family); color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); }
+    img { max-width: 640px; height: auto; display:block; margin-bottom: 8px; border-radius: 6px; }
+    .diff-line.added { background: rgba(14, 102, 64, 0.15); color: #064; }
+    .diff-line.removed { background: rgba(170, 46, 46, 0.12); color: #a22; }
+    .diff-line.context { color: var(--vscode-editor-foreground); }
+    .patch { overflow:auto; padding:8px; border-radius:6px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-input-border); }
+    .console { overflow:auto; padding:8px; border-radius:6px; background:#000; color:#ddd; }
+    .console.err { background:#2b0000; color:#fff; }
+    .cmd { font-family: monospace; margin-bottom: 6px; }
+    .meta { font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-bottom: 6px; }
+    input[readonly] { width:100%; }
+  </style>
+  </head>
+  <body>
+    ${content}
+  </body>
+  </html>`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -597,21 +689,7 @@ interface Plan {
   steps?: string[];
 }
 
-interface Activity {
-  name: string;
-  createTime: string;
-  originator: "user" | "agent";
-  id: string;
-  type?: string;
-  planGenerated?: { plan: Plan };
-  planApproved?: { planId: string };
-  progressUpdated?: { title: string; description?: string };
-  sessionCompleted?: Record<string, never>;
-}
-
-interface ActivitiesResponse {
-  activities: Activity[];
-}
+// Activity and ActivitiesResponse are now defined in src/types.ts
 
 function getActivityIcon(activity: Activity): string {
   if (activity.planGenerated) {
@@ -1275,24 +1353,8 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         }
         const session = (await sessionResponse.json()) as Session;
-        const response = await fetch(
-          `${JULES_API_BASE_URL}/${sessionId}/activities`,
-          {
-            method: "GET",
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        if (!response.ok) {
-          const errorText = await response.text();
-          vscode.window.showErrorMessage(
-            `Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`
-          );
-          return;
-        }
-        const data = (await response.json()) as ActivitiesResponse;
+        const apiClient = new JulesAPIClient(apiKey);
+        const data = await apiClient.listActivities(sessionId);
         if (!data.activities || !Array.isArray(data.activities)) {
           vscode.window.showErrorMessage("Invalid response format from API.");
           return;
@@ -1317,8 +1379,8 @@ export function activate(context: vscode.ExtensionContext) {
               message = `Plan approved: ${activity.planApproved.planId}`;
             } else if (activity.progressUpdated) {
               message = `Progress: ${activity.progressUpdated.title}${activity.progressUpdated.description
-                  ? " - " + activity.progressUpdated.description
-                  : ""
+                ? " - " + activity.progressUpdated.description
+                : ""
                 }`;
             } else if (activity.sessionCompleted) {
               message = "Session completed";
@@ -1329,6 +1391,41 @@ export function activate(context: vscode.ExtensionContext) {
               `${icon} ${timestamp} (${activity.originator}): ${message}`
             );
           });
+          // Add an activity picker to optionally open artifacts
+          const actItems = data.activities.map((a) => {
+            let summary = "";
+            if (a.planGenerated) summary = `Plan generated: ${a.planGenerated.plan?.title || "Plan"}`;
+            else if (a.planApproved) summary = `Plan approved: ${a.planApproved.planId}`;
+            else if (a.progressUpdated)
+              summary = `Progress: ${a.progressUpdated.title}${a.progressUpdated.description ? " - " + a.progressUpdated.description : ""}`;
+            else if (a.sessionCompleted) summary = "Session completed";
+            else summary = a.type || "Unknown activity";
+
+            return {
+              label: `${getActivityIcon(a)} ${a.type || "activity"}`,
+              description: a.planGenerated?.plan?.title || "",
+              detail: a.createTime ? new Date(a.createTime).toLocaleString() : "",
+              activityName: a.name,
+              hasArtifacts: !!(a.artifacts && a.artifacts.length > 0),
+              message: summary,
+            } as any;
+          });
+
+          const selectedAct = await vscode.window.showQuickPick(actItems as any[], {
+            placeHolder: "Select activity to view artifacts (if present)",
+            matchOnDetail: true,
+          });
+          if (selectedAct) {
+            if (selectedAct.hasArtifacts) {
+              await vscode.commands.executeCommand(
+                "jules-extension.showActivityArtifacts",
+                sessionId,
+                selectedAct.activityName
+              );
+            } else {
+              vscode.window.showInformationMessage("No artifacts for the selected activity.");
+            }
+          }
         }
         await context.globalState.update("active-session-id", sessionId);
       } catch (error) {
@@ -1494,6 +1591,42 @@ export function activate(context: vscode.ExtensionContext) {
     deleteSessionDisposable,
     setGithubTokenDisposable
   );
+
+  const showActivityArtifactsDisposable = vscode.commands.registerCommand(
+    "jules-extension.showActivityArtifacts",
+    async (sessionId: string, activityName: string) => {
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+      try {
+        const client = new JulesAPIClient(apiKey);
+        const activity = await client.getActivity(sessionId, activityName);
+        if (!activity || !activity.artifacts || activity.artifacts.length === 0) {
+          vscode.window.showInformationMessage("No artifacts for the selected activity.");
+          return;
+        }
+
+        const panel = vscode.window.createWebviewPanel(
+          "julesArtifacts",
+          `Artifacts: ${activityName}`,
+          vscode.ViewColumn.Active,
+          {
+            enableScripts: true,
+            retainContextWhenHidden: false,
+          }
+        );
+
+        panel.webview.html = getArtifactsHtml(panel.webview, activity.artifacts);
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Failed to fetch artifacts: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  );
+
+  context.subscriptions.push(showActivityArtifactsDisposable);
 }
 
 // This method is called when your extension is deactivated
