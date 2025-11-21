@@ -70,20 +70,22 @@ export async function getCurrentBranch(outputChannel: vscode.OutputChannel): Pro
  * @param selectedSource 選択されたソース
  * @param apiClient APIクライアント
  * @param outputChannel ログ出力チャンネル
- * @returns ブランチリスト、デフォルトブランチ、現在のブランチ
+ * @returns ブランチリスト、デフォルトブランチ、現在のブランチ、リモートブランチ
  */
 export async function getBranchesForSession(
     selectedSource: SourceType,
     apiClient: JulesApiClient,
     outputChannel: vscode.OutputChannel
-): Promise<{ branches: string[]; defaultBranch: string; currentBranch: string | null }> {
+): Promise<{ branches: string[]; defaultBranch: string; currentBranch: string | null; remoteBranches: string[] }> {
     let branches: string[] = [];
     let defaultBranch = DEFAULT_FALLBACK_BRANCH;
+    let remoteBranches: string[] = [];
 
     try {
         const sourceDetail = await apiClient.getSource(selectedSource.name!);
         if (sourceDetail.githubRepo?.branches) {
-            branches = sourceDetail.githubRepo.branches.map(b => b.displayName);
+            remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);
+            branches = [...remoteBranches];  // リモートブランチをベースに
             defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || DEFAULT_FALLBACK_BRANCH;
         }
     } catch (error) {
@@ -111,5 +113,5 @@ export async function getBranchesForSession(
         branches.unshift(currentBranch);
     }
 
-    return { branches, defaultBranch: selectedDefaultBranch, currentBranch };
+    return { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches };
 }

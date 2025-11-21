@@ -1136,7 +1136,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         // ブランチ選択ロジック（メッセージ入力前に移動）
-        const { branches, defaultBranch: selectedDefaultBranch, currentBranch } = await getBranchesForSession(selectedSource, apiClient, logChannel);
+        const { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches } = await getBranchesForSession(selectedSource, apiClient, logChannel);
 
         // QuickPickでブランチ選択
         const selectedBranch = await vscode.window.showQuickPick(
@@ -1146,8 +1146,8 @@ export function activate(context: vscode.ExtensionContext) {
             description: (
               branch === selectedDefaultBranch ? '(default)' : undefined
             ) || (
-              branch === currentBranch ? '(current)' : undefined
-            )
+                branch === currentBranch ? '(current)' : undefined
+              )
           })),
           {
             placeHolder: 'Select a branch for this session',
@@ -1160,7 +1160,32 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         }
 
-        const startingBranch = selectedBranch.label;
+        let startingBranch = selectedBranch.label;
+
+        // リモートブランチの存在チェック
+        if (!remoteBranches.includes(startingBranch)) {
+          // ローカル専用ブランチの場合
+          logChannel.appendLine(`[Jules] Warning: Branch "${startingBranch}" not found on remote`);
+
+          const action = await vscode.window.showWarningMessage(
+            `Branch "${startingBranch}" exists locally but has not been pushed to remote.\n\n` +
+            `Jules requires a remote branch to start a session.\n` +
+            `You can push this branch first, or use the default branch "${selectedDefaultBranch}" instead.`,
+            { modal: true },
+            'Use Default Branch',
+            'Cancel'
+          );
+
+          if (action === 'Use Default Branch') {
+            startingBranch = selectedDefaultBranch;
+            logChannel.appendLine(`[Jules] Using default branch: ${selectedDefaultBranch}`);
+          } else {
+            logChannel.appendLine('[Jules] Session creation cancelled by user');
+            return;
+          }
+        } else {
+          logChannel.appendLine(`[Jules] Branch "${startingBranch}" found on remote`);
+        }
 
         const result = await showMessageComposer({
           title: "Create Jules Session",
