@@ -20,30 +20,30 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
         owner: match[1],
         repo: match[2],
     };
- */
-    export async function createRemoteBranch(
-        pat: string,
-        owner: string,
-        repo: string,
-        branchName: string
-    ): Promise<void> {
-        const { Octokit } = await import('@octokit/rest');
-        const octokit = new Octokit({ auth: pat });
+}
+export async function createRemoteBranch(
+    pat: string,
+    owner: string,
+    repo: string,
+    branchName: string
+): Promise<void> {
+    const { Octokit } = await import('@octokit/rest');
+    const octokit = new Octokit({ auth: pat });
 
-        // デフォルトブランチのSHAを取得
-        const { data: repoData } = await octokit.repos.get({ owner, repo });
-        const defaultBranch = repoData.default_branch;
-        const { data: refData } = await octokit.git.getRef({
-            owner,
-            repo,
-            ref: `heads/${defaultBranch}`
-        });
-        const baseSha = refData.object.sha;
+    // デフォルトブランチのSHAを取得
+    const { data: repoData } = await octokit.repos.get({ owner, repo });
+    const defaultBranch = repoData.default_branch;
+    const { data: refData } = await octokit.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${defaultBranch}`
+    });
+    const baseSha = refData.object.sha;
 
-        await octokit.git.createRef({
-            owner,
-            repo,
-            ref: `refs/heads/${branchName}`,
-            sha: baseSha
-        });
-    }
+    await octokit.git.createRef({
+        owner,
+        repo,
+        ref: `refs/heads/${branchName}`,
+        sha: baseSha
+    });
+}

@@ -1643,9 +1643,16 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
       if (pat) {
-        await context.secrets.store('jules-github-pat', pat);
-        vscode.window.showInformationMessage('GitHub PAT saved successfully');
-        logChannel.appendLine('[Jules] GitHub PAT saved');
+        // 追加の検証（validateInputが通った場合でも再チェック）
+        const ghpPattern = /^ghp_[A-Za-z0-9]{36}$/;
+        const githubPatPattern = /^github_pat_[A-Za-z0-9_]{82}$/;
+        if (ghpPattern.test(pat) || githubPatPattern.test(pat)) {
+          await context.secrets.store('jules-github-pat', pat);
+          vscode.window.showInformationMessage('GitHub PAT saved successfully');
+          logChannel.appendLine('[Jules] GitHub PAT saved');
+        } else {
+          vscode.window.showErrorMessage('Invalid PAT format. PAT was not saved.');
+        }
       }
     }
   );
