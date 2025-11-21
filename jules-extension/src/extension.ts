@@ -1369,7 +1369,7 @@ export function activate(context: vscode.ExtensionContext) {
           let planDetected = false;
           data.activities.forEach((activity) => {
             const icon = getActivityIcon(activity);
-            const timestamp = new Date(activity.createTime).toLocaleString();
+            const timestamp = activity.createTime ? new Date(activity.createTime).toLocaleString() : "";
             let message = "";
             if (activity.planGenerated) {
               message = `Plan generated: ${activity.planGenerated.plan?.title || "Plan"
