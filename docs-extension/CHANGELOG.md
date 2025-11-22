@@ -4,9 +4,10 @@ All notable changes to the "jules-extension" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [1.1.1] - 2024-05-20
 
-- Initial release
+- `README.md` と `CHANGELOG.md` を更新し、最新の機能と変更点を反映させました。
+- 認証、設定、コマンドに関するドキュメントを日本語で拡充しました。
 
 ## [1.0.8] - 2025-11-16
 
