@@ -414,23 +414,116 @@ async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
   }
 }
 
-async function notifyPlanAwaitingApproval(
+export async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext
 ): Promise<void> {
-  const selection = await vscode.window.showInformationMessage(
-    `Jules has a plan ready for your approval in session: "${session.title}"`,
-    "Approve Plan",
-    "View Details"
-  );
+  // Get API key first
+  const apiKey = await getStoredApiKey(context);
+  if (!apiKey) {
+    return;
+  }
 
-  if (selection === "Approve Plan") {
-    await approvePlan(session.name, context);
-  } else if (selection === "View Details") {
-    await vscode.commands.executeCommand(
-      "jules-extension.showActivities",
-      session.name
+  // Create a local logger channel for debug output
+  const logger = vscode.window.createOutputChannel("Jules Extension Logs");
+
+  try {
+    const response = await fetch(`${JULES_API_BASE_URL}/${session.name}/activities`, {
+      method: "GET",
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as ActivitiesResponse;
+    const activities = Array.isArray(data.activities) ? data.activities : [];
+
+    const planActivity = activities.find((a) => a.planGenerated);
+    logger.appendLine(`[Jules] planActivity found: ${!!planActivity}`);
+    if (planActivity) {
+      logger.appendLine(`[Jules] Full planActivity: ${JSON.stringify(planActivity, null, 2)}`);
+    }
+
+    if (!planActivity?.planGenerated) {
+      // Fallback to original simple notification if no plan details
+      const selection = await vscode.window.showInformationMessage(
+        `Jules has a plan ready for your approval in session: "${session.title}"`,
+        "Approve Plan",
+        "View Details"
+      );
+
+      if (selection === "Approve Plan") {
+        await approvePlan(session.name, context);
+      } else if (selection === "View Details") {
+        await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+      }
+
+      return;
+    }
+
+    const plan = planActivity.planGenerated;
+
+    // If steps are missing or empty, prefer using the activity.description
+    if (!plan.steps || plan.steps.length === 0) {
+      logger.appendLine('[Jules] No plan steps available — falling back to activity.description');
+      const planDescription = planActivity.description || 'Plan generated but no details available.';
+
+      logger.appendLine(`[Jules] Plan description: ${planDescription}`);
+
+      const selection = await vscode.window.showInformationMessage(
+        `📝 Plan Ready\n\n${planDescription}\n\nApprove this plan?`,
+        { modal: true },
+        "Approve Plan",
+        "View Details"
+      );
+
+      if (selection === "Approve Plan") {
+        await approvePlan(session.name, context);
+      } else if (selection === "View Details") {
+        await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+      }
+
+      return;
+    }
+
+    // Build steps representation when we do have step entries
+    const stepsText = plan.steps
+      .map((step) => `${step.index + 1}. ${step.title}\n   ${step.description}`)
+      .join("\n\n");
+
+    const message = `📝 Plan Ready (${plan.steps.length} steps)\n\n${stepsText}\n\nApprove this plan?`;
+
+    const selection = await vscode.window.showInformationMessage(
+      message,
+      { modal: true },
+      "Approve Plan",
+      "View Details"
     );
+
+    if (selection === "Approve Plan") {
+      await approvePlan(session.name, context);
+    } else if (selection === "View Details") {
+      await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    }
+  } catch (error: any) {
+    logger.appendLine(`[Jules] Error fetching plan details: ${error?.message ?? String(error)}`);
+    // fallback to basic flow
+    const selection = await vscode.window.showInformationMessage(
+      `Jules has a plan ready for your approval in session: "${session.title}"`,
+      "Approve Plan",
+      "View Details"
+    );
+
+    if (selection === "Approve Plan") {
+      await approvePlan(session.name, context);
+    } else if (selection === "View Details") {
+      await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    }
   }
 }
 
@@ -768,9 +861,17 @@ interface SessionsResponse {
   sessions: Session[];
 }
 
-interface Plan {
-  title?: string;
-  steps?: string[];
+interface PlanStep {
+  id: string;
+  title: string;
+  description: string;
+  index: number;
+}
+
+interface PlanGenerated {
+  id: string;
+  steps: PlanStep[];
+  createTime: string;
 }
 
 interface Activity {
@@ -779,7 +880,7 @@ interface Activity {
   originator: "user" | "agent";
   id: string;
   type?: string;
-  planGenerated?: { plan: Plan };
+  planGenerated?: PlanGenerated;
   planApproved?: { planId: string };
   progressUpdated?: { title: string; description?: string };
   sessionCompleted?: Record<string, never>;
@@ -1542,14 +1643,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     const items: vscode.QuickPickItem[] = [];
     planActivities.forEach((a, planIdx) => {
-      const plan = a.planGenerated!.plan;
-      const title = plan.title || `Plan ${planIdx + 1}`;
-      const steps = Array.isArray(plan.steps) ? plan.steps : [];
-      steps.forEach((step, stepIdx) => {
+      const planGen = a.planGenerated!;
+      const title = planGen.id ? `Plan ${planIdx + 1} (${planGen.id})` : `Plan ${planIdx + 1}`;
+      const steps: PlanStep[] = Array.isArray(planGen.steps) ? planGen.steps : [];
+      steps.forEach((step) => {
         items.push({
-          label: `📋 ${title} — Step ${stepIdx + 1}`,
-          detail: step,
-          description: `${title}`,
+          label: `📋 Step ${step.index + 1}: ${step.title}`,
+          detail: step.description,
+          description: `ID: ${step.id}`,
         });
       });
     });
@@ -1653,8 +1754,10 @@ export function activate(context: vscode.ExtensionContext) {
             const timestamp = new Date(activity.createTime).toLocaleString();
             let message = "";
             if (activity.planGenerated) {
-              message = `Plan generated: ${activity.planGenerated.plan?.title || "Plan"
-                }`;
+              const count = Array.isArray(activity.planGenerated.steps)
+                ? activity.planGenerated.steps.length
+                : 0;
+              message = `Plan generated (${count} steps)`;
               planDetected = true;
             } else if (activity.planApproved) {
               message = `Plan approved: ${activity.planApproved.planId}`;
@@ -1675,13 +1778,30 @@ export function activate(context: vscode.ExtensionContext) {
         }
         // Show modal prompt for any generated plan (provide title + up to 100 chars summary)
         const planActivity = data.activities.find((a) => a.planGenerated);
-        const plan = planActivity?.planGenerated?.plan;
-        if (plan) {
-          const rawDesc = Array.isArray(plan.steps) ? plan.steps.join(' ') : '';
-          const summary = rawDesc.length > 100 ? rawDesc.substring(0, 100) + "..." : rawDesc;
-          const message = plan.title
-            ? `📝 Plan: ${plan.title}\n\n${summary}\n\nApprove this plan?`
-            : `Plan generated. Approve plan?`;
+        logChannel.appendLine(`[Jules] planActivity found: ${!!planActivity}`);
+        if (planActivity) {
+          logChannel.appendLine(`[Jules] Full planActivity: ${JSON.stringify(planActivity, null, 2)}`);
+        }
+        if (planActivity?.planGenerated) {
+          logChannel.appendLine(`[Jules] plan.steps length: ${planActivity.planGenerated.steps?.length || 0}`);
+          logChannel.appendLine(`[Jules] plan.steps: ${JSON.stringify(planActivity.planGenerated.steps || [], null, 2)}`);
+          logChannel.appendLine(`[Jules] activity.description: ${JSON.stringify((planActivity as any).description ?? null)}`);
+
+          const plan = planActivity.planGenerated;
+
+          // If there are no steps, show an informative message and log it
+          if (!plan.steps || plan.steps.length === 0) {
+            logChannel.appendLine('[Jules] No plan steps available');
+            await vscode.window.showInformationMessage('Plan generated but no steps available');
+            return;
+          }
+
+          // Build a readable multi-line representation of steps
+          const stepsText = plan.steps
+            .map((step) => `${step.index + 1}. ${step.title}\n   ${step.description}`)
+            .join('\n\n');
+
+          const message = `📝 Plan Generated (${plan.steps.length} steps)\n\n${stepsText}\n\nApprove this plan?`;
 
           const action = await vscode.window.showInformationMessage(
             message,

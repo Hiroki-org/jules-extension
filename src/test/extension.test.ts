@@ -3,7 +3,7 @@ import * as assert from "assert";
 // You can import and use all API from the 'vscode' module
 // as well as import your extension to test it
 import * as vscode from "vscode";
-import { SessionTreeItem, mapApiStateToSessionState, buildFinalPrompt } from "../extension";
+import { SessionTreeItem, mapApiStateToSessionState, buildFinalPrompt, notifyPlanAwaitingApproval } from "../extension";
 import * as sinon from "sinon";
 
 suite("Extension Test Suite", () => {
@@ -261,6 +261,84 @@ suite("Extension Test Suite", () => {
 
       // 6分前のキャッシュは無効
       assert.ok((now - invalidTimestamp) >= ttl);
+    });
+  });
+
+  suite("Plan approval notifications", () => {
+    let sandbox: sinon.SinonSandbox;
+    let mockContext: any;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      mockContext = {
+        secrets: {
+          get: sandbox.stub().withArgs('jules-api-key').resolves('fake-api-key'),
+        },
+      } as any;
+
+      sandbox.stub(global, 'fetch');
+    });
+
+    teardown(() => {
+      sandbox.restore();
+    });
+
+    test("uses Activity.description when plan steps are empty", async () => {
+      const fetchStub = (global.fetch as sinon.SinonStub).resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            {
+              name: 'activities/1',
+              planGenerated: { id: 'pg1', steps: [] },
+              description: 'Update README.md to include setup instructions',
+            },
+          ],
+        }),
+      });
+
+      const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
+
+      const session = { name: 'sessions/test', title: 'Test Session' } as any;
+
+      await notifyPlanAwaitingApproval(session, mockContext);
+
+      assert.ok(showInfoStub.calledOnce, 'showInformationMessage should be called');
+      const messageArg = showInfoStub.getCall(0).args[0] as string;
+      assert.ok(messageArg.includes('Update README.md'), 'message should include the description text');
+
+      fetchStub.restore?.();
+    });
+
+    test("shows steps when plan steps are present", async () => {
+      const fetchStub = (global.fetch as sinon.SinonStub).resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            {
+              name: 'activities/2',
+              planGenerated: {
+                id: 'pg2',
+                steps: [
+                  { id: 's1', title: 'Update README', description: 'Modify README content', index: 0 },
+                ],
+              },
+            },
+          ],
+        }),
+      });
+
+      const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
+
+      const session = { name: 'sessions/test', title: 'Test Session' } as any;
+
+      await notifyPlanAwaitingApproval(session, mockContext);
+
+      assert.ok(showInfoStub.calledOnce, 'showInformationMessage should be called');
+      const messageArg = showInfoStub.getCall(0).args[0] as string;
+      assert.ok(messageArg.includes('1. Update README'), 'message should include the step title when steps are present');
+
+      fetchStub.restore?.();
     });
   });
 });
