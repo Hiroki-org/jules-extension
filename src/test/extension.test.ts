@@ -95,7 +95,7 @@ suite("Extension Test Suite", () => {
         rawState: "IN_PROGRESS",
       } as any);
 
-      assert.strictEqual(item.contextValue, "session");
+      assert.strictEqual(item.contextValue, "jules-session");
     });
 
     test("SessionTreeItem should have proper command", () => {
@@ -129,7 +129,7 @@ suite("Extension Test Suite", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
       };
-      getConfigurationStub.withArgs("jules").returns(workspaceConfig as any);
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
@@ -140,7 +140,7 @@ suite("Extension Test Suite", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns(""),
       };
-      getConfigurationStub.withArgs("jules").returns(workspaceConfig as any);
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
@@ -151,7 +151,7 @@ suite("Extension Test Suite", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns(undefined),
       };
-      getConfigurationStub.withArgs("jules").returns(workspaceConfig as any);
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);

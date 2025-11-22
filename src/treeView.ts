@@ -47,13 +47,13 @@ export class SessionTreeItem extends vscode.TreeItem {
 
         this.tooltip = `${this.label} (${this.state})`;
         this.description = this.state;
-        this.contextValue = 'session';
+        this.contextValue = 'jules-session';
 
         let iconName = 'circle-slash';
-        if (this.state === 'RUNNING') {
-            iconName = 'sync~spin';
-        } else if (this.state === 'AWAITING_PLAN_APPROVAL') {
+        if (session.rawState === 'AWAITING_PLAN_APPROVAL') {
             iconName = 'clock';
+        } else if (this.state === 'RUNNING') {
+            iconName = 'sync~spin';
         } else if (this.state === 'COMPLETED' || this.state === 'SUCCEEDED') {
             iconName = 'pass';
         } else if (this.state === 'FAILED') {

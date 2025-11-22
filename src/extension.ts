@@ -57,7 +57,7 @@ export function buildFinalPrompt(userPrompt: string): string {
   const config = vscode.workspace.getConfiguration("jules-extension");
   const customPrompt = (config.get<string>("customPrompt") || "").trim();
   if (customPrompt) {
-    return `${userPrompt}\n\n${customPrompt}`;
+    return `${customPrompt}\n\n${userPrompt}`;
   }
   return userPrompt;
 }
@@ -68,6 +68,7 @@ export function mapApiStateToSessionState(apiState: string): Session['state'] {
     case 'FAILED': return 'FAILED';
     case 'CANCELLED': return 'CANCELLED';
     case 'PAUSED': return 'CANCELLED';
+    case 'AWAITING_PLAN_APPROVAL': return 'RUNNING';
     default: return 'RUNNING';
   }
 }
