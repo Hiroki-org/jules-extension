@@ -19,5 +19,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '@Jules'
+              body: `[レビュー](${github.event.review.html_url}) に返信します。\n\n@Jules`
             })
