@@ -3,7 +3,8 @@ import { JULES_API_BASE_URL } from './constants';
 import { extractPRUrl } from './githubUtils';
 import { JulesApiClient } from './julesApiClient';
 import { SessionManager } from './sessionManager';
-import { LocalSession, Activity, PlanGenerated } from './types';
+import { LocalSession, Activity, PlanGenerated, Session } from './types';
+import { JulesSessionsProvider } from './treeView';
 
 export class PollingManager {
     private pollingInterval: NodeJS.Timeout | undefined;
@@ -13,7 +14,14 @@ export class PollingManager {
         private context: vscode.ExtensionContext,
         private sessionManager: SessionManager,
         private outputChannel: vscode.OutputChannel,
-        private onPlanAwaitingApproval: (session: LocalSession, plan: PlanGenerated) => void
+        private sessionsProvider: JulesSessionsProvider,
+        private onPlanAwaitingApproval: (
+            session: LocalSession,
+            planActivity: Activity,
+            context: vscode.ExtensionContext,
+            sessionsProvider: JulesSessionsProvider,
+            logChannel: vscode.OutputChannel
+        ) => Promise<void>
     ) {
         // Listen for configuration changes
         vscode.workspace.onDidChangeConfiguration(e => {
@@ -59,12 +67,6 @@ export class PollingManager {
 
         try {
             const sessions = this.sessionManager.getSessions();
-            const activeSessions = sessions.filter(s => s.state === 'RUNNING');
-
-            if (activeSessions.length === 0) {
-                this.isPolling = false;
-                return;
-            }
 
             const apiKey = await this.context.secrets.get("jules-api-key");
             if (!apiKey) {
@@ -75,8 +77,36 @@ export class PollingManager {
 
             const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
-            for (const session of activeSessions) {
+            // 全セッションをチェック
+            for (const session of sessions) {
                 await this.pollSession(session, apiClient);
+
+                // AWAITING_PLAN_APPROVAL状態を直接チェック
+                if (session.rawState === 'AWAITING_PLAN_APPROVAL') {
+                    const notifiedKey = `notified-approval-${session.name}`;
+                    const lastNotified = this.context.globalState.get<string>(notifiedKey);
+
+                    // まだ通知していない、または状態が更新された場合のみ通知
+                    if (lastNotified !== session.lastPollTime) {
+                        this.outputChannel.appendLine(`[Jules] Plan approval detected for session: ${session.name}`);
+
+                        try {
+                            // Activitiesを取得
+                            const activities = await apiClient.getActivities(session.name);
+                            const planActivity = activities.find((a: Activity) => a.planGenerated);
+
+                            if (planActivity) {
+                                // notifyPlanAwaitingApprovalを呼ぶ（シグネチャを変更後）
+                                await this.onPlanAwaitingApproval(session, planActivity, this.context, this.sessionsProvider, this.outputChannel);
+
+                                // 通知済みとしてマーク
+                                await this.context.globalState.update(notifiedKey, session.lastPollTime);
+                            }
+                        } catch (error) {
+                            this.outputChannel.appendLine(`[Jules] Error notifying plan approval: ${error}`);
+                        }
+                    }
+                }
             }
         } catch (error: any) {
             this.outputChannel.appendLine(`[Jules] Polling error: ${error.message}`);
@@ -85,8 +115,28 @@ export class PollingManager {
         }
     }
 
+    private mapApiStateToSessionState(apiState: string): Session['state'] {
+        switch (apiState) {
+            case 'COMPLETED': return 'COMPLETED';
+            case 'FAILED': return 'FAILED';
+            case 'CANCELLED': return 'CANCELLED';
+            case 'PAUSED': return 'CANCELLED';
+            case 'AWAITING_PLAN_APPROVAL': return 'RUNNING';
+            default: return 'RUNNING';
+        }
+    }
+
     private async pollSession(session: LocalSession, apiClient: JulesApiClient) {
         try {
+            // Fetch latest session state
+            const remoteSession = await apiClient.getSession(session.name);
+
+            // Update local session state if changed
+            if (remoteSession.state !== session.rawState) {
+                const mappedState = this.mapApiStateToSessionState(remoteSession.state);
+                await this.sessionManager.updateSessionState(session.name, mappedState, remoteSession.state);
+            }
+
             const activities = await apiClient.getActivities(session.name);
             const currentActivities = session.activities || [];
 
@@ -103,7 +153,7 @@ export class PollingManager {
 
                     // Handle specific activity types based on property existence
                     if (activity.planGenerated) {
-                        this.onPlanAwaitingApproval(session, activity.planGenerated);
+                        await this.onPlanAwaitingApproval(session, activity, this.context, this.sessionsProvider, this.outputChannel);
                     } else if (activity.sessionCompleted) {
                         await this.sessionManager.updateSessionState(session.name, 'COMPLETED', 'completed');
 

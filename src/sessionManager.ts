@@ -24,6 +24,13 @@ export class SessionManager {
     }
 
     getSessions(): LocalSession[] {
+        const hideClosedPR = vscode.workspace.getConfiguration('jules-extension').get<boolean>('hideClosedPRSessions', true);
+
+        if (hideClosedPR) {
+            // COMPLETED と FAILED を除外
+            return this.sessions.filter(s => s.state !== 'COMPLETED' && s.state !== 'FAILED');
+        }
+
         return this.sessions;
     }
 

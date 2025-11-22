@@ -133,7 +133,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
+      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
@@ -284,6 +284,9 @@ suite("Extension Test Suite", () => {
           get: sandbox.stub().returns(false),
           update: sandbox.stub().resolves(),
         },
+        secrets: {
+          get: sandbox.stub().resolves('fake-api-key'),
+        },
       } as any;
       mockProvider = { refresh: sandbox.stub() };
     });
@@ -308,9 +311,20 @@ suite("Extension Test Suite", () => {
         ]
       } as any;
 
-      const plan = { id: 'pg1', steps: [], createTime: '2023-01-01T10:01:00Z' } as any;
+      const plan = {
+        id: 'plan-123',
+        steps: []
+      } as any;
 
-      await notifyPlanAwaitingApproval(session, plan, mockContext, mockProvider);
+      const planActivity = {
+        name: 'activities/0',
+        originator: 'system',
+        description: 'Please update README with setup steps',
+        createTime: '2023-01-01T10:01:00Z',
+        planGenerated: plan
+      } as any;
+
+      await notifyPlanAwaitingApproval(session, planActivity, mockContext, mockProvider, { appendLine: sandbox.stub() } as any);
 
       assert.ok(showInfoStub.calledOnce, 'showInformationMessage should be called');
       const messageArg = showInfoStub.getCall(0).args[0] as string;
@@ -321,7 +335,7 @@ suite("Extension Test Suite", () => {
       const session = { name: 'sessions/approve', title: 'Approve Session', rawState: 'AWAITING_PLAN_APPROVAL' } as any;
       const execStub = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
 
-      await sessionSelectedHandler(session);
+      await sessionSelectedHandler(session, mockContext, mockProvider, { appendLine: sandbox.stub() } as any);
 
       assert.ok(execStub.calledWith('jules-extension.showActivities', 'sessions/approve'));
     });

@@ -57,7 +57,7 @@ export function buildFinalPrompt(userPrompt: string): string {
   const config = vscode.workspace.getConfiguration("jules-extension");
   const customPrompt = (config.get<string>("customPrompt") || "").trim();
   if (customPrompt) {
-    return `${customPrompt}\n\n${userPrompt}`;
+    return `${userPrompt}\n\n${customPrompt}`;
   }
   return userPrompt;
 }
@@ -85,66 +85,82 @@ function getActivityIcon(activity: Activity): string {
 
 export async function notifyPlanAwaitingApproval(
   session: LocalSession,
-  plan: PlanGenerated,
+  planActivity: Activity,
   context: vscode.ExtensionContext,
-  sessionsProvider: JulesSessionsProvider
+  sessionsProvider: JulesSessionsProvider,
+  logChannel: vscode.OutputChannel
 ) {
-  // Check if we already notified for this plan
-  const alreadyNotifiedKey = `notified-plan-${plan.id}`;
+  // 重複通知防止
+  const alreadyNotifiedKey = `notified-plan-${planActivity.planGenerated?.id}`;
   const alreadyNotified = context.globalState.get<boolean>(alreadyNotifiedKey);
 
-  if (!alreadyNotified) {
-    // Find the user request that triggered this plan
-    // We look for the latest user activity before the plan
-    let userRequestContent = "";
-    if (session.activities) {
-      const planTime = new Date(plan.createTime).getTime();
-      const userActivities = session.activities.filter(a =>
-        a.originator === "user" &&
-        new Date(a.createTime).getTime() < planTime
-      );
-      // Sort by time descending
-      userActivities.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
-
-      if (userActivities.length > 0) {
-        // Assuming description holds the prompt/message
-        userRequestContent = userActivities[0].description || "No content";
-      }
-    }
-
-    let message = `Session "${session.title}" is awaiting plan approval.`;
-    if (userRequestContent) {
-      // Truncate if too long
-      const truncatedRequest = userRequestContent.length > 100 ? userRequestContent.substring(0, 100) + "..." : userRequestContent;
-      message += `\nRequest: "${truncatedRequest}"`;
-    }
-
-    const action = await vscode.window.showInformationMessage(
-      message,
-      "View Session",
-      "Approve Plan"
-    );
-
-    if (action === "View Session") {
-      vscode.commands.executeCommand("jules-extension.showActivities", session.name);
-    } else if (action === "Approve Plan") {
-      vscode.commands.executeCommand("jules-extension.approvePlan", session.name);
-    }
-
-    await context.globalState.update(alreadyNotifiedKey, true);
+  if (alreadyNotified) {
+    return;
   }
 
-  // Refresh the tree view
-  sessionsProvider.refresh();
+  // Activity.descriptionを使用
+  const planDescription = planActivity.description || 'Plan generated but no details available';
+
+  logChannel.appendLine(`[Jules] Plan description: ${planDescription}`);
+
+  const message = `📝 Plan Ready\n\n${planDescription}\n\nApprove this plan?`;
+
+  const action = await vscode.window.showInformationMessage(
+    message,
+    'Approve Plan',
+    'View Details'  // ボタン変更
+  );
+
+  if (action === "Approve Plan") {
+    await vscode.commands.executeCommand('jules-extension.approvePlan', session.name);
+    sessionsProvider.refresh();
+  } else if (action === "View Details") {
+    await vscode.commands.executeCommand('jules-extension.showActivities', session.name);
+  }
+
+  // 通知済みとしてマーク
+  await context.globalState.update(alreadyNotifiedKey, true);
 }
 
-export async function sessionSelectedHandler(session: LocalSession) {
+export async function sessionSelectedHandler(
+  session: LocalSession,
+  context: vscode.ExtensionContext,
+  sessionsProvider: JulesSessionsProvider,
+  logChannel: vscode.OutputChannel
+) {
+  logChannel.appendLine(`[Jules] sessionSelectedHandler called for: ${session.name}`);
+  logChannel.appendLine(`[Jules] Session state: ${session.state}, rawState: ${session.rawState}`);
+
   if (!session) return;
+
   if (session.rawState === "AWAITING_PLAN_APPROVAL") {
-    // Trigger showActivities which handles plan approval prompt
-    vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    logChannel.appendLine('[Jules] AWAITING_PLAN_APPROVAL detected in sessionSelectedHandler');
+
+    const apiKey = await getStoredApiKey(context);
+    if (!apiKey) return;
+
+    try {
+      const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+      const activities = await apiClient.getActivities(session.name);
+
+      logChannel.appendLine(`[Jules] Activities fetched: ${activities.length}`);
+
+      const planActivity = activities.find((a: Activity) => a.planGenerated);
+
+      logChannel.appendLine(`[Jules] Plan activity found: ${!!planActivity}`);
+
+      if (planActivity) {
+        await notifyPlanAwaitingApproval(session, planActivity, context, sessionsProvider, logChannel);
+      } else {
+        await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+      }
+    } catch (error) {
+      logChannel.appendLine(`[Jules] Error showing plan approval: ${error}`);
+      await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    }
   } else {
-    vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    logChannel.appendLine('[Jules] Not AWAITING_PLAN_APPROVAL, showing activities');
+    await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
   }
 }
 
@@ -164,8 +180,9 @@ export function activate(context: vscode.ExtensionContext) {
     context,
     sessionManager,
     logChannel,
-    async (session: LocalSession, plan: PlanGenerated) => {
-      await notifyPlanAwaitingApproval(session, plan, context, sessionsProvider);
+    sessionsProvider,
+    async (session: LocalSession, planActivity: Activity, ctx: vscode.ExtensionContext, provider: JulesSessionsProvider, log: vscode.OutputChannel) => {
+      await notifyPlanAwaitingApproval(session, planActivity, ctx, provider, log);
     }
   );
 
@@ -456,7 +473,6 @@ export function activate(context: vscode.ExtensionContext) {
 
             const action = await vscode.window.showInformationMessage(
               message,
-              { modal: true },
               'Approve',
               'View Details'
             );
@@ -543,7 +559,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Session Selected
   const sessionSelectedDisposable = vscode.commands.registerCommand(
     "jules-extension.sessionSelected",
-    sessionSelectedHandler
+    (session: LocalSession) => sessionSelectedHandler(session, context, sessionsProvider, logChannel)
   );
 
   // Command: Send Message
@@ -668,6 +684,23 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Toggle Completed Sessions
+  const toggleCompletedSessionsDisposable = vscode.commands.registerCommand(
+    "jules-extension.toggleCompletedSessions",
+    async () => {
+      const config = vscode.workspace.getConfiguration('jules-extension');
+      const current = config.get<boolean>('hideClosedPRSessions', true);
+
+      await config.update('hideClosedPRSessions', !current, vscode.ConfigurationTarget.Global);
+
+      sessionsProvider.refresh();
+
+      vscode.window.showInformationMessage(
+        current ? 'Showing completed sessions' : 'Hiding completed sessions'
+      );
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     listSourcesDisposable,
@@ -683,7 +716,8 @@ export function activate(context: vscode.ExtensionContext) {
     setGithubTokenDisposable,
     setGitHubPatDisposable,
     openSettingsDisposable,
-    refreshActivitiesDisposable
+    refreshActivitiesDisposable,
+    toggleCompletedSessionsDisposable
   );
 
   // Start polling

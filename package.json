@@ -144,6 +144,11 @@
         "icon": "$(check)"
       },
       {
+        "command": "jules-extension.sessionSelected",
+        "title": "Open Session",
+        "category": "Jules"
+      },
+      {
         "command": "jules-extension.openSettings",
         "title": "Open Jules Settings",
         "category": "Jules",
@@ -176,6 +181,11 @@
       {
         "command": "jules-extension.signInGitHub",
         "title": "Sign in to GitHub",
+        "category": "Jules"
+      },
+      {
+        "command": "jules-extension.toggleCompletedSessions",
+        "title": "Toggle Show Completed Sessions",
         "category": "Jules"
       }
     ],
