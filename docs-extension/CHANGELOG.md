@@ -4,9 +4,12 @@ All notable changes to the "jules-extension" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [1.1.1] - 2025-11-21
 
-- Initial release
+### Changed
+- Updated `README.md` to match the latest commands and features available in `package.json`.
+- Improved Japanese localization and readability of the documentation.
+- Added a note about PAT authentication being deprecated in favor of OAuth.
 
 ## [1.0.8] - 2025-11-16
 
