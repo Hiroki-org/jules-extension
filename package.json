@@ -36,7 +36,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:julesSessionsView"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
@@ -158,12 +160,6 @@
       {
         "command": "jules-extension.setGithubToken",
         "title": "Set GitHub Token (for PR Status)",
-        "category": "Jules",
-        "icon": "$(github)"
-      },
-      {
-        "command": "jules-extension.setGitHubPat",
-        "title": "[DEPRECATED] Set GitHub PAT",
         "category": "Jules",
         "icon": "$(github)"
       },
