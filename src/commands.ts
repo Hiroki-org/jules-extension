@@ -6,7 +6,7 @@ import { JulesSessionsProvider, SessionTreeItem } from './sessionViewProvider';
 import { showMessageComposer } from './composer';
 import { updateStatusBar } from './uiUtils';
 import { getRepoInfoForBranchCreation, createRemoteBranch } from './gitUtils';
-import { approvePlan, getPreviousSessionStates } from './sessionManager';
+import { approvePlan, getPreviousSessionStates, clearPrStatusCache } from './sessionManager';
 import { Source as SourceType, SourcesResponse, CreateSessionRequest, SessionResponse, Session, Activity, ActivitiesResponse, SourceQuickPickItem } from './types';
 import { getStoredApiKey, buildFinalPrompt, extensionState, startAutoRefresh, stopAutoRefresh, resetAutoRefresh } from './extension';
 import { GitHubAuth } from './githubAuth';
@@ -75,14 +75,9 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                 return;
             }
             try {
-                const response = await fetch(`${JULES_API_BASE_URL}/sources`, {
-                    method: "GET",
-                    headers: {
-                        "X-Goog-Api-Key": apiKey,
-                        "Content-Type": "application/json",
-                    },
-                });
-                if (response.ok) {
+                const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+                const isValid = await apiClient.verifyApiKey();
+                if (isValid) {
                     vscode.window.showInformationMessage("API Key is valid.");
                 } else {
                     vscode.window.showErrorMessage(
@@ -122,17 +117,8 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                         title: 'Fetching sources...',
                         cancellable: false
                     }, async (progress) => {
-                        const response = await fetch(`${JULES_API_BASE_URL}/sources`, {
-                            method: "GET",
-                            headers: {
-                                "X-Goog-Api-Key": apiKey,
-                                "Content-Type": "application/json",
-                            },
-                        });
-                        if (!response.ok) {
-                            throw new Error(`Failed to fetch sources: ${response.status} ${response.statusText}`);
-                        }
-                        const data = (await response.json()) as SourcesResponse;
+                        const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+                        const data = await apiClient.getSources();
                         if (!data.sources || !Array.isArray(data.sources)) {
                             throw new Error("Invalid response format from API.");
                         }
@@ -196,10 +182,10 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
             extensionState.isFetchingSensitiveData = true;
             resetAutoRefresh(context, sessionsProvider);
             try {
-                // ブランチ選択ロジック（メッセージ入力前に移動）
+                // Branch selection logic (moved before message input)
                 const { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches } = await getBranchesForSession(selectedSource, apiClient, logChannel, context);
 
-                // QuickPickでブランチ選択
+                // Select branch with QuickPick
                 const selectedBranch = await vscode.window.showQuickPick(
                     branches.map(branch => ({
                         label: branch,
@@ -223,9 +209,9 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
 
                 let startingBranch = selectedBranch.label;
 
-                // リモートブランチの存在チェック
+                // Check if the branch exists on the remote
                 if (!new Set(remoteBranches).has(startingBranch)) {
-                    // ローカル専用ブランチの場合
+                    // Case for local-only branch
                     logChannel.appendLine(`[Jules] Warning: Branch "${startingBranch}" not found on remote`);
 
                     const action = await vscode.window.showWarningMessage(
@@ -334,24 +320,11 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                             increment: 0,
                             message: "Sending request...",
                         });
-                        const response = await fetch(`${JULES_API_BASE_URL}/sessions`, {
-                            method: "POST",
-                            headers: {
-                                "X-Goog-Api-Key": apiKey,
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify(requestBody),
-                        });
+                        const session = await apiClient.createSession(requestBody);
                         progress.report({
                             increment: 50,
                             message: "Processing response...",
                         });
-                        if (!response.ok) {
-                            throw new Error(
-                                `Failed to create session: ${response.status} ${response.statusText}`
-                            );
-                        }
-                        const session = (await response.json()) as SessionResponse;
                         await context.globalState.update("active-session-id", session.name);
                         progress.report({
                             increment: 100,
@@ -425,24 +398,8 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                     return;
                 }
                 const session = (await sessionResponse.json()) as Session;
-                const response = await fetch(
-                    `${JULES_API_BASE_URL}/${sessionId}/activities`,
-                    {
-                        method: "GET",
-                        headers: {
-                            "X-Goog-Api-Key": apiKey,
-                            "Content-Type": "application/json",
-                        },
-                    }
-                );
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    vscode.window.showErrorMessage(
-                        `Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`
-                    );
-                    return;
-                }
-                const data = (await response.json()) as ActivitiesResponse;
+                const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+                const data = await apiClient.getActivities(sessionId);
                 if (!data.activities || !Array.isArray(data.activities)) {
                     vscode.window.showErrorMessage("Invalid response format from API.");
                     return;
@@ -454,7 +411,6 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                 if (data.activities.length === 0) {
                     activitiesChannel.appendLine("No activities found for this session.");
                 } else {
-                    let planDetected = false;
                     data.activities.forEach((activity) => {
                         const icon = getActivityIcon(activity);
                         const timestamp = new Date(activity.createTime).toLocaleString();
@@ -462,7 +418,6 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                         if (activity.planGenerated) {
                             message = `Plan generated: ${activity.planGenerated.plan?.title || "Plan"
                                 }`;
-                            planDetected = true;
                         } else if (activity.planApproved) {
                             message = `Plan approved: ${activity.planApproved.planId}`;
                         } else if (activity.progressUpdated) {
@@ -585,7 +540,7 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                 });
 
                 if (token === undefined) {
-                    console.log("Jules: GitHub Token input cancelled by user");
+                    logChannel.appendLine("Jules: GitHub Token input cancelled by user");
                     return;
                 }
 
@@ -612,12 +567,13 @@ export function registerCommands(context: vscode.ExtensionContext, sessionsProvi
                 vscode.window.showInformationMessage(
                     "GitHub token saved securely."
                 );
+                // Clear PR status cache when token changes
+                clearPrStatusCache();
                 sessionsProvider.refresh();
             } catch (error) {
-                console.error("Jules: Error setting GitHub Token:", error);
+                logChannel.appendLine(`Jules: Error setting GitHub Token: ${error}`);
                 vscode.window.showErrorMessage(
-                    `GitHub Token の保存に失敗しました: ${error instanceof Error ? error.message : "Unknown error"
-                    }`
+                    `Failed to save GitHub Token: ${error instanceof Error ? error.message : "Unknown error"}`
                 );
             }
         }
@@ -755,25 +711,8 @@ async function sendMessageToSession(
                 title: "Sending message to Jules...",
             },
             async () => {
-                const response = await fetch(
-                    `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-Goog-Api-Key": apiKey,
-                        },
-                        body: JSON.stringify({ prompt: finalPrompt }),
-                    }
-                );
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    const message =
-                        errorText || `${response.status} ${response.statusText}`;
-                    throw new Error(message);
-                }
-
+                const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+                await apiClient.sendMessage(sessionId, finalPrompt);
                 vscode.window.showInformationMessage("Message sent successfully!");
             }
         );

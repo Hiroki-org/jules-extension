@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Session, Source as SourceType } from './types';
+import { JulesApiClient } from './julesApiClient';
 import { getStoredApiKey } from './extension';
 import {
     mapApiStateToSessionState,
@@ -48,34 +49,18 @@ export class JulesSessionsProvider
                 return;
             }
 
-            const response = await fetch(`${JULES_API_BASE_URL}/sessions`, {
-                method: "GET",
-                headers: {
-                    "X-Goog-Api-Key": apiKey,
-                    "Content-Type": "application/json",
-                },
-            });
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+            const sessions = await apiClient.getSessions();
 
-            if (!response.ok) {
-                const errorMsg = `Failed to fetch sessions: ${response.status} ${response.statusText}`;
-                console.error(`Jules: ${errorMsg}`);
-                if (!isBackground) {
-                    vscode.window.showErrorMessage(errorMsg);
-                }
-                this.sessionsCache = [];
-                return;
-            }
-
-            const data = (await response.json()) as SessionsResponse;
-            if (!data.sessions || !Array.isArray(data.sessions)) {
+            if (!sessions || !Array.isArray(sessions)) {
                 console.log("Jules: No sessions found or invalid response format");
                 this.sessionsCache = [];
                 return;
             }
 
-            console.log(`Jules: Found ${data.sessions.length} total sessions`);
+            console.log(`Jules: Found ${sessions.length} total sessions`);
 
-            const allSessionsMapped = data.sessions.map((session) => ({
+            const allSessionsMapped = sessions.map((session) => ({
                 ...session,
                 rawState: session.state,
                 state: mapApiStateToSessionState(session.state),

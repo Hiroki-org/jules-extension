@@ -6,6 +6,10 @@ import { JULES_API_BASE_URL } from './constants';
 const prStatusCache: PRStatusCache = {};
 const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+export function clearPrStatusCache(): void {
+    Object.keys(prStatusCache).forEach((key) => delete prStatusCache[key]);
+}
+
 let previousSessionStates: Map<string, SessionState> = new Map();
 
 export function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
