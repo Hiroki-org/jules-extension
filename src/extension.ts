@@ -1387,8 +1387,7 @@ export function activate(context: vscode.ExtensionContext) {
             `Branch "${startingBranch}" exists locally but has not been pushed to remote.\n\nJules requires a remote branch to start a session.`,
             { modal: true },
             'Create Remote Branch',
-            'Use Default Branch',
-            'Cancel'
+            'Use Default Branch'
           );
 
           if (action === 'Create Remote Branch') {
