@@ -54,9 +54,15 @@
         },
         "jules-extension.autoRefresh.interval": {
           "type": "number",
-          "default": 30,
+          "default": 60,
           "minimum": 10,
           "description": "Auto-refresh interval in seconds (minimum: 10)"
+        },
+        "jules-extension.autoRefresh.fastInterval": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "Auto-refresh interval in seconds during specific operations (e.g., branch loading). Minimum: 5."
         },
         "jules-extension.customPrompt": {
           "type": "string",

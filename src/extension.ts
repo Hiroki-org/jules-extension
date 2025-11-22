@@ -112,6 +112,7 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
   );
 }
 let autoRefreshInterval: NodeJS.Timeout | undefined;
+let isFetchingSensitiveData = false;
 
 // Helper functions
 
@@ -499,11 +500,15 @@ function startAutoRefresh(
     "jules-extension.autoRefresh"
   );
   const isEnabled = config.get<boolean>("enabled");
-  const intervalSeconds = config.get<number>("interval", 30);
+
+  // 動的に間隔を選択
+  const intervalSeconds = isFetchingSensitiveData
+    ? config.get<number>("fastInterval", 30)
+    : config.get<number>("interval", 60);
   const interval = intervalSeconds * 1000; // Convert seconds to milliseconds
 
   console.log(
-    `Jules: Auto-refresh enabled=${isEnabled}, interval=${intervalSeconds}s (${interval}ms)`
+    `Jules: Auto-refresh enabled=${isEnabled}, interval=${intervalSeconds}s (${interval}ms), fastMode=${isFetchingSensitiveData}`
   );
 
   if (!isEnabled) {
@@ -1268,6 +1273,9 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
+      isFetchingSensitiveData = true;
+      resetAutoRefresh(context, sessionsProvider);
+
       try {
         const cacheKey = 'jules.sources';
         const cached = context.globalState.get<SourcesCache>(cacheKey);
@@ -1324,6 +1332,9 @@ export function activate(context: vscode.ExtensionContext) {
         const message = error instanceof Error ? error.message : "Unknown error occurred.";
         logChannel.appendLine(`Failed to list sources: ${message}`);
         vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
+      } finally {
+        isFetchingSensitiveData = false;
+        resetAutoRefresh(context, sessionsProvider);
       }
     }
   );
@@ -1350,6 +1361,8 @@ export function activate(context: vscode.ExtensionContext) {
 
       const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
+      isFetchingSensitiveData = true;
+      resetAutoRefresh(context, sessionsProvider);
       try {
         // ブランチ選択ロジック（メッセージ入力前に移動）
         const { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches } = await getBranchesForSession(selectedSource, apiClient, logChannel, context);
@@ -1523,6 +1536,9 @@ export function activate(context: vscode.ExtensionContext) {
           `Failed to create session: ${error instanceof Error ? error.message : "Unknown error"
           }`
         );
+      } finally {
+        isFetchingSensitiveData = false;
+        resetAutoRefresh(context, sessionsProvider);
       }
     }
   );
