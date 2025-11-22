@@ -880,6 +880,7 @@ interface Activity {
   originator: "user" | "agent";
   id: string;
   type?: string;
+  description?: string;
   planGenerated?: PlanGenerated;
   planApproved?: { planId: string };
   progressUpdated?: { title: string; description?: string };
