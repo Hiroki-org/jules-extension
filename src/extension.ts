@@ -1,2105 +1,692 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from "vscode";
+import * as vscode from 'vscode';
+import { JULES_API_BASE_URL } from './constants';
 import { JulesApiClient } from './julesApiClient';
-import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse } from './types';
+import { SessionManager } from './sessionManager';
+import { PollingManager } from './polling';
+import { JulesSessionsProvider, SessionTreeItem } from './treeView';
 import { getBranchesForSession } from './branchUtils';
-import { parseGitHubUrl } from "./githubUtils";
+import { getRepoInfoForBranchCreation, createRemoteBranch } from './gitHelpers';
+import { showMessageComposer } from './composer';
 import { GitHubAuth } from './githubAuth';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-const execAsync = promisify(exec);
+import {
+    Source as SourceType,
+    Session,
+    LocalSession,
+    Activity,
+    CreateSessionRequest,
+    SessionResponse,
+    SourcesResponse,
+    PlanStep,
+    PlanGenerated,
+    ActivitiesResponse
+} from './types';
 import { SourcesCache, isCacheValid } from './cache';
 
-// Constants
-const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
-
-// GitHub PR status cache to avoid excessive API calls
-interface PRStatusCache {
-  [prUrl: string]: {
-    isClosed: boolean;
-    lastChecked: number;
-  };
-}
-
-const prStatusCache: PRStatusCache = {};
-const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-interface SourceQuickPickItem extends vscode.QuickPickItem {
-  source: SourceType;
-}
-
-interface CreateSessionRequest {
-  prompt: string;
-  sourceContext: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch: string;
-    };
-  };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
-  title: string;
-  requirePlanApproval?: boolean;
-}
-
-interface SessionResponse {
-  name: string;
-  // Add other fields if needed
-}
-
-interface SessionOutput {
-  pullRequest?: {
-    url: string;
-    title: string;
-    description: string;
-  };
-}
-
-interface Session {
-  name: string;
-  title: string;
-  state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  rawState: string;
-  outputs?: SessionOutput[];
-  sourceContext?: {
-    source: string;
-  };
-  requirePlanApproval?: boolean; // ⭐ NEW
-}
-
-export function mapApiStateToSessionState(
-  apiState: string
-): "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" {
-  switch (apiState) {
-    case "PLANNING":
-    case "AWAITING_PLAN_APPROVAL":
-    case "AWAITING_USER_FEEDBACK":
-    case "IN_PROGRESS":
-    case "QUEUED":
-    case "STATE_UNSPECIFIED":
-      return "RUNNING";
-    case "COMPLETED":
-      return "COMPLETED";
-    case "FAILED":
-      return "FAILED";
-    case "PAUSED":
-    case "CANCELLED":
-      return "CANCELLED";
-    default:
-      return "RUNNING"; // default to RUNNING
-  }
-}
-
-interface SessionState {
-  name: string;
-  state: string;
-  rawState: string;
-  outputs?: SessionOutput[];
-  isTerminated?: boolean;
-}
-
-let previousSessionStates: Map<string, SessionState> = new Map();
-
-function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
-  const storedStates = context.globalState.get<{ [key: string]: SessionState }>(
-    "jules.previousSessionStates",
-    {}
-  );
-  previousSessionStates = new Map(Object.entries(storedStates));
-  console.log(
-    `Jules: Loaded ${previousSessionStates.size} previous session states from global state.`
-  );
-}
-let autoRefreshInterval: NodeJS.Timeout | undefined;
-
-// Helper functions
-
-async function getStoredApiKey(
-  context: vscode.ExtensionContext
-): Promise<string | undefined> {
-  const apiKey = await context.secrets.get("jules-api-key");
-  if (!apiKey) {
-    vscode.window.showErrorMessage(
-      'API Key not found. Please set it first using "Set Jules API Key" command.'
-    );
-    return undefined;
-  }
-  return apiKey;
-}
-
-async function getGitHubUrl(): Promise<string | undefined> {
-  try {
-    const gitExtension = vscode.extensions.getExtension('vscode.git');
-    if (!gitExtension) {
-      throw new Error('Git extension not found');
+// Helper to get API Key
+async function getStoredApiKey(context: vscode.ExtensionContext): Promise<string | undefined> {
+    const apiKey = await context.secrets.get("jules-api-key");
+    if (!apiKey) {
+        vscode.window.showErrorMessage(
+            'API Key not found. Please set it first using "Set Jules API Key" command.'
+        );
+        return undefined;
     }
-    const git = gitExtension.exports.getAPI(1);
-    const repository = git.repositories[0];
-    if (!repository) {
-      throw new Error('No Git repository found');
-    }
-    const remote = repository.state.remotes.find(
-      (r: { name: string; fetchUrl?: string; pushUrl?: string }) => r.name === 'origin'
-    );
-    if (!remote) {
-      throw new Error('No origin remote found');
-    }
-    return remote.fetchUrl || remote.pushUrl;
-  } catch (error) {
-    console.error('Failed to get GitHub URL:', error);
-    return undefined;
-  }
+    return apiKey;
 }
 
-/**
- * リモートブランチ作成に必要なリポジトリ情報を取得
- */
-async function getRepoInfoForBranchCreation(outputChannel?: vscode.OutputChannel): Promise<{ token: string; owner: string; repo: string } | null> {
-  const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  const token = await GitHubAuth.getToken();
-
-  if (!token) {
-    const action = await vscode.window.showInformationMessage(
-      'Sign in to GitHub to create remote branch',
-      'Sign In',
-      'Cancel'
-    );
-
-    if (action === 'Sign In') {
-      const newToken = await GitHubAuth.signIn();
-      if (!newToken) {
-        return null;
-      }
-      return getRepoInfoForBranchCreation(outputChannel);
+// Helper to update status bar
+function updateStatusBar(context: vscode.ExtensionContext, statusBarItem: vscode.StatusBarItem) {
+    const selectedSource = context.globalState.get("selected-source") as SourceType;
+    if (selectedSource) {
+        // Extract repo name if possible
+        const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
+        const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
+        
+        statusBarItem.text = `$(repo) Jules: ${repoName || selectedSource.id}`;
+        statusBarItem.tooltip = `Selected Source: ${selectedSource.name || selectedSource.id}\nURL: ${selectedSource.url || "N/A"}`;
+        statusBarItem.show();
+    } else {
+        statusBarItem.text = `$(repo) Jules: No source selected`;
+        statusBarItem.tooltip = "Click to select a source";
+        statusBarItem.show();
     }
-    return null;
-  }
-
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  if (!workspaceFolder) {
-    vscode.window.showErrorMessage('No workspace folder found');
-    return null;
-  }
-
-  try {
-    const { stdout } = await execAsync('git remote get-url origin', {
-      cwd: workspaceFolder.uri.fsPath
-    });
-
-    const remoteUrl = stdout.trim();
-    logger.appendLine(`[Jules] Remote URL: ${remoteUrl}`);
-
-    // Prefer the shared parser which handles https/ssh and .git suffixes
-    const repoInfo = parseGitHubUrl(remoteUrl);
-    if (!repoInfo) {
-      vscode.window.showErrorMessage('Could not parse GitHub repository URL');
-      return null;
-    }
-    const { owner, repo } = repoInfo;
-    logger.appendLine(`[Jules] Repository: ${owner}/${repo}`);
-
-    return { token, owner, repo };
-  } catch (error: any) {
-    logger.appendLine(`[Jules] Error getting repo info: ${error.message}`);
-    vscode.window.showErrorMessage(`Failed to get repository info: ${error.message}`);
-    return null;
-  }
 }
 
-async function createRemoteBranch(
-  token: string,
-  owner: string,
-  repo: string,
-  branchName: string,
-  outputChannel?: vscode.OutputChannel
-): Promise<void> {
-  const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  try {
-    logger.appendLine('[Jules] Getting current branch SHA...');
-    const sha = await getCurrentBranchSha(outputChannel);
-
-    if (!sha) {
-      throw new Error('Failed to get current branch SHA');
-    }
-
-    logger.appendLine(`[Jules] Current branch SHA: ${sha}`);
-    logger.appendLine(`[Jules] Creating remote branch: ${branchName}`);
-
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/refs`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ref: `refs/heads/${branchName}`,
-          sha: sha
-        })
-      }
-    );
-
-    if (!response.ok) {
-      // Read the response as text so we can handle non-JSON errors robustly
-      const respText = await response.text();
-      logger.appendLine(`[Jules] GitHub API error response: ${respText}`);
-      let errMsg = 'Unknown error';
-      try {
-        const parsed = JSON.parse(respText);
-        errMsg = parsed?.message || JSON.stringify(parsed);
-      } catch (e) {
-        errMsg = respText;
-      }
-      throw new Error(`GitHub API error: ${response.status} - ${errMsg}`);
-    }
-
-    const result: any = await response.json().catch(() => null);
-    logger.appendLine(`[Jules] Remote branch created: ${result?.ref ?? 'unknown'}`);
-  } catch (error: any) {
-    logger.appendLine(`[Jules] Failed to create remote branch: ${error.message}`);
-    throw error;
-  }
-}
-
-async function getCurrentBranchSha(outputChannel?: vscode.OutputChannel): Promise<string | null> {
-  const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-      return null;
-    }
-
-    const { stdout } = await execAsync('git rev-parse HEAD', {
-      cwd: workspaceFolder.uri.fsPath
-    });
-
-    return stdout.trim();
-  } catch (error) {
-    logger.appendLine(`[Jules] Error getting current branch sha: ${error}`);
-    return null;
-  }
-}
-
+// Helper to build final prompt
 export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
-    .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
-  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
+    const config = vscode.workspace.getConfiguration("jules");
+    const customPrompt = (config.get<string>("customPrompt") || "").trim();
+    if (customPrompt) {
+        return `${customPrompt}\n\n${userPrompt}`;
+    }
+    return userPrompt;
 }
 
-function resolveSessionId(
-  context: vscode.ExtensionContext,
-  target?: SessionTreeItem | string
-): string | undefined {
-  return (
-    (typeof target === "string" ? target : undefined) ??
-    (target instanceof SessionTreeItem ? target.session.name : undefined) ??
-    context.globalState.get<string>("active-session-id")
-  );
+export function mapApiStateToSessionState(apiState: string): Session['state'] {
+    switch (apiState) {
+        case 'COMPLETED': return 'COMPLETED';
+        case 'FAILED': return 'FAILED';
+        case 'CANCELLED': return 'CANCELLED';
+        case 'PAUSED': return 'CANCELLED';
+        default: return 'RUNNING';
+    }
 }
 
-function extractPRUrl(sessionOrState: Session | SessionState): string | null {
-  return (
-    sessionOrState.outputs?.find((o) => o.pullRequest)?.pullRequest?.url || null
-  );
-}
-
-async function checkPRStatus(
-  prUrl: string,
-  context: vscode.ExtensionContext
-): Promise<boolean> {
-  // Check cache first
-  const cached = prStatusCache[prUrl];
-  const now = Date.now();
-  if (cached && now - cached.lastChecked < PR_CACHE_DURATION) {
-    return cached.isClosed;
-  }
-
-  try {
-    // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
-    const match = prUrl.match(
-      /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/
-    );
-    if (!match) {
-      console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
-      return false;
-    }
-
-    const [, owner, repo, prNumber] = match;
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
-
-    // Get GitHub token if available
-    const githubToken = await context.secrets.get("jules-github-token");
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github.v3+json",
-    };
-    if (githubToken) {
-      headers.Authorization = `Bearer ${githubToken}`;
-    }
-
-    const response = await fetch(apiUrl, { headers });
-
-    if (!response.ok) {
-      console.log(
-        `Jules: Failed to fetch PR status: ${response.status} ${response.statusText}`
-      );
-      return false;
-    }
-
-    const prData = (await response.json()) as { state: string };
-    const isClosed = prData.state === "closed";
-
-    // Update cache
-    prStatusCache[prUrl] = {
-      isClosed,
-      lastChecked: now,
-    };
-
-    return isClosed;
-  } catch (error) {
-    console.error(`Jules: Error checking PR status for ${prUrl}:`, error);
-    return false;
-  }
-}
-
-function checkForCompletedSessions(currentSessions: Session[]): Session[] {
-  const completedSessions: Session[] = [];
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-    if (prevState?.isTerminated) {
-      continue; // Skip terminated sessions
-    }
-    if (
-      session.state === "COMPLETED" &&
-      (!prevState || prevState.state !== "COMPLETED")
-    ) {
-      const prUrl = extractPRUrl(session);
-      if (prUrl) {
-        // Only count as a new completion if there's a PR URL.
-        completedSessions.push(session);
-      }
-    }
-  }
-  return completedSessions;
-}
-
-function checkForPlansAwaitingApproval(currentSessions: Session[]): Session[] {
-  const sessionsAwaitingApproval: Session[] = [];
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-    if (prevState?.isTerminated) {
-      continue; // Skip terminated sessions
-    }
-    if (
-      session.rawState === "AWAITING_PLAN_APPROVAL" &&
-      (!prevState || prevState.rawState !== "AWAITING_PLAN_APPROVAL")
-    ) {
-      sessionsAwaitingApproval.push(session);
-    }
-  }
-  return sessionsAwaitingApproval;
-}
-
-async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
-  const result = await vscode.window.showInformationMessage(
-    `Session "${session.title}" has completed and created a PR!`,
-    "Open PR"
-  );
-  if (result === "Open PR") {
-    vscode.env.openExternal(vscode.Uri.parse(prUrl));
-  }
+// Helper to get activity icon
+function getActivityIcon(activity: Activity): string {
+    if (activity.planGenerated) return "📝";
+    if (activity.planApproved) return "✅";
+    if (activity.progressUpdated) return "🔄";
+    if (activity.sessionCompleted) return "🏁";
+    if (activity.originator === "user") return "👤";
+    return "🤖";
 }
 
 export async function notifyPlanAwaitingApproval(
-  session: Session,
-  context: vscode.ExtensionContext
-): Promise<void> {
-  // Get API key first
-  const apiKey = await getStoredApiKey(context);
-  if (!apiKey) {
-    return;
-  }
-
-  // Create a local logger channel for debug output
-  const logger = vscode.window.createOutputChannel("Jules Extension Logs");
-
-  try {
-    const response = await fetch(`${JULES_API_BASE_URL}/${session.name}/activities`, {
-      method: "GET",
-      headers: {
-        "X-Goog-Api-Key": apiKey,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText}`);
-    }
-
-    const data = (await response.json()) as ActivitiesResponse;
-    const activities = Array.isArray(data.activities) ? data.activities : [];
-
-    const planActivity = activities.find((a) => a.planGenerated);
-    logger.appendLine(`[Jules] planActivity found: ${!!planActivity}`);
-    if (planActivity) {
-      logger.appendLine(`[Jules] Full planActivity: ${JSON.stringify(planActivity, null, 2)}`);
-    }
-
-    if (!planActivity?.planGenerated) {
-      // Fallback to original simple notification if no plan details
-      const selection = await vscode.window.showInformationMessage(
-        `Jules has a plan ready for your approval in session: "${session.title}"`,
-        "Approve Plan",
-        "View Details"
-      );
-
-      if (selection === "Approve Plan") {
-        await approvePlan(session.name, context);
-      } else if (selection === "View Details") {
-        await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
-      }
-
-      return;
-    }
-
-    const plan = planActivity.planGenerated;
-
-    // Find the originating user request (first user activity with description)
-    const userRequestActivity = activities.find(
-      (a) => a.originator === "user" && (a.description || a.progressUpdated?.title)
-    );
-    const userRequestDescription =
-      userRequestActivity?.description || userRequestActivity?.progressUpdated?.title || "";
-
-    // If steps are missing or empty, prefer using the activity.description
-    if (!plan.steps || plan.steps.length === 0) {
-      logger.appendLine('[Jules] No plan steps available — falling back to activity.description');
-      const planDescription = planActivity.description || 'Plan generated but no details available.';
-
-      logger.appendLine(`[Jules] Plan description: ${planDescription}`);
-
-      const messageWithRequestPrefix = userRequestDescription
-        ? `Request: ${userRequestDescription}\n\n📝 Plan Ready\n\n${planDescription}\n\nApprove this plan?`
-        : `📝 Plan Ready\n\n${planDescription}\n\nApprove this plan?`;
-
-      const selection = await vscode.window.showInformationMessage(
-        messageWithRequestPrefix,
-        "Approve Plan",
-        "View Details"
-      );
-
-      if (selection === "Approve Plan") {
-        await approvePlan(session.name, context);
-      } else if (selection === "View Details") {
-        await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
-      }
-
-      return;
-    }
-
-    // Build steps representation when we do have step entries
-    const stepsText = plan.steps
-      .map((step) => `${step.index + 1}. ${step.title}\n   ${step.description}`)
-      .join("\n\n");
-
-    const message = userRequestDescription
-      ? `Request: ${userRequestDescription}\n\n📝 Plan Ready (${plan.steps.length} steps)\n\n${stepsText}\n\nApprove this plan?`
-      : `📝 Plan Ready (${plan.steps.length} steps)\n\n${stepsText}\n\nApprove this plan?`;
-
-    const selection = await vscode.window.showInformationMessage(
-      message,
-      "Approve Plan",
-      "View Details"
-    );
-
-    if (selection === "Approve Plan") {
-      await approvePlan(session.name, context);
-    } else if (selection === "View Details") {
-      await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
-    }
-  } catch (error: any) {
-    logger.appendLine(`[Jules] Error fetching plan details: ${error?.message ?? String(error)}`);
-    // fallback to basic flow
-    const selection = await vscode.window.showInformationMessage(
-      `Jules has a plan ready for your approval in session: "${session.title}"`,
-      "Approve Plan",
-      "View Details"
-    );
-
-    if (selection === "Approve Plan") {
-      await approvePlan(session.name, context);
-    } else if (selection === "View Details") {
-      await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
-    }
-  }
-}
-
-async function updatePreviousStates(
-  currentSessions: Session[],
-  context: vscode.ExtensionContext
-): Promise<void> {
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-
-    // If already terminated, we don't need to check again.
-    // Just update with the latest info from the server but keep it terminated.
-    if (prevState?.isTerminated) {
-      previousSessionStates.set(session.name, {
-        ...prevState,
-        state: session.state,
-        rawState: session.rawState,
-        outputs: session.outputs,
-      });
-      continue;
-    }
-
-    let isTerminated = false;
-    if (session.state === "COMPLETED") {
-      const prUrl = extractPRUrl(session);
-      if (prUrl) {
-        const isClosed = await checkPRStatus(prUrl, context);
-        if (isClosed) {
-          isTerminated = true;
-          console.log(
-            `Jules: Session ${session.name} is now terminated because its PR is closed.`
-          );
-        }
-      }
-    } else if (session.state === "FAILED" || session.state === "CANCELLED") {
-      isTerminated = true;
-      console.log(
-        `Jules: Session ${session.name} is now terminated due to its state: ${session.state}.`
-      );
-    }
-
-    previousSessionStates.set(session.name, {
-      name: session.name,
-      state: session.state,
-      rawState: session.rawState,
-      outputs: session.outputs,
-      isTerminated: isTerminated,
-    });
-  }
-
-  // Persist the updated states to global state
-  await context.globalState.update(
-    "jules.previousSessionStates",
-    Object.fromEntries(previousSessionStates)
-  );
-  console.log(
-    `Jules: Saved ${previousSessionStates.size} session states to global state.`
-  );
-}
-
-function startAutoRefresh(
-  context: vscode.ExtensionContext,
-  sessionsProvider: JulesSessionsProvider
-): void {
-  const config = vscode.workspace.getConfiguration(
-    "jules-extension.autoRefresh"
-  );
-  const isEnabled = config.get<boolean>("enabled");
-  const intervalSeconds = config.get<number>("interval", 30);
-  const interval = intervalSeconds * 1000; // Convert seconds to milliseconds
-
-  console.log(
-    `Jules: Auto-refresh enabled=${isEnabled}, interval=${intervalSeconds}s (${interval}ms)`
-  );
-
-  if (!isEnabled) {
-    return;
-  }
-
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-  }
-
-  autoRefreshInterval = setInterval(() => {
-    console.log("Jules: Auto-refresh triggered");
-    sessionsProvider.refresh(true); // Pass true for background refresh
-  }, interval);
-}
-
-function stopAutoRefresh(): void {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = undefined;
-  }
-}
-
-function resetAutoRefresh(
-  context: vscode.ExtensionContext,
-  sessionsProvider: JulesSessionsProvider
-): void {
-  stopAutoRefresh();
-  startAutoRefresh(context, sessionsProvider);
-}
-
-interface ComposerOptions {
-  title: string;
-  placeholder?: string;
-  value?: string;
-  showCreatePrCheckbox?: boolean;
-  showRequireApprovalCheckbox?: boolean;
-}
-
-interface ComposerResult {
-  prompt: string;
-  createPR: boolean;
-  requireApproval: boolean;
-}
-
-async function showMessageComposer(
-  options: ComposerOptions
-): Promise<ComposerResult | undefined> {
-  const panel = vscode.window.createWebviewPanel(
-    "julesMessageComposer",
-    options.title,
-    vscode.ViewColumn.Active,
-    {
-      enableScripts: true,
-      retainContextWhenHidden: false,
-    }
-  );
-
-  const nonce = getNonce();
-  panel.webview.html = getComposerHtml(panel.webview, options, nonce);
-
-  return new Promise((resolve) => {
-    let resolved = false;
-
-    const finalize = (value: ComposerResult | undefined) => {
-      if (resolved) {
-        return;
-      }
-      resolved = true;
-      resolve(value);
-    };
-
-    panel.onDidDispose(() => finalize(undefined));
-
-    panel.webview.onDidReceiveMessage((message) => {
-      if (message?.type === "submit") {
-        finalize({
-          prompt: typeof message.value === "string" ? message.value : "",
-          createPR: !!message.createPR,
-          requireApproval: !!message.requireApproval,
-        });
-        panel.dispose();
-      } else if (message?.type === "cancel") {
-        finalize(undefined);
-        panel.dispose();
-      }
-    });
-  });
-}
-
-function getComposerHtml(
-  webview: vscode.Webview,
-  options: ComposerOptions,
-  nonce: string
-): string {
-  const placeholder = escapeAttribute(options.placeholder ?? "");
-  const value = escapeHtml(options.value ?? "");
-  const title = escapeHtml(options.title);
-  const createPrCheckbox = options.showCreatePrCheckbox
-    ? `
-    <div class="create-pr-container">
-      <input type="checkbox" id="create-pr" checked />
-      <label for="create-pr">Create PR automatically?</label>
-    </div>
-  `
-    : "";
-  const requireApprovalCheckbox = options.showRequireApprovalCheckbox
-    ? `
-    <div class="require-approval-container">
-      <input type="checkbox" id="require-approval" />
-      <label for="require-approval">Require plan approval before execution?</label>
-    </div>
-  `
-    : "";
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; script-src 'nonce-${nonce}'; style-src ${webview.cspSource} 'nonce-${nonce}';" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${title}</title>
-<style nonce="${nonce}">
-  body {
-    margin: 0;
-    padding: 16px;
-    background-color: var(--vscode-editor-background);
-    color: var(--vscode-editor-foreground);
-    font-family: var(--vscode-font-family);
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    box-sizing: border-box;
-  }
-
-  textarea {
-    flex: 1;
-    width: 100%;
-    resize: vertical;
-    font-family: var(--vscode-editor-font-family);
-    font-size: var(--vscode-editor-font-size);
-    color: var(--vscode-input-foreground);
-    background: var(--vscode-input-background);
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
-    padding: 12px;
-    box-sizing: border-box;
-    line-height: 1.5;
-  }
-
-  textarea:focus {
-    outline: 1px solid var(--vscode-focusBorder);
-  }
-
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 16px;
-    margin-top: 16px;
-  }
-
-  .create-pr-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-right: auto;
-  }
-
-  .require-approval-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  button {
-    padding: 6px 14px;
-    border-radius: 4px;
-    border: 1px solid var(--vscode-button-border, transparent);
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    cursor: pointer;
-  }
-
-  button.primary {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-  }
-
-  button.primary:hover {
-    background: var(--vscode-button-hoverBackground);
-  }
-</style>
-</head>
-<body>
-  <textarea id="message" placeholder="${placeholder}" autofocus>${value}</textarea>
-  <div class="actions">
-    ${createPrCheckbox}
-    ${requireApprovalCheckbox}
-    <button type="button" id="cancel">Cancel</button>
-    <button type="button" id="submit" class="primary">Send</button>
-  </div>
-  <script nonce="${nonce}">
-    const vscode = acquireVsCodeApi();
-    const textarea = document.getElementById('message');
-    const createPrCheckbox = document.getElementById('create-pr');
-    const requireApprovalCheckbox = document.getElementById('require-approval');
-    const submit = () => {
-      vscode.postMessage({
-        type: 'submit',
-        value: textarea.value,
-        createPR: createPrCheckbox ? createPrCheckbox.checked : false,
-        requireApproval: requireApprovalCheckbox ? requireApprovalCheckbox.checked : false,
-      });
-    };
-
-    document.getElementById('submit').addEventListener('click', submit);
-    document.getElementById('cancel').addEventListener('click', () => {
-      vscode.postMessage({ type: 'cancel' });
-    });
-
-    textarea.addEventListener('keydown', (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-        event.preventDefault();
-        submit();
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        vscode.postMessage({ type: 'cancel' });
-      }
-    });
-  </script>
-</body>
-</html>`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function escapeAttribute(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function getNonce(): string {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 16; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-interface SessionsResponse {
-  sessions: Session[];
-}
-
-interface PlanStep {
-  id: string;
-  title: string;
-  description: string;
-  index: number;
-}
-
-interface PlanGenerated {
-  id: string;
-  steps: PlanStep[];
-  createTime: string;
-}
-
-interface Activity {
-  name: string;
-  createTime: string;
-  originator: "user" | "agent";
-  id: string;
-  type?: string;
-  description?: string;
-  planGenerated?: PlanGenerated;
-  planApproved?: { planId: string };
-  progressUpdated?: { title: string; description?: string };
-  sessionCompleted?: Record<string, never>;
-}
-
-interface ActivitiesResponse {
-  activities: Activity[];
-}
-
-function getActivityIcon(activity: Activity): string {
-  if (activity.planGenerated) {
-    return "📝";
-  }
-  if (activity.planApproved) {
-    return "👍";
-  }
-  if (activity.progressUpdated) {
-    return "🔄";
-  }
-  if (activity.sessionCompleted) {
-    return "✅";
-  }
-  return "ℹ️";
-}
-
-class JulesSessionsProvider
-  implements vscode.TreeDataProvider<vscode.TreeItem> {
-  private _onDidChangeTreeData: vscode.EventEmitter<
-    vscode.TreeItem | undefined | null | void
-  > = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<
-    vscode.TreeItem | undefined | null | void
-  > = this._onDidChangeTreeData.event;
-
-  private sessionsCache: Session[] = [];
-  private isFetching = false;
-
-  constructor(private context: vscode.ExtensionContext) { }
-
-  private async fetchAndProcessSessions(
-    isBackground: boolean = false
-  ): Promise<void> {
-    if (this.isFetching) {
-      console.log("Jules: Fetch already in progress. Skipping.");
-      return;
-    }
-    this.isFetching = true;
-    console.log("Jules: Starting to fetch and process sessions...");
-
-    try {
-      const apiKey = await getStoredApiKey(this.context);
-      if (!apiKey) {
-        this.sessionsCache = [];
-        return;
-      }
-
-      const response = await fetch(`${JULES_API_BASE_URL}/sessions`, {
-        method: "GET",
-        headers: {
-          "X-Goog-Api-Key": apiKey,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorMsg = `Failed to fetch sessions: ${response.status} ${response.statusText}`;
-        console.error(`Jules: ${errorMsg}`);
-        if (!isBackground) {
-          vscode.window.showErrorMessage(errorMsg);
-        }
-        this.sessionsCache = [];
-        return;
-      }
-
-      const data = (await response.json()) as SessionsResponse;
-      if (!data.sessions || !Array.isArray(data.sessions)) {
-        console.log("Jules: No sessions found or invalid response format");
-        this.sessionsCache = [];
-        return;
-      }
-
-      console.log(`Jules: Found ${data.sessions.length} total sessions`);
-
-      const allSessionsMapped = data.sessions.map((session) => ({
-        ...session,
-        rawState: session.state,
-        state: mapApiStateToSessionState(session.state),
-      }));
-
-      // --- Check for plans awaiting approval ---
-      const plansAwaitingApproval =
-        checkForPlansAwaitingApproval(allSessionsMapped);
-      if (plansAwaitingApproval.length > 0) {
-        console.log(
-          `Jules: Found ${plansAwaitingApproval.length} sessions awaiting plan approval`
-        );
-        for (const session of plansAwaitingApproval) {
-          notifyPlanAwaitingApproval(session, this.context).catch((error) => {
-            console.error(
-              "Jules: Failed to show plan approval notification",
-              error
-            );
-          });
-        }
-      }
-
-      // --- Check for completed sessions (PR created) ---
-      const completedSessions = checkForCompletedSessions(allSessionsMapped);
-      if (completedSessions.length > 0) {
-        console.log(
-          `Jules: Found ${completedSessions.length} completed sessions`
-        );
-        for (const session of completedSessions) {
-          const prUrl = extractPRUrl(session);
-          if (prUrl) {
-            notifyPRCreated(session, prUrl).catch((error) => {
-              console.error("Jules: Failed to show PR notification", error);
-            });
-          }
-        }
-      }
-
-      // --- Update previous states after all checks ---
-      await updatePreviousStates(allSessionsMapped, this.context);
-
-      // --- Update the cache ---
-      this.sessionsCache = allSessionsMapped;
-    } catch (error) {
-      console.error("Jules: Error during fetchAndProcessSessions:", error);
-      this.sessionsCache = []; // Clear cache on error
-    } finally {
-      this.isFetching = false;
-      console.log("Jules: Finished fetching and processing sessions.");
-      // Fire the event to refresh the view with the new data
-      this._onDidChangeTreeData.fire();
-    }
-  }
-
-  async refresh(isBackground: boolean = false): Promise<void> {
-    console.log(
-      `Jules: refresh() called (isBackground: ${isBackground}), starting fetch.`
-    );
-    await this.fetchAndProcessSessions(isBackground);
-  }
-
-  getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
-    return element;
-  }
-
-  async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    if (element) {
-      return [];
-    }
-
-    // If the cache is empty, it might be the first load.
-    if (this.sessionsCache.length === 0 && !this.isFetching) {
-      await this.fetchAndProcessSessions();
-    }
-
-    const selectedSource =
-      this.context.globalState.get<SourceType>("selected-source");
-
-    if (!selectedSource) {
-      const item = new vscode.TreeItem(
-        "ℹ️ No source selected. Click to select a source."
-      );
-      item.command = {
-        command: "jules-extension.listSources",
-        title: "Select Source",
-      };
-      item.contextValue = "no-source";
-      return [item];
-    }
-
-    // Now, use the cache to build the tree
-    let filteredSessions = this.sessionsCache.filter(
-      (session) =>
-        (session as any).sourceContext?.source === selectedSource.name
-    );
-
-    console.log(
-      `Jules: Found ${filteredSessions.length} sessions for the selected source from cache`
-    );
-
-    // Filter out sessions with closed PRs if the setting is enabled
-    const hideClosedPRs = vscode.workspace
-      .getConfiguration("jules-extension")
-      .get<boolean>("hideClosedPRSessions", true);
-
-    if (hideClosedPRs) {
-      // We no longer need to check PR status on every render.
-      // The `isTerminated` flag in `previousSessionStates` handles this.
-      const beforeFilterCount = filteredSessions.length;
-      filteredSessions = filteredSessions.filter((session) => {
-        const prevState = previousSessionStates.get(session.name);
-        // Hide if the session is marked as terminated.
-        return !prevState?.isTerminated;
-      });
-      const filteredCount = beforeFilterCount - filteredSessions.length;
-      if (filteredCount > 0) {
-        console.log(
-          `Jules: Filtered out ${filteredCount} terminated sessions (${beforeFilterCount} -> ${filteredSessions.length})`
-        );
-      }
-    }
-
-    if (filteredSessions.length === 0) {
-      return [new vscode.TreeItem("No sessions found for this source.")];
-    }
-
-    return filteredSessions.map((session) => new SessionTreeItem(session));
-  }
-}
-
-export class SessionTreeItem extends vscode.TreeItem {
-  constructor(public readonly session: Session) {
-    super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
-    this.tooltip = `${session.name} - ${session.state}${session.requirePlanApproval ? ' (Plan Approval Required)' : ''}`;
-    this.description = session.state;
-    this.iconPath = this.getIcon(session.state, session.rawState);
-    this.contextValue = "jules-session";
-    this.command = {
-      command: "jules-extension.sessionSelected",
-      title: "Show Activities",
-      arguments: [session],
-    };
-  }
-
-  private getIcon(state: string, rawState?: string): vscode.ThemeIcon {
-    if (rawState === "AWAITING_PLAN_APPROVAL") {
-      return new vscode.ThemeIcon("clock");
-    }
-    switch (state) {
-      case "RUNNING":
-        return new vscode.ThemeIcon("sync~spin");
-      case "COMPLETED":
-        return new vscode.ThemeIcon("check");
-      case "FAILED":
-        return new vscode.ThemeIcon("error");
-      case "CANCELLED":
-        return new vscode.ThemeIcon("close");
-      default:
-        return new vscode.ThemeIcon("question");
-    }
-  }
-}
-
-async function approvePlan(
-  sessionId: string,
-  context: vscode.ExtensionContext
-): Promise<void> {
-  const apiKey = await context.secrets.get("jules-api-key");
-  if (!apiKey) {
-    vscode.window.showErrorMessage("API Key is not set. Please set it first.");
-    return;
-  }
-
-  try {
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: "Approving plan...",
-      },
-      async () => {
-        const response = await fetch(
-          `${JULES_API_BASE_URL}/${sessionId}:approvePlan`,
-          {
-            method: "POST",
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({}),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to approve plan: ${response.status} ${response.statusText}`
-          );
-        }
-
-        vscode.window.showInformationMessage("Plan approved successfully!");
-
-        // リフレッシュして最新状態を取得
-        await vscode.commands.executeCommand("jules-extension.refreshSessions");
-      }
-    );
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error occurred.";
-    vscode.window.showErrorMessage(`Error approving plan: ${message}`);
-  }
-}
-
-async function sendMessageToSession(
-  context: vscode.ExtensionContext,
-  target?: SessionTreeItem | string
-): Promise<void> {
-  const apiKey = await getStoredApiKey(context);
-  if (!apiKey) {
-    return;
-  }
-
-  const sessionId = resolveSessionId(context, target);
-  if (!sessionId) {
-    vscode.window.showErrorMessage(
-      "No active session available. Please create or select a session first."
-    );
-    return;
-  }
-
-  try {
-    const result = await showMessageComposer({
-      title: "Send Message to Jules",
-      placeholder: "What would you like Jules to do?",
-    });
-
-    if (result === undefined) {
-      vscode.window.showWarningMessage("Message was cancelled and not sent.");
-      return;
-    }
-
-    const userPrompt = result.prompt.trim();
-    if (!userPrompt) {
-      vscode.window.showWarningMessage("Message was empty and not sent.");
-      return;
-    }
-    const finalPrompt = buildFinalPrompt(userPrompt);
-
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: "Sending message to Jules...",
-      },
-      async () => {
-        const response = await fetch(
-          `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Goog-Api-Key": apiKey,
-            },
-            body: JSON.stringify({ prompt: finalPrompt }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const message =
-            errorText || `${response.status} ${response.statusText}`;
-          throw new Error(message);
-        }
-
-        vscode.window.showInformationMessage("Message sent successfully!");
-      }
-    );
-
-    await context.globalState.update("active-session-id", sessionId);
-    await vscode.commands.executeCommand("jules-extension.refreshActivities");
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error occurred.";
-    vscode.window.showErrorMessage(`Failed to send message: ${message}`);
-  }
-}
-
-function updateStatusBar(
-  context: vscode.ExtensionContext,
-  statusBarItem: vscode.StatusBarItem
+    session: LocalSession,
+    plan: PlanGenerated,
+    context: vscode.ExtensionContext,
+    sessionsProvider: JulesSessionsProvider
 ) {
-  const selectedSource = context.globalState.get<SourceType>("selected-source");
+    // Check if we already notified for this plan
+    const alreadyNotifiedKey = `notified-plan-${plan.id}`;
+    const alreadyNotified = context.globalState.get<boolean>(alreadyNotifiedKey);
 
-  if (selectedSource) {
-    // GitHubリポジトリ名を抽出（例: "sources/github/owner/repo" -> "owner/repo"）
-    const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
-    const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
-
-    statusBarItem.text = `$(repo) Jules: ${repoName}`;
-    statusBarItem.tooltip = `Current Source: ${repoName}\nClick to change source`;
-    statusBarItem.show();
-  } else {
-    statusBarItem.text = `$(repo) Jules: No source selected`;
-    statusBarItem.tooltip = "Click to select a source";
-    statusBarItem.show();
-  }
-}
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
-  console.log("Jules Extension is now active");
-
-  loadPreviousSessionStates(context);
-
-  const sessionsProvider = new JulesSessionsProvider(context);
-  const sessionsTreeView = vscode.window.createTreeView("julesSessionsView", {
-    treeDataProvider: sessionsProvider,
-    showCollapseAll: false,
-  });
-  console.log("Jules: TreeView created");
-
-  // ステータスバーアイテム作成
-  const statusBarItem = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    100
-  );
-  statusBarItem.command = "jules-extension.listSources";
-  context.subscriptions.push(statusBarItem);
-
-  // 初期表示を更新
-  updateStatusBar(context, statusBarItem);
-
-  // Create OutputChannel for Activities
-  const activitiesChannel =
-    vscode.window.createOutputChannel("Jules Activities");
-  context.subscriptions.push(activitiesChannel);
-
-  // Create OutputChannel for Logs
-  const logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
-  context.subscriptions.push(logChannel);
-
-  // Sign in to GitHub via VS Code authentication
-  const signInDisposable = vscode.commands.registerCommand('jules-extension.signInGitHub', async () => {
-    const token = await GitHubAuth.signIn();
-    if (token) {
-      const userInfo = await GitHubAuth.getUserInfo();
-      vscode.window.showInformationMessage(
-        `Signed in to GitHub as ${userInfo?.login || 'user'}`
-      );
-      logChannel.appendLine(`[Jules] Signed in to GitHub as ${userInfo?.login}`);
-    }
-  });
-  context.subscriptions.push(signInDisposable);
-
-  const setApiKeyDisposable = vscode.commands.registerCommand(
-    "jules-extension.setApiKey",
-    async () => {
-      const apiKey = await vscode.window.showInputBox({
-        prompt: "Enter your Jules API Key",
-        password: true,
-      });
-      if (apiKey) {
-        await context.secrets.store("jules-api-key", apiKey);
-        vscode.window.showInformationMessage("API Key saved securely.");
-      }
-    }
-  );
-
-  const verifyApiKeyDisposable = vscode.commands.registerCommand(
-    "jules-extension.verifyApiKey",
-    async () => {
-      const apiKey = await getStoredApiKey(context);
-      if (!apiKey) {
-        return;
-      }
-      try {
-        const response = await fetch(`${JULES_API_BASE_URL}/sources`, {
-          method: "GET",
-          headers: {
-            "X-Goog-Api-Key": apiKey,
-            "Content-Type": "application/json",
-          },
-        });
-        if (response.ok) {
-          vscode.window.showInformationMessage("API Key is valid.");
-        } else {
-          vscode.window.showErrorMessage(
-            "API Key is invalid. Please check and set a correct key."
-          );
-        }
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          "Failed to verify API Key. Please check your internet connection."
-        );
-      }
-    }
-  );
-
-  const listSourcesDisposable = vscode.commands.registerCommand(
-    "jules-extension.listSources",
-    async () => {
-      const apiKey = await getStoredApiKey(context);
-      if (!apiKey) {
-        return;
-      }
-
-      try {
-        const cacheKey = 'jules.sources';
-        const cached = context.globalState.get<SourcesCache>(cacheKey);
-        let sources: SourceType[];
-
-        if (cached && isCacheValid(cached.timestamp)) {
-          logChannel.appendLine('Using cached sources');
-          sources = cached.sources;
-        } else {
-          sources = await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'Fetching sources...',
-            cancellable: false
-          }, async (progress) => {
-            const response = await fetch(`${JULES_API_BASE_URL}/sources`, {
-              method: "GET",
-              headers: {
-                "X-Goog-Api-Key": apiKey,
-                "Content-Type": "application/json",
-              },
-            });
-            if (!response.ok) {
-              throw new Error(`Failed to fetch sources: ${response.status} ${response.statusText}`);
-            }
-            const data = (await response.json()) as SourcesResponse;
-            if (!data.sources || !Array.isArray(data.sources)) {
-              throw new Error("Invalid response format from API.");
-            }
-            await context.globalState.update(cacheKey, { sources: data.sources, timestamp: Date.now() });
-            logChannel.appendLine(`Fetched ${data.sources.length} sources`);
-            return data.sources;
-          });
-        }
-
-        const items: SourceQuickPickItem[] = sources.map((source) => ({
-          label: source.name || source.id || "Unknown",
-          description: source.url || "",
-          detail: source.description || "",
-          source: source,
-        }));
-        const selected: SourceQuickPickItem | undefined =
-          await vscode.window.showQuickPick(items, {
-            placeHolder: "Select a Jules Source",
-          });
-        if (selected) {
-          await context.globalState.update("selected-source", selected.source);
-          vscode.window.showInformationMessage(
-            `Selected source: ${selected.label}`
-          );
-          updateStatusBar(context, statusBarItem);
-          sessionsProvider.refresh();
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error occurred.";
-        logChannel.appendLine(`Failed to list sources: ${message}`);
-        vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
-      }
-    }
-  );
-
-  const createSessionDisposable = vscode.commands.registerCommand(
-    "jules-extension.createSession",
-    async () => {
-      const selectedSource = context.globalState.get(
-        "selected-source"
-      ) as SourceType;
-      if (!selectedSource) {
-        vscode.window.showErrorMessage(
-          "No source selected. Please list and select a source first."
-        );
-        return;
-      }
-      const apiKey = await context.secrets.get("jules-api-key");
-      if (!apiKey) {
-        vscode.window.showErrorMessage(
-          'API Key not found. Please set it first using "Set Jules API Key" command.'
-        );
-        return;
-      }
-
-      const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
-
-      try {
-        // ブランチ選択ロジック（メッセージ入力前に移動）
-        const { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches } = await getBranchesForSession(selectedSource, apiClient, logChannel, context);
-
-        // QuickPickでブランチ選択
-        const selectedBranch = await vscode.window.showQuickPick(
-          branches.map(branch => ({
-            label: branch,
-            picked: branch === selectedDefaultBranch,
-            description: (
-              branch === selectedDefaultBranch ? '(default)' : undefined
-            ) || (
-                branch === currentBranch ? '(current)' : undefined
-              )
-          })),
-          {
-            placeHolder: 'Select a branch for this session',
-            title: 'Branch Selection'
-          }
-        );
-
-        if (!selectedBranch) {
-          vscode.window.showWarningMessage("Branch selection was cancelled.");
-          return;
-        }
-
-        let startingBranch = selectedBranch.label;
-
-        // リモートブランチの存在チェック
-        if (!new Set(remoteBranches).has(startingBranch)) {
-          // ローカル専用ブランチの場合
-          logChannel.appendLine(`[Jules] Warning: Branch "${startingBranch}" not found on remote`);
-
-          const action = await vscode.window.showWarningMessage(
-            `Branch "${startingBranch}" exists locally but has not been pushed to remote.\n\nJules requires a remote branch to start a session.`,
-            { modal: true },
-            'Create Remote Branch',
-            'Use Default Branch'
-          );
-
-          if (action === 'Create Remote Branch') {
-            const creationInfo = await getRepoInfoForBranchCreation(logChannel);
-            if (!creationInfo) {
-              return; // エラーメッセージはヘルパー内で表示済み
-            }
-
-            // リモートブランチを作成
-            try {
-              await vscode.window.withProgress(
-                {
-                  location: vscode.ProgressLocation.Notification,
-                  title: "Creating remote branch...",
-                  cancellable: false,
-                },
-                async (progress) => {
-                  progress.report({ increment: 0, message: "Initializing..." });
-                  await createRemoteBranch(
-                    creationInfo.token,
-                    creationInfo.owner,
-                    creationInfo.repo,
-                    startingBranch,
-                    logChannel
-                  );
-                  progress.report({ increment: 100, message: "Remote branch created!" });
-                }
-              );
-              logChannel.appendLine(`[Jules] Remote branch "${startingBranch}" created successfully`);
-              vscode.window.showInformationMessage(`Remote branch "${startingBranch}" created successfully.`);
-
-              // Force refresh branches cache after remote branch creation
-              try {
-                await getBranchesForSession(selectedSource, apiClient, logChannel, context, true);
-                logChannel.appendLine('[Jules] Branches cache refreshed after remote branch creation');
-              } catch (error) {
-                logChannel.appendLine(`[Jules] Failed to refresh branches cache: ${error}`);
-              }
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : "Unknown error";
-              logChannel.appendLine(`[Jules] Failed to create remote branch: ${errorMessage}`);
-              vscode.window.showErrorMessage(`Failed to create remote branch: ${errorMessage}`);
-              return;
-            }
-          } else if (action === 'Use Default Branch') {
-            startingBranch = selectedDefaultBranch;
-            logChannel.appendLine(`[Jules] Using default branch: ${selectedDefaultBranch}`);
-          } else {
-            logChannel.appendLine('[Jules] Session creation cancelled by user');
-            return;
-          }
-        } else {
-          logChannel.appendLine(`[Jules] Branch "${startingBranch}" found on remote`);
-        }
-
-        const result = await showMessageComposer({
-          title: "Create Jules Session",
-          placeholder: "Describe the task you want Jules to tackle...",
-          showCreatePrCheckbox: true,
-          showRequireApprovalCheckbox: true,
-        });
-
-        if (result === undefined) {
-          vscode.window.showWarningMessage("Session creation was cancelled.");
-          return;
-        }
-
-        const userPrompt = result.prompt.trim();
-        if (!userPrompt) {
-          vscode.window.showWarningMessage(
-            "Task description was empty. Session not created."
-          );
-          return;
-        }
-        const finalPrompt = buildFinalPrompt(userPrompt);
-        const title = userPrompt.split("\n")[0];
-        const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
-        const requestBody: CreateSessionRequest = {
-          prompt: finalPrompt,
-          sourceContext: {
-            source: selectedSource.name || selectedSource.id || "",
-            githubRepoContext: {
-              startingBranch,
-            },
-          },
-          automationMode,
-          title,
-          requirePlanApproval: result.requireApproval,
-        };
-
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Creating Jules Session...",
-            cancellable: false,
-          },
-          async (progress) => {
-            progress.report({
-              increment: 0,
-              message: "Sending request...",
-            });
-            const response = await fetch(`${JULES_API_BASE_URL}/sessions`, {
-              method: "POST",
-              headers: {
-                "X-Goog-Api-Key": apiKey,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(requestBody),
-            });
-            progress.report({
-              increment: 50,
-              message: "Processing response...",
-            });
-            if (!response.ok) {
-              throw new Error(
-                `Failed to create session: ${response.status} ${response.statusText}`
-              );
-            }
-            const session = (await response.json()) as SessionResponse;
-            await context.globalState.update("active-session-id", session.name);
-            progress.report({
-              increment: 100,
-              message: "Session created!",
-            });
-            vscode.window.showInformationMessage(
-              `Session created: ${session.name}`
+    if (!alreadyNotified) {
+        // Find the user request that triggered this plan
+        // We look for the latest user activity before the plan
+        let userRequestContent = "";
+        if (session.activities) {
+            const planTime = new Date(plan.createTime).getTime();
+            const userActivities = session.activities.filter(a =>
+                a.originator === "user" &&
+                new Date(a.createTime).getTime() < planTime
             );
-          }
-        );
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          `Failed to create session: ${error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
-      }
-    }
-  );
+            // Sort by time descending
+            userActivities.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
 
-  // Perform initial refresh to populate the tree view (async, don't wait)
-  console.log("Jules: Starting initial refresh...");
-  sessionsProvider.refresh();
-
-  startAutoRefresh(context, sessionsProvider);
-
-  // Show full plan details in a QuickPick. Collects steps from planGenerated activities.
-  async function showPlanDetails(activities: Activity[]): Promise<void> {
-    const planActivities = activities.filter((a) => a.planGenerated);
-    if (planActivities.length === 0) {
-      vscode.window.showInformationMessage('No plan details available');
-      return;
-    }
-
-    const items: vscode.QuickPickItem[] = [];
-    planActivities.forEach((a, planIdx) => {
-      const planGen = a.planGenerated!;
-      const title = planGen.id ? `Plan ${planIdx + 1} (${planGen.id})` : `Plan ${planIdx + 1}`;
-      const steps: PlanStep[] = Array.isArray(planGen.steps) ? planGen.steps : [];
-      steps.forEach((step) => {
-        items.push({
-          label: `📋 Step ${step.index + 1}: ${step.title}`,
-          detail: step.description,
-          description: `ID: ${step.id}`,
-        });
-      });
-    });
-
-    if (items.length === 0) {
-      vscode.window.showInformationMessage('No plan steps available');
-      return;
-    }
-
-    await vscode.window.showQuickPick(items, {
-      placeHolder: 'Plan Details - Review all steps',
-      canPickMany: false,
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
-  }
-
-  const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(
-    (event) => {
-      if (
-        event.affectsConfiguration("jules-extension.autoRefresh.enabled") ||
-        event.affectsConfiguration("jules-extension.autoRefresh.interval")
-      ) {
-        stopAutoRefresh();
-        const autoRefreshEnabled = vscode.workspace
-          .getConfiguration("jules-extension.autoRefresh")
-          .get<boolean>("enabled");
-        if (autoRefreshEnabled) {
-          startAutoRefresh(context, sessionsProvider);
-        }
-      }
-    }
-  );
-  context.subscriptions.push(onDidChangeConfiguration);
-
-  const refreshSessionsDisposable = vscode.commands.registerCommand(
-    "jules-extension.refreshSessions",
-    () => {
-      sessionsProvider.refresh(false); // Pass false for manual refresh
-    }
-  );
-
-  const showActivitiesDisposable = vscode.commands.registerCommand(
-    "jules-extension.showActivities",
-    async (sessionId: string) => {
-      const apiKey = await getStoredApiKey(context);
-      if (!apiKey) {
-        return;
-      }
-      try {
-        const sessionResponse = await fetch(
-          `${JULES_API_BASE_URL}/${sessionId}`,
-          {
-            method: "GET",
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        if (!sessionResponse.ok) {
-          const errorText = await sessionResponse.text();
-          vscode.window.showErrorMessage(
-            `Session not found: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`
-          );
-          return;
-        }
-        const session = (await sessionResponse.json()) as Session;
-        const response = await fetch(
-          `${JULES_API_BASE_URL}/${sessionId}/activities`,
-          {
-            method: "GET",
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        if (!response.ok) {
-          const errorText = await response.text();
-          vscode.window.showErrorMessage(
-            `Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`
-          );
-          return;
-        }
-        const data = (await response.json()) as ActivitiesResponse;
-        if (!data.activities || !Array.isArray(data.activities)) {
-          vscode.window.showErrorMessage("Invalid response format from API.");
-          return;
-        }
-        activitiesChannel.clear();
-        activitiesChannel.show();
-        activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
-        activitiesChannel.appendLine("---");
-        if (data.activities.length === 0) {
-          activitiesChannel.appendLine("No activities found for this session.");
-        } else {
-          let planDetected = false;
-          data.activities.forEach((activity) => {
-            const icon = getActivityIcon(activity);
-            const timestamp = new Date(activity.createTime).toLocaleString();
-            let message = "";
-            if (activity.planGenerated) {
-              const count = Array.isArray(activity.planGenerated.steps)
-                ? activity.planGenerated.steps.length
-                : 0;
-              message = `Plan generated (${count} steps)`;
-              planDetected = true;
-            } else if (activity.planApproved) {
-              message = `Plan approved: ${activity.planApproved.planId}`;
-            } else if (activity.progressUpdated) {
-              message = `Progress: ${activity.progressUpdated.title}${activity.progressUpdated.description
-                ? " - " + activity.progressUpdated.description
-                : ""
-                }`;
-            } else if (activity.sessionCompleted) {
-              message = "Session completed";
-            } else {
-              message = "Unknown activity";
+            if (userActivities.length > 0) {
+                // Assuming description holds the prompt/message
+                userRequestContent = userActivities[0].description || "No content";
             }
-            activitiesChannel.appendLine(
-              `${icon} ${timestamp} (${activity.originator}): ${message}`
-            );
-          });
         }
-        // Show modal prompt for any generated plan (provide title + up to 100 chars summary)
-        const planActivity = data.activities.find((a) => a.planGenerated);
-        logChannel.appendLine(`[Jules] planActivity found: ${!!planActivity}`);
-        if (planActivity) {
-          logChannel.appendLine(`[Jules] Full planActivity: ${JSON.stringify(planActivity, null, 2)}`);
+
+        let message = `Session "${session.title}" is awaiting plan approval.`;
+        if (userRequestContent) {
+            // Truncate if too long
+            const truncatedRequest = userRequestContent.length > 100 ? userRequestContent.substring(0, 100) + "..." : userRequestContent;
+            message += `\nRequest: "${truncatedRequest}"`;
         }
-        if (planActivity?.planGenerated) {
-          logChannel.appendLine(`[Jules] plan.steps length: ${planActivity.planGenerated.steps?.length || 0}`);
-          logChannel.appendLine(`[Jules] plan.steps: ${JSON.stringify(planActivity.planGenerated.steps || [], null, 2)}`);
-          logChannel.appendLine(`[Jules] activity.description: ${JSON.stringify((planActivity as any).description ?? null)}`);
 
-          const plan = planActivity.planGenerated;
-
-          // If there are no steps, show an informative message and log it
-          if (!plan.steps || plan.steps.length === 0) {
-            logChannel.appendLine('[Jules] No plan steps available');
-            await vscode.window.showInformationMessage('Plan generated but no steps available');
-            return;
-          }
-
-          // Build a readable multi-line representation of steps
-          const stepsText = plan.steps
-            .map((step) => `${step.index + 1}. ${step.title}\n   ${step.description}`)
-            .join('\n\n');
-
-          const message = `📝 Plan Generated (${plan.steps.length} steps)\n\n${stepsText}\n\nApprove this plan?`;
-
-          const action = await vscode.window.showInformationMessage(
+        const action = await vscode.window.showInformationMessage(
             message,
-            { modal: true },
-            'Approve',
-            'View Details'
-          );
+            "View Session",
+            "Approve Plan"
+        );
 
-          if (action === 'Approve') {
-            await approvePlan(sessionId, context);
-          } else if (action === 'View Details') {
-            // Show detailed plan steps in QuickPick
-            await showPlanDetails(data.activities);
-          }
+        if (action === "View Session") {
+            vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+        } else if (action === "Approve Plan") {
+            vscode.commands.executeCommand("jules-extension.approvePlan", session.name);
         }
-        await context.globalState.update("active-session-id", sessionId);
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          "Failed to fetch activities. Please check your internet connection."
-        );
-      }
-    }
-  );
-  // Handle session selection from the TreeView. If the session requires plan approval,
-  // show the approval notification; otherwise show activities.
-  export async function sessionSelectedHandler(session: Session, ctx: vscode.ExtensionContext) {
-    try {
-      if (!session) return;
-      // If rawState explicitly indicates awaiting plan approval, show the approval UI.
-      if (session.rawState === "AWAITING_PLAN_APPROVAL") {
-        await notifyPlanAwaitingApproval(session, ctx);
-      } else {
-        await vscode.commands.executeCommand("jules-extension.showActivities", session.name);
-      }
-    } catch (err) {
-      console.error("Error in sessionSelected handler:", err);
-    }
-  }
 
-  const sessionSelectedDisposable = vscode.commands.registerCommand(
-    "jules-extension.sessionSelected",
-    async (session: Session) => sessionSelectedHandler(session, context)
-  );
-  context.subscriptions.push(sessionSelectedDisposable);
+        await context.globalState.update(alreadyNotifiedKey, true);
+    }
 
-  const refreshActivitiesDisposable = vscode.commands.registerCommand(
-    "jules-extension.refreshActivities",
-    async () => {
-      const currentSessionId = context.globalState.get(
-        "active-session-id"
-      ) as string;
-      if (!currentSessionId) {
-        vscode.window.showErrorMessage(
-          "No current session selected. Please show activities first."
-        );
-        return;
-      }
-      await vscode.commands.executeCommand(
+    // Refresh the tree view
+    sessionsProvider.refresh();
+}
+
+export async function sessionSelectedHandler(session: LocalSession) {
+    if (!session) return;
+    if (session.rawState === "AWAITING_PLAN_APPROVAL") {
+        // Trigger showActivities which handles plan approval prompt
+        vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    } else {
+        vscode.commands.executeCommand("jules-extension.showActivities", session.name);
+    }
+}
+
+export function activate(context: vscode.ExtensionContext) {
+    const logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
+    context.subscriptions.push(logChannel);
+    logChannel.appendLine("Jules Extension is now active!");
+
+    const activitiesChannel = vscode.window.createOutputChannel("Jules Activities");
+    context.subscriptions.push(activitiesChannel);
+
+    const sessionManager = new SessionManager(context, logChannel);
+    const sessionsProvider = new JulesSessionsProvider(sessionManager);
+    
+    // Initialize PollingManager
+    const pollingManager = new PollingManager(
+        sessionManager,
+        logChannel,
+        async (session: LocalSession, plan: PlanGenerated) => {
+            await notifyPlanAwaitingApproval(session, plan, context, sessionsProvider);
+        }
+    );
+
+    vscode.window.registerTreeDataProvider("julesSessionsView", sessionsProvider);
+
+    const statusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Left,
+        100
+    );
+    statusBarItem.command = "jules-extension.listSources";
+    context.subscriptions.push(statusBarItem);
+    updateStatusBar(context, statusBarItem);
+
+    // Command: Set API Key
+    const setApiKeyDisposable = vscode.commands.registerCommand(
+        "jules-extension.setApiKey",
+        async () => {
+            const apiKey = await vscode.window.showInputBox({
+                prompt: "Enter your Jules API Key",
+                password: true,
+                ignoreFocusOut: true,
+            });
+
+            if (apiKey) {
+                await context.secrets.store("jules-api-key", apiKey);
+                vscode.window.showInformationMessage("API Key saved successfully.");
+                
+                // Verify API Key
+                try {
+                    const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+                    await apiClient.listSources(); // Simple call to verify
+                    vscode.window.showInformationMessage("API Key is valid.");
+                } catch (error) {
+                    vscode.window.showErrorMessage("API Key is invalid or network error.");
+                }
+            }
+        }
+    );
+
+    // Command: List Sources
+    const listSourcesDisposable = vscode.commands.registerCommand(
+        "jules-extension.listSources",
+        async () => {
+            const apiKey = await getStoredApiKey(context);
+            if (!apiKey) return;
+
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+
+            try {
+                const cacheKey = 'jules.sources';
+                const cached = context.globalState.get<SourcesCache>(cacheKey);
+                let sources: SourceType[];
+
+                if (cached && isCacheValid(cached.timestamp)) {
+                    logChannel.appendLine('Using cached sources');
+                    sources = cached.sources;
+                } else {
+                    sources = await vscode.window.withProgress({
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'Fetching sources...',
+                        cancellable: false
+                    }, async () => {
+                        return await apiClient.listSources();
+                    });
+                    await context.globalState.update(cacheKey, { sources, timestamp: Date.now() });
+                }
+
+                const items = sources.map((source) => ({
+                    label: source.name || source.id || "Unknown",
+                    description: source.url || "",
+                    detail: source.description || "",
+                    source: source,
+                }));
+
+                const selected = await vscode.window.showQuickPick(items, {
+                    placeHolder: "Select a Jules Source",
+                });
+
+                if (selected) {
+                    await context.globalState.update("selected-source", selected.source);
+                    vscode.window.showInformationMessage(`Selected source: ${selected.label}`);
+                    updateStatusBar(context, statusBarItem);
+                    sessionsProvider.refresh();
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Unknown error occurred.";
+                vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
+            }
+        }
+    );
+
+    // Command: Create Session
+    const createSessionDisposable = vscode.commands.registerCommand(
+        "jules-extension.createSession",
+        async () => {
+            const selectedSource = context.globalState.get("selected-source") as SourceType;
+            if (!selectedSource) {
+                vscode.window.showErrorMessage("No source selected. Please list and select a source first.");
+                return;
+            }
+            const apiKey = await getStoredApiKey(context);
+            if (!apiKey) return;
+
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+
+            try {
+                const { branches, defaultBranch, currentBranch, remoteBranches } = await getBranchesForSession(
+                    selectedSource, 
+                    apiClient, 
+                    logChannel, 
+                    context
+                );
+
+                const selectedBranch = await vscode.window.showQuickPick(
+                    branches.map(branch => ({
+                        label: branch,
+                        picked: branch === defaultBranch,
+                        description: (branch === defaultBranch ? '(default)' : undefined) || 
+                                     (branch === currentBranch ? '(current)' : undefined)
+                    })),
+                    { placeHolder: 'Select a branch for this session', title: 'Branch Selection' }
+                );
+
+                if (!selectedBranch) return;
+
+                let startingBranch = selectedBranch.label;
+
+                // Check if remote branch exists
+                if (!new Set(remoteBranches).has(startingBranch)) {
+                    const action = await vscode.window.showWarningMessage(
+                        `Branch "${startingBranch}" exists locally but has not been pushed to remote.`,
+                        { modal: true },
+                        'Create Remote Branch',
+                        'Use Default Branch'
+                    );
+
+                    if (action === 'Create Remote Branch') {
+                        const creationInfo = await getRepoInfoForBranchCreation(logChannel);
+                        if (creationInfo) {
+                            await vscode.window.withProgress({
+                                location: vscode.ProgressLocation.Notification,
+                                title: "Creating remote branch...",
+                            }, async () => {
+                                await createRemoteBranch(
+                                    creationInfo.token,
+                                    creationInfo.owner,
+                                    creationInfo.repo,
+                                    startingBranch,
+                                    logChannel
+                                );
+                            });
+                            // Refresh branches
+                            await getBranchesForSession(selectedSource, apiClient, logChannel, context, true);
+                        } else {
+                            return;
+                        }
+                    } else if (action === 'Use Default Branch') {
+                        startingBranch = defaultBranch;
+                    } else {
+                        return;
+                    }
+                }
+
+                const result = await showMessageComposer({
+                    title: "Create Jules Session",
+                    placeholder: "Describe the task you want Jules to tackle...",
+                    showCreatePrCheckbox: true,
+                    showRequireApprovalCheckbox: true,
+                });
+
+                if (!result) return;
+
+                const userPrompt = result.prompt.trim();
+                if (!userPrompt) return;
+
+                const finalPrompt = buildFinalPrompt(userPrompt);
+                const title = userPrompt.split("\n")[0];
+                const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
+
+                const requestBody: CreateSessionRequest = {
+                    prompt: finalPrompt,
+                    sourceContext: {
+                        source: selectedSource.name || selectedSource.id || "",
+                        githubRepoContext: { startingBranch },
+                    },
+                    automationMode,
+                    title,
+                    requirePlanApproval: result.requireApproval,
+                };
+
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: "Creating Jules Session...",
+                }, async () => {
+                    const sessionResponse = await apiClient.createSession(requestBody);
+                    
+                    // Create LocalSession object
+                    const newSession: LocalSession = {
+                        name: sessionResponse.name,
+                        title: title,
+                        state: "RUNNING",
+                        rawState: "RUNNING",
+                        requirePlanApproval: result.requireApproval,
+                        activities: []
+                    };
+                    
+                    await sessionManager.addSession(newSession);
+                    await context.globalState.update("active-session-id", newSession.name);
+                    vscode.window.showInformationMessage(`Session created: ${newSession.name}`);
+                    sessionsProvider.refresh();
+                });
+
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Unknown error";
+                vscode.window.showErrorMessage(`Failed to create session: ${message}`);
+            }
+        }
+    );
+
+    // Command: Refresh Sessions
+    const refreshSessionsDisposable = vscode.commands.registerCommand(
+        "jules-extension.refreshSessions",
+        () => {
+            sessionsProvider.refresh();
+        }
+    );
+
+    // Command: Show Activities
+    const showActivitiesDisposable = vscode.commands.registerCommand(
         "jules-extension.showActivities",
-        currentSessionId
-      );
-    }
-  );
+        async (sessionId: string) => {
+            const apiKey = await getStoredApiKey(context);
+            if (!apiKey) return;
 
-  const sendMessageDisposable = vscode.commands.registerCommand(
-    "jules-extension.sendMessage",
-    async (item?: SessionTreeItem | string) => {
-      await sendMessageToSession(context, item);
-    }
-  );
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
-  const approvePlanDisposable = vscode.commands.registerCommand(
-    "jules-extension.approvePlan",
-    async () => {
-      const sessionId = context.globalState.get<string>("active-session-id");
-      if (!sessionId) {
-        vscode.window.showErrorMessage(
-          "No active session. Please select a session first."
-        );
-        return;
-      }
-      await approvePlan(sessionId, context);
-    }
-  );
+            try {
+                const session = await apiClient.getSession(sessionId);
+                const activities = await apiClient.getActivities(sessionId);
 
-  const openSettingsDisposable = vscode.commands.registerCommand(
-    "jules-extension.openSettings",
-    () => {
-      return vscode.commands.executeCommand(
-        "workbench.action.openSettings",
-        "@ext:HirokiMukai.jules-extension"
-      );
-    }
-  );
+                activitiesChannel.clear();
+                activitiesChannel.show();
+                activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
+                activitiesChannel.appendLine("---");
 
-  const deleteSessionDisposable = vscode.commands.registerCommand(
-    "jules-extension.deleteSession",
-    async (item?: SessionTreeItem) => {
-      if (!item || !(item instanceof SessionTreeItem)) {
-        vscode.window.showErrorMessage("No session selected.");
-        return;
-      }
+                if (activities.length === 0) {
+                    activitiesChannel.appendLine("No activities found for this session.");
+                } else {
+                    activities.forEach((activity) => {
+                        const icon = getActivityIcon(activity);
+                        const timestamp = new Date(activity.createTime).toLocaleString();
+                        let message = "";
+                        if (activity.planGenerated) {
+                            const count = Array.isArray(activity.planGenerated.steps)
+                                ? activity.planGenerated.steps.length
+                                : 0;
+                            message = `Plan generated (${count} steps)`;
+                        } else if (activity.planApproved) {
+                            message = `Plan approved: ${activity.planApproved.planId}`;
+                        } else if (activity.progressUpdated) {
+                            message = `Progress: ${activity.progressUpdated.title}${activity.progressUpdated.description
+                                ? " - " + activity.progressUpdated.description
+                                : ""
+                                }`;
+                        } else if (activity.sessionCompleted) {
+                            message = "Session completed";
+                        } else if (activity.originator === "user") {
+                            message = `User: ${activity.description || "No content"}`;
+                        } else {
+                            message = activity.description || "Unknown activity";
+                        }
+                        activitiesChannel.appendLine(
+                            `${icon} ${timestamp} (${activity.originator}): ${message}`
+                        );
+                    });
+                }
 
-      const session = item.session;
-      const confirm = await vscode.window.showWarningMessage(
-        `Are you sure you want to delete session "${session.title}" from local cache?\n\nNote: this only removes it locally and does not delete the session on Jules server.`,
-        { modal: true },
-        "Delete"
-      );
+                // Check for plan generated
+                const planActivity = activities.find((a) => a.planGenerated);
+                if (planActivity?.planGenerated) {
+                    const plan = planActivity.planGenerated;
+                    if (plan.steps && plan.steps.length > 0) {
+                        const stepsText = plan.steps
+                            .map((step) => `${step.index + 1}. ${step.title}\n   ${step.description}`)
+                            .join('\n\n');
 
-      if (confirm !== "Delete") {
-        return;
-      }
+                        const message = `📝 Plan Generated (${plan.steps.length} steps)\n\n${stepsText}\n\nApprove this plan?`;
 
-      // Remove from previous states to hide it
-      previousSessionStates.delete(session.name);
-      await context.globalState.update(
-        "jules.previousSessionStates",
-        Object.fromEntries(previousSessionStates)
-      );
+                        const action = await vscode.window.showInformationMessage(
+                            message,
+                            { modal: true },
+                            'Approve',
+                            'View Details'
+                        );
 
-      vscode.window.showInformationMessage(
-        `Session "${session.title}" removed from local cache.`
-      );
+                        if (action === 'Approve') {
+                            vscode.commands.executeCommand("jules-extension.approvePlan", sessionId);
+                        } else if (action === 'View Details') {
+                            // Show detailed plan steps in QuickPick
+                            const items = plan.steps.map((step) => ({
+                                label: `📋 Step ${step.index + 1}: ${step.title}`,
+                                detail: step.description,
+                                description: `ID: ${step.id}`,
+                            }));
+                            await vscode.window.showQuickPick(items, {
+                                placeHolder: 'Plan Details - Review all steps',
+                                canPickMany: false,
+                                matchOnDescription: true,
+                                matchOnDetail: true,
+                            });
+                        }
+                    }
+                }
 
-      // Refresh the view
-      sessionsProvider.refresh();
-    }
-  );
-
-  const setGithubTokenDisposable = vscode.commands.registerCommand(
-    "jules-extension.setGithubToken",
-    async () => {
-      try {
-        const token = await vscode.window.showInputBox({
-          prompt:
-            "Enter your GitHub Personal Access Token (used for PR status checks)",
-          password: true,
-          placeHolder: "Enter your GitHub PAT",
-          ignoreFocusOut: true,
-        });
-
-        if (token === undefined) {
-          // User cancelled the input
-          console.log("Jules: GitHub Token input cancelled by user");
-          return;
+                await context.globalState.update("active-session-id", sessionId);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to show activities: ${error}`);
+            }
         }
+    );
 
-        if (token === "") {
-          vscode.window.showWarningMessage(
-            "GitHub token was empty — cancelled."
-          );
-          return;
+    // Command: Approve Plan
+    const approvePlanDisposable = vscode.commands.registerCommand(
+        "jules-extension.approvePlan",
+        async (sessionId: string) => {
+            const apiKey = await getStoredApiKey(context);
+            if (!apiKey) return;
+
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+
+            try {
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: "Approving plan...",
+                }, async () => {
+                    await apiClient.approvePlan(sessionId);
+                    vscode.window.showInformationMessage("Plan approved successfully!");
+                    sessionsProvider.refresh();
+                });
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to approve plan: ${error}`);
+            }
         }
+    );
 
-        // Validate token format
-        if (!token.startsWith("ghp_") && !token.startsWith("github_pat_")) {
-          const proceed = await vscode.window.showWarningMessage(
-            "The token you entered doesn't look like a typical GitHub token. Save anyway?",
-            { modal: true },
-            "Save",
-            "Cancel"
-          );
-          if (proceed !== "Save") {
-            return;
-          }
+    // Command: Delete Session
+    const deleteSessionDisposable = vscode.commands.registerCommand(
+        "jules-extension.deleteSession",
+        async (item?: SessionTreeItem) => {
+            if (!item || !(item instanceof SessionTreeItem)) {
+                vscode.window.showErrorMessage("No session selected.");
+                return;
+            }
+            const session = item.session;
+            const confirm = await vscode.window.showWarningMessage(
+                `Are you sure you want to delete session "${session.title}" from local cache?`,
+                { modal: true },
+                "Delete"
+            );
+            if (confirm === "Delete") {
+                await sessionManager.deleteSession(session.name);
+                sessionsProvider.refresh();
+            }
         }
+    );
 
-        await context.secrets.store("jules-github-token", token);
-        vscode.window.showInformationMessage(
-          "GitHub token saved securely."
-        );
-        // Clear PR status cache when token changes
-        Object.keys(prStatusCache).forEach((key) => delete prStatusCache[key]);
-        sessionsProvider.refresh();
-      } catch (error) {
-        console.error("Jules: Error setting GitHub Token:", error);
-        vscode.window.showErrorMessage(
-          `GitHub Token の保存に失敗しました: ${error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
-      }
-    }
-  );
-
-  const setGitHubPatDisposable = vscode.commands.registerCommand(
-    "jules-extension.setGitHubPat",
-    async () => {
-      // Deprecation warning — suggest OAuth sign-in instead of PAT
-      const proceed = await vscode.window.showWarningMessage(
-        'GitHub PAT is deprecated and will be removed in a future version.\n\nPlease use OAuth sign-in instead.',
-        'Use OAuth (Recommended)',
-        'Continue with PAT'
-      );
-
-      if (proceed === 'Use OAuth (Recommended)') {
-        await vscode.commands.executeCommand('jules-extension.signInGitHub');
-        return;
-      }
-
-      if (proceed !== 'Continue with PAT') {
-        return; // user cancelled
-      }
-      const pat = await vscode.window.showInputBox({
-        prompt: '[DEPRECATED] Enter GitHub Personal Access Token',
-        password: true,
-        placeHolder: 'Enter your GitHub PAT',
-        ignoreFocusOut: true,
-        validateInput: (value) => {
-          if (!value || value.trim().length === 0) {
-            return 'PAT cannot be empty';
-          }
-
-          // 厳格なフォーマットチェック
-          const ghpPattern = /^ghp_[A-Za-z0-9]{36}$/;
-          const githubPatPattern = /^github_pat_[A-Za-z0-9_]{82}$/;
-
-          if (!ghpPattern.test(value) && !githubPatPattern.test(value)) {
-            return 'Invalid PAT format. Please enter a valid GitHub Personal Access Token.';
-          }
-
-          return null;
+    // Command: Open Pull Request
+    const openPullRequestDisposable = vscode.commands.registerCommand(
+        "jules-extension.openPullRequest",
+        (url: string) => {
+            vscode.env.openExternal(vscode.Uri.parse(url));
         }
-      });
+    );
 
-      if (pat) {
-        // 追加の検証（validateInputが通った場合でも再チェック）
-        const ghpPattern = /^ghp_[A-Za-z0-9]{36}$/;
-        const githubPatPattern = /^github_pat_[A-Za-z0-9_]{82}$/;
-        if (ghpPattern.test(pat) || githubPatPattern.test(pat)) {
-          await context.secrets.store('jules-github-pat', pat);
-          vscode.window.showInformationMessage('GitHub PAT saved (deprecated)');
-          logChannel.appendLine('[Jules] GitHub PAT saved (deprecated)');
-        } else {
-          vscode.window.showErrorMessage('Invalid PAT format. PAT was not saved.');
+    // Command: Session Selected
+    const sessionSelectedDisposable = vscode.commands.registerCommand(
+        "jules-extension.sessionSelected",
+        sessionSelectedHandler
+    );
+
+    // Command: Send Message
+    const sendMessageDisposable = vscode.commands.registerCommand(
+        "jules-extension.sendMessage",
+        async (item?: SessionTreeItem | string) => {
+            const apiKey = await getStoredApiKey(context);
+            if (!apiKey) return;
+
+            let sessionId: string | undefined;
+            if (item instanceof SessionTreeItem) {
+                sessionId = item.session.name;
+            } else if (typeof item === 'string') {
+                sessionId = item;
+            } else {
+                sessionId = context.globalState.get<string>("active-session-id");
+            }
+
+            if (!sessionId) {
+                vscode.window.showErrorMessage("No active session available.");
+                return;
+            }
+
+            const result = await showMessageComposer({
+                title: "Send Message to Jules",
+                placeholder: "What would you like Jules to do?",
+            });
+
+            if (!result) return;
+            const userPrompt = result.prompt.trim();
+            if (!userPrompt) return;
+
+            const finalPrompt = buildFinalPrompt(userPrompt);
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+
+            try {
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: "Sending message...",
+                }, async () => {
+                    await apiClient.sendMessage(sessionId!, finalPrompt);
+                    vscode.window.showInformationMessage("Message sent successfully!");
+                });
+                vscode.commands.executeCommand("jules-extension.showActivities", sessionId);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to send message: ${error}`);
+            }
         }
-      }
-    }
-  );
+    );
 
-  const clearCacheDisposable = vscode.commands.registerCommand(
-    "jules-extension.clearCache",
-    async () => {
-      try {
-        // すべてのキーを取得
-        const allKeys = context.globalState.keys();
+    // Command: Sign In GitHub
+    const signInGitHubDisposable = vscode.commands.registerCommand(
+        "jules-extension.signInGitHub",
+        async () => {
+            const token = await GitHubAuth.signIn();
+            if (token) {
+                vscode.window.showInformationMessage("Signed in to GitHub successfully!");
+            }
+        }
+    );
 
-        // Sources & Branches キャッシュをフィルタ
-        const branchCacheKeys = allKeys.filter(key => key.startsWith('jules.branches.'));
-        const cacheKeys = ['jules.sources', ...branchCacheKeys];
+    // Command: Set GitHub Token (Legacy/Alternative)
+    const setGithubTokenDisposable = vscode.commands.registerCommand(
+        "jules-extension.setGithubToken",
+        async () => {
+            const token = await vscode.window.showInputBox({
+                prompt: "Enter your GitHub Personal Access Token",
+                password: true,
+                ignoreFocusOut: true,
+            });
+            if (token) {
+                await context.secrets.store("jules-github-token", token);
+                vscode.window.showInformationMessage("GitHub token saved.");
+            }
+        }
+    );
 
-        // すべてのキャッシュをクリア
-        await Promise.all(
-          cacheKeys.map(key => context.globalState.update(key, undefined))
-        );
+    // Command: Set GitHub PAT (Deprecated but used in tests)
+    const setGitHubPatDisposable = vscode.commands.registerCommand(
+        "jules-extension.setGitHubPat",
+        async () => {
+            const token = await vscode.window.showInputBox({
+                prompt: "Enter your GitHub Personal Access Token",
+                password: true,
+                ignoreFocusOut: true,
+            });
+            
+            if (!token) return;
 
-        vscode.window.showInformationMessage(`Jules cache cleared: ${cacheKeys.length} entries removed`);
-        logChannel.appendLine(`[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheKeys.length} branches)`);
-      } catch (error: any) {
-        logChannel.appendLine(`[Jules] Error clearing cache: ${error.message}`);
-        vscode.window.showErrorMessage(`Failed to clear cache: ${error.message}`);
-      }
-    }
-  );
+            // Validation logic
+            const isValid = token.startsWith('ghp_') || token.startsWith('github_pat_');
+            
+            if (!isValid) {
+                 vscode.window.showErrorMessage("Invalid GitHub PAT format.");
+                 return;
+            }
 
-  context.subscriptions.push(
-    setApiKeyDisposable,
-    verifyApiKeyDisposable,
-    listSourcesDisposable,
-    createSessionDisposable,
-    sessionsTreeView,
-    refreshSessionsDisposable,
-    showActivitiesDisposable,
-    refreshActivitiesDisposable,
-    sendMessageDisposable,
-    approvePlanDisposable,
-    openSettingsDisposable,
-    deleteSessionDisposable,
-    setGithubTokenDisposable,
-    setGitHubPatDisposable,
-    clearCacheDisposable
-  );
+            await context.secrets.store("jules-github-token", token);
+            vscode.window.showInformationMessage("GitHub token saved.");
+        }
+    );
+
+    // Command: Open Settings
+    const openSettingsDisposable = vscode.commands.registerCommand(
+        "jules-extension.openSettings",
+        () => {
+            vscode.commands.executeCommand(
+                "workbench.action.openSettings",
+                "@ext:HirokiMukai.jules-extension"
+            );
+        }
+    );
+
+    // Command: Refresh Activities (Helper)
+    const refreshActivitiesDisposable = vscode.commands.registerCommand(
+        "jules-extension.refreshActivities",
+        async () => {
+            const currentSessionId = context.globalState.get("active-session-id") as string;
+            if (currentSessionId) {
+                vscode.commands.executeCommand("jules-extension.showActivities", currentSessionId);
+            }
+        }
+    );
+
+    context.subscriptions.push(
+        setApiKeyDisposable,
+        listSourcesDisposable,
+        createSessionDisposable,
+        refreshSessionsDisposable,
+        showActivitiesDisposable,
+        approvePlanDisposable,
+        deleteSessionDisposable,
+        openPullRequestDisposable,
+        sessionSelectedDisposable,
+        sendMessageDisposable,
+        signInGitHubDisposable,
+        setGithubTokenDisposable,
+        setGitHubPatDisposable,
+        openSettingsDisposable,
+        refreshActivitiesDisposable
+    );
+
+    // Start polling
+    pollingManager.startPolling();
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {
-  stopAutoRefresh();
-}
+export function deactivate() {}
 

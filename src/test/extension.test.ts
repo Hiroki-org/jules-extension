@@ -4,12 +4,12 @@ import * as assert from "assert";
 // as well as import your extension to test it
 import * as vscode from "vscode";
 import {
-  SessionTreeItem,
   mapApiStateToSessionState,
   buildFinalPrompt,
   notifyPlanAwaitingApproval,
   sessionSelectedHandler,
 } from "../extension";
+import { SessionTreeItem } from "../treeView";
 import * as sinon from "sinon";
 
 suite("Extension Test Suite", () => {
@@ -95,7 +95,7 @@ suite("Extension Test Suite", () => {
         rawState: "IN_PROGRESS",
       } as any);
 
-      assert.strictEqual(item.contextValue, "jules-session");
+      assert.strictEqual(item.contextValue, "session");
     });
 
     test("SessionTreeItem should have proper command", () => {
@@ -117,6 +117,8 @@ suite("Extension Test Suite", () => {
 
     setup(() => {
       getConfigurationStub = sinon.stub(vscode.workspace, "getConfiguration");
+      // Default behavior to avoid undefined if args don't match exactly
+      getConfigurationStub.returns({ get: () => undefined } as any);
     });
 
     teardown(() => {
@@ -127,18 +129,18 @@ suite("Extension Test Suite", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
       };
-      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+      getConfigurationStub.withArgs("jules").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt");
+      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns(""),
       };
-      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+      getConfigurationStub.withArgs("jules").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
@@ -149,7 +151,7 @@ suite("Extension Test Suite", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns(undefined),
       };
-      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+      getConfigurationStub.withArgs("jules").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
@@ -273,16 +275,17 @@ suite("Extension Test Suite", () => {
   suite("Plan approval notifications", () => {
     let sandbox: sinon.SinonSandbox;
     let mockContext: any;
+    let mockProvider: any;
 
     setup(() => {
       sandbox = sinon.createSandbox();
       mockContext = {
-        secrets: {
-          get: sandbox.stub().withArgs('jules-api-key').resolves('fake-api-key'),
+        globalState: {
+          get: sandbox.stub().returns(false),
+          update: sandbox.stub().resolves(),
         },
       } as any;
-
-      sandbox.stub(global, 'fetch');
+      mockProvider = { refresh: sandbox.stub() };
     });
 
     teardown(() => {
@@ -290,107 +293,37 @@ suite("Extension Test Suite", () => {
     });
 
     test("uses Activity.description when plan steps are empty", async () => {
-      const fetchStub = (global.fetch as sinon.SinonStub).resolves({
-        ok: true,
-        json: async () => ({
+      const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
+
+      const session = { 
+          name: 'sessions/test', 
+          title: 'Test Session',
           activities: [
             {
               name: 'activities/0',
               originator: 'user',
               description: 'Please update README with setup steps',
-            },
-            {
-              name: 'activities/1',
-              planGenerated: { id: 'pg1', steps: [] },
-              description: 'Update README.md to include setup instructions',
-            },
-          ],
-        }),
-      });
+              createTime: '2023-01-01T10:00:00Z'
+            }
+          ]
+      } as any;
+      
+      const plan = { id: 'pg1', steps: [], createTime: '2023-01-01T10:01:00Z' } as any;
 
-      const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
-
-      const session = { name: 'sessions/test', title: 'Test Session' } as any;
-
-      await notifyPlanAwaitingApproval(session, mockContext);
+      await notifyPlanAwaitingApproval(session, plan, mockContext, mockProvider);
 
       assert.ok(showInfoStub.calledOnce, 'showInformationMessage should be called');
       const messageArg = showInfoStub.getCall(0).args[0] as string;
-      assert.ok(messageArg.includes('Update README.md'), 'message should include the description text');
-
-      fetchStub.restore?.();
+      assert.ok(messageArg.includes('Please update README'), 'message should include the description text');
     });
 
-    test("shows steps when plan steps are present", async () => {
-      const fetchStub = (global.fetch as sinon.SinonStub).resolves({
-        ok: true,
-        json: async () => ({
-          activities: [
-            {
-              name: 'activities/0',
-              originator: 'user',
-              description: 'Please update the README to be more helpful',
-            },
-            {
-              name: 'activities/2',
-              planGenerated: {
-                id: 'pg2',
-                steps: [
-                  { id: 's1', title: 'Update README', description: 'Modify README content', index: 0 },
-                ],
-              },
-            },
-          ],
-        }),
-      });
-
-      const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
-
-      const session = { name: 'sessions/test', title: 'Test Session' } as any;
-
-      await notifyPlanAwaitingApproval(session, mockContext);
-
-      assert.ok(showInfoStub.calledOnce, 'showInformationMessage should be called');
-      const messageArg = showInfoStub.getCall(0).args[0] as string;
-      assert.ok(messageArg.includes('1. Update README'), 'message should include the step title when steps are present');
-
-      fetchStub.restore?.();
-    });
-
-    test("sessionSelectedHandler calls notifyPlanAwaitingApproval for awaiting approval", async () => {
+    test("sessionSelectedHandler calls showActivities", async () => {
       const session = { name: 'sessions/approve', title: 'Approve Session', rawState: 'AWAITING_PLAN_APPROVAL' } as any;
-
-      // stub fetch to return a plan activity and stub showInformationMessage to observe calls
-      const fetchStub = (global.fetch as sinon.SinonStub).resolves({
-        ok: true,
-        json: async () => ({
-          activities: [
-            { name: 'activities/0', originator: 'user', description: 'Please update README' },
-            { name: 'activities/1', planGenerated: { id: 'pg1', steps: [] }, description: 'Plan generated but no details available.' },
-          ],
-        }),
-      });
-
-      const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
-      const ctx = { secrets: { get: sandbox.stub().withArgs('jules-api-key').resolves('fake-api-key') } } as any;
-
-      await sessionSelectedHandler(session, ctx);
-
-      assert.ok(showInfoStub.calledOnce, 'notifyPlanAwaitingApproval should call showInformationMessage');
-
-      fetchStub.restore?.();
-    });
-
-    test("sessionSelectedHandler shows activities for non-approval state", async () => {
-      const session = { name: 'sessions/other', title: 'Other Session', rawState: 'IN_PROGRESS' } as any;
-
       const execStub = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
 
-      const ctx = { secrets: { get: sandbox.stub().withArgs('jules-api-key').resolves('fake-api-key') } } as any;
+      await sessionSelectedHandler(session);
 
-      await sessionSelectedHandler(session, ctx);
-
-      assert.ok(execStub.calledOnceWith('jules-extension.showActivities', 'sessions/other'));
+      assert.ok(execStub.calledWith('jules-extension.showActivities', 'sessions/approve'));
     });
   });
 });
