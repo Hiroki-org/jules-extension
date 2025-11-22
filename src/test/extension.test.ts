@@ -295,19 +295,19 @@ suite("Extension Test Suite", () => {
     test("uses Activity.description when plan steps are empty", async () => {
       const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined as any);
 
-      const session = { 
-          name: 'sessions/test', 
-          title: 'Test Session',
-          activities: [
-            {
-              name: 'activities/0',
-              originator: 'user',
-              description: 'Please update README with setup steps',
-              createTime: '2023-01-01T10:00:00Z'
-            }
-          ]
+      const session = {
+        name: 'sessions/test',
+        title: 'Test Session',
+        activities: [
+          {
+            name: 'activities/0',
+            originator: 'user',
+            description: 'Please update README with setup steps',
+            createTime: '2023-01-01T10:00:00Z'
+          }
+        ]
       } as any;
-      
+
       const plan = { id: 'pg1', steps: [], createTime: '2023-01-01T10:01:00Z' } as any;
 
       await notifyPlanAwaitingApproval(session, plan, mockContext, mockProvider);

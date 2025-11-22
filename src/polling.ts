@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { JULES_API_BASE_URL } from './constants';
-import { GitHubAuth } from './githubAuth';
+import { JulesApiClient } from './julesApiClient';
 import { SessionManager } from './sessionManager';
 import { LocalSession, Activity, PlanGenerated } from './types';
 
@@ -9,18 +9,21 @@ export class PollingManager {
     private isPolling = false;
 
     constructor(
+        private context: vscode.ExtensionContext,
         private sessionManager: SessionManager,
         private outputChannel: vscode.OutputChannel,
         private onPlanAwaitingApproval: (session: LocalSession, plan: PlanGenerated) => void
-    ) {}
+    ) {
+        // Listen for configuration changes
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('jules-extension.autoRefresh')) {
+                this.restartPolling();
+            }
+        });
+    }
 
     startPolling() {
-        if (this.pollingInterval) {
-            return;
-        }
-
-        this.outputChannel.appendLine('[Jules] Starting polling...');
-        this.pollingInterval = setInterval(() => this.pollSessions(), 5000);
+        this.restartPolling();
     }
 
     stopPolling() {
@@ -28,6 +31,22 @@ export class PollingManager {
             clearInterval(this.pollingInterval);
             this.pollingInterval = undefined;
             this.outputChannel.appendLine('[Jules] Stopped polling');
+        }
+    }
+
+    private restartPolling() {
+        this.stopPolling();
+
+        const config = vscode.workspace.getConfiguration('jules-extension');
+        const enabled = config.get<boolean>('autoRefresh.enabled', false);
+        const interval = config.get<number>('autoRefresh.interval', 30);
+
+        if (enabled) {
+            const intervalMs = Math.max(interval, 10) * 1000;
+            this.outputChannel.appendLine(`[Jules] Starting polling (interval: ${interval}s)...`);
+            this.pollingInterval = setInterval(() => this.pollSessions(), intervalMs);
+        } else {
+            this.outputChannel.appendLine('[Jules] Auto-refresh is disabled.');
         }
     }
 
@@ -46,15 +65,17 @@ export class PollingManager {
                 return;
             }
 
-            const token = await GitHubAuth.getToken();
-            if (!token) {
-                this.outputChannel.appendLine('[Jules] Polling skipped: No token');
+            const apiKey = await this.context.secrets.get("jules-api-key");
+            if (!apiKey) {
+                this.outputChannel.appendLine('[Jules] Polling skipped: No API Key');
                 this.isPolling = false;
                 return;
             }
 
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+
             for (const session of activeSessions) {
-                await this.pollSession(session, token);
+                await this.pollSession(session, apiClient);
             }
         } catch (error: any) {
             this.outputChannel.appendLine(`[Jules] Polling error: ${error.message}`);
@@ -63,47 +84,29 @@ export class PollingManager {
         }
     }
 
-    private async pollSession(session: LocalSession, token: string) {
+    private async pollSession(session: LocalSession, apiClient: JulesApiClient) {
         try {
-            // Use session.name as the identifier for the API
-            const response = await fetch(`${JULES_API_BASE_URL}/${session.name}/activities`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                if (response.status === 404) {
-                    // Session might be closed or deleted
-                    return;
-                }
-                throw new Error(`API Error: ${response.status}`);
-            }
-
-            const data = await response.json() as { activities: Activity[] };
-            const activities = data.activities || [];
-            
+            const activities = await apiClient.getActivities(session.name);
             const currentActivities = session.activities || [];
-            
+
             // Detect new activities by comparing IDs
-            const newActivities = activities.filter(a => 
+            const newActivities = activities.filter(a =>
                 !currentActivities.some(existing => existing.id === a.id)
             );
 
             if (newActivities.length > 0) {
                 this.outputChannel.appendLine(`[Jules] New activities for session ${session.name}: ${newActivities.length}`);
-                
+
                 for (const activity of newActivities) {
                     await this.sessionManager.addActivity(session.name, activity);
-                    
+
                     // Handle specific activity types based on property existence
                     if (activity.planGenerated) {
                         this.onPlanAwaitingApproval(session, activity.planGenerated);
                     } else if (activity.sessionCompleted) {
                         await this.sessionManager.updateSessionState(session.name, 'COMPLETED', 'completed');
                         vscode.window.showInformationMessage(`Session ${session.title} completed!`);
-                    } 
-                    // Note: Error handling might need adjustment based on actual API response structure for errors
+                    }
                 }
             }
         } catch (error: any) {

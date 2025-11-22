@@ -44,11 +44,11 @@ export class SessionTreeItem extends vscode.TreeItem {
         super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
         this.sessionId = session.name;
         this.state = session.state;
-        
+
         this.tooltip = `${this.label} (${this.state})`;
         this.description = this.state;
         this.contextValue = 'session';
-        
+
         let iconName = 'circle-slash';
         if (this.state === 'RUNNING') {
             iconName = 'play-circle';
@@ -57,9 +57,9 @@ export class SessionTreeItem extends vscode.TreeItem {
         } else if (this.state === 'FAILED') {
             iconName = 'error';
         }
-        
+
         this.iconPath = new vscode.ThemeIcon(iconName);
-        
+
         this.command = {
             command: 'jules-extension.sessionSelected',
             title: 'Open Session',
