@@ -691,7 +691,16 @@ class JulesSessionsProvider
           try {
             const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
             // バックグラウンド更新ではユーザーにログを見せないため、何もしないダミーのOutputChannelを使用します。
-            const silentOutputChannel = { appendLine: () => {} } as unknown as vscode.OutputChannel;
+            const silentOutputChannel: vscode.OutputChannel = {
+                name: 'silent-channel',
+                append: () => {},
+                appendLine: () => {},
+                replace: () => {},
+                clear: () => {},
+                show: () => {},
+                hide: () => {},
+                dispose: () => {},
+            };
             await getBranchesForSession(selectedSource, apiClient, silentOutputChannel, this.context, true);
             console.log("Jules: Branch cache updated successfully during background refresh");
           } catch (e) {
