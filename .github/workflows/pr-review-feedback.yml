@@ -34,8 +34,8 @@ jobs:
               return;
             }
 
-            // コマンド（/から始まる）や、既にJulesへのメンションがある場合は無視
-            if (reviewComment.trim().startsWith('/') || reviewComment.includes('@jules')) {
+            // コマンド（/から始まる）や、@から始まるコメント、既にJulesへのメンションがある場合は無視
+            if (reviewComment.trim().startsWith('/') || reviewComment.trim().startsWith('@') || reviewComment.includes('@jules')) {
                console.log('Skipping command or existing mention.');
                return;
             }
