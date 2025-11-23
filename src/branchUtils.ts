@@ -168,6 +168,6 @@ export async function getBranchesForSession(
             fetchBranchesLogic
         );
     } else {
-        return await fetchBranchesLogic();
+        return fetchBranchesLogic();
     }
 }

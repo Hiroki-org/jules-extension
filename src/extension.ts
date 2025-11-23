@@ -696,10 +696,9 @@ class JulesSessionsProvider
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
       if (isBackground) {
-        this._refreshBranchCacheInBackground(apiKey).catch(err => {
-          // The error is already logged inside the function, so we just need to catch the floating promise.
-          console.error("Jules: Suppressing floating promise error from branch cache refresh", err);
-        });
+        // エラーは_refreshBranchCacheInBackground内で処理されるため、fire-and-forgetで呼び出します。
+        // void演算子で意図的にPromiseを無視し、floating promiseに関するlintエラーを回避します。
+        void this._refreshBranchCacheInBackground(apiKey);
       }
     } catch (error) {
       console.error("Jules: Error during fetchAndProcessSessions:", error);
