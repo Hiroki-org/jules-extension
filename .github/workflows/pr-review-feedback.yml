@@ -15,26 +15,23 @@ jobs:
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   script: |
-                      const prNumber = context.payload.pull_request.number;
-                      const prAuthor = context.payload.pull_request.user.login;
+                      const pr = context.payload.pull_request;
+                      const prAuthor = pr.user.login;
                       const reviewComment = context.payload.comment.body;
-                      const commentId = context.payload.comment.id;
 
-                      // Check if PR is created by google-labs-jules
-                      if (prAuthor !== 'google-labs-jules') {
-                        console.log('PR not created by google-labs-jules, skipping.');
+                      // 修正: ログを出力してデバッグしやすくしつつ、部分一致で判定
+                      console.log(`PR Author: ${prAuthor}`);
+                      
+                      if (!prAuthor.includes('google-labs-jules')) {
+                        console.log('Skipping: Not a Jules PR.');
                         return;
                       }
 
-                      // Quote the review comment and add @jules
                       const feedbackBody = `@jules\n\n> ${reviewComment.replace(/\n/g, '\n> ')}`;
-
-                      // Create a new comment on the PR
+                      
                       await github.rest.issues.createComment({
                         owner: context.repo.owner,
                         repo: context.repo.repo,
-                        issue_number: prNumber,
+                        issue_number: pr.number,
                         body: feedbackBody
                       });
-
-                      console.log('Feedback sent to Jules.');
