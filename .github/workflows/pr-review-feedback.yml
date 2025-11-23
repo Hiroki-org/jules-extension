@@ -1,37 +1,37 @@
 name: PR Review Feedback to Jules
 
 on:
-    pull_request_review_comment:
-        types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
-    feedback-to-jules:
-        runs-on: ubuntu-latest
-        permissions:
-            pull-requests: write
-        steps:
-            - name: Send feedback to Jules
-              uses: actions/github-script@v6
-              with:
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-                  script: |
-                      const pr = context.payload.pull_request;
-                      const prAuthor = pr.user.login;
-                      const reviewComment = context.payload.comment.body;
+  feedback-to-jules:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Send feedback to Jules
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const prAuthor = pr.user.login;
+            const reviewComment = context.payload.comment.body;
 
-                      // 修正: ログを出力してデバッグしやすくしつつ、部分一致で判定
-                      console.log(`PR Author: ${prAuthor}`);
-                      
-                      if (!prAuthor.includes('google-labs-jules')) {
-                        console.log('Skipping: Not a Jules PR.');
-                        return;
-                      }
+            // 修正: ログを出力してデバッグしやすくしつつ、部分一致で判定
+            console.log(`PR Author: ${prAuthor}`);
 
-                      const feedbackBody = `@jules\n\n> ${reviewComment.replace(/\n/g, '\n> ')}`;
-                      
-                      await github.rest.issues.createComment({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        issue_number: pr.number,
-                        body: feedbackBody
-                      });
+            if (!prAuthor.toLowerCase().includes('jules')) {
+              console.log('Skipping: Not a Jules PR.');
+              return;
+            }
+
+            const feedbackBody = `@jules\n\n> ${reviewComment.replace(/\n/g, '\n> ')}`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: feedbackBody
+            });

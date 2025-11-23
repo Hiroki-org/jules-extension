@@ -19,7 +19,7 @@ jobs:
             const prAuthor = pr.user.login;
 
             // 修正: [bot]の有無に関わらず判定できるようにする
-            if (!prAuthor.includes('google-labs-jules')) {
+            if (!prAuthor.toLowerCase().includes('jules')) {
               console.log(`PR created by ${prAuthor}, skipping.`);
               return;
             }
