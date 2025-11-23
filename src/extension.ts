@@ -689,15 +689,11 @@ class JulesSessionsProvider
         if (selectedSource) {
           console.log(`Jules: Background refresh, updating branches for ${selectedSource.name}`);
           try {
-            const apiKey = await getStoredApiKey(this.context);
-            if (apiKey) {
-              const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
-              // We're using a throwaway output channel here as we don't want to show the logs to the user
-              const silentOutputChannel = vscode.window.createOutputChannel("Jules Background");
-              await getBranchesForSession(selectedSource, apiClient, silentOutputChannel, this.context, true);
-              silentOutputChannel.dispose();
-              console.log("Jules: Branch cache updated successfully during background refresh");
-            }
+            const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+            // バックグラウンド更新ではユーザーにログを見せないため、何もしないダミーのOutputChannelを使用します。
+            const silentOutputChannel = { appendLine: () => {} } as unknown as vscode.OutputChannel;
+            await getBranchesForSession(selectedSource, apiClient, silentOutputChannel, this.context, true);
+            console.log("Jules: Branch cache updated successfully during background refresh");
           } catch (e) {
             console.error("Jules: Failed to update branch cache during background refresh", e);
           }
