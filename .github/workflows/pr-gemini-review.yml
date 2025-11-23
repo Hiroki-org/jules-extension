@@ -1,0 +1,35 @@
+name: Add Gemini Review Comment on Jules PR
+
+on:
+    pull_request:
+        types: [opened]
+
+jobs:
+    add-gemini-review:
+        runs-on: ubuntu-latest
+        permissions:
+            pull-requests: write
+        steps:
+            - name: Add /gemini review comment
+              uses: actions/github-script@v6
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const prNumber = context.payload.pull_request.number;
+                      const prAuthor = context.payload.pull_request.user.login;
+
+                      // Check if PR is created by google-labs-jules
+                      if (prAuthor !== 'google-labs-jules') {
+                        console.log('PR not created by google-labs-jules, skipping.');
+                        return;
+                      }
+
+                      // Add /gemini review comment
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: '/gemini review'
+                      });
+
+                      console.log('/gemini review comment added.');

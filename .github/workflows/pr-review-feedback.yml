@@ -1,0 +1,40 @@
+name: PR Review Feedback to Jules
+
+on:
+    pull_request_review_comment:
+        types: [created]
+
+jobs:
+    feedback-to-jules:
+        runs-on: ubuntu-latest
+        permissions:
+            pull-requests: write
+        steps:
+            - name: Send feedback to Jules
+              uses: actions/github-script@v6
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const prNumber = context.payload.pull_request.number;
+                      const prAuthor = context.payload.pull_request.user.login;
+                      const reviewComment = context.payload.comment.body;
+                      const commentId = context.payload.comment.id;
+
+                      // Check if PR is created by google-labs-jules
+                      if (prAuthor !== 'google-labs-jules') {
+                        console.log('PR not created by google-labs-jules, skipping.');
+                        return;
+                      }
+
+                      // Quote the review comment and add @jules
+                      const feedbackBody = `@jules\n\n> ${reviewComment.replace(/\n/g, '\n> ')}`;
+
+                      // Create a new comment on the PR
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: feedbackBody
+                      });
+
+                      console.log('Feedback sent to Jules.');
