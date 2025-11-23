@@ -24,7 +24,7 @@ export async function showMessageComposer(
     vscode.ViewColumn.Active,
     {
       enableScripts: true,
-      retainContextWhenHidden: false,
+      retainContextWhenHidden: true,
     }
   );
 
