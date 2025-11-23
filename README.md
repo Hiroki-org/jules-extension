@@ -50,7 +50,7 @@ Jules Extensionは、GoogleのAIコーディングエージェント**Jules**を
 
 ### VSIXファイルから (手動インストール)
 
-まだMarketplaceに公開されていない最新の機能を試したい場合は、リリースぺージから`.vsix`ファイルを直接ダウンロードしてインストールできます。
+まだMarketplaceに公開されていない最新の機能を試したい場合は、リリースページから`.vsix`ファイルを直接ダウンロードしてインストールできます。
 
 1. **リリースページに移動:**
    [GitHub Releases](https://github.com/is0692vs/jules-extension/releases)にアクセスし、最新のリリースバージョンを見つけます。
