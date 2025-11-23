@@ -15,18 +15,21 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const pr = context.payload.pull_request;
-            const prAuthor = pr.user.login;
+            const prNumber = context.payload.pull_request.number;
+            const prAuthor = context.payload.pull_request.user.login;
 
-            // 修正: [bot]の有無に関わらず判定できるようにする
-            if (!prAuthor.toLowerCase().includes('jules')) {
-              console.log(`PR created by ${prAuthor}, skipping.`);
+            // Check if PR is created by google-labs-jules
+            if (prAuthor !== 'google-labs-jules[bot]') {
+              console.log('PR not created by google-labs-jules[bot], skipping.');
               return;
             }
 
+            // Add /gemini review comment
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: pr.number,
+              issue_number: prNumber,
               body: '/gemini review'
             });
+
+            console.log('/gemini review comment added.');
