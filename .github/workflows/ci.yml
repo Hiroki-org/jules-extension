@@ -54,7 +54,7 @@ jobs:
           path: |
             ~/.vscode-test
             ~/.vscode
-          key: ${{ runner.os }}-vscode-test-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-vscode-test-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-vscode-test-
 
@@ -95,7 +95,7 @@ jobs:
           path: |
             ~/.vscode-test
             ~/.vscode
-          key: ${{ runner.os }}-vscode-test-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-vscode-test-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-vscode-test-
 
@@ -133,7 +133,7 @@ jobs:
           path: |
             ~/.vscode-test
             ~/.vscode
-          key: ${{ runner.os }}-vscode-test-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-vscode-test-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-vscode-test-
 
