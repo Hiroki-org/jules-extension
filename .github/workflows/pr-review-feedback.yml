@@ -20,9 +20,9 @@ jobs:
                       const reviewComment = context.payload.comment.body;
                       const commentId = context.payload.comment.id;
 
-                      // Check if PR is created by google-labs-jules
-                      if (prAuthor !== 'google-labs-jules') {
-                        console.log('PR not created by google-labs-jules, skipping.');
+                      // Check if PR is created by google-labs-jules[bot]
+                      if (prAuthor !== 'google-labs-jules[bot]') {
+                        console.log('PR not created by google-labs-jules[bot], skipping.');
                         return;
                       }
 
