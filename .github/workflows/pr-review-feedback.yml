@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Send feedback to Jules
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GH_PAT }}
           script: |

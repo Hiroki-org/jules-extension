@@ -14,7 +14,7 @@ jobs:
       issues: write
     steps:
       - name: Add /gemini review comment
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GH_PAT }}
           script: |
