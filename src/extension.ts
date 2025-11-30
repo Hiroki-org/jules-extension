@@ -18,6 +18,10 @@ const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 const VIEW_DETAILS_ACTION = 'View Details';
 const SHOW_ACTIVITIES_COMMAND = 'jules-extension.showActivities';
 
+// Plan notification display constants
+const MAX_PLAN_STEPS_IN_NOTIFICATION = 5;
+const MAX_PLAN_STEP_LENGTH = 80;
+
 const SESSION_STATE = {
   AWAITING_PLAN_APPROVAL: "AWAITING_PLAN_APPROVAL",
   AWAITING_USER_FEEDBACK: "AWAITING_USER_FEEDBACK",
@@ -451,8 +455,8 @@ async function fetchPlanFromActivities(
       return null;
     }
 
-    // Find the latest planGenerated activity
-    const planActivity = data.activities.find((a) => a.planGenerated);
+    // Find the most recent planGenerated activity (reverse to get latest first)
+    const planActivity = [...data.activities].reverse().find((a) => a.planGenerated);
     return planActivity?.planGenerated?.plan || null;
   } catch (error) {
     console.error(`Jules: Error fetching plan from activities: ${error}`);
@@ -466,14 +470,16 @@ function formatPlanForNotification(plan: Plan): string {
     parts.push(`📋 ${plan.title}`);
   }
   if (plan.steps && plan.steps.length > 0) {
-    const stepsPreview = plan.steps.slice(0, 5);
+    const stepsPreview = plan.steps.slice(0, MAX_PLAN_STEPS_IN_NOTIFICATION);
     stepsPreview.forEach((step, index) => {
       // Truncate long steps for notification display
-      const truncatedStep = step.length > 80 ? step.substring(0, 77) + '...' : step;
+      const truncatedStep = step.length > MAX_PLAN_STEP_LENGTH
+        ? step.substring(0, MAX_PLAN_STEP_LENGTH - 3) + '...'
+        : step;
       parts.push(`${index + 1}. ${truncatedStep}`);
     });
-    if (plan.steps.length > 5) {
-      parts.push(`... and ${plan.steps.length - 5} more steps`);
+    if (plan.steps.length > MAX_PLAN_STEPS_IN_NOTIFICATION) {
+      parts.push(`... and ${plan.steps.length - MAX_PLAN_STEPS_IN_NOTIFICATION} more steps`);
     }
   }
   return parts.join('\n');
