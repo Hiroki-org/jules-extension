@@ -1,3 +1,5 @@
+import * as vscode from 'vscode';
+
 export interface GitHubBranch {
     displayName: string;
 }
@@ -104,8 +106,6 @@ export interface SessionResponse {
 }
 
 // QuickPick関連の型定義
-import * as vscode from 'vscode';
-
 export interface SourceQuickPickItem extends vscode.QuickPickItem {
     source: Source;
 }
