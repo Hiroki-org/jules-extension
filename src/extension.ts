@@ -2,610 +2,68 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import { JulesApiClient } from './julesApiClient';
-import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse } from './types';
+import {
+  Source as SourceType,
+  SourcesResponse,
+  Session,
+  SessionsResponse,
+  Activity,
+  ActivitiesResponse,
+  SourceQuickPickItem,
+  CreateSessionRequest,
+  SessionResponse
+} from './types';
 import { getBranchesForSession } from './branchUtils';
 import { showMessageComposer } from './composer';
-import { parseGitHubUrl } from "./githubUtils";
 import { GitHubAuth } from './githubAuth';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-const execAsync = promisify(exec);
 import { SourcesCache, isCacheValid } from './cache';
+
+// Import refactored modules
+import {
+  SESSION_STATE,
+  loadPreviousSessionStates,
+  mapApiStateToSessionState,
+  extractPRUrl,
+  checkForCompletedSessions,
+  checkForSessionsInState,
+  updatePreviousStates,
+  getPreviousSessionStates,
+  getNotifiedSessions,
+  addNotifiedSession,
+  deleteSessionState,
+  clearPRStatusCache
+} from './sessionState';
+import {
+  notifyPRCreated,
+  notifyPlanAwaitingApproval,
+  notifyUserFeedbackRequired
+} from './notifications';
+import {
+  getRepoInfoForBranchCreation,
+  createRemoteBranch
+} from './githubOperations';
+import {
+  startAutoRefresh,
+  stopAutoRefresh,
+  resetAutoRefresh,
+  setIsFetchingSensitiveData
+} from './autoRefresh';
+import {
+  getStoredApiKey,
+  buildFinalPrompt,
+  resolveSessionId,
+  updateStatusBar,
+  getActivityIcon
+} from './utils';
+import { SessionTreeItem } from './SessionTreeItem';
+
+// Re-export for tests
+export { mapApiStateToSessionState, buildFinalPrompt, SessionTreeItem };
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
-const VIEW_DETAILS_ACTION = 'View Details';
-const SHOW_ACTIVITIES_COMMAND = 'jules-extension.showActivities';
 
-const SESSION_STATE = {
-  AWAITING_PLAN_APPROVAL: "AWAITING_PLAN_APPROVAL",
-  AWAITING_USER_FEEDBACK: "AWAITING_USER_FEEDBACK",
-};
-
-// GitHub PR status cache to avoid excessive API calls
-interface PRStatusCache {
-  [prUrl: string]: {
-    isClosed: boolean;
-    lastChecked: number;
-  };
-}
-
-const prStatusCache: PRStatusCache = {};
-const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-interface SourceQuickPickItem extends vscode.QuickPickItem {
-  source: SourceType;
-}
-
-interface CreateSessionRequest {
-  prompt: string;
-  sourceContext: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch: string;
-    };
-  };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
-  title: string;
-  requirePlanApproval?: boolean;
-}
-
-interface SessionResponse {
-  name: string;
-  // Add other fields if needed
-}
-
-interface SessionOutput {
-  pullRequest?: {
-    url: string;
-    title: string;
-    description: string;
-  };
-}
-
-interface Session {
-  name: string;
-  title: string;
-  state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  rawState: string;
-  outputs?: SessionOutput[];
-  sourceContext?: {
-    source: string;
-  };
-  requirePlanApproval?: boolean; // ⭐ NEW
-}
-
-export function mapApiStateToSessionState(
-  apiState: string
-): "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" {
-  switch (apiState) {
-    case "PLANNING":
-    case "AWAITING_PLAN_APPROVAL":
-    case "AWAITING_USER_FEEDBACK":
-    case "IN_PROGRESS":
-    case "QUEUED":
-    case "STATE_UNSPECIFIED":
-      return "RUNNING";
-    case "COMPLETED":
-      return "COMPLETED";
-    case "FAILED":
-      return "FAILED";
-    case "PAUSED":
-    case "CANCELLED":
-      return "CANCELLED";
-    default:
-      return "RUNNING"; // default to RUNNING
-  }
-}
-
-interface SessionState {
-  name: string;
-  state: string;
-  rawState: string;
-  outputs?: SessionOutput[];
-  isTerminated?: boolean;
-}
-
-let previousSessionStates: Map<string, SessionState> = new Map();
-let notifiedSessions: Set<string> = new Set();
 let logChannel: vscode.OutputChannel;
-
-function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
-  const storedStates = context.globalState.get<{ [key: string]: SessionState }>(
-    "jules.previousSessionStates",
-    {}
-  );
-  previousSessionStates = new Map(Object.entries(storedStates));
-  console.log(
-    `Jules: Loaded ${previousSessionStates.size} previous session states from global state.`
-  );
-}
-let autoRefreshInterval: NodeJS.Timeout | undefined;
-let isFetchingSensitiveData = false;
-
-// Helper functions
-
-async function getStoredApiKey(
-  context: vscode.ExtensionContext
-): Promise<string | undefined> {
-  const apiKey = await context.secrets.get("jules-api-key");
-  if (!apiKey) {
-    vscode.window.showErrorMessage(
-      'API Key not found. Please set it first using "Set Jules API Key" command.'
-    );
-    return undefined;
-  }
-  return apiKey;
-}
-
-async function getGitHubUrl(): Promise<string | undefined> {
-  try {
-    const gitExtension = vscode.extensions.getExtension('vscode.git');
-    if (!gitExtension) {
-      throw new Error('Git extension not found');
-    }
-    const git = gitExtension.exports.getAPI(1);
-    const repository = git.repositories[0];
-    if (!repository) {
-      throw new Error('No Git repository found');
-    }
-    const remote = repository.state.remotes.find(
-      (r: { name: string; fetchUrl?: string; pushUrl?: string }) => r.name === 'origin'
-    );
-    if (!remote) {
-      throw new Error('No origin remote found');
-    }
-    return remote.fetchUrl || remote.pushUrl;
-  } catch (error) {
-    console.error('Failed to get GitHub URL:', error);
-    return undefined;
-  }
-}
-
-/**
- * リモートブランチ作成に必要なリポジトリ情報を取得
- */
-async function getRepoInfoForBranchCreation(outputChannel?: vscode.OutputChannel): Promise<{ token: string; owner: string; repo: string } | null> {
-  const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  const token = await GitHubAuth.getToken();
-
-  if (!token) {
-    const action = await vscode.window.showInformationMessage(
-      'Sign in to GitHub to create remote branch',
-      'Sign In',
-      'Cancel'
-    );
-
-    if (action === 'Sign In') {
-      const newToken = await GitHubAuth.signIn();
-      if (!newToken) {
-        return null;
-      }
-      return getRepoInfoForBranchCreation(outputChannel);
-    }
-    return null;
-  }
-
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  if (!workspaceFolder) {
-    vscode.window.showErrorMessage('No workspace folder found');
-    return null;
-  }
-
-  try {
-    const { stdout } = await execAsync('git remote get-url origin', {
-      cwd: workspaceFolder.uri.fsPath
-    });
-
-    const remoteUrl = stdout.trim();
-    logger.appendLine(`[Jules] Remote URL: ${remoteUrl}`);
-
-    // Prefer the shared parser which handles https/ssh and .git suffixes
-    const repoInfo = parseGitHubUrl(remoteUrl);
-    if (!repoInfo) {
-      vscode.window.showErrorMessage('Could not parse GitHub repository URL');
-      return null;
-    }
-    const { owner, repo } = repoInfo;
-    logger.appendLine(`[Jules] Repository: ${owner}/${repo}`);
-
-    return { token, owner, repo };
-  } catch (error: any) {
-    logger.appendLine(`[Jules] Error getting repo info: ${error.message}`);
-    vscode.window.showErrorMessage(`Failed to get repository info: ${error.message}`);
-    return null;
-  }
-}
-
-async function createRemoteBranch(
-  token: string,
-  owner: string,
-  repo: string,
-  branchName: string,
-  outputChannel?: vscode.OutputChannel
-): Promise<void> {
-  const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  try {
-    logger.appendLine('[Jules] Getting current branch SHA...');
-    const sha = await getCurrentBranchSha(outputChannel);
-
-    if (!sha) {
-      throw new Error('Failed to get current branch SHA');
-    }
-
-    logger.appendLine(`[Jules] Current branch SHA: ${sha}`);
-    logger.appendLine(`[Jules] Creating remote branch: ${branchName}`);
-
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/refs`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ref: `refs/heads/${branchName}`,
-          sha: sha
-        })
-      }
-    );
-
-    if (!response.ok) {
-      // Read the response as text so we can handle non-JSON errors robustly
-      const respText = await response.text();
-      logger.appendLine(`[Jules] GitHub API error response: ${respText}`);
-      let errMsg = 'Unknown error';
-      try {
-        const parsed = JSON.parse(respText);
-        errMsg = parsed?.message || JSON.stringify(parsed);
-      } catch (e) {
-        errMsg = respText;
-      }
-      throw new Error(`GitHub API error: ${response.status} - ${errMsg}`);
-    }
-
-    const result: any = await response.json().catch(() => null);
-    logger.appendLine(`[Jules] Remote branch created: ${result?.ref ?? 'unknown'}`);
-  } catch (error: any) {
-    logger.appendLine(`[Jules] Failed to create remote branch: ${error.message}`);
-    throw error;
-  }
-}
-
-async function getCurrentBranchSha(outputChannel?: vscode.OutputChannel): Promise<string | null> {
-  const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-      return null;
-    }
-
-    const { stdout } = await execAsync('git rev-parse HEAD', {
-      cwd: workspaceFolder.uri.fsPath
-    });
-
-    return stdout.trim();
-  } catch (error) {
-    logger.appendLine(`[Jules] Error getting current branch sha: ${error}`);
-    return null;
-  }
-}
-
-export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
-    .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
-  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
-}
-
-function resolveSessionId(
-  context: vscode.ExtensionContext,
-  target?: SessionTreeItem | string
-): string | undefined {
-  return (
-    (typeof target === "string" ? target : undefined) ??
-    (target instanceof SessionTreeItem ? target.session.name : undefined) ??
-    context.globalState.get<string>("active-session-id")
-  );
-}
-
-function extractPRUrl(sessionOrState: Session | SessionState): string | null {
-  return (
-    sessionOrState.outputs?.find((o) => o.pullRequest)?.pullRequest?.url || null
-  );
-}
-
-async function checkPRStatus(
-  prUrl: string,
-  context: vscode.ExtensionContext
-): Promise<boolean> {
-  // Check cache first
-  const cached = prStatusCache[prUrl];
-  const now = Date.now();
-  if (cached && now - cached.lastChecked < PR_CACHE_DURATION) {
-    return cached.isClosed;
-  }
-
-  try {
-    // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
-    const match = prUrl.match(
-      /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/
-    );
-    if (!match) {
-      console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
-      return false;
-    }
-
-    const [, owner, repo, prNumber] = match;
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
-
-    // Get GitHub token if available
-    const githubToken = await context.secrets.get("jules-github-token");
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github.v3+json",
-    };
-    if (githubToken) {
-      headers.Authorization = `Bearer ${githubToken}`;
-    }
-
-    const response = await fetch(apiUrl, { headers });
-
-    if (!response.ok) {
-      console.log(
-        `Jules: Failed to fetch PR status: ${response.status} ${response.statusText}`
-      );
-      return false;
-    }
-
-    const prData = (await response.json()) as { state: string };
-    const isClosed = prData.state === "closed";
-
-    // Update cache
-    prStatusCache[prUrl] = {
-      isClosed,
-      lastChecked: now,
-    };
-
-    return isClosed;
-  } catch (error) {
-    console.error(`Jules: Error checking PR status for ${prUrl}:`, error);
-    return false;
-  }
-}
-
-function checkForCompletedSessions(currentSessions: Session[]): Session[] {
-  const completedSessions: Session[] = [];
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-    if (prevState?.isTerminated) {
-      continue; // Skip terminated sessions
-    }
-    if (
-      session.state === "COMPLETED" &&
-      (!prevState || prevState.state !== "COMPLETED")
-    ) {
-      const prUrl = extractPRUrl(session);
-      if (prUrl) {
-        // Only count as a new completion if there's a PR URL.
-        completedSessions.push(session);
-      }
-    }
-  }
-  return completedSessions;
-}
-
-function checkForSessionsInState(
-  currentSessions: Session[],
-  targetState: string
-): Session[] {
-  return currentSessions.filter((session) => {
-    const prevState = previousSessionStates.get(session.name);
-    const isNotTerminated = !prevState?.isTerminated;
-    const isTargetState = session.rawState === targetState;
-    const isStateChanged = !prevState || prevState.rawState !== targetState;
-    const willNotify = isNotTerminated && isTargetState && isStateChanged;
-    if (isTargetState) {
-      logChannel.appendLine(`Jules: Debug - Session ${session.name}: terminated=${!isNotTerminated}, rawState=${session.rawState}, prevRawState=${prevState?.rawState}, willNotify=${willNotify}`);
-    }
-    return willNotify;
-  });
-}
-
-async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
-  const result = await vscode.window.showInformationMessage(
-    `Session "${session.title}" has completed and created a PR!`,
-    "Open PR"
-  );
-  if (result === "Open PR") {
-    vscode.env.openExternal(vscode.Uri.parse(prUrl));
-  }
-}
-
-async function notifyPlanAwaitingApproval(
-  session: Session,
-  context: vscode.ExtensionContext
-): Promise<void> {
-  const selection = await vscode.window.showInformationMessage(
-    `Jules has a plan ready for your approval in session: "${session.title}"`,
-    "Approve Plan",
-    VIEW_DETAILS_ACTION
-  );
-
-  if (selection === "Approve Plan") {
-    await approvePlan(session.name, context);
-  } else if (selection === VIEW_DETAILS_ACTION) {
-    await vscode.commands.executeCommand(
-      SHOW_ACTIVITIES_COMMAND,
-      session.name
-    );
-  }
-}
-
-async function notifyUserFeedbackRequired(session: Session): Promise<void> {
-  const selection = await vscode.window.showInformationMessage(
-    `Jules is waiting for your feedback in session: "${session.title}"`,
-    VIEW_DETAILS_ACTION
-  );
-
-  if (selection === VIEW_DETAILS_ACTION) {
-    await vscode.commands.executeCommand(
-      SHOW_ACTIVITIES_COMMAND,
-      session.name
-    );
-  }
-}
-
-async function updatePreviousStates(
-  currentSessions: Session[],
-  context: vscode.ExtensionContext
-): Promise<void> {
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-
-    // If already terminated, we don't need to check again.
-    // Just update with the latest info from the server but keep it terminated.
-    if (prevState?.isTerminated) {
-      previousSessionStates.set(session.name, {
-        ...prevState,
-        state: session.state,
-        rawState: session.rawState,
-        outputs: session.outputs,
-      });
-      continue;
-    }
-
-    let isTerminated = false;
-    if (session.state === "COMPLETED") {
-      const prUrl = extractPRUrl(session);
-      if (prUrl) {
-        const isClosed = await checkPRStatus(prUrl, context);
-        if (isClosed) {
-          isTerminated = true;
-          console.log(
-            `Jules: Session ${session.name} is now terminated because its PR is closed.`
-          );
-          notifiedSessions.delete(session.name);
-        }
-      }
-    } else if (session.state === "FAILED" || session.state === "CANCELLED") {
-      isTerminated = true;
-      console.log(
-        `Jules: Session ${session.name} is now terminated due to its state: ${session.state}.`
-      );
-      notifiedSessions.delete(session.name);
-    }
-
-    previousSessionStates.set(session.name, {
-      name: session.name,
-      state: session.state,
-      rawState: session.rawState,
-      outputs: session.outputs,
-      isTerminated: isTerminated,
-    });
-  }
-
-  // Persist the updated states to global state
-  await context.globalState.update(
-    "jules.previousSessionStates",
-    Object.fromEntries(previousSessionStates)
-  );
-  console.log(
-    `Jules: Saved ${previousSessionStates.size} session states to global state.`
-  );
-}
-
-function startAutoRefresh(
-  context: vscode.ExtensionContext,
-  sessionsProvider: JulesSessionsProvider
-): void {
-  const config = vscode.workspace.getConfiguration(
-    "jules-extension.autoRefresh"
-  );
-  const isEnabled = config.get<boolean>("enabled");
-
-  // 動的に間隔を選択
-  const intervalSeconds = isFetchingSensitiveData
-    ? config.get<number>("fastInterval", 30)
-    : config.get<number>("interval", 60);
-  const interval = intervalSeconds * 1000; // Convert seconds to milliseconds
-
-  logChannel.appendLine(
-    `Jules: Auto-refresh enabled=${isEnabled}, interval=${intervalSeconds}s (${interval}ms), fastMode=${isFetchingSensitiveData}`
-  );
-
-  if (!isEnabled) {
-    return;
-  }
-
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-  }
-
-  autoRefreshInterval = setInterval(() => {
-    logChannel.appendLine("Jules: Auto-refresh triggered");
-    sessionsProvider.refresh(true); // Pass true for background refresh
-  }, interval);
-}
-
-function stopAutoRefresh(): void {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = undefined;
-  }
-}
-
-function resetAutoRefresh(
-  context: vscode.ExtensionContext,
-  sessionsProvider: JulesSessionsProvider
-): void {
-  stopAutoRefresh();
-  startAutoRefresh(context, sessionsProvider);
-}
-
-interface SessionsResponse {
-  sessions: Session[];
-}
-
-interface Plan {
-  title?: string;
-  steps?: string[];
-}
-
-interface Activity {
-  name: string;
-  createTime: string;
-  originator: "user" | "agent";
-  id: string;
-  type?: string;
-  planGenerated?: { plan: Plan };
-  planApproved?: { planId: string };
-  progressUpdated?: { title: string; description?: string };
-  sessionCompleted?: Record<string, never>;
-}
-
-interface ActivitiesResponse {
-  activities: Activity[];
-}
-
-function getActivityIcon(activity: Activity): string {
-  if (activity.planGenerated) {
-    return "📝";
-  }
-  if (activity.planApproved) {
-    return "👍";
-  }
-  if (activity.progressUpdated) {
-    return "🔄";
-  }
-  if (activity.sessionCompleted) {
-    return "✅";
-  }
-  return "ℹ️";
-}
 
 class JulesSessionsProvider
   implements vscode.TreeDataProvider<vscode.TreeItem> {
@@ -700,7 +158,7 @@ class JulesSessionsProvider
       this.processSessionNotifications(
         allSessionsMapped,
         SESSION_STATE.AWAITING_PLAN_APPROVAL,
-        (session) => notifyPlanAwaitingApproval(session, this.context),
+        (session) => notifyPlanAwaitingApproval(session, this.context, approvePlan),
         "plan approval"
       );
 
@@ -777,19 +235,20 @@ class JulesSessionsProvider
     notifier: (session: Session) => Promise<void>,
     notificationType: string
   ) {
-    const sessionsToNotify = checkForSessionsInState(sessions, state);
+    const sessionsToNotify = checkForSessionsInState(sessions, state, logChannel);
+    const notifiedSessionsSet = getNotifiedSessions();
     if (sessionsToNotify.length > 0) {
       logChannel.appendLine(
         `Jules: Found ${sessionsToNotify.length} sessions awaiting ${notificationType}`
       );
       for (const session of sessionsToNotify) {
-        if (!notifiedSessions.has(session.name)) {
+        if (!notifiedSessionsSet.has(session.name)) {
           notifier(session).catch((error) => {
             logChannel.appendLine(
               `Jules: Failed to show ${notificationType} notification for session '${session.name}' (${session.title}): ${error}`
             );
           });
-          notifiedSessions.add(session.name);
+          addNotifiedSession(session.name);
         }
       }
     }
@@ -843,8 +302,9 @@ class JulesSessionsProvider
       // We no longer need to check PR status on every render.
       // The `isTerminated` flag in `previousSessionStates` handles this.
       const beforeFilterCount = filteredSessions.length;
+      const previousStates = getPreviousSessionStates();
       filteredSessions = filteredSessions.filter((session) => {
-        const prevState = previousSessionStates.get(session.name);
+        const prevState = previousStates.get(session.name);
         // Hide if the session is marked as terminated.
         return !prevState?.isTerminated;
       });
@@ -861,42 +321,6 @@ class JulesSessionsProvider
     }
 
     return filteredSessions.map((session) => new SessionTreeItem(session));
-  }
-}
-
-export class SessionTreeItem extends vscode.TreeItem {
-  constructor(public readonly session: Session) {
-    super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
-    this.tooltip = `${session.name} - ${session.state}${session.requirePlanApproval ? ' (Plan Approval Required)' : ''}`;
-    this.description = session.state;
-    this.iconPath = this.getIcon(session.state, session.rawState);
-    this.contextValue = "jules-session";
-    this.command = {
-      command: SHOW_ACTIVITIES_COMMAND,
-      title: "Show Activities",
-      arguments: [session.name],
-    };
-  }
-
-  private getIcon(state: string, rawState?: string): vscode.ThemeIcon {
-    if (rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
-      return new vscode.ThemeIcon("clock");
-    }
-    if (rawState === SESSION_STATE.AWAITING_USER_FEEDBACK) {
-      return new vscode.ThemeIcon("comment-discussion");
-    }
-    switch (state) {
-      case "RUNNING":
-        return new vscode.ThemeIcon("sync~spin");
-      case "COMPLETED":
-        return new vscode.ThemeIcon("check");
-      case "FAILED":
-        return new vscode.ThemeIcon("error");
-      case "CANCELLED":
-        return new vscode.ThemeIcon("close");
-      default:
-        return new vscode.ThemeIcon("question");
-    }
   }
 }
 
@@ -1021,27 +445,6 @@ async function sendMessageToSession(
   }
 }
 
-function updateStatusBar(
-  context: vscode.ExtensionContext,
-  statusBarItem: vscode.StatusBarItem
-) {
-  const selectedSource = context.globalState.get<SourceType>("selected-source");
-
-  if (selectedSource) {
-    // GitHubリポジトリ名を抽出（例: "sources/github/owner/repo" -> "owner/repo"）
-    const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
-    const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
-
-    statusBarItem.text = `$(repo) Jules: ${repoName}`;
-    statusBarItem.tooltip = `Current Source: ${repoName}\nClick to change source`;
-    statusBarItem.show();
-  } else {
-    statusBarItem.text = `$(repo) Jules: No source selected`;
-    statusBarItem.tooltip = "Click to select a source";
-    statusBarItem.show();
-  }
-}
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -1075,6 +478,11 @@ export function activate(context: vscode.ExtensionContext) {
   // Create OutputChannel for Logs
   logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
   context.subscriptions.push(logChannel);
+
+  // Helper function for auto-refresh
+  const refreshCallback = (isBackground: boolean) => sessionsProvider.refresh(isBackground);
+  const localResetAutoRefresh = () => resetAutoRefresh(context, refreshCallback, logChannel);
+  const localStartAutoRefresh = () => startAutoRefresh(context, refreshCallback, logChannel);
 
   // Sign in to GitHub via VS Code authentication
   const signInDisposable = vscode.commands.registerCommand('jules-extension.signInGitHub', async () => {
@@ -1141,8 +549,8 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
+      setIsFetchingSensitiveData(true);
+      localResetAutoRefresh();
 
       try {
         const cacheKey = 'jules.sources';
@@ -1201,8 +609,8 @@ export function activate(context: vscode.ExtensionContext) {
         logChannel.appendLine(`Failed to list sources: ${message}`);
         vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
       } finally {
-        isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
+        setIsFetchingSensitiveData(false);
+        localResetAutoRefresh();
       }
     }
   );
@@ -1229,8 +637,8 @@ export function activate(context: vscode.ExtensionContext) {
 
       const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
-      isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
+      setIsFetchingSensitiveData(true);
+      localResetAutoRefresh();
       try {
         // ブランチ選択ロジック（メッセージ入力前に移動）
         const { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches } = await getBranchesForSession(selectedSource, apiClient, logChannel, context, { showProgress: true });
@@ -1404,8 +812,8 @@ export function activate(context: vscode.ExtensionContext) {
           }`
         );
       } finally {
-        isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
+        setIsFetchingSensitiveData(false);
+        localResetAutoRefresh();
       }
     }
   );
@@ -1414,7 +822,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Jules: Starting initial refresh...");
   sessionsProvider.refresh();
 
-  startAutoRefresh(context, sessionsProvider);
+  localStartAutoRefresh();
 
   const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(
     (event) => {
@@ -1427,7 +835,7 @@ export function activate(context: vscode.ExtensionContext) {
           .getConfiguration("jules-extension.autoRefresh")
           .get<boolean>("enabled");
         if (autoRefreshEnabled) {
-          startAutoRefresh(context, sessionsProvider);
+          localStartAutoRefresh();
         }
       }
     }
@@ -1601,10 +1009,10 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       // Remove from previous states to hide it
-      previousSessionStates.delete(session.name);
+      deleteSessionState(session.name);
       await context.globalState.update(
         "jules.previousSessionStates",
-        Object.fromEntries(previousSessionStates)
+        Object.fromEntries(getPreviousSessionStates())
       );
 
       vscode.window.showInformationMessage(
@@ -1659,7 +1067,7 @@ export function activate(context: vscode.ExtensionContext) {
           "GitHub token saved securely."
         );
         // Clear PR status cache when token changes
-        Object.keys(prStatusCache).forEach((key) => delete prStatusCache[key]);
+        clearPRStatusCache();
         sessionsProvider.refresh();
       } catch (error) {
         console.error("Jules: Error setting GitHub Token:", error);
