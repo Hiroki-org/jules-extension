@@ -1484,38 +1484,12 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         // ログチャンネルにも出力（デバッグ用）
-        activitiesChannel.clear();
-        activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
-        activitiesChannel.appendLine("---");
-        if (data.activities.length === 0) {
-          activitiesChannel.appendLine("No activities found for this session.");
-        } else {
-          data.activities.forEach((activity) => {
-            const icon = getActivityIcon(activity);
-            const timestamp = new Date(activity.createTime).toLocaleString();
-            let message = "";
-            if (activity.planGenerated) {
-              message = `Plan generated: ${activity.planGenerated.plan?.title || "Plan"}`;
-            } else if (activity.planApproved) {
-              message = `Plan approved: ${activity.planApproved.planId}`;
-            } else if (activity.progressUpdated) {
-              message = `Progress: ${activity.progressUpdated.title}${activity.progressUpdated.description
-                ? " - " + activity.progressUpdated.description
-                : ""
-                }`;
-            } else if (activity.sessionCompleted) {
-              message = "Session completed";
-            } else {
-              message = "Unknown activity";
-            }
-            // Artifacts情報を追加
-            const artifactInfo = activity.artifacts && activity.artifacts.length > 0
-              ? ` [📎 ${activity.artifacts.length} artifacts]`
-              : '';
-            activitiesChannel.appendLine(
-              `${icon} ${timestamp} (${activity.originator}): ${message}${artifactInfo}`
-            );
-          });
+        logChannel.appendLine(`Jules: Fetched ${data.activities.length} activities for session: ${sessionId}`);
+        if (data.activities.length > 0) {
+          const artifactCount = data.activities.reduce((count, a) => count + (a.artifacts?.length || 0), 0);
+          if (artifactCount > 0) {
+            logChannel.appendLine(`Jules: Found ${artifactCount} total artifacts in activities`);
+          }
         }
         await context.globalState.update("active-session-id", sessionId);
       } catch (error) {

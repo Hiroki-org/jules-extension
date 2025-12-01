@@ -1,12 +1,16 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import { Activity, Artifact, MediaArtifact, BashOutputArtifact } from './types';
+import { Activity, Artifact, MediaArtifact, ChangeSetArtifact, BashOutputArtifact } from './types';
 
 /**
  * Type guards for Artifacts
  */
 function isMediaArtifact(artifact: Artifact): artifact is MediaArtifact {
     return artifact.type === 'media' && 'mimeType' in artifact && 'data' in artifact;
+}
+
+function isChangeSetArtifact(artifact: Artifact): artifact is ChangeSetArtifact {
+    return artifact.type === 'changeSet' && 'unidiffPatch' in artifact;
 }
 
 function isBashOutputArtifact(artifact: Artifact): artifact is BashOutputArtifact {
@@ -429,7 +433,7 @@ function renderArtifactsSection(artifacts: Artifact[], activityIndex: number): s
             icon = '🖼️';
             label = artifact.filename || 'スクリーンショット';
             chipClass = 'media';
-        } else if (artifact.type === 'changeSet') {
+        } else if (isChangeSetArtifact(artifact)) {
             icon = '📝';
             label = 'コード変更';
             chipClass = 'changeset';

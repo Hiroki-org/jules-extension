@@ -10,6 +10,8 @@ export class ArtifactsViewer {
 
     /**
      * Artifactsを持つActivityを表示するWebViewを開く
+     * @param extensionUri - エクステンションのルートURI（将来的なローカルアセット読み込み用に保持）
+     * @param activity - 表示するActivity
      */
     public static show(
         extensionUri: vscode.Uri,
