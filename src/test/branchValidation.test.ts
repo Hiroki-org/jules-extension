@@ -117,4 +117,68 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
 
         assert.strictEqual(showWarningMessageStub.called, false);
     });
+
+    test('Should not show warning when branch exists in refreshed remote branches', async () => {
+        // テストケース5: キャッシュにないがリフレッシュ後のリモートブランチに存在する場合は警告なし
+        // この修正により、キャッシュが古い場合でもリモートブランチが存在すれば警告が表示されない
+        const showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage');
+
+        // 古いキャッシュのリモートブランチ（新しいブランチは含まれていない）
+        const cachedRemoteBranches = ['main', 'develop'];
+        // リフレッシュ後のリモートブランチ（新しいブランチが含まれている）
+        const freshRemoteBranches = ['main', 'develop', 'new-feature'];
+        const startingBranch = 'new-feature';
+
+        // キャッシュにない場合、リモートブランチを再取得するシミュレーション
+        let currentRemoteBranches = cachedRemoteBranches;
+        if (!cachedRemoteBranches.includes(startingBranch)) {
+            // リモートブランチを再取得
+            currentRemoteBranches = freshRemoteBranches;
+        }
+
+        // 再取得後のリモートブランチに存在する場合は警告を表示しない
+        if (!currentRemoteBranches.includes(startingBranch)) {
+            await vscode.window.showWarningMessage(
+                `Branch "${startingBranch}" exists locally but has not been pushed to remote.\n\nJules requires a remote branch to start a session.`,
+                { modal: true },
+                { title: 'Create Remote Branch' },
+                { title: 'Use Default Branch' }
+            );
+        }
+
+        // リフレッシュ後にブランチが見つかったため、警告は表示されない
+        assert.strictEqual(showWarningMessageStub.called, false);
+    });
+
+    test('Should show warning when branch does not exist even after refresh', async () => {
+        // テストケース6: リフレッシュ後もリモートブランチに存在しない場合は警告を表示
+        const showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage');
+        showWarningMessageStub.resolves({ title: 'Create Remote Branch' });
+
+        // キャッシュのリモートブランチ
+        const cachedRemoteBranches = ['main', 'develop'];
+        // リフレッシュ後のリモートブランチ（ローカル専用ブランチは含まれない）
+        const freshRemoteBranches = ['main', 'develop'];
+        const startingBranch = 'local-only-branch';
+
+        // キャッシュにない場合、リモートブランチを再取得するシミュレーション
+        let currentRemoteBranches = cachedRemoteBranches;
+        if (!cachedRemoteBranches.includes(startingBranch)) {
+            // リモートブランチを再取得
+            currentRemoteBranches = freshRemoteBranches;
+        }
+
+        // 再取得後もリモートブランチに存在しない場合は警告を表示
+        if (!currentRemoteBranches.includes(startingBranch)) {
+            await vscode.window.showWarningMessage(
+                `Branch "${startingBranch}" exists locally but has not been pushed to remote.\n\nJules requires a remote branch to start a session.`,
+                { modal: true },
+                { title: 'Create Remote Branch' },
+                { title: 'Use Default Branch' }
+            );
+        }
+
+        // リフレッシュ後もブランチが見つからないため、警告が表示される
+        assert.strictEqual(showWarningMessageStub.called, true);
+    });
 });
