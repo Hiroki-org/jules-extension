@@ -1,6 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
+import { getBranchesForSession } from '../branchUtils';
+import { JulesApiClient } from '../julesApiClient';
+import { Source as SourceType } from '../types';
 
 suite('Branch Validation Tests', () => {
     let sandbox: sinon.SinonSandbox;
@@ -180,5 +183,78 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
 
         // リフレッシュ後もブランチが見つからないため、警告が表示される
         assert.strictEqual(showWarningMessageStub.called, true);
+    });
+
+    suite('Default branch selection with repo matching', () => {
+        let getExtensionStub: sinon.SinonStub;
+        let getConfigurationStub: sinon.SinonStub;
+        let outputChannel: vscode.OutputChannel;
+        let contextStub: vscode.ExtensionContext;
+
+        const createGitApi = (remoteUrl: string, currentBranch: string) => ({
+            repositories: [{
+                rootUri: { fsPath: '/workspace' },
+                state: {
+                    HEAD: { name: currentBranch },
+                    remotes: [{ name: 'origin', fetchUrl: remoteUrl }]
+                }
+            }]
+        });
+
+        const buildSource = (owner: string, repo: string): SourceType => ({
+            name: `sources/github/${owner}/${repo}`,
+            id: `${owner}/${repo}`,
+            githubRepo: {
+                owner,
+                repo,
+                isPrivate: false,
+                defaultBranch: { displayName: 'main' },
+                branches: [
+                    { displayName: 'main' },
+                    { displayName: 'develop' }
+                ]
+            }
+        });
+
+        setup(() => {
+            outputChannel = { appendLine: sandbox.stub() } as unknown as vscode.OutputChannel;
+            contextStub = {
+                globalState: {
+                    get: sandbox.stub().returns(undefined),
+                    update: sandbox.stub().resolves()
+                }
+            } as unknown as vscode.ExtensionContext;
+
+            getConfigurationStub = sandbox.stub(vscode.workspace, 'getConfiguration');
+            getConfigurationStub.callsFake(() => ({
+                get: (key: string, defaultValue?: unknown) => key === 'defaultBranch' ? 'current' : defaultValue
+            }) as any);
+        });
+
+        test('uses current branch as default when workspace repo matches source repo', async () => {
+            const gitApi = createGitApi('https://github.com/owner/repo.git', 'feature/match');
+            getExtensionStub = sandbox.stub(vscode.extensions, 'getExtension');
+            getExtensionStub.returns({ exports: { getAPI: () => gitApi } } as any);
+
+            const selectedSource = buildSource('Owner', 'Repo');
+            const apiClient = { getSource: sandbox.stub().resolves(selectedSource) } as unknown as JulesApiClient;
+
+            const result = await getBranchesForSession(selectedSource, apiClient, outputChannel, contextStub, { showProgress: false });
+
+            assert.strictEqual(result.defaultBranch, 'feature/match');
+        });
+
+        test('falls back to source default when workspace repo differs from source repo', async () => {
+            const gitApi = createGitApi('https://github.com/another/other.git', 'feature/no-match');
+            getExtensionStub = sandbox.stub(vscode.extensions, 'getExtension');
+            getExtensionStub.returns({ exports: { getAPI: () => gitApi } } as any);
+
+            const selectedSource = buildSource('owner', 'repo');
+            const apiClient = { getSource: sandbox.stub().resolves(selectedSource) } as unknown as JulesApiClient;
+
+            const result = await getBranchesForSession(selectedSource, apiClient, outputChannel, contextStub, { showProgress: false });
+
+            assert.strictEqual(result.defaultBranch, 'main');
+        });
     });
 });
