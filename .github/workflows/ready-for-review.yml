@@ -19,6 +19,7 @@ jobs:
           else
             echo "is_jules=false" >> $GITHUB_OUTPUT
           fi
+      - uses: actions/checkout@v4
       - name: Make PR ready
         if: steps.check_author.outputs.is_jules == 'true' && github.event.pull_request.draft == true
         run: gh pr ready ${{ github.event.pull_request.number }}
