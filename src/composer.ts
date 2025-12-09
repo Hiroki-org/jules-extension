@@ -60,7 +60,7 @@ export async function showMessageComposer(
   });
 }
 
-function getComposerHtml(
+export function getComposerHtml(
   webview: vscode.Webview,
   options: ComposerOptions,
   nonce: string
@@ -205,14 +205,14 @@ function getComposerHtml(
 </html>`;
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
 
-function escapeAttribute(value: string): string {
+export function escapeAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
