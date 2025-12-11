@@ -12,6 +12,7 @@ import { exec } from 'child_process';
 
 const execAsync = promisify(exec);
 import { SourcesCache, isCacheValid } from './cache';
+import { stripUrlCredentials } from './securityUtils';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -203,10 +204,11 @@ async function getRepoInfoForBranchCreation(outputChannel?: vscode.OutputChannel
     });
 
     const remoteUrl = stdout.trim();
-    logger.appendLine(`[Jules] Remote URL: ${remoteUrl}`);
+    const safeRemoteUrl = stripUrlCredentials(remoteUrl);
+    logger.appendLine(`[Jules] Remote URL: ${safeRemoteUrl}`);
 
     // Prefer the shared parser which handles https/ssh and .git suffixes
-    const repoInfo = parseGitHubUrl(remoteUrl);
+    const repoInfo = parseGitHubUrl(safeRemoteUrl);
     if (!repoInfo) {
       vscode.window.showErrorMessage('Could not parse GitHub repository URL');
       return null;
