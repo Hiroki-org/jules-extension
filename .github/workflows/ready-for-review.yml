@@ -2,7 +2,7 @@ name: Make Draft PR Ready
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize]
 
 jobs:
   make-ready:
@@ -22,6 +22,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Make PR ready
         if: steps.check_author.outputs.is_jules == 'true' && github.event.pull_request.draft == true
-        run: gh pr ready ${{ github.event.pull_request.number }}
+        run: |
+          # Use explicit check to prevent race conditions or failure if already ready
+          PR_NUM=${{ github.event.pull_request.number }}
+          IS_DRAFT=$(gh pr view $PR_NUM --json isDraft --jq '.isDraft')
+          if [ "$IS_DRAFT" = "true" ]; then
+            gh pr ready $PR_NUM
+          else
+            echo "PR #$PR_NUM is already ready."
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
