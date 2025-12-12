@@ -38,10 +38,20 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("<title>&lt;Title&gt;</title>"));
       assert.ok(
         html.includes(
-          `<textarea id="message" placeholder="Your &quot;placeholder&quot;" autofocus>`
+          `<textarea id="message" aria-label="Your &quot;placeholder&quot;" placeholder="Your &quot;placeholder&quot;" autofocus>`
         )
       );
       assert.ok(html.includes(">Initial &amp; value</textarea>"));
+    });
+
+    test("should include accessibility attributes", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test", placeholder: "Type here" },
+        "nonce-123"
+      );
+      assert.ok(html.includes('aria-label="Type here"'));
+      assert.ok(html.includes('title="Send (Cmd/Ctrl+Enter)"'));
     });
 
     test("should show create PR checkbox when option is true", () => {
