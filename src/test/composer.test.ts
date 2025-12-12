@@ -52,6 +52,18 @@ suite("Composer Test Suite", () => {
       );
       assert.ok(html.includes('aria-label="Type here"'));
       assert.ok(html.includes('title="Send (Cmd/Ctrl+Enter)"'));
+      assert.ok(html.includes('aria-label="Cancel (Esc)"'));
+      assert.ok(html.includes('title="Cancel (Esc)"'));
+      assert.ok(html.includes('aria-label="Send message (Cmd/Ctrl+Enter)"'));
+    });
+
+    test("should use default aria-label when placeholder is empty", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" }, // placeholder is undefined
+        "nonce-123"
+      );
+      assert.ok(html.includes('aria-label="Message input"'));
     });
 
     test("should show create PR checkbox when option is true", () => {

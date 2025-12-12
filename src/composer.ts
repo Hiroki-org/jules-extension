@@ -162,15 +162,20 @@ export function getComposerHtml(
   button.primary:hover {
     background: var(--vscode-button-hoverBackground);
   }
+
+  button:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+  }
 </style>
 </head>
 <body>
-  <textarea id="message" aria-label="${placeholder}" placeholder="${placeholder}" autofocus>${value}</textarea>
+  <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
     ${requireApprovalCheckbox}
-    <button type="button" id="cancel">Cancel</button>
-    <button type="button" id="submit" class="primary" title="Send (Cmd/Ctrl+Enter)">Send</button>
+    <button type="button" id="cancel" title="Cancel (Esc)" aria-label="Cancel (Esc)">Cancel</button>
+    <button type="button" id="submit" class="primary" title="Send (Cmd/Ctrl+Enter)" aria-label="Send message (Cmd/Ctrl+Enter)">Send</button>
   </div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
