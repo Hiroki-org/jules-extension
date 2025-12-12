@@ -45,6 +45,9 @@ importers:
       eslint:
         specifier: ^9.36.0
         version: 9.39.1
+      mocha:
+        specifier: ^11.7.5
+        version: 11.7.5
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
