@@ -165,12 +165,12 @@ export function getComposerHtml(
 </style>
 </head>
 <body>
-  <textarea id="message" placeholder="${placeholder}" autofocus>${value}</textarea>
+  <textarea id="message" aria-label="${placeholder}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
     ${requireApprovalCheckbox}
     <button type="button" id="cancel">Cancel</button>
-    <button type="button" id="submit" class="primary">Send</button>
+    <button type="button" id="submit" class="primary" title="Send (Cmd/Ctrl+Enter)">Send</button>
   </div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
