@@ -537,6 +537,29 @@ async function notifyUserFeedbackRequired(session: Session): Promise<void> {
   }
 }
 
+function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (!a || !b || a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    const prA = a[i]?.pullRequest;
+    const prB = b[i]?.pullRequest;
+
+    if (
+      prA?.url !== prB?.url ||
+      prA?.title !== prB?.title ||
+      prA?.description !== prB?.description
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function updatePreviousStates(
   currentSessions: Session[],
   context: vscode.ExtensionContext
@@ -552,7 +575,7 @@ async function updatePreviousStates(
       if (
         prevState.state !== session.state ||
         prevState.rawState !== session.rawState ||
-        JSON.stringify(prevState.outputs) !== JSON.stringify(session.outputs)
+        !areOutputsEqual(prevState.outputs, session.outputs)
       ) {
         previousSessionStates.set(session.name, {
           ...prevState,
@@ -592,7 +615,7 @@ async function updatePreviousStates(
       prevState.state !== session.state ||
       prevState.rawState !== session.rawState ||
       prevState.isTerminated !== isTerminated ||
-      JSON.stringify(prevState.outputs) !== JSON.stringify(session.outputs)
+      !areOutputsEqual(prevState.outputs, session.outputs)
     ) {
       previousSessionStates.set(session.name, {
         name: session.name,
