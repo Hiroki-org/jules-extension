@@ -568,6 +568,28 @@ export async function updatePreviousStates(
 ): Promise<void> {
   let hasChanged = false;
 
+  // 1. Identify sessions that require PR status checks
+  // We only check for sessions that are COMPLETED, have a PR URL, and are NOT already terminated.
+  const sessionsToCheck = currentSessions.filter(session => {
+    const prevState = previousSessionStates.get(session.name);
+    if (prevState?.isTerminated) { return false; }
+    return session.state === "COMPLETED" && extractPRUrl(session);
+  });
+
+  // 2. Perform checks in parallel
+  // This avoids sequential API calls (N+1 problem) when multiple sessions are completed.
+  const prStatusMap = new Map<string, boolean>();
+
+  if (sessionsToCheck.length > 0) {
+    await Promise.all(sessionsToCheck.map(async (session) => {
+      const prUrl = extractPRUrl(session);
+      // The `if (prUrl)` check is redundant because `sessionsToCheck` is already filtered.
+      // `prUrl` is guaranteed to be non-null here.
+      const isClosed = await checkPRStatus(prUrl!, context);
+      prStatusMap.set(session.name, isClosed);
+    }));
+  }
+
   for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
 
@@ -594,7 +616,8 @@ export async function updatePreviousStates(
     if (session.state === "COMPLETED") {
       const prUrl = extractPRUrl(session);
       if (prUrl) {
-        const isClosed = await checkPRStatus(prUrl, context);
+        // Use pre-fetched status
+        const isClosed = prStatusMap.get(session.name) ?? false;
         if (isClosed) {
           isTerminated = true;
           console.log(

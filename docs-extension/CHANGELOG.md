@@ -6,7 +6,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-- Initial release
+### Performance
+
+- Parallelized GitHub PR status checks to improve session refresh performance.
 
 ## [1.1.2] - 2024-07-22
 
