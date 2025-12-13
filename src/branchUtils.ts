@@ -5,6 +5,7 @@ import { BranchesCache, isCacheValid } from './cache';
 import { parseGitHubUrl } from './githubUtils';
 
 const DEFAULT_FALLBACK_BRANCH = 'main';
+const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
 async function getActiveRepository(outputChannel: vscode.OutputChannel): Promise<any | null> {
     const gitExtension = vscode.extensions.getExtension('vscode.git');
@@ -236,9 +237,8 @@ export async function getBranchesForSession(
             // Data hasn't changed.
             // Check if we need to refresh timestamp
             const age = cache.timestamp - existingCache.timestamp;
-            const REFRESH_THRESHOLD = 3 * 60 * 1000; // 3 minutes
 
-            if (age < REFRESH_THRESHOLD) {
+            if (age < BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS) {
                 shouldUpdate = false;
                 outputChannel.appendLine(`[Jules] Branch cache unchanged and fresh (age: ${Math.round(age / 1000)}s), skipping write.`);
             } else {

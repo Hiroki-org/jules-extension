@@ -263,8 +263,10 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
         let contextStub: vscode.ExtensionContext;
         let apiClient: JulesApiClient;
         let selectedSource: SourceType;
+        let clock: sinon.SinonFakeTimers;
 
         setup(() => {
+            clock = sinon.useFakeTimers();
             outputChannel = { appendLine: sandbox.stub() } as unknown as vscode.OutputChannel;
             contextStub = {
                 globalState: {
@@ -302,6 +304,10 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
             sandbox.stub(vscode.workspace, 'getConfiguration').callsFake(() => ({
                 get: (key: string, defaultValue?: unknown) => defaultValue
             }) as any);
+        });
+
+        teardown(() => {
+            clock.restore();
         });
 
         test('should skip globalState update if cache is fresh and content unchanged', async () => {
