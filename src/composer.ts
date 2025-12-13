@@ -167,6 +167,20 @@ export function getComposerHtml(
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: 2px;
   }
+
+  input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: var(--vscode-button-background);
+  }
+
+  input[type="checkbox"]:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+  }
+
+  label {
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>

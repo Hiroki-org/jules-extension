@@ -111,5 +111,16 @@ suite("Composer Test Suite", () => {
       const html2 = getComposerHtml(mockWebview, { title: "Test" }, "nonce-123");
       assert.ok(!html2.includes(`<label for="require-approval">`));
     });
+
+    test("should include checkbox styles", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes('input[type="checkbox"]'));
+      assert.ok(html.includes('accent-color: var(--vscode-button-background)'));
+      assert.ok(html.includes('input[type="checkbox"]:focus-visible'));
+    });
   });
 });
