@@ -5,6 +5,7 @@ import { BranchesCache, isCacheValid } from './cache';
 import { parseGitHubUrl } from './githubUtils';
 
 const DEFAULT_FALLBACK_BRANCH = 'main';
+const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
 async function getActiveRepository(outputChannel: vscode.OutputChannel): Promise<any | null> {
     const gitExtension = vscode.extensions.getExtension('vscode.git');
@@ -100,6 +101,34 @@ async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel): Prom
         outputChannel.appendLine(`Error getting workspace GitHub repo: ${error}`);
         return null;
     }
+}
+
+function areArraysEqual(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function areCacheContentsEqual(a: BranchesCache, b: BranchesCache): boolean {
+    if (a.defaultBranch !== b.defaultBranch) {
+        return false;
+    }
+    if (a.currentBranch !== b.currentBranch) {
+        return false;
+    }
+    if (!areArraysEqual(a.branches, b.branches)) {
+        return false;
+    }
+    if (!areArraysEqual(a.remoteBranches, b.remoteBranches)) {
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -200,8 +229,27 @@ export async function getBranchesForSession(
             currentBranch,
             timestamp: Date.now()
         };
-        await context.globalState.update(cacheKey, cache);
-        outputChannel.appendLine(`[Jules] Cached ${branches.length} branches`);
+
+        const existingCache = context.globalState.get<BranchesCache>(cacheKey);
+        let shouldUpdate = true;
+
+        if (existingCache && areCacheContentsEqual(existingCache, cache)) {
+            // Data hasn't changed.
+            // Check if we need to refresh timestamp
+            const age = cache.timestamp - existingCache.timestamp;
+
+            if (age < BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS) {
+                shouldUpdate = false;
+                outputChannel.appendLine(`[Jules] Branch cache unchanged and fresh (age: ${Math.round(age / 1000)}s), skipping write.`);
+            } else {
+                outputChannel.appendLine(`[Jules] Branch cache unchanged but aging, refreshing timestamp.`);
+            }
+        }
+
+        if (shouldUpdate) {
+            await context.globalState.update(cacheKey, cache);
+            outputChannel.appendLine(`[Jules] Cached ${branches.length} branches`);
+        }
 
         return { branches, defaultBranch: selectedDefaultBranch, currentBranch, remoteBranches };
     };

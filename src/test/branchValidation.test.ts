@@ -257,4 +257,108 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
             assert.strictEqual(result.defaultBranch, 'main');
         });
     });
+
+    suite('Caching Optimization', () => {
+        let outputChannel: vscode.OutputChannel;
+        let contextStub: vscode.ExtensionContext;
+        let apiClient: JulesApiClient;
+        let selectedSource: SourceType;
+        let clock: sinon.SinonFakeTimers;
+
+        setup(() => {
+            clock = sinon.useFakeTimers();
+            outputChannel = { appendLine: sandbox.stub() } as unknown as vscode.OutputChannel;
+            contextStub = {
+                globalState: {
+                    get: sandbox.stub(),
+                    update: sandbox.stub().resolves()
+                }
+            } as unknown as vscode.ExtensionContext;
+
+            selectedSource = {
+                name: 'sources/github/owner/repo',
+                id: 'sources/github/owner/repo',
+                githubRepo: {
+                    branches: [{ displayName: 'main' }],
+                    defaultBranch: { displayName: 'main' },
+                    owner: 'owner',
+                    repo: 'repo',
+                    isPrivate: false
+                }
+            };
+
+            apiClient = {
+                getSource: sandbox.stub().resolves(selectedSource)
+            } as unknown as JulesApiClient;
+
+            const gitApi = {
+                repositories: [{
+                    rootUri: { fsPath: '/workspace' },
+                    state: {
+                        HEAD: { name: 'main' },
+                        remotes: [{ name: 'origin', fetchUrl: 'https://github.com/owner/repo' }]
+                    }
+                }]
+            };
+            sandbox.stub(vscode.extensions, 'getExtension').returns({ exports: { getAPI: () => gitApi } } as any);
+            sandbox.stub(vscode.workspace, 'getConfiguration').callsFake(() => ({
+                get: (key: string, defaultValue?: unknown) => defaultValue
+            }) as any);
+        });
+
+        teardown(() => {
+            clock.restore();
+        });
+
+        test('should skip globalState update if cache is fresh and content unchanged', async () => {
+            const now = Date.now();
+            const cachedData = {
+                branches: ['main'], // Remote branches + current branch (if different)
+                remoteBranches: ['main'],
+                defaultBranch: 'main',
+                currentBranch: 'main',
+                timestamp: now - 1000 // 1 second old
+            };
+
+            (contextStub.globalState.get as sinon.SinonStub).returns(cachedData);
+
+            await getBranchesForSession(selectedSource, apiClient, outputChannel, contextStub, { forceRefresh: true, showProgress: false });
+
+            assert.strictEqual((contextStub.globalState.update as sinon.SinonStub).called, false, 'Should not update globalState');
+        });
+
+        test('should update globalState if cache is old (even if content unchanged)', async () => {
+            const now = Date.now();
+            const cachedData = {
+                branches: ['main'],
+                remoteBranches: ['main'],
+                defaultBranch: 'main',
+                currentBranch: 'main',
+                timestamp: now - (4 * 60 * 1000) // 4 minutes old (threshold is 3)
+            };
+
+            (contextStub.globalState.get as sinon.SinonStub).returns(cachedData);
+
+            await getBranchesForSession(selectedSource, apiClient, outputChannel, contextStub, { forceRefresh: true, showProgress: false });
+
+            assert.strictEqual((contextStub.globalState.update as sinon.SinonStub).called, true, 'Should update globalState');
+        });
+
+        test('should update globalState if content changed', async () => {
+            const now = Date.now();
+            const cachedData = {
+                branches: ['main'],
+                remoteBranches: ['main'],
+                defaultBranch: 'main',
+                currentBranch: 'dev', // different
+                timestamp: now - 1000
+            };
+
+            (contextStub.globalState.get as sinon.SinonStub).returns(cachedData);
+
+            await getBranchesForSession(selectedSource, apiClient, outputChannel, contextStub, { forceRefresh: true, showProgress: false });
+
+            assert.strictEqual((contextStub.globalState.update as sinon.SinonStub).called, true, 'Should update globalState');
+        });
+    });
 });
