@@ -27,11 +27,15 @@ export function stripUrlCredentials(url: string): string {
         // Return SSH or other URLs as is
         return url;
     } catch (e) {
-        // If URL parsing fails, return original to avoid breaking functionality,
-        // though typically this should be handled by caller if strict validation is needed.
-        // For logging purposes, returning original is acceptable if it's not a standard URL,
-        // but arguably risky if it's a malformed URL with a token.
-        // Given VS Code context, git remote URLs are usually well-formed.
+        // If URL parsing fails, try to strip credentials using regex for http/https
+        // This is a fallback to prevent leaking credentials in logs when URL is malformed
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            // Regex matches protocol (group 1) and any userinfo ending with @ (group 2)
+            // It uses a greedy match for userinfo but bounded by /, ? or # to ensure we don't cross into path
+            return url.replace(/^(https?:\/\/)([^/?#]+@)/, '$1');
+        }
+
+        // Return SSH or other URLs as is
         return url;
     }
 }

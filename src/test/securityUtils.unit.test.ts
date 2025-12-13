@@ -56,4 +56,12 @@ suite("Security Utils Test Suite", () => {
         const result = stripUrlCredentials(url);
         assert.strictEqual(result, expected);
     });
+
+    test("stripUrlCredentials should strip credentials from malformed URLs (fallback)", () => {
+        // This URL causes new URL() to throw because of invalid port format
+        const url = "https://user:pass@github.com:invalidport/repo";
+        const result = stripUrlCredentials(url);
+        assert.ok(!result.includes("user:pass"), "Credentials should be stripped even if URL is malformed");
+        assert.ok(result.startsWith("https://"), "Protocol should be preserved");
+    });
 });
