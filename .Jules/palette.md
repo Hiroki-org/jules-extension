@@ -9,3 +9,7 @@
 ## 2025-12-13 - Checkbox Theming in Webviews
 **Learning:** Native checkboxes in Webviews lack VS Code theme integration (accent color, focus styles).
 **Action:** Apply `accent-color: var(--vscode-button-background)` and custom `:focus-visible` styles to match the VS Code design system.
+
+## 2025-12-14 - TreeItem Tooltips
+**Learning:** Use `vscode.MarkdownString` for TreeItem tooltips to provide rich, structured information (bold text, icons, line breaks) instead of plain text strings. This greatly improves information density and readability for complex items.
+**Action:** When creating TreeItems with multiple data points, use `MarkdownString` for the tooltip.

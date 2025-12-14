@@ -1015,7 +1015,25 @@ class JulesSessionsProvider
 export class SessionTreeItem extends vscode.TreeItem {
   constructor(public readonly session: Session) {
     super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
-    this.tooltip = `${session.name} - ${session.state}${session.requirePlanApproval ? ' (Plan Approval Required)' : ''}`;
+
+    const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
+    tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
+
+    if (session.requirePlanApproval) {
+      tooltip.appendMarkdown(`\n\n⚠️ **Plan Approval Required**`);
+    }
+
+    if (session.sourceContext?.source) {
+      // Extract repo name if possible for cleaner display
+      const source = session.sourceContext.source;
+      const repoMatch = source.match(/sources\/github\/(.+)/);
+      const repoName = repoMatch ? repoMatch[1] : source;
+      tooltip.appendMarkdown(`\n\nSource: \`${repoName}\``);
+    }
+
+    tooltip.appendMarkdown(`\n\nID: \`${session.name}\``);
+    this.tooltip = tooltip;
+
     this.description = session.state;
     this.iconPath = this.getIcon(session.state, session.rawState);
     this.contextValue = "jules-session";

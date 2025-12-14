@@ -112,6 +112,25 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(item.command?.command, "jules-extension.showActivities");
       assert.strictEqual(item.command?.arguments?.[0], "sessions/789");
     });
+
+    test("SessionTreeItem should have Markdown tooltip", () => {
+      const item = new SessionTreeItem({
+        name: "sessions/123",
+        title: "Test Session",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+        requirePlanApproval: true,
+        sourceContext: { source: "sources/github/owner/repo" }
+      } as any);
+
+      assert.ok(item.tooltip instanceof vscode.MarkdownString);
+      const tooltipValue = (item.tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltipValue.includes("**Test Session**"));
+      assert.ok(tooltipValue.includes("Status: **RUNNING**"));
+      assert.ok(tooltipValue.includes("⚠️ **Plan Approval Required**"));
+      assert.ok(tooltipValue.includes("Source: `owner/repo`"));
+      assert.ok(tooltipValue.includes("ID: `sessions/123`"));
+    });
   });
 
   suite("buildFinalPrompt", () => {
