@@ -4,6 +4,7 @@
  */
 export async function fetchWithTimeout(input: string | URL | Request, init?: RequestInit & { timeout?: number }): Promise<Response> {
     const timeout = init?.timeout ?? 30000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     let timeoutSignal: AbortSignal;
     // @ts-ignore
@@ -12,7 +13,7 @@ export async function fetchWithTimeout(input: string | URL | Request, init?: Req
         timeoutSignal = AbortSignal.timeout(timeout);
     } else {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(new Error('Timeout')), timeout);
+        timer = setTimeout(() => controller.abort(new Error('Timeout')), timeout);
         // Ensure the timer doesn't block the process from exiting if it's supported
         if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof (timer as any).unref === 'function') {
             (timer as any).unref();
@@ -25,10 +26,16 @@ export async function fetchWithTimeout(input: string | URL | Request, init?: Req
         finalSignal = anySignal([init.signal, timeoutSignal]);
     }
 
-    return fetch(input, {
-        ...init,
-        signal: finalSignal
-    });
+    try {
+        return await fetch(input, {
+            ...init,
+            signal: finalSignal
+        });
+    } finally {
+        if (timer) {
+            clearTimeout(timer);
+        }
+    }
 }
 
 /**

@@ -27,7 +27,7 @@ jobs:
           PR_NUM=${{ github.event.pull_request.number }}
           IS_DRAFT=$(gh pr view $PR_NUM --json isDraft --jq '.isDraft')
           if [ "$IS_DRAFT" = "true" ]; then
-            gh pr ready $PR_NUM
+            gh pr ready $PR_NUM || echo "Warning: Failed to mark PR as ready. Continuing..."
           else
             echo "PR #$PR_NUM is already ready."
           fi

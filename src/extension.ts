@@ -244,7 +244,7 @@ async function createRemoteBranch(
     logger.appendLine(`[Jules] Current branch SHA: ${sha}`);
     logger.appendLine(`[Jules] Creating remote branch: ${branchName}`);
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://api.github.com/repos/${owner}/${repo}/git/refs`,
       {
         method: 'POST',
@@ -437,7 +437,7 @@ async function fetchPlanFromActivities(
   apiKey: string
 ): Promise<Plan | null> {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${JULES_API_BASE_URL}/${sessionId}/activities`,
       {
         method: "GET",
@@ -1072,7 +1072,7 @@ async function approvePlan(
         title: "Approving plan...",
       },
       async () => {
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           `${JULES_API_BASE_URL}/${sessionId}:approvePlan`,
           {
             method: "POST",
@@ -1144,7 +1144,7 @@ async function sendMessageToSession(
         title: "Sending message to Jules...",
       },
       async () => {
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
           {
             method: "POST",
@@ -1266,7 +1266,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       try {
-        const response = await fetch(`${JULES_API_BASE_URL}/sources`, {
+        const response = await fetchWithTimeout(`${JULES_API_BASE_URL}/sources`, {
           method: "GET",
           headers: {
             "X-Goog-Api-Key": apiKey,
@@ -1313,7 +1313,7 @@ export function activate(context: vscode.ExtensionContext) {
             title: 'Fetching sources...',
             cancellable: false
           }, async (progress) => {
-            const response = await fetch(`${JULES_API_BASE_URL}/sources`, {
+            const response = await fetchWithTimeout(`${JULES_API_BASE_URL}/sources`, {
               method: "GET",
               headers: {
                 "X-Goog-Api-Key": apiKey,
@@ -1538,7 +1538,7 @@ export function activate(context: vscode.ExtensionContext) {
               increment: 0,
               message: "Sending request...",
             });
-            const response = await fetch(`${JULES_API_BASE_URL}/sessions`, {
+            const response = await fetchWithTimeout(`${JULES_API_BASE_URL}/sessions`, {
               method: "POST",
               headers: {
                 "X-Goog-Api-Key": apiKey,
@@ -1617,7 +1617,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       try {
-        const sessionResponse = await fetch(
+        const sessionResponse = await fetchWithTimeout(
           `${JULES_API_BASE_URL}/${sessionId}`,
           {
             method: "GET",
@@ -1635,7 +1635,7 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         }
         const session = (await sessionResponse.json()) as Session;
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           `${JULES_API_BASE_URL}/${sessionId}/activities`,
           {
             method: "GET",
