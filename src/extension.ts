@@ -473,12 +473,15 @@ function formatPlanForNotification(plan: Plan): string {
     parts.push(`📋 ${plan.title}`);
   }
   if (plan.steps && plan.steps.length > 0) {
-    const stepsPreview = plan.steps.slice(0, MAX_PLAN_STEPS_IN_NOTIFICATION);
+    const stepsPreview = plan.steps
+      .filter((step): step is PlanStep => !!step)
+      .slice(0, MAX_PLAN_STEPS_IN_NOTIFICATION);
     stepsPreview.forEach((step, index) => {
+      const stepDescription = step?.description || '';
       // Truncate long steps for notification display
-      const truncatedStep = step.length > MAX_PLAN_STEP_LENGTH
-        ? step.substring(0, MAX_PLAN_STEP_LENGTH - 3) + '...'
-        : step;
+      const truncatedStep = stepDescription.length > MAX_PLAN_STEP_LENGTH
+        ? stepDescription.substring(0, MAX_PLAN_STEP_LENGTH - 3) + '...'
+        : stepDescription;
       parts.push(`${index + 1}. ${truncatedStep}`);
     });
     if (plan.steps.length > MAX_PLAN_STEPS_IN_NOTIFICATION) {
@@ -718,9 +721,13 @@ interface SessionsResponse {
   sessions: Session[];
 }
 
+interface PlanStep {
+  description: string;
+}
+
 interface Plan {
   title?: string;
-  steps?: string[];
+  steps?: PlanStep[];
 }
 
 interface Activity {
