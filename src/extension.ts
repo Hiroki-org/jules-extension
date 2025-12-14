@@ -350,13 +350,20 @@ async function checkPRStatus(
     const [, owner, repo, prNumber] = match;
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
 
-    // Get GitHub token if available
-    const githubToken = await context.secrets.get("jules-github-token");
+    // Prefer OAuth token, fallback to manually set PAT
+    let token = await GitHubAuth.getToken();
+    if (!token) {
+      token = await context.secrets.get("jules-github-token");
+      if (token) {
+        console.log("[Jules] Using fallback GitHub PAT for PR status check.");
+      }
+    }
+
     const headers: Record<string, string> = {
       Accept: "application/vnd.github.v3+json",
     };
-    if (githubToken) {
-      headers.Authorization = `Bearer ${githubToken}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const response = await fetchWithTimeout(apiUrl, { headers });
