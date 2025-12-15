@@ -1239,15 +1239,13 @@ export function activate(context: vscode.ExtensionContext) {
   prStatusCache = context.globalState.get<PRStatusCache>("jules.prStatusCache", {});
   // Clean up expired entries
   const now = Date.now();
-  let cacheCleaned = false;
-  for (const url in prStatusCache) {
-    if (now - prStatusCache[url].lastChecked > PR_CACHE_DURATION) {
-      delete prStatusCache[url];
-      cacheCleaned = true;
-    }
-  }
-  if (cacheCleaned) {
-    console.log("Jules: Cleaned up expired PR status cache entries.");
+  const expiredUrls = Object.keys(prStatusCache).filter(
+    (url) => now - prStatusCache[url].lastChecked > PR_CACHE_DURATION
+  );
+
+  if (expiredUrls.length > 0) {
+    expiredUrls.forEach((url) => delete prStatusCache[url]);
+    console.log(`Jules: Cleaned up ${expiredUrls.length} expired PR status cache entries.`);
   }
 
   loadPreviousSessionStates(context);
