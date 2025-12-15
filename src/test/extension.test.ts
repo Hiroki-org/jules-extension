@@ -358,7 +358,8 @@ suite("Extension Test Suite", () => {
 
       // Update once to set initial state
       await updatePreviousStates([session], mockContext);
-      assert.strictEqual(updateStub.callCount, 1, "First call should update");
+      // Calls update for both previousSessionStates and prStatusCache
+      assert.strictEqual(updateStub.callCount, 2, "First call should update (states + cache)");
 
       // Update again with same state
       updateStub.resetHistory();
@@ -373,7 +374,28 @@ suite("Extension Test Suite", () => {
 
       const session2: Session = { ...session1, state: "COMPLETED" };
       await updatePreviousStates([session2], mockContext);
-      assert.strictEqual(updateStub.callCount, 1, "Should update when state changes");
+      assert.strictEqual(updateStub.callCount, 2, "Should update when state changes (states + cache)");
+    });
+
+    test("should persist PR status cache when session state changes", async () => {
+      const session: Session = {
+        name: "s3",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: []
+      };
+
+      await updatePreviousStates([session], mockContext);
+
+      let prCacheUpdateCalled = false;
+      for (const call of updateStub.getCalls()) {
+        if (call.args[0] === "jules.prStatusCache") {
+          prCacheUpdateCalled = true;
+          break;
+        }
+      }
+      assert.ok(prCacheUpdateCalled, "Should have attempted to save PR status cache");
     });
   });
 });

@@ -37,7 +37,7 @@ interface PRStatusCache {
   };
 }
 
-const prStatusCache: PRStatusCache = {};
+let prStatusCache: PRStatusCache = {};
 const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 interface SourceQuickPickItem extends vscode.QuickPickItem {
@@ -670,6 +670,9 @@ export async function updatePreviousStates(
       "jules.previousSessionStates",
       Object.fromEntries(previousSessionStates)
     );
+    // Also persist PR status cache to save API calls on next reload
+    await context.globalState.update("jules.prStatusCache", prStatusCache);
+
     console.log(
       `Jules: Saved ${previousSessionStates.size} session states to global state.`
     );
@@ -1231,6 +1234,21 @@ function updateStatusBar(
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
+
+  // Load PR status cache to avoid redundant GitHub API calls on startup
+  prStatusCache = context.globalState.get<PRStatusCache>("jules.prStatusCache", {});
+  // Clean up expired entries
+  const now = Date.now();
+  let cacheCleaned = false;
+  for (const url in prStatusCache) {
+    if (now - prStatusCache[url].lastChecked > PR_CACHE_DURATION) {
+      delete prStatusCache[url];
+      cacheCleaned = true;
+    }
+  }
+  if (cacheCleaned) {
+    console.log("Jules: Cleaned up expired PR status cache entries.");
+  }
 
   loadPreviousSessionStates(context);
 
