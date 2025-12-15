@@ -783,13 +783,13 @@ export class JulesSessionsProvider
   implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
     name: 'silent-channel',
-    append: () => { },
-    appendLine: () => { },
-    replace: () => { },
-    clear: () => { },
-    show: () => { },
-    hide: () => { },
-    dispose: () => { },
+    append: () => {},
+    appendLine: () => {},
+    replace: () => {},
+    clear: () => {},
+    show: () => {},
+    hide: () => {},
+    dispose: () => {},
   };
 
   private _onDidChangeTreeData: vscode.EventEmitter<
