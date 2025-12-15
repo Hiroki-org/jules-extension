@@ -115,7 +115,17 @@ interface SessionState {
 
 let previousSessionStates: Map<string, SessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
-let logChannel: vscode.OutputChannel;
+// Initialize with dummy to support usage before activate (e.g. in tests)
+let logChannel: vscode.OutputChannel = {
+  name: 'Jules Logs (Fallback)',
+  append: (val: string) => console.log(val),
+  appendLine: (val: string) => console.log(val),
+  replace: (val: string) => console.log(val),
+  clear: () => { },
+  show: () => { },
+  hide: () => { },
+  dispose: () => { }
+};
 
 function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
   const storedStates = context.globalState.get<{ [key: string]: SessionState }>(
@@ -769,7 +779,7 @@ function getActivityIcon(activity: Activity): string {
   return "ℹ️";
 }
 
-class JulesSessionsProvider
+export class JulesSessionsProvider
   implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
     name: 'silent-channel',
@@ -978,15 +988,7 @@ class JulesSessionsProvider
       this.context.globalState.get<SourceType>("selected-source");
 
     if (!selectedSource) {
-      const item = new vscode.TreeItem(
-        "ℹ️ No source selected. Click to select a source."
-      );
-      item.command = {
-        command: "jules-extension.listSources",
-        title: "Select Source",
-      };
-      item.contextValue = "no-source";
-      return [item];
+      return [];
     }
 
     // Now, use the cache to build the tree
@@ -1022,7 +1024,7 @@ class JulesSessionsProvider
     }
 
     if (filteredSessions.length === 0) {
-      return [new vscode.TreeItem("No sessions found for this source.")];
+      return [];
     }
 
     return filteredSessions.map((session) => new SessionTreeItem(session));
@@ -1252,6 +1254,10 @@ export function activate(context: vscode.ExtensionContext) {
   // 初期表示を更新
   updateStatusBar(context, statusBarItem);
 
+  // Set initial context for welcome views
+  const selectedSource = context.globalState.get("selected-source");
+  vscode.commands.executeCommand('setContext', 'jules-extension.hasSelectedSource', !!selectedSource);
+
   // Create OutputChannel for Activities
   const activitiesChannel =
     vscode.window.createOutputChannel("Jules Activities");
@@ -1375,6 +1381,7 @@ export function activate(context: vscode.ExtensionContext) {
           });
         if (selected) {
           await context.globalState.update("selected-source", selected.source);
+          vscode.commands.executeCommand('setContext', 'jules-extension.hasSelectedSource', true);
           vscode.window.showInformationMessage(
             `Selected source: ${selected.label}`
           );

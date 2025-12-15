@@ -185,6 +185,18 @@
         "category": "Jules"
       }
     ],
+    "viewsWelcome": [
+      {
+        "view": "julesSessionsView",
+        "contents": "No source selected.\n[Select Source](command:jules-extension.listSources)",
+        "when": "!jules-extension.hasSelectedSource"
+      },
+      {
+        "view": "julesSessionsView",
+        "contents": "No sessions found.\n[Create Session](command:jules-extension.createSession)",
+        "when": "jules-extension.hasSelectedSource"
+      }
+    ],
     "views": {
       "explorer": [
         {

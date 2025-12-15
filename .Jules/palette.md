@@ -13,3 +13,7 @@
 ## 2025-12-14 - TreeItem Tooltips
 **Learning:** Use `vscode.MarkdownString` for TreeItem tooltips to provide rich, structured information (bold text, icons, line breaks) instead of plain text strings. This greatly improves information density and readability for complex items.
 **Action:** When creating TreeItems with multiple data points, use `MarkdownString` for the tooltip.
+
+## 2025-12-15 - Tree View Empty States
+**Learning:** Returning an empty array in `getChildren` works perfectly with `viewsWelcome` in `package.json` to provide rich, actionable empty states, replacing manual "No items found" tree items.
+**Action:** Always check `package.json` for `viewsWelcome` when handling empty states in TreeDataProviders, instead of creating dummy TreeItems.
