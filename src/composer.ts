@@ -168,6 +168,11 @@ export function getComposerHtml(
     outline-offset: 2px;
   }
 
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   input[type="checkbox"] {
     cursor: pointer;
     accent-color: var(--vscode-button-background);
@@ -194,9 +199,20 @@ export function getComposerHtml(
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const textarea = document.getElementById('message');
+    const submitButton = document.getElementById('submit');
     const createPrCheckbox = document.getElementById('create-pr');
     const requireApprovalCheckbox = document.getElementById('require-approval');
+
+    const validate = () => {
+      const isValid = textarea.value.trim().length > 0;
+      submitButton.disabled = !isValid;
+      return isValid;
+    };
+
     const submit = () => {
+      if (!validate()) {
+        return;
+      }
       vscode.postMessage({
         type: 'submit',
         value: textarea.value,
@@ -205,20 +221,26 @@ export function getComposerHtml(
       });
     };
 
-    document.getElementById('submit').addEventListener('click', submit);
+    submitButton.addEventListener('click', submit);
     document.getElementById('cancel').addEventListener('click', () => {
       vscode.postMessage({ type: 'cancel' });
     });
 
+    textarea.addEventListener('input', validate);
+
     textarea.addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
-        submit();
+        if (validate()) {
+          submit();
+        }
       } else if (event.key === 'Escape') {
         event.preventDefault();
         vscode.postMessage({ type: 'cancel' });
       }
     });
+
+    validate();
   </script>
 </body>
 </html>`;
