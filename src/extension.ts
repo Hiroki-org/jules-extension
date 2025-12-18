@@ -454,17 +454,18 @@ async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
         await vscode.commands.executeCommand("pr.openDescription", {
           prUrl: prUrl,
         });
+        return; // Successfully opened in VS Code, no need to fall back.
       } catch (error) {
         console.error("Failed to open PR in VS Code:", error);
         vscode.window.showErrorMessage(
           "Failed to open PR in VS Code. Please ensure the 'GitHub Pull Requests and Issues' extension is installed and you are logged in."
         );
-        // Fallback to opening in browser
-        vscode.env.openExternal(vscode.Uri.parse(prUrl));
+        // Fallback to opening in browser below.
       }
-    } else {
-      vscode.env.openExternal(vscode.Uri.parse(prUrl));
     }
+
+    // Default action or fallback.
+    vscode.env.openExternal(vscode.Uri.parse(prUrl));
   }
 }
 
