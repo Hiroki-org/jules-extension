@@ -19,9 +19,6 @@ import { fetchWithTimeout } from './fetchUtils';
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 const VIEW_DETAILS_ACTION = 'View Details';
 const SHOW_ACTIVITIES_COMMAND = 'jules-extension.showActivities';
-const CONFIG_SECTION = "jules-extension";
-const CONFIG_OPEN_PR_IN_VSCODE = "openPrInVsCode";
-const COMMAND_OPEN_PR_DESCRIPTION = "pr.openDescription";
 
 // Plan notification display constants
 const MAX_PLAN_STEPS_IN_NOTIFICATION = 5;
@@ -442,19 +439,19 @@ function checkForSessionsInState(
   });
 }
 
-async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
+export async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
   const result = await vscode.window.showInformationMessage(
     `Session "${session.title}" has completed and created a PR!`,
     "Open PR"
   );
   if (result === "Open PR") {
     const openInVsCode = vscode.workspace
-      .getConfiguration(CONFIG_SECTION)
-      .get<boolean>(CONFIG_OPEN_PR_IN_VSCODE, false);
+      .getConfiguration("jules-extension")
+      .get<boolean>("openPrInVsCode", false);
 
     if (openInVsCode) {
       try {
-        await vscode.commands.executeCommand(COMMAND_OPEN_PR_DESCRIPTION, {
+        await vscode.commands.executeCommand("pr.openDescription", {
           prUrl: prUrl,
         });
         return; // Successfully opened in VS Code, no need to fall back.
