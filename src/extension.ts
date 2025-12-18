@@ -583,10 +583,33 @@ export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boole
   return true;
 }
 
+export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i++) {
+    const s1 = a[i];
+    const s2 = b[i];
+    if (
+      s1.name !== s2.name ||
+      s1.state !== s2.state ||
+      s1.rawState !== s2.rawState ||
+      s1.title !== s2.title ||
+      !areOutputsEqual(s1.outputs, s2.outputs)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export async function updatePreviousStates(
   currentSessions: Session[],
   context: vscode.ExtensionContext
-): Promise<void> {
+): Promise<boolean> {
   let hasChanged = false;
 
   // 1. Identify sessions that require PR status checks
@@ -687,6 +710,7 @@ export async function updatePreviousStates(
       `Jules: Saved ${previousSessionStates.size} session states to global state.`
     );
   }
+  return hasChanged;
 }
 
 function startAutoRefresh(
@@ -839,6 +863,7 @@ export class JulesSessionsProvider
           vscode.window.showErrorMessage(errorMsg);
         }
         this.sessionsCache = [];
+        this._onDidChangeTreeData.fire();
         return;
       }
 
@@ -846,6 +871,7 @@ export class JulesSessionsProvider
       if (!data.sessions || !Array.isArray(data.sessions)) {
         logChannel.appendLine("Jules: No sessions found or invalid response format");
         this.sessionsCache = [];
+        this._onDidChangeTreeData.fire();
         return;
       }
 
@@ -872,38 +898,46 @@ export class JulesSessionsProvider
       }, {} as Record<string, number>);
       logChannel.appendLine(`Jules: Debug - State counts: ${JSON.stringify(stateCounts)}`);
 
-      this.processSessionNotifications(
-        allSessionsMapped,
-        SESSION_STATE.AWAITING_PLAN_APPROVAL,
-        (session) => notifyPlanAwaitingApproval(session, this.context),
-        "plan approval"
-      );
+      // --- Optimization: Check if sessions changed ---
+      const sessionsChanged = !areSessionListsEqual(this.sessionsCache, allSessionsMapped);
 
-      this.processSessionNotifications(
-        allSessionsMapped,
-        SESSION_STATE.AWAITING_USER_FEEDBACK,
-        notifyUserFeedbackRequired,
-        "user feedback"
-      );
-
-      // --- Check for completed sessions (PR created) ---
-      const completedSessions = checkForCompletedSessions(allSessionsMapped);
-      if (completedSessions.length > 0) {
-        logChannel.appendLine(
-          `Jules: Found ${completedSessions.length} completed sessions`
+      if (sessionsChanged) {
+        this.processSessionNotifications(
+          allSessionsMapped,
+          SESSION_STATE.AWAITING_PLAN_APPROVAL,
+          (session) => notifyPlanAwaitingApproval(session, this.context),
+          "plan approval"
         );
-        for (const session of completedSessions) {
-          const prUrl = extractPRUrl(session);
-          if (prUrl) {
-            notifyPRCreated(session, prUrl).catch((error) => {
-              logChannel.appendLine(`Jules: Failed to show PR notification: ${error}`);
-            });
+
+        this.processSessionNotifications(
+          allSessionsMapped,
+          SESSION_STATE.AWAITING_USER_FEEDBACK,
+          notifyUserFeedbackRequired,
+          "user feedback"
+        );
+
+        // --- Check for completed sessions (PR created) ---
+        const completedSessions = checkForCompletedSessions(allSessionsMapped);
+        if (completedSessions.length > 0) {
+          logChannel.appendLine(
+            `Jules: Found ${completedSessions.length} completed sessions`
+          );
+          for (const session of completedSessions) {
+            const prUrl = extractPRUrl(session);
+            if (prUrl) {
+              notifyPRCreated(session, prUrl).catch((error) => {
+                logChannel.appendLine(`Jules: Failed to show PR notification: ${error}`);
+              });
+            }
           }
         }
+      } else {
+        logChannel.appendLine("Jules: Sessions unchanged, skipping notifications.");
       }
 
       // --- Update previous states after all checks ---
-      await updatePreviousStates(allSessionsMapped, this.context);
+      // We always run this to check PR status for completed sessions (external state)
+      const statesChanged = await updatePreviousStates(allSessionsMapped, this.context);
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
@@ -912,14 +946,19 @@ export class JulesSessionsProvider
         // The void operator is used to intentionally ignore the promise and avoid lint errors about floating promises.
         void this._refreshBranchCacheInBackground(apiKey);
       }
+
+      // Only fire event if meaningful change occurred
+      if (sessionsChanged || statesChanged) {
+        this._onDidChangeTreeData.fire();
+      } else {
+        logChannel.appendLine("Jules: No view updates required.");
+      }
     } catch (error) {
       logChannel.appendLine(`Jules: Error during fetchAndProcessSessions: ${error}`);
       // Retain cache on error to avoid losing data
     } finally {
       this.isFetching = false;
       logChannel.appendLine("Jules: Finished fetching and processing sessions.");
-      // Fire the event to refresh the view with the new data
-      this._onDidChangeTreeData.fire();
     }
   }
 
