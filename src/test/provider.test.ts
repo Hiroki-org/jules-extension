@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { JulesSessionsProvider } from "../extension";
+import { JulesSessionsProvider } from "../sessionViewProvider";
 import * as sinon from "sinon";
 
 suite("JulesSessionsProvider Test Suite", () => {

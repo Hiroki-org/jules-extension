@@ -3,16 +3,11 @@ import * as assert from "assert";
 // You can import and use all API from the 'vscode' module
 // as well as import your extension to test it
 import * as vscode from "vscode";
-import {
-  SessionTreeItem,
-  mapApiStateToSessionState,
-  buildFinalPrompt,
-  areOutputsEqual,
-  updatePreviousStates,
-  Session,
-  SessionOutput,
-  handleOpenInWebApp
-} from "../extension";
+import { SessionTreeItem } from "../sessionViewProvider";
+import { mapApiStateToSessionState, areOutputsEqual, updatePreviousStates } from "../sessionManager";
+import { buildFinalPrompt } from "../composer";
+import { Session, SessionOutput } from "../types";
+import { handleOpenInWebApp } from "../uiUtils";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { activate } from "../extension";
@@ -253,13 +248,15 @@ suite("Extension Test Suite", () => {
         secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() }
       } as any as vscode.ExtensionContext;
 
-      const consoleLogStub = localSandbox.stub(console, 'log');
-
       // Stub fetch so we can observe calls for expired entry
       const fetchStub = localSandbox.stub(fetchUtils, 'fetchWithTimeout').resolves({ ok: true, json: async () => ({ state: 'open' }) } as any);
 
       // Prevent duplicate command registration errors during test
-      const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => {} } as any));
+      localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => {} } as any));
+      localSandbox.stub(vscode.window, 'createTreeView').returns({} as any);
+      localSandbox.stub(vscode.window, 'createStatusBarItem').returns({ show: () => {} } as any);
+      localSandbox.stub(vscode.window, 'createOutputChannel').returns({ appendLine: () => {} } as any);
+
 
       // Call activate to load and clean cache
       activate(mockContext);

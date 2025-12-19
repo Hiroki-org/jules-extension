@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import * as crypto from "crypto";
 
+export function buildFinalPrompt(userPrompt: string): string {
+  const customPrompt = vscode.workspace
+    .getConfiguration("jules-extension")
+    .get<string>("customPrompt", "");
+  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
+}
+
 export interface ComposerOptions {
   title: string;
   placeholder?: string;
