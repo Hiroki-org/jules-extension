@@ -1,157 +1,193 @@
-# Jules Extension for VSCode
+# Jules VSCode拡張機能
 
-[![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-blue.svg)](https://marketplace.visualstudio.com/items?itemName=YOUR_PUBLISHER.jules-extension)
+[![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
 [![Status](https://img.shields.io/badge/status-development-yellow.svg)]
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> "Experience the future of coding with Google Jules in VSCode"
+> "GoogleのAIコーディングエージェント「Jules」と共に、未来のコーディングを体験しよう"
 
-Jules Extension is an extension that allows you to operate Google's AI coding agent **Jules** directly from within VSCode.
-Welcome an intelligent partner to your coding workflow.
+Jules拡張機能は、GoogleのAIコーディングエージェント**Jules**をVSCodeから直接操作するための拡張機能です。
+インテリジェントなパートナーを、あなたのコーディングワークフローに迎え入れましょう。
 
-## ✨ Concept
+## ✨ コンセプト
 
-This extension was created to take your development experience to the next level.
+この拡張機能は、あなたの開発体験を次のレベルへ引き上げるために作成されました。
 
-- **Seamless Integration:** Access the powerful features of Jules without leaving your usual VSCode environment.
-- **Real-time Collaboration:** From creating a coding session to checking its progress, everything is in real-time.
-- **Productivity Leap:** Leave the tedious tasks to Jules and focus on your creative work.
+- **シームレスな統合:** 使い慣れたVSCode環境を離れることなく、Julesの強力な機能にアクセスできます。
+- **リアルタイムな連携:** コーディングセッションの作成から進捗の確認まで、すべてがリアルタイムで行われます。
+- **生産性の飛躍:** 面倒な作業はJulesに任せ、あなたは創造的な仕事に集中できます。
 
-## 🚀 Key Features
+## 🚀 主な機能
 
-| Feature                  | Description                                                                                                                                                                                                        | Command / Icon                        |
-| :----------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------ |
-| **Set API Key**          | On first use, set your API key to connect to your Jules account. The key is stored securely in VSCode's SecretStorage and used automatically for all subsequent requests.                                          | `Jules: Set API Key`                  |
-| **Verify API Key**       | Test your API connection to ensure the key is valid and working.                                                                                                                                                   | `Jules: Verify API Key`               |
-| **List Sources**         | Browse available data sources that Jules can work with.                                                                                                                                                            | `Jules: List Sources`                 |
-| **Session Management**   | Use the `> Jules: Create Session` command to assign a new coding task to Jules. Past sessions are also listed, allowing you to resume work or review the history of completed tasks at any time.                   | `Jules: Create Session`               |
-| **Real-time Monitoring** | Get an at-a-glance view of Jules's current work status (`Running`, `Active`, `Done`, etc.) in a dedicated sidebar view. No more switching back and forth between your browser and editor.                          | `julesSessionsView` (View)            |
-| **Progress Update**      | Curious about how far Jules has progressed? Click the `↻` (refresh) button to instantly fetch and display the latest session status and activity list.                                                             | `Jules: Refresh Sessions`             |
-| **Activity Display**     | Select a session to view detailed logs of the commands Jules has executed, files it has edited, and its thought process. It provides a transparent development experience, as if you're peering into Jules's mind. | `Jules: Show Activities`              |
-| **Refresh Activities**   | Update the activities view for the current session to see the latest progress.                                                                                                                                     | `Jules: Refresh Activities`           |
-| **Send Message**         | Send follow-up messages to an active Jules session to provide additional instructions or feedback.                                                                                                                 | `Jules: Send Message to Session`      |
-| **Approve Plan**         | Review and approve plans generated by Jules before execution.                                                                                                                                                      | `Jules: Approve Plan`                 |
-| **Open Settings**        | Open the settings for the Jules extension.                                                                                                                                                                         | `Jules: Open Settings`                |
-| **Delete Session**       | Delete a session from the local cache.                                                                                                                                                                             | `Jules: Delete Session from Local Cache` |
-| **Set GitHub Token**     | Set your GitHub Personal Access Token for checking PR status.                                                                                                                                                      | `Jules: Set GitHub Token`             |
-| **Clear Cache**          | Clear the Jules extension cache.                                                                                                                                                                                   | `Jules: Clear Cache`                  |
-| **Sign in to GitHub**    | Sign in to your GitHub account.                                                                                                                                                                                    | `Jules: Sign in to GitHub`            |
+| 機能                               | 説明                                                                                                                     | コマンド                                  |
+| :--------------------------------- | :----------------------------------------------------------------------------------------------------------------------- | :---------------------------------------- |
+| **APIキーの設定**                  | 初回利用時にAPIキーを設定し、Julesアカウントに接続します。キーはVSCodeのSecretStorageに安全に保存され、以降のリクエストで自動的に使用されます。 | `Set Jules API Key`                       |
+| **APIキーの検証**                  | API接続をテストし、キーが有効であることを確認します。                                                                      | `Verify Jules API Key`                    |
+| **ソースの表示**                   | Julesが作業可能なデータソースを一覧表示します。                                                                          | `List Jules Sources`                      |
+| **セッションの作成**               | 新しいコーディングタスクをJulesに割り当てます。                                                                          | `Create Jules Session`                    |
+| **セッションの更新**               | `↻` (更新) ボタンで、セッションリストを最新の状態に更新します。                                                          | `Refresh Jules Sessions`                  |
+| **アクティビティ表示**             | 選択したセッションの、Julesが実行したコマンドや思考プロセスなどの詳細なログを表示します。                                  | `Show Jules Activities`                   |
+| **アクティビティの更新**           | 現在のセッションのアクティビティビューを更新し、最新の進捗を確認します。                                                  | `Refresh Jules Activities`                |
+| **メッセージの送信**               | アクティブなJulesセッションに追加の指示やフィードバックを送信します。                                                      | `Send Message to Jules Session`           |
+| **計画の承認**                     | Julesが生成した計画を実行前にレビューし、承認します。                                                                    | `Jules: Approve Jules Plan`               |
+| **GitHubへのサインイン**           | **(推奨)** OAuth認証フローを開始し、安全にGitHubアカウントにサインインします。                                           | `Jules: Sign in to GitHub`                |
+| **設定を開く**                     | Jules拡張機能の設定を開きます。                                                                                          | `Jules: Open Jules Settings`              |
+| **セッションの削除**               | ローカルキャッシュからセッションを削除します。                                                                          | `Jules: Delete Session from Local Cache`  |
+| **キャッシュのクリア**             | ローカルに保存されているソースやブランチのキャッシュを削除します。                                                          | `Jules: Clear Jules Cache`                |
+| **GitHubトークンの設定 (非推奨)**  | PRのステータスを確認するためのGitHub PATを設定します。OAuthサインインへの移行を推奨します。                                    | `Jules: Set GitHub Token (for PR Status)` |
+| **GitHub PATの設定 (非推奨)**      | 廃止予定のコマンドです。                                                                                                | `Jules: [DEPRECATED] Set GitHub PAT`      |
 
-## 📦 Installation
+## 📦 インストール
 
-Install from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
+[Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)からインストールしてください。
 
-Or search for "Jules Extension" in VS Code Extensions view.
+または、VSCodeの拡張機能ビューで "Jules Extension" を検索してください。
 
-### From Marketplace (Recommended)
+### Marketplaceから (推奨)
 
-1. Search for "Jules Extension" in the VSCode Marketplace
-2. Click the `Install` button
+1. VSCodeのMarketplaceで "Jules Extension" を検索します。
+2. `インストール` ボタンをクリックします。
 
-### From VSIX File (Manual Install)
+### VSIXファイルから (手動インストール)
 
-If you want to try the latest features that are not yet published on the Marketplace, you can download and install the `.vsix` file directly from the releases page.
+まだMarketplaceに公開されていない最新の機能を試したい場合は、リリースぺージから`.vsix`ファイルを直接ダウンロードしてインストールできます。
 
-1. **Go to the Releases Page:**
-   Visit [GitHub Releases](https://github.com/is0692vs/jules-extension/releases) and find the latest release version.
+1. **リリースぺージへ移動:**
+   [GitHub Releases](https://github.com/is0692vs/jules-extension/releases) にアクセスし、最新のリリースバージョンを見つけます。
 
-2. **Download the VSIX File:**
-   Download the `.vsix` file (e.g., `jules-extension-0.1.0.vsix`) from the `Assets`.
+2. **VSIXファイルをダウンロード:**
+   `Assets` から `.vsix` ファイル (例: `jules-extension-0.1.0.vsix`) をダウンロードします。
 
-3. **Install in VSCode:**
-   - Open VSCode.
-   - Go to the `Extensions` view (`Ctrl+Shift+X`).
-   - Click the `...` (More Actions) menu at the top of the view and select `Install from VSIX...`.
-   - Select the downloaded `.vsix` file to install.
+3. **VSCodeにインストール:**
+   - VSCodeを開きます。
+   - `拡張機能` ビュー (`Ctrl+Shift+X`) に移動します。
+   - ビューの上部にある `...` (その他のアクション) メニューをクリックし、`VSIXからのインストール...` を選択します。
+   - ダウンロードした `.vsix` ファイルを選択してインストールします。
 
-### Installing a Specific Version
+### 特定のバージョンをインストールする
 
-To install a specific version of the extension:
+特定のバージョンをインストールするには:
 
-1. Go to the [GitHub Releases page](https://github.com/is0692vs/jules-extension/releases).
-2. Find the version you want to install and download the `.vsix` file from its `Assets`.
-3. Follow the "Install in VSCode" steps above.
+1. [GitHub Releases ページ](https://github.com/is0692vs/jules-extension/releases) にアクセスします。
+2. インストールしたいバージョンを見つけ、その`Assets`から`.vsix`ファイルをダウンロードします。
+3. 上記の「VSCodeにインストール」の手順に従います。
 
-## 🔑 Getting Your API Key
+## 🔑 APIキーの取得方法
 
-To use the Jules Extension, you need a Jules API key. Follow these steps to get one:
+Jules拡張機能を使用するには、JulesのAPIキーが必要です。以下の手順で取得してください:
 
-1. **Create an Account:**
+1. **アカウントの作成:**
 
-   - Go to the [Jules Official Website](https://jules.google/docs).
-   - Sign up for a new account or log in if you already have one.
+   - [Jules公式サイト](https://jules.google/docs) にアクセスします。
+   - 新しいアカウントを登録するか、既にお持ちの場合はログインします。
 
-2. **Generate API Key:**
+2. **APIキーの生成:**
 
-   - Navigate to the "API Keys" or "Developer Settings" section in your account dashboard.
-   - Click on "Create a new secret key".
-   - Give your key a descriptive name (e.g., "VSCode Extension") and generate it.
+   - アカウントダッシュボードの「APIキー」または「開発者設定」セクションに移動します。
+   - 「新しいシークレットキーを作成」をクリックします。
+   - キーに分かりやすい名前（例: "VSCode Extension"）を付けて生成します。
 
-3. **Copy Your Key:**
-   - Your new API key will be displayed. Copy it to your clipboard.
-   - If you need to view your key again later, you can always find it on your Jules settings page.
+3. **キーのコピー:**
+   - 新しいAPIキーが表示されます。クリップボードにコピーしてください。
+   - 後で再度キーを確認する必要がある場合は、いつでもJulesの設定ページで見つけることができます。
 
-> **Important:** Treat your API key like a password. Do not share it publicly or commit it to version control.
+> **重要:** APIキーはパスワードのように扱ってください。公に共有したり、バージョン管理にコミットしたりしないでください。
 
-## Authentication
+## GitHubとの連携 (PRステータス確認)
 
-### OAuth Sign-in (Recommended) ✅
+Julesが作成したPull RequestのステータスをVSCode内で確認するために、GitHubアカウントとの連携が必要です。
 
-Use the `Jules: Sign in to GitHub` command.
+### 認証方法
 
-**How to use:**
+#### 1. OAuth Appによるサインイン (推奨) ✅
 
-1. Command Palette (`Cmd+Shift+P`)
-2. Run `Jules: Sign in to GitHub`
-3. Authorize in browser
+VSCodeのOAuth認証フローを利用した、最も安全で簡単な方法です。
+
+**手順:**
+1. コマンドパレット (`Cmd+Shift+P`) を開きます。
+2. `Jules: Sign in to GitHub` を実行します。
+3. 指示に従い、ブラウザでGitHubの認証を完了します。
 
 ---
 
-### GitHub PAT (Deprecated) ⚠️
+#### 2. 個人アクセストークン (PAT) の利用 (非推奨) ⚠️
 
-**PAT support is deprecated and will be removed in a future version.**
+この方法は、OAuth App認証が利用できない環境向けの代替手段です。**PATのサポートは将来のバージョンで廃止される可能性があります。**
 
-Please migrate to OAuth sign-in.
+**手順:**
+1. [GitHubの開発者設定ページ](https://github.com/settings/tokens)で、`repo`スコープを持つPATを作成します。
+2. コマンドパレットで`Jules: Set GitHub Token (for PR Status)` を実行し、コピーしたトークンを貼り付けます。
 
-## ⚙️ Extension Settings
+## ⚙️ 拡張機能の設定
 
-This extension contributes the following settings:
+この拡張機能は、以下の設定項目を提供します:
 
-- `jules-extension.apiKey`: Your Jules API key for authentication (stored securely).
-- `jules-extension.autoRefresh.enabled`: Enable automatic refresh of sessions list (default: `false`).
-- `jules-extension.autoRefresh.interval`: Auto-refresh interval in seconds (default: `60`, minimum: 10).
-- `jules-extension.autoRefresh.fastInterval`: Auto-refresh interval in seconds during specific operations (e.g., branch loading). Minimum: 5. (default: `30`).
-- `jules-extension.customPrompt`: A custom prompt to automatically prepend to every message sent to Jules.
-- `jules-extension.hideClosedPRSessions`: Automatically hide sessions with closed or merged pull requests from the session list (default: `true`).
-- `jules.defaultBranch`: Default branch selection behavior when creating a Jules session (`current`, `default`, `main`).
+- **`jules-extension.apiKey`**:
+  - **説明:** Jules APIに接続するためのAPIキー。VSCodeのSecretStorageに安全に保存されます。
+  - **デフォルト:** `""`
 
-### Deprecated Settings ⚠️
+- **`jules-extension.autoRefresh.enabled`**:
+  - **説明:** セッションリストの自動更新を有効にします。ユーザーのフィードバックや計画承認の通知に必要です。
+  - **デフォルト:** `true`
 
-- `jules-extension.githubToken`: This setting is deprecated. Use the `Jules: Set GitHub Token` command instead.
-- `jules.githubPat`: This setting is deprecated. Use the `Jules: Sign in to GitHub` command instead.
+- **`jules-extension.autoRefresh.interval`**:
+  - **説明:** 自動更新の間隔を秒単位で指定します。
+  - **デフォルト:** `60` (最小: `10`)
 
-## Quick Start
+- **`jules-extension.autoRefresh.fastInterval`**:
+  - **説明:** ブランチ読み込みなど、特定の操作中の自動更新間隔を秒単位で指定します。
+  - **デフォルト:** `30` (最小: `5`)
 
-1. Press `Ctrl + Shift + P` (or `Cmd + Shift + P`) to open the Command Palette.
-2. Run `> Jules: Set Jules API Key` and enter your API key.
-3. Click the `$(robot)` icon in the sidebar to open the Jules Sessions View.
-4. Run `> Jules: Create Jules Session` to start your first coding session!
+- **`jules-extension.customPrompt`**:
+  - **説明:** Julesに送信する全てのメッセージの先頭に自動で追加されるカスタムプロンプト。永続的な指示を与えたい場合に便利です。(例: `常に日本語で応答してください。`)
+  - **デフォルト:** `""`
 
-## ⚠️ Important Notes
+- **`jules-extension.hideClosedPRSessions`**:
+  - **説明:** クローズまたはマージされたPull Requestに関連するセッションを一覧から自動的に非表示にします。
+  - **デフォルト:** `true`
 
-- **Card Block Rendering:** When using features that are displayed as card blocks, please be mindful of the content's structure to ensure it renders correctly.
+- **`jules.defaultBranch`**:
+  - **説明:** セッション作成時のデフォルトブランチを選択します。
+  - **設定値:**
+    - `current`: 現在のGitブランチを使用します。
+    - `default`: リポジトリのデフォルトブランチを使用します。
+    - `main`: `main`ブランチを使用します（存在しない場合はリポジトリのデフォルト）。
+  - **デフォルト:** `current`
 
-## 📚 Links
+---
+
+### 非推奨の設定 ⚠️
+
+- **`jules-extension.githubToken`**:
+  - **理由:** 安全なSecretStorageに保存するため、コマンド経由での設定に移行しました。
+  - **代替:** `Jules: Set GitHub Token (for PR Status)` コマンドを使用してください。
+
+- **`jules.githubPat`**:
+  - **理由:** より安全なOAuth認証に移行したため。
+  - **代替:** `Jules: Sign in to GitHub` コマンドを使用してください。
+
+## クイックスタート
+
+1. `Ctrl + Shift + P` (または `Cmd + Shift + P`) を押して、コマンドパレットを開きます。
+2. `> Jules: Set Jules API Key` を実行し、APIキーを入力します。
+3. サイドバーの `$(robot)` アイコンをクリックして、Julesセッションビューを開きます。
+4. `> Jules: Create Jules Session` を実行して、最初のコーディングセッションを開始しましょう！
+
+## ⚠️ 重要事項
+
+- **カードブロックのレンダリング:** カードブロックとして表示される機能を使用する場合、コンテンツの構造が正しくレンダリングされるように注意してください。
+
+## 📚 リンク
 
 - [Marketplace](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
-- [GitHub Repository](https://github.com/is0692vs/jules-extension.git)
-- [Report Issues](https://github.com/is0692vs/jules-extension/issues)
+- [GitHubリポジトリ](https://github.com/is0692vs/jules-extension)
+- [問題報告](https://github.com/is0692vs/jules-extension/issues)
 
-## 🤝 Contribution
+## 🤝 コントリビューション
 
-This project is just getting started. We welcome all forms of contribution, including bug reports, feature suggestions, and pull requests!
-Please check the Issue Tracker and Pull Requests.
+このプロジェクトはまだ始まったばかりです。バグ報告、機能提案、プルリクエストなど、あらゆる形の貢献を歓迎します！
+Issue TrackerやPull Requestsをご確認ください。
 
-## 📝 License
+## 📝 ライセンス
 
 [MIT](LICENSE)
