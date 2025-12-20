@@ -817,13 +817,13 @@ export class JulesSessionsProvider
   implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
     name: 'silent-channel',
-    append: () => {},
-    appendLine: () => {},
-    replace: () => {},
-    clear: () => {},
-    show: () => {},
-    hide: () => {},
-    dispose: () => {},
+    append: () => { },
+    appendLine: () => { },
+    replace: () => { },
+    clear: () => { },
+    show: () => { },
+    hide: () => { },
+    dispose: () => { },
   };
 
   private _onDidChangeTreeData: vscode.EventEmitter<
@@ -1081,11 +1081,45 @@ export class JulesSessionsProvider
 }
 
 export class SessionTreeItem extends vscode.TreeItem {
+  // API state to icon mapping for 10 states
+  private static readonly stateIconMap: Record<string, vscode.ThemeIcon> = {
+    'STATE_UNSPECIFIED': new vscode.ThemeIcon('question'),
+    'QUEUED': new vscode.ThemeIcon('watch'),
+    'PLANNING': new vscode.ThemeIcon('loading~spin'),
+    'AWAITING_PLAN_APPROVAL': new vscode.ThemeIcon('checklist'),
+    'AWAITING_USER_FEEDBACK': new vscode.ThemeIcon('comment-discussion'),
+    'IN_PROGRESS': new vscode.ThemeIcon('sync~spin'),
+    'PAUSED': new vscode.ThemeIcon('debug-pause'),
+    'FAILED': new vscode.ThemeIcon('error'),
+    'COMPLETED': new vscode.ThemeIcon('check'),
+    'CANCELLED': new vscode.ThemeIcon('close'),
+  };
+
+  // State descriptions for tooltips (English)
+  private static readonly stateDescriptionMap: Record<string, string> = {
+    'STATE_UNSPECIFIED': 'Unknown state',
+    'QUEUED': 'Queued',
+    'PLANNING': 'Planning',
+    'AWAITING_PLAN_APPROVAL': 'Awaiting plan approval',
+    'AWAITING_USER_FEEDBACK': 'Awaiting user feedback',
+    'IN_PROGRESS': 'In progress',
+    'PAUSED': 'Paused',
+    'FAILED': 'Failed',
+    'COMPLETED': 'Completed',
+    'CANCELLED': 'Cancelled',
+  };
+
   constructor(public readonly session: Session) {
     super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
 
     const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
     tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
+
+    // Add state description from rawState
+    if (session.rawState && SessionTreeItem.stateDescriptionMap[session.rawState]) {
+      const stateDescription = SessionTreeItem.stateDescriptionMap[session.rawState];
+      tooltip.appendMarkdown(`\n\nState: ${stateDescription}`);
+    }
 
     if (session.requirePlanApproval) {
       tooltip.appendMarkdown(`\n\n⚠️ **Plan Approval Required**`);
@@ -1105,7 +1139,7 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.tooltip = tooltip;
 
     this.description = session.state;
-    this.iconPath = this.getIcon(session.state, session.rawState);
+    this.iconPath = this.getIcon(session.rawState);
     this.contextValue = "jules-session";
     if (session.url) {
       this.contextValue += " jules-session-with-url";
@@ -1117,25 +1151,13 @@ export class SessionTreeItem extends vscode.TreeItem {
     };
   }
 
-  private getIcon(state: string, rawState?: string): vscode.ThemeIcon {
-    if (rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
-      return new vscode.ThemeIcon("clock");
+  private getIcon(rawState?: string): vscode.ThemeIcon {
+    if (!rawState) {
+      return SessionTreeItem.stateIconMap['STATE_UNSPECIFIED'];
     }
-    if (rawState === SESSION_STATE.AWAITING_USER_FEEDBACK) {
-      return new vscode.ThemeIcon("comment-discussion");
-    }
-    switch (state) {
-      case "RUNNING":
-        return new vscode.ThemeIcon("sync~spin");
-      case "COMPLETED":
-        return new vscode.ThemeIcon("check");
-      case "FAILED":
-        return new vscode.ThemeIcon("error");
-      case "CANCELLED":
-        return new vscode.ThemeIcon("close");
-      default:
-        return new vscode.ThemeIcon("question");
-    }
+
+    // Use direct mapping for all 9 states
+    return SessionTreeItem.stateIconMap[rawState] || SessionTreeItem.stateIconMap['STATE_UNSPECIFIED'];
   }
 }
 
