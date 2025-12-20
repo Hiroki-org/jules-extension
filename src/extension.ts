@@ -75,6 +75,7 @@ export interface Session {
   title: string;
   state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   rawState: string;
+  url?: string;
   outputs?: SessionOutput[];
   sourceContext?: {
     source: string;
@@ -583,10 +584,39 @@ export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boole
   return true;
 }
 
+export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  const mapA = new Map(a.map((s) => [s.name, s]));
+
+  for (const s2 of b) {
+    const s1 = mapA.get(s2.name);
+    if (!s1) {
+      return false;
+    }
+    if (
+      s1.state !== s2.state ||
+      s1.rawState !== s2.rawState ||
+      s1.title !== s2.title ||
+      s1.requirePlanApproval !== s2.requirePlanApproval ||
+      JSON.stringify(s1.sourceContext) !== JSON.stringify(s2.sourceContext) ||
+      !areOutputsEqual(s1.outputs, s2.outputs)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export async function updatePreviousStates(
   currentSessions: Session[],
   context: vscode.ExtensionContext
-): Promise<void> {
+): Promise<boolean> {
   let hasChanged = false;
 
   // 1. Identify sessions that require PR status checks
@@ -687,6 +717,7 @@ export async function updatePreviousStates(
       `Jules: Saved ${previousSessionStates.size} session states to global state.`
     );
   }
+  return hasChanged;
 }
 
 function startAutoRefresh(
@@ -839,6 +870,7 @@ export class JulesSessionsProvider
           vscode.window.showErrorMessage(errorMsg);
         }
         this.sessionsCache = [];
+        this._onDidChangeTreeData.fire();
         return;
       }
 
@@ -846,6 +878,7 @@ export class JulesSessionsProvider
       if (!data.sessions || !Array.isArray(data.sessions)) {
         logChannel.appendLine("Jules: No sessions found or invalid response format");
         this.sessionsCache = [];
+        this._onDidChangeTreeData.fire();
         return;
       }
 
@@ -872,38 +905,46 @@ export class JulesSessionsProvider
       }, {} as Record<string, number>);
       logChannel.appendLine(`Jules: Debug - State counts: ${JSON.stringify(stateCounts)}`);
 
-      this.processSessionNotifications(
-        allSessionsMapped,
-        SESSION_STATE.AWAITING_PLAN_APPROVAL,
-        (session) => notifyPlanAwaitingApproval(session, this.context),
-        "plan approval"
-      );
+      // --- Optimization: Check if sessions changed ---
+      const sessionsChanged = !areSessionListsEqual(this.sessionsCache, allSessionsMapped);
 
-      this.processSessionNotifications(
-        allSessionsMapped,
-        SESSION_STATE.AWAITING_USER_FEEDBACK,
-        notifyUserFeedbackRequired,
-        "user feedback"
-      );
-
-      // --- Check for completed sessions (PR created) ---
-      const completedSessions = checkForCompletedSessions(allSessionsMapped);
-      if (completedSessions.length > 0) {
-        logChannel.appendLine(
-          `Jules: Found ${completedSessions.length} completed sessions`
+      if (sessionsChanged) {
+        this.processSessionNotifications(
+          allSessionsMapped,
+          SESSION_STATE.AWAITING_PLAN_APPROVAL,
+          (session) => notifyPlanAwaitingApproval(session, this.context),
+          "plan approval"
         );
-        for (const session of completedSessions) {
-          const prUrl = extractPRUrl(session);
-          if (prUrl) {
-            notifyPRCreated(session, prUrl).catch((error) => {
-              logChannel.appendLine(`Jules: Failed to show PR notification: ${error}`);
-            });
+
+        this.processSessionNotifications(
+          allSessionsMapped,
+          SESSION_STATE.AWAITING_USER_FEEDBACK,
+          notifyUserFeedbackRequired,
+          "user feedback"
+        );
+
+        // --- Check for completed sessions (PR created) ---
+        const completedSessions = checkForCompletedSessions(allSessionsMapped);
+        if (completedSessions.length > 0) {
+          logChannel.appendLine(
+            `Jules: Found ${completedSessions.length} completed sessions`
+          );
+          for (const session of completedSessions) {
+            const prUrl = extractPRUrl(session);
+            if (prUrl) {
+              notifyPRCreated(session, prUrl).catch((error) => {
+                logChannel.appendLine(`Jules: Failed to show PR notification: ${error}`);
+              });
+            }
           }
         }
+      } else {
+        logChannel.appendLine("Jules: Sessions unchanged, skipping notifications.");
       }
 
       // --- Update previous states after all checks ---
-      await updatePreviousStates(allSessionsMapped, this.context);
+      // We always run this to check PR status for completed sessions (external state)
+      const statesChanged = await updatePreviousStates(allSessionsMapped, this.context);
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
@@ -912,14 +953,19 @@ export class JulesSessionsProvider
         // The void operator is used to intentionally ignore the promise and avoid lint errors about floating promises.
         void this._refreshBranchCacheInBackground(apiKey);
       }
+
+      // Only fire event if meaningful change occurred
+      if (sessionsChanged || statesChanged) {
+        this._onDidChangeTreeData.fire();
+      } else {
+        logChannel.appendLine("Jules: No view updates required.");
+      }
     } catch (error) {
       logChannel.appendLine(`Jules: Error during fetchAndProcessSessions: ${error}`);
       // Retain cache on error to avoid losing data
     } finally {
       this.isFetching = false;
       logChannel.appendLine("Jules: Finished fetching and processing sessions.");
-      // Fire the event to refresh the view with the new data
-      this._onDidChangeTreeData.fire();
     }
   }
 
@@ -1061,6 +1107,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.description = session.state;
     this.iconPath = this.getIcon(session.state, session.rawState);
     this.contextValue = "jules-session";
+    if (session.url) {
+      this.contextValue += " jules-session-with-url";
+    }
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
       title: "Show Activities",
@@ -1086,7 +1135,7 @@ export class SessionTreeItem extends vscode.TreeItem {
         return new vscode.ThemeIcon("close");
       default:
         return new vscode.ThemeIcon("question");
-    }
+      }
   }
 }
 
@@ -1229,6 +1278,27 @@ function updateStatusBar(
     statusBarItem.text = `$(repo) Jules: No source selected`;
     statusBarItem.tooltip = "Click to select a source";
     statusBarItem.show();
+  }
+}
+
+
+
+export async function handleOpenInWebApp(item: SessionTreeItem | undefined, logChannel: vscode.OutputChannel) {
+  if (!item || !(item instanceof SessionTreeItem)) {
+    vscode.window.showErrorMessage("No session selected.");
+    return;
+  }
+  const session = item.session;
+  if (session.url) {
+    const success = await vscode.env.openExternal(vscode.Uri.parse(session.url));
+    if (!success) {
+      logChannel.appendLine(`[Jules] Failed to open external URL: ${session.url}`);
+      vscode.window.showWarningMessage('Failed to open the URL in the browser.');
+    }
+  } else {
+    vscode.window.showWarningMessage(
+      "No URL is available for this session."
+    );
   }
 }
 
@@ -1917,6 +1987,11 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const openInWebAppDisposable = vscode.commands.registerCommand(
+    "jules-extension.openInWebApp",
+    (item?: SessionTreeItem) => handleOpenInWebApp(item, logChannel)
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -1931,7 +2006,8 @@ export function activate(context: vscode.ExtensionContext) {
     openSettingsDisposable,
     deleteSessionDisposable,
     setGithubTokenDisposable,
-    clearCacheDisposable
+    clearCacheDisposable,
+    openInWebAppDisposable
   );
 }
 
@@ -1939,4 +2015,3 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   stopAutoRefresh();
 }
-

@@ -2,7 +2,7 @@
   "name": "jules-extension",
   "displayName": "Jules Extension",
   "description": "Control Google Jules AI coding agent directly from VS Code",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "publisher": "HirokiMukai",
   "license": "MIT",
   "icon": "icon.png",
@@ -172,6 +172,12 @@
         "command": "jules-extension.signInGitHub",
         "title": "Sign in to GitHub",
         "category": "Jules"
+      },
+      {
+        "command": "jules-extension.openInWebApp",
+        "title": "Open in Web App",
+        "category": "Jules",
+        "icon": "$(globe)"
       }
     ],
     "viewsWelcome": [
@@ -227,13 +233,18 @@
       "view/item/context": [
         {
           "command": "jules-extension.sendMessage",
-          "when": "view == julesSessionsView && viewItem == jules-session",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session/",
           "group": "inline"
         },
         {
           "command": "jules-extension.deleteSession",
-          "when": "view == julesSessionsView && viewItem == jules-session",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session/",
           "group": "management"
+        },
+        {
+          "command": "jules-extension.openInWebApp",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-with-url/",
+          "group": "navigation"
         }
       ]
     }

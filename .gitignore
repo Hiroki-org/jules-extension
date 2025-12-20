@@ -72,5 +72,14 @@ out/
 *.tgz
 *.local
 
+# Test reports
+TEST_GENERATION_SUMMARY.md
+TEST_SUMMARY_NEW.md
+UNIT_TEST_GENERATION_REPORT.md
+TEST_GENERATION_REPORT.md
+TEST_SUMMARY.md
+UNIT_TEST_REPORT.md
+UNIT_TEST_SUMMARY.txt
+
 .gemini/
 gha-creds-*.json

@@ -8,9 +8,11 @@ import {
   mapApiStateToSessionState,
   buildFinalPrompt,
   areOutputsEqual,
+  areSessionListsEqual,
   updatePreviousStates,
   Session,
-  SessionOutput
+  SessionOutput,
+  handleOpenInWebApp
 } from "../extension";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
@@ -401,6 +403,37 @@ suite("Extension Test Suite", () => {
     });
   });
 
+  suite("areSessionListsEqual", () => {
+    test("should return true for same sessions in different order", () => {
+      const s1 = { name: "1", title: "t1", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      const s2 = { name: "2", title: "t2", state: "COMPLETED", rawState: "COMPLETED", outputs: [] } as Session;
+      assert.strictEqual(areSessionListsEqual([s1, s2], [s2, s1]), true);
+    });
+
+    test("should return false if content differs", () => {
+      const s1 = { name: "1", title: "t1", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      const s1Modified = { ...s1, state: "COMPLETED" } as Session;
+      assert.strictEqual(areSessionListsEqual([s1], [s1Modified]), false);
+    });
+
+    test("should return false if size differs", () => {
+      const s1 = { name: "1", title: "t1", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      assert.strictEqual(areSessionListsEqual([s1], []), false);
+    });
+
+    test("should return false if requirePlanApproval differs", () => {
+      const s1 = { name: "1", state: "RUNNING", rawState: "RUNNING", requirePlanApproval: true } as Session;
+      const s2 = { ...s1, requirePlanApproval: false } as Session;
+      assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
+    });
+
+    test("should return false if sourceContext differs", () => {
+      const s1 = { name: "1", state: "RUNNING", rawState: "RUNNING", sourceContext: { source: "a" } } as Session;
+      const s2 = { ...s1, sourceContext: { source: "b" } } as Session;
+      assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
+    });
+  });
+
   suite("updatePreviousStates", () => {
     let sandbox: sinon.SinonSandbox;
     let mockContext: vscode.ExtensionContext;
@@ -471,6 +504,73 @@ suite("Extension Test Suite", () => {
         }
       }
       assert.ok(prCacheUpdateCalled, "Should have attempted to save PR status cache");
+    });
+  });
+
+  suite("openInWebApp Command", () => {
+    let openExternalStub: sinon.SinonStub;
+    let showWarningMessageStub: sinon.SinonStub;
+    let showErrorMessageStub: sinon.SinonStub;
+    let logChannel: vscode.OutputChannel;
+    let appendLineSpy: sinon.SinonSpy;
+
+    setup(() => {
+      openExternalStub = sinon.stub(vscode.env, "openExternal");
+      showWarningMessageStub = sinon.stub(vscode.window, "showWarningMessage");
+      showErrorMessageStub = sinon.stub(vscode.window, "showErrorMessage");
+
+      // Create a mock OutputChannel
+      appendLineSpy = sinon.spy();
+      logChannel = {
+        appendLine: appendLineSpy,
+        // Add other methods if needed, or use a more complete mock
+      } as any;
+    });
+
+    teardown(() => {
+      sinon.restore();
+    });
+
+    test("should open URL if session has one", async () => {
+      const session = { url: "http://example.com" } as any;
+      const item = new SessionTreeItem(session);
+      openExternalStub.resolves(true);
+
+      await handleOpenInWebApp(item, logChannel);
+
+      assert.ok(openExternalStub.calledOnce);
+      assert.strictEqual(openExternalStub.getCall(0).args[0].toString(), "http://example.com/");
+      assert.ok(showWarningMessageStub.notCalled);
+    });
+
+    test("should show warning if session has no URL", async () => {
+      const session = {} as any;
+      const item = new SessionTreeItem(session);
+
+      await handleOpenInWebApp(item, logChannel);
+
+      assert.ok(openExternalStub.notCalled);
+      assert.ok(showWarningMessageStub.calledOnceWith("No URL is available for this session."));
+    });
+
+    test("should show error if no item is provided", async () => {
+      await handleOpenInWebApp(undefined, logChannel);
+
+      assert.ok(openExternalStub.notCalled);
+      assert.ok(showErrorMessageStub.calledOnceWith("No session selected."));
+    });
+
+    test("should show warning and log if opening URL fails", async () => {
+      const session = { url: "http://fail-url.com" } as any;
+      const item = new SessionTreeItem(session);
+      openExternalStub.resolves(false);
+
+      await handleOpenInWebApp(item, logChannel);
+
+      assert.ok(openExternalStub.calledOnce);
+      assert.ok(showWarningMessageStub.calledOnceWith('Failed to open the URL in the browser.'));
+      assert.ok(appendLineSpy.calledOnce);
+      assert.ok(appendLineSpy.getCall(0).args[0].includes("Failed to open external URL"));
     });
   });
 });

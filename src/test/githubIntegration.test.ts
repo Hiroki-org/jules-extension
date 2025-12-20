@@ -178,4 +178,35 @@ suite('GitHub Integration Tests', () => {
         assert.strictEqual(startingBranch, 'main');
         assert.strictEqual(secretsStub.get.called, false); // PATは取得されない
     });
+
+    test('Should validate PAT format in Set GitHub PAT command', async () => {
+        // 実際のコマンド実行をテスト
+        showInputBoxStub.resolves('invalid_pat_format');
+
+        // simulate user choosing "Continue with PAT" on deprecation warning
+        showWarningMessageStub.resolves('Continue with PAT');
+        // setGitHubPatコマンドを呼び出し
+        await vscode.commands.executeCommand('jules-extension.setGitHubPat');
+
+        // 検証：無効なPAT形式で保存されない
+        assert.strictEqual(showInputBoxStub.called, true);
+        assert.strictEqual(showInformationMessageStub.called, false); // 成功メッセージ表示されない
+        assert.strictEqual(showErrorMessageStub.called, true); // エラーメッセージ表示される
+    });
+
+    test('Should accept valid PAT formats in Set GitHub PAT command', async () => {
+        // 有効なPAT形式でテスト (ghp_ + 36文字)
+        const validPat = 'ghp_' + 'a'.repeat(36);
+        showInputBoxStub.resolves(validPat);
+
+        // simulate user choosing "Continue with PAT" on deprecation warning
+        showWarningMessageStub.resolves('Continue with PAT');
+        // setGitHubPatコマンドを呼び出し
+        await vscode.commands.executeCommand('jules-extension.setGitHubPat');
+
+        // 検証：有効なPATで保存される（実際のsecretsはテスト環境で保存されないが、メッセージは表示される）
+        assert.strictEqual(showInputBoxStub.called, true);
+        assert.strictEqual(showInformationMessageStub.called, true);
+        assert.strictEqual(showErrorMessageStub.called, false); // エラーメッセージは表示されない
+    });
 });
