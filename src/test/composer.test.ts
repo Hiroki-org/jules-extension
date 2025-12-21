@@ -12,7 +12,8 @@ suite("Composer Test Suite", () => {
     test("should escape essential HTML characters", () => {
       assert.strictEqual(escapeHtml("<script>"), "&lt;script&gt;");
       assert.strictEqual(escapeHtml("a & b"), "a &amp; b");
-      assert.strictEqual(escapeHtml(`'quote'`), "'quote'"); // single quote is not escaped
+      assert.strictEqual(escapeHtml(`'quote'`), "&#39;quote&#39;");
+      assert.strictEqual(escapeHtml(`"quote"`), "&quot;quote&quot;");
     });
   });
 
