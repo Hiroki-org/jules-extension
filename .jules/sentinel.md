@@ -10,6 +10,7 @@
 **Learning:** `fetch` in Node/Browser defaults to no timeout. Always enforce timeouts for external API calls to ensure availability.
 **Prevention:** Use a wrapper like `fetchWithTimeout` or `AbortSignal.timeout` for all network requests.
 
+
 ## 2025-12-21 - [Weak HTML Escaping]
 **Vulnerability:** `escapeHtml`関数がシングルクォート（'）とダブルクォート（"）をエスケープしていなかったため、属性値などで使用された場合にXSSの潜在的なリスクがあった。
 **Learning:** HTMLエスケープ関数を実装する際は、コンテキスト（本文、属性）に関わらず安全に使えるよう、クォートも含めてエスケープするのが望ましい。
