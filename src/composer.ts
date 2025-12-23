@@ -163,6 +163,10 @@ export function getComposerHtml(
     background: var(--vscode-button-hoverBackground);
   }
 
+  button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+  }
+
   button:focus-visible {
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: 2px;
@@ -213,6 +217,17 @@ export function getComposerHtml(
       if (!validate()) {
         return;
       }
+
+      submitButton.disabled = true;
+      submitButton.textContent = 'Sending...';
+      textarea.disabled = true;
+      if (createPrCheckbox) createPrCheckbox.disabled = true;
+      if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
+      const cancelButton = document.getElementById('cancel');
+      if (cancelButton) {
+        cancelButton.disabled = true;
+      }
+
       vscode.postMessage({
         type: 'submit',
         value: textarea.value,
