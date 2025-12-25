@@ -835,6 +835,8 @@ export class JulesSessionsProvider
 
   private sessionsCache: Session[] = [];
   private isFetching = false;
+  private lastBranchRefreshTime: number = 0;
+  private readonly BRANCH_REFRESH_INTERVAL = 4 * 60 * 1000; // 4 minutes
 
   constructor(private context: vscode.ExtensionContext) { }
 
@@ -970,6 +972,13 @@ export class JulesSessionsProvider
   }
 
   private async _refreshBranchCacheInBackground(apiKey: string): Promise<void> {
+    // Optimization: Throttle background branch refresh to avoid excessive I/O and CPU usage
+    // The cache TTL is 5 minutes, so we check every 4 minutes to keep it relatively fresh without polling constantly.
+    const now = Date.now();
+    if (now - this.lastBranchRefreshTime < this.BRANCH_REFRESH_INTERVAL) {
+      return;
+    }
+
     const selectedSource = this.context.globalState.get<SourceType>("selected-source");
     if (!selectedSource) {
       return;
@@ -981,6 +990,7 @@ export class JulesSessionsProvider
       // Use forceRefresh: false to respect the cache TTL (5 min).
       // The createSession command handles stale cache gracefully by re-fetching if the selected branch is missing from the remote list.
       await getBranchesForSession(selectedSource, apiClient, JulesSessionsProvider.silentOutputChannel, this.context, { forceRefresh: false, showProgress: false });
+      this.lastBranchRefreshTime = now;
       console.log("Jules: Branch cache updated successfully during background refresh");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
