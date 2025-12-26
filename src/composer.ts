@@ -163,7 +163,7 @@ export function getComposerHtml(
     background: var(--vscode-button-hoverBackground);
   }
 
-  button:hover {
+  button:not(.primary):hover {
     background: var(--vscode-button-secondaryHoverBackground);
   }
 
