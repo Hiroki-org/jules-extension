@@ -13,21 +13,17 @@ suite('fetchUtils Unit Tests', () => {
         clock = sandbox.useFakeTimers();
         fetchStub = sandbox.stub(global, 'fetch');
 
-        // AbortSignal.timeout が存在すると setTimeout が使われないため、テスト中は無効化する
-        // @ts-ignore
-        if (typeof AbortSignal.timeout === 'function') {
-            // @ts-ignore
-            originalAbortSignalTimeout = AbortSignal.timeout;
-            // @ts-ignore
-            AbortSignal.timeout = undefined;
+        const signalAsAny = AbortSignal as any;
+        if (typeof signalAsAny.timeout === 'function') {
+            originalAbortSignalTimeout = signalAsAny.timeout;
+            // テストのデフォルトではネイティブ実装を無効化してsetTimeoutパスをテストする
+            signalAsAny.timeout = undefined;
         }
     });
 
     teardown(() => {
-        // @ts-ignore
         if (originalAbortSignalTimeout) {
-            // @ts-ignore
-            AbortSignal.timeout = originalAbortSignalTimeout;
+            (AbortSignal as any).timeout = originalAbortSignalTimeout;
         }
         sandbox.restore();
     });
@@ -67,7 +63,7 @@ suite('fetchUtils Unit Tests', () => {
         assert.strictEqual(fetchStub.calledOnce, true);
     });
 
-    test('タイムアウト時にエラーがスローされること', async () => {
+    test('タイムアウト時にエラーがスローされること (setTimeout使用)', async () => {
         mockFetchWithSignalSupport();
 
         const promise = fetchWithTimeout('https://example.com', { timeout: 1000 });
@@ -111,5 +107,29 @@ suite('fetchUtils Unit Tests', () => {
             assert.match(err.message, /Timeout/);
             return true;
         });
+    });
+
+    test('AbortSignal.timeout が利用可能な場合に使用されること', async () => {
+        // このテストケース用にネイティブ実装（のモック）を有効化
+        const timeoutSpy = sandbox.spy();
+        (AbortSignal as any).timeout = (ms: number) => {
+            timeoutSpy(ms);
+            // 簡易的なシグナルを返す
+            const controller = new AbortController();
+            // 実際にタイムアウトさせるにはclockを進める必要があるが、
+            // ここでは関数が呼ばれたかどうかを確認する
+            return controller.signal;
+        };
+
+        mockFetchWithSignalSupport();
+
+        const promise = fetchWithTimeout('https://example.com', { timeout: 1234 });
+
+        // プロミスは解決しないので待たない（テスト終了時にクリーンアップされる）
+        // AbortSignal.timeout が呼ばれたことを確認
+        assert.strictEqual(timeoutSpy.calledWith(1234), true);
+
+        // キャッチされないプロミスエラーを防ぐためにcatchを追加
+        promise.catch(() => {});
     });
 });
