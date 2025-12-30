@@ -21,3 +21,9 @@
 ## 2025-12-16 - Webview Input Validation
 **Learning:** Preventing empty submissions in Webviews significantly improves UX by avoiding error cycles. Disabling the submit button and handling keyboard shortcuts (Cmd+Enter) ensures a consistent experience.
 **Action:** When creating forms in Webviews, always implement client-side validation to disable submit actions when inputs are invalid.
+## 2025-12-30 - Added Loading State to Composer Webview
+**Learning:** Webviews in VS Code need manual loading state management. Simply posting a message does not give immediate feedback, and the webview might not close instantly if there is extension host latency. Disabling inputs and changing button text immediately upon click provides a much better user experience and prevents duplicate submissions.
+**Action:** For all future Webview forms, always implement a disable-and-update-text pattern in the submit handler before .
+## 2025-12-30 - Added Loading State to Composer Webview
+**Learning:** Webviews in VS Code need manual loading state management. Simply posting a message does not give immediate feedback, and the webview might not close instantly if there is extension host latency. Disabling inputs and changing button text immediately upon click provides a much better user experience and prevents duplicate submissions.
+**Action:** For all future Webview forms, always implement a disable-and-update-text pattern in the submit handler before `vscode.postMessage`.

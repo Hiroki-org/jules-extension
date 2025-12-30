@@ -456,5 +456,17 @@ suite("Composer Test Suite", () => {
       const cancelEndIndex = html.indexOf('});', cancelIndex);
       assert.ok(nextValidateIndex < 0 || nextValidateIndex > cancelEndIndex);
     });
+
+    test("should show loading state on submit", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      // Check for loading state logic
+      assert.ok(html.includes("submitButton.innerText = 'Sending...';"));
+      assert.ok(html.includes("submitButton.disabled = true;"));
+      assert.ok(html.includes("textarea.disabled = true;"));
+    });
   });
 });
