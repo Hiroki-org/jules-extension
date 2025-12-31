@@ -1299,7 +1299,7 @@ function updateStatusBar(
   const selectedSource = context.globalState.get<SourceType>("selected-source");
 
   if (selectedSource) {
-    // GitHubリポジトリ名を抽出（例: "sources/github/owner/repo" -> "owner/repo"）
+    // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
     const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
     const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
 
