@@ -16,6 +16,7 @@ export interface Source {
     url?: string;
     description?: string;
     githubRepo?: GitHubRepo;
+    isPrivate?: boolean;
 }
 
 export interface SourcesResponse {
