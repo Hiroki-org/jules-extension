@@ -320,6 +320,42 @@ export function buildFinalPrompt(userPrompt: string): string {
   return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
 }
 
+/**
+ * Get privacy icon for a source
+ * @param isPrivate - The isPrivate field from Source
+ * @returns Lock icon for private repos, empty string otherwise
+ */
+function getPrivacyIcon(isPrivate?: boolean): string {
+  return isPrivate === true ? '$(lock) ' : '';
+}
+
+/**
+ * Get privacy status text for tooltip/status bar
+ * @param isPrivate - The isPrivate field from Source
+ * @param format - Format style ('short' for status bar, 'long' for tooltip)
+ * @returns Privacy status text or empty string if undefined
+ */
+function getPrivacyStatusText(isPrivate?: boolean, format: 'short' | 'long' = 'short'): string {
+  if (isPrivate === true) {
+    return format === 'short' ? ' (Private)' : ' (Private Repository)';
+  } else if (isPrivate === false) {
+    return format === 'short' ? ' (Public)' : ' (Public Repository)';
+  }
+  return '';
+}
+
+/**
+ * Get description for QuickPick source item
+ * @param source - The source object
+ * @returns Description text for QuickPick item
+ */
+function getSourceDescription(source: SourceType): string {
+  if (source.isPrivate === true) {
+    return 'Private';
+  }
+  return source.url || (source.isPrivate === false ? 'Public' : '');
+}
+
 function resolveSessionId(
   context: vscode.ExtensionContext,
   target?: SessionTreeItem | string
@@ -1131,15 +1167,8 @@ export class SessionTreeItem extends vscode.TreeItem {
       if (typeof source === 'string') {
         const repoMatch = source.match(/sources\/github\/(.+)/);
         const repoName = repoMatch ? repoMatch[1] : source;
-        const lockIcon = this.selectedSource?.isPrivate === true ? '$(lock) ' : '';
-        
-        // Only show privacy status if isPrivate is explicitly set
-        let privacyStatus = '';
-        if (this.selectedSource?.isPrivate === true) {
-          privacyStatus = ' (Private Repository)';
-        } else if (this.selectedSource?.isPrivate === false) {
-          privacyStatus = ' (Public Repository)';
-        }
+        const lockIcon = getPrivacyIcon(this.selectedSource?.isPrivate);
+        const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
         
         tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
       }
@@ -1303,15 +1332,8 @@ function updateStatusBar(
     const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
     const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
 
-    const lockIcon = selectedSource.isPrivate === true ? '$(lock) ' : '';
-    
-    // Only show privacy status in tooltip if isPrivate is explicitly set
-    let privacyStatus = '';
-    if (selectedSource.isPrivate === true) {
-      privacyStatus = ' (Private)';
-    } else if (selectedSource.isPrivate === false) {
-      privacyStatus = ' (Public)';
-    }
+    const lockIcon = getPrivacyIcon(selectedSource.isPrivate);
+    const privacyStatus = getPrivacyStatusText(selectedSource.isPrivate, 'short');
     
     statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
     statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
@@ -1502,17 +1524,9 @@ export function activate(context: vscode.ExtensionContext) {
           const repoMatch = source.name?.match(/sources\/github\/(.+)/);
           const repoName = repoMatch ? repoMatch[1] : (source.name || source.id || "Unknown");
           
-          // Determine description: show "Private" for private repos, otherwise show URL
-          let description = source.url || "";
-          if (source.isPrivate === true) {
-            description = "Private";
-          } else if (source.isPrivate === false) {
-            description = source.url || "Public";
-          }
-          
           return {
             label: source.isPrivate === true ? `$(lock) ${repoName}` : repoName,
-            description: description,
+            description: getSourceDescription(source),
             detail: source.description || "",
             source: source,
           };
