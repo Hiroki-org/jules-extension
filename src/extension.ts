@@ -1132,7 +1132,15 @@ export class SessionTreeItem extends vscode.TreeItem {
         const repoMatch = source.match(/sources\/github\/(.+)/);
         const repoName = repoMatch ? repoMatch[1] : source;
         const lockIcon = this.selectedSource?.isPrivate ? '$(lock) ' : '';
-        const privacyStatus = this.selectedSource?.isPrivate ? ' (Private Repository)' : ' (Public Repository)';
+        
+        // Only show privacy status if isPrivate is explicitly set
+        let privacyStatus = '';
+        if (this.selectedSource?.isPrivate === true) {
+          privacyStatus = ' (Private Repository)';
+        } else if (this.selectedSource?.isPrivate === false) {
+          privacyStatus = ' (Public Repository)';
+        }
+        
         tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
       }
     }
@@ -1296,7 +1304,14 @@ function updateStatusBar(
     const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
 
     const lockIcon = selectedSource.isPrivate ? '$(lock) ' : '';
-    const privacyStatus = selectedSource.isPrivate ? ' (Private)' : '';
+    
+    // Only show privacy status in tooltip if isPrivate is explicitly set
+    let privacyStatus = '';
+    if (selectedSource.isPrivate === true) {
+      privacyStatus = ' (Private)';
+    } else if (selectedSource.isPrivate === false) {
+      privacyStatus = ' (Public)';
+    }
     
     statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
     statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
