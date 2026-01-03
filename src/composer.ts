@@ -238,7 +238,7 @@ export function getComposerHtml(
     };
 
     submitButton.addEventListener('click', submit);
-    document.getElementById('cancel').addEventListener('click', () => {
+    cancelButton.addEventListener('click', () => {
       vscode.postMessage({ type: 'cancel' });
     });
 

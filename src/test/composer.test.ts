@@ -448,12 +448,12 @@ suite("Composer Test Suite", () => {
         { title: "Test" },
         "nonce-123"
       );
-      assert.ok(html.includes("document.getElementById('cancel').addEventListener('click', () => {"));
+      assert.ok(html.includes("cancelButton.addEventListener('click', () => {"));
       assert.ok(html.includes("vscode.postMessage({ type: 'cancel' });"));
       // Cancel should not call validate
-      const cancelIndex = html.indexOf("document.getElementById('cancel')");
-      const nextValidateIndex = html.indexOf('validate()', cancelIndex);
-      const cancelEndIndex = html.indexOf('});', cancelIndex);
+      const cancelListenerIndex = html.indexOf("cancelButton.addEventListener('click'");
+      const nextValidateIndex = html.indexOf('validate()', cancelListenerIndex);
+      const cancelEndIndex = html.indexOf('});', cancelListenerIndex);
       assert.ok(nextValidateIndex < 0 || nextValidateIndex > cancelEndIndex);
     });
   });
