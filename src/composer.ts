@@ -228,6 +228,7 @@ export function getComposerHtml(
       cancelButton.disabled = true;
       if (createPrCheckbox) createPrCheckbox.disabled = true;
       if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
+      document.body.style.cursor = 'wait';
 
       vscode.postMessage({
         type: 'submit',
