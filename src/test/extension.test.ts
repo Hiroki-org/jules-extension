@@ -467,6 +467,10 @@ suite("Extension Test Suite", () => {
           update: updateStub,
           keys: sandbox.stub().returns([]),
         },
+        secrets: {
+            get: sandbox.stub().resolves(undefined),
+            store: sandbox.stub().resolves(),
+        }
       } as any;
       sessionStateManager = new SessionStateManager(mockContext, { appendLine: () => {} } as any);
     });
