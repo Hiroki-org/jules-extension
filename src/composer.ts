@@ -194,6 +194,7 @@ export function getComposerHtml(
 </head>
 <body>
   <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
+  <div id="status-message" aria-live="polite" style="position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;"></div>
   <div class="actions">
     ${createPrCheckbox}
     ${requireApprovalCheckbox}
@@ -204,6 +205,8 @@ export function getComposerHtml(
     const vscode = acquireVsCodeApi();
     const textarea = document.getElementById('message');
     const submitButton = document.getElementById('submit');
+    const cancelButton = document.getElementById('cancel');
+    const statusMessage = document.getElementById('status-message');
     const createPrCheckbox = document.getElementById('create-pr');
     const requireApprovalCheckbox = document.getElementById('require-approval');
 
@@ -220,13 +223,11 @@ export function getComposerHtml(
 
       submitButton.disabled = true;
       submitButton.textContent = 'Sending...';
+      statusMessage.textContent = 'Sending...';
       textarea.disabled = true;
+      cancelButton.disabled = true;
       if (createPrCheckbox) createPrCheckbox.disabled = true;
       if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
-      const cancelButton = document.getElementById('cancel');
-      if (cancelButton) {
-        cancelButton.disabled = true;
-      }
 
       vscode.postMessage({
         type: 'submit',
