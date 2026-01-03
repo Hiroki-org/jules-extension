@@ -59,9 +59,9 @@ export class SessionStateManager {
         this.notifiedSessions.delete(sessionName);
     }
 
-    public deleteSession(sessionName: string): void {
+    public async deleteSession(sessionName: string): Promise<void> {
         this.previousSessionStates.delete(sessionName);
-        this.saveStates();
+        await this.saveStates();
     }
 
     private async saveStates() {

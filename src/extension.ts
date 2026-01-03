@@ -1011,7 +1011,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       // Remove from previous states to hide it
-      sessionStateManager.deleteSession(session.name);
+      await sessionStateManager.deleteSession(session.name);
 
       vscode.window.showInformationMessage(
         `Session "${session.title}" removed from local cache.`
