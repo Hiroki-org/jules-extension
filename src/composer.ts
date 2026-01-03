@@ -213,6 +213,15 @@ export function getComposerHtml(
       if (!validate()) {
         return;
       }
+
+      submitButton.disabled = true;
+      submitButton.innerText = 'Sending...';
+      textarea.disabled = true;
+      if (createPrCheckbox) createPrCheckbox.disabled = true;
+      if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
+      document.getElementById('cancel').disabled = true;
+      document.body.style.cursor = 'wait';
+
       vscode.postMessage({
         type: 'submit',
         value: textarea.value,
