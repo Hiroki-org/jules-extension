@@ -7,10 +7,6 @@ import { getBranchesForSession } from './branchUtils';
 import { showMessageComposer } from './composer';
 import { parseGitHubUrl } from "./githubUtils";
 import { GitHubAuth } from './githubAuth';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-const execAsync = promisify(exec);
 import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging } from './securityUtils';
 import { fetchWithTimeout } from './fetchUtils';
@@ -211,11 +207,12 @@ async function getRepoInfoForBranchCreation(outputChannel?: vscode.OutputChannel
   }
 
   try {
-    const { stdout } = await execAsync('git remote get-url origin', {
-      cwd: workspaceFolder.uri.fsPath
-    });
+    // SECURITY: Use VS Code Git API instead of exec/spawn to avoid shell injection risks
+    const remoteUrl = await getGitHubUrl();
+    if (!remoteUrl) {
+      throw new Error('Could not find remote URL via Git API');
+    }
 
-    const remoteUrl = stdout.trim();
     const safeRemoteUrl = stripUrlCredentials(remoteUrl);
     logger.appendLine(`[Jules] Remote URL: ${safeRemoteUrl}`);
 
@@ -297,16 +294,17 @@ async function createRemoteBranch(
 async function getCurrentBranchSha(outputChannel?: vscode.OutputChannel): Promise<string | null> {
   const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
   try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    const git = gitExtension?.exports.getAPI(1);
+    // Use the first repository to match behavior of getRepoInfoForBranchCreation
+    const repository = git?.repositories[0];
+
+    if (!repository || !repository.state.HEAD?.commit) {
+      logger.appendLine('[Jules] Could not find current branch SHA via Git API');
       return null;
     }
 
-    const { stdout } = await execAsync('git rev-parse HEAD', {
-      cwd: workspaceFolder.uri.fsPath
-    });
-
-    return stdout.trim();
+    return repository.state.HEAD.commit;
   } catch (error) {
     logger.appendLine(`[Jules] Error getting current branch sha: ${error}`);
     return null;
