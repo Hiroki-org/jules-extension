@@ -13,6 +13,7 @@ import { exec } from 'child_process';
 const execAsync = promisify(exec);
 import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging } from './securityUtils';
+import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 
 // Constants
@@ -175,7 +176,7 @@ async function getGitHubUrl(): Promise<string | undefined> {
     }
     return remote.fetchUrl || remote.pushUrl;
   } catch (error) {
-    console.error('Failed to get GitHub URL:', error);
+    console.error('Failed to get GitHub URL:', sanitizeError(error));
     return undefined;
   }
 }
@@ -437,7 +438,7 @@ async function checkPRStatus(
 
     return isClosed;
   } catch (error) {
-    console.error(`Jules: Error checking PR status for ${prUrl}:`, error);
+    console.error(`Jules: Error checking PR status for ${prUrl}:`, sanitizeError(error));
     return false;
   }
 }
@@ -520,7 +521,7 @@ async function fetchPlanFromActivities(
     const planActivity = [...data.activities].reverse().find((a) => a.planGenerated);
     return planActivity?.planGenerated?.plan || null;
   } catch (error) {
-    console.error(`Jules: Error fetching plan from activities: ${error}`);
+    console.error(`Jules: Error fetching plan from activities: ${sanitizeError(error)}`);
     return null;
   }
 }
@@ -982,7 +983,7 @@ export class JulesSessionsProvider
             const prUrl = extractPRUrl(session);
             if (prUrl) {
               notifyPRCreated(session, prUrl).catch((error) => {
-                logChannel.appendLine(`Jules: Failed to show PR notification: ${error}`);
+                logChannel.appendLine(`Jules: Failed to show PR notification: ${sanitizeError(error)}`);
               });
             }
           }
@@ -1010,7 +1011,7 @@ export class JulesSessionsProvider
         logChannel.appendLine("Jules: No view updates required.");
       }
     } catch (error) {
-      logChannel.appendLine(`Jules: Error during fetchAndProcessSessions: ${error}`);
+      logChannel.appendLine(`Jules: Error during fetchAndProcessSessions: ${sanitizeError(error)}`);
       // Retain cache on error to avoid losing data
     } finally {
       this.isFetching = false;
@@ -1042,8 +1043,7 @@ export class JulesSessionsProvider
       await getBranchesForSession(selectedSource, apiClient, JulesSessionsProvider.silentOutputChannel, this.context, { forceRefresh: false, showProgress: false });
       console.log("Jules: Branch cache updated successfully during background refresh");
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Jules: Failed to update branch cache during background refresh for ${selectedSource.name}: ${errorMessage}`);
+      console.error(`Jules: Failed to update branch cache during background refresh for ${sanitizeForLogging(selectedSource.name)}: ${sanitizeError(error)}`);
     }
   }
 
@@ -1069,7 +1069,7 @@ export class JulesSessionsProvider
         if (!notifiedSessions.has(session.name)) {
           notifier(session).catch((error) => {
             logChannel.appendLine(
-              `Jules: Failed to show ${notificationType} notification for session '${session.name}' (${sanitizeForLogging(session.title)}): ${error}`
+              `Jules: Failed to show ${notificationType} notification for session '${sanitizeForLogging(session.name)}' (${sanitizeForLogging(session.title)}): ${sanitizeError(error)}`
             );
           });
           notifiedSessions.add(session.name);
@@ -1689,7 +1689,7 @@ export function activate(context: vscode.ExtensionContext) {
                 await getBranchesForSession(selectedSource, apiClient, logChannel, context, { forceRefresh: true, showProgress: true });
                 logChannel.appendLine('[Jules] Branches cache refreshed after remote branch creation');
               } catch (error) {
-                logChannel.appendLine(`[Jules] Failed to refresh branches cache: ${error}`);
+                logChannel.appendLine(`[Jules] Failed to refresh branches cache: ${sanitizeError(error)}`);
               }
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -2046,7 +2046,7 @@ export function activate(context: vscode.ExtensionContext) {
         Object.keys(prStatusCache).forEach((key) => delete prStatusCache[key]);
         sessionsProvider.refresh();
       } catch (error) {
-        console.error("Jules: Error setting GitHub Token:", error);
+        console.error("Jules: Error setting GitHub Token:", sanitizeError(error));
         vscode.window.showErrorMessage(
           `GitHub Token の保存に失敗しました: ${error instanceof Error ? error.message : "Unknown error"
           }`
