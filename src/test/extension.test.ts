@@ -9,6 +9,7 @@ import {
   buildFinalPrompt,
   areOutputsEqual,
   areSessionListsEqual,
+  areSourceContextsEqual,
   updatePreviousStates,
   Session,
   SessionOutput,
@@ -400,6 +401,47 @@ suite("Extension Test Suite", () => {
       const a: SessionOutput[] = [{ pullRequest: { url: "u", title: "t", description: "d" } }];
       const b: SessionOutput[] = [{ pullRequest: { url: "u", title: "t", description: "d" } }];
       assert.strictEqual(areOutputsEqual(a, b), true);
+    });
+  });
+
+  suite("areSourceContextsEqual", () => {
+    test("should return true when both are undefined", () => {
+      assert.strictEqual(areSourceContextsEqual(undefined, undefined), true);
+    });
+    test("should return false when one is undefined", () => {
+      assert.strictEqual(areSourceContextsEqual({ source: "s" }, undefined), false);
+    });
+    test("should return false when source differs", () => {
+      assert.strictEqual(
+        areSourceContextsEqual({ source: "a" }, { source: "b" }),
+        false
+      );
+    });
+    test("should return true when githubRepoContext is missing in both", () => {
+      assert.strictEqual(
+        areSourceContextsEqual({ source: "s" }, { source: "s" }),
+        true
+      );
+    });
+    test("should return false when githubRepoContext mismatch", () => {
+      assert.strictEqual(
+        areSourceContextsEqual(
+          { source: "s", githubRepoContext: { startingBranch: "b1" } },
+          { source: "s", githubRepoContext: { startingBranch: "b2" } }
+        ),
+        false
+      );
+    });
+    test("should return true when identical", () => {
+      const ctx = { source: "s", githubRepoContext: { startingBranch: "b" } };
+      assert.strictEqual(areSourceContextsEqual(ctx, ctx), true);
+      assert.strictEqual(
+        areSourceContextsEqual(
+          { source: "s", githubRepoContext: { startingBranch: "b" } },
+          { source: "s", githubRepoContext: { startingBranch: "b" } }
+        ),
+        true
+      );
     });
   });
 

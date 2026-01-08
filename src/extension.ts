@@ -625,6 +625,28 @@ export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boole
   return true;
 }
 
+export function areSourceContextsEqual(
+  a?: { source: string; githubRepoContext?: { startingBranch: string } },
+  b?: { source: string; githubRepoContext?: { startingBranch: string } }
+): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (!a || !b) {
+    return false;
+  }
+  if (a.source !== b.source) {
+    return false;
+  }
+  if (a.githubRepoContext === b.githubRepoContext) {
+    return true;
+  }
+  if (!a.githubRepoContext || !b.githubRepoContext) {
+    return false;
+  }
+  return a.githubRepoContext.startingBranch === b.githubRepoContext.startingBranch;
+}
+
 export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   if (a === b) {
     return true;
@@ -645,7 +667,7 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
       s1.rawState !== s2.rawState ||
       s1.title !== s2.title ||
       s1.requirePlanApproval !== s2.requirePlanApproval ||
-      JSON.stringify(s1.sourceContext) !== JSON.stringify(s2.sourceContext) ||
+      !areSourceContextsEqual(s1.sourceContext, s2.sourceContext) ||
       !areOutputsEqual(s1.outputs, s2.outputs)
     ) {
       return false;
