@@ -163,6 +163,10 @@ export function getComposerHtml(
     background: var(--vscode-button-hoverBackground);
   }
 
+  button:not(.primary):hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+  }
+
   button:focus-visible {
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: 2px;

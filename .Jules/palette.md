@@ -24,3 +24,7 @@
 ## 2025-12-30 - Added Loading State to Composer Webview
 **Learning:** Webviews in VS Code need manual loading state management. Simply posting a message does not give immediate feedback, and the webview might not close instantly if there is extension host latency. Disabling inputs and changing button text immediately upon click provides a much better user experience and prevents duplicate submissions.
 **Action:** For all future Webview forms, always implement a disable-and-update-text pattern in the submit handler before `vscode.postMessage`.
+
+## 2026-01-06 - Secondary Button Hover
+**Learning:** VS Code's secondary buttons (like Cancel) require a manual hover state using `var(--vscode-button-secondaryHoverBackground)` to match the native look and feel. They don't get this automatically in Webviews.
+**Action:** Always add `button:not(.primary):hover { background: var(--vscode-button-secondaryHoverBackground); }` to Webview CSS for non-primary buttons.
