@@ -5,15 +5,19 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import {
   SessionTreeItem,
-  mapApiStateToSessionState,
   buildFinalPrompt,
-  areOutputsEqual,
-  areSessionListsEqual,
   updatePreviousStates,
-  Session,
-  SessionOutput,
   handleOpenInWebApp
 } from "../extension";
+import {
+  mapApiStateToSessionState,
+  areOutputsEqual,
+  areSessionListsEqual,
+} from "../sessionState";
+import {
+  Session,
+  SessionOutput
+} from "../types";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { activate } from "../extension";
