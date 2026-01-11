@@ -7,10 +7,6 @@ import { getBranchesForSession } from './branchUtils';
 import { showMessageComposer } from './composer';
 import { parseGitHubUrl } from "./githubUtils";
 import { GitHubAuth } from './githubAuth';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-const execAsync = promisify(exec);
 import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging } from './securityUtils';
 import { sanitizeError } from './errorUtils';
@@ -212,11 +208,28 @@ async function getRepoInfoForBranchCreation(outputChannel?: vscode.OutputChannel
   }
 
   try {
-    const { stdout } = await execAsync('git remote get-url origin', {
-      cwd: workspaceFolder.uri.fsPath
-    });
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (!gitExtension) {
+      throw new Error('Git extension not found');
+    }
+    const git = gitExtension.exports.getAPI(1);
+    const repository = git.repositories[0];
+    if (!repository) {
+      throw new Error('No Git repository found');
+    }
 
-    const remoteUrl = stdout.trim();
+    const remote = repository.state.remotes.find(
+      (r: { name: string; fetchUrl?: string; pushUrl?: string }) => r.name === 'origin'
+    );
+    if (!remote) {
+      throw new Error('No origin remote found');
+    }
+    const remoteUrl = remote.fetchUrl || remote.pushUrl;
+
+    if (!remoteUrl) {
+      throw new Error('No remote URL found');
+    }
+
     const safeRemoteUrl = stripUrlCredentials(remoteUrl);
     logger.appendLine(`[Jules] Remote URL: ${safeRemoteUrl}`);
 
@@ -298,16 +311,17 @@ async function createRemoteBranch(
 async function getCurrentBranchSha(outputChannel?: vscode.OutputChannel): Promise<string | null> {
   const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
   try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (!gitExtension) {
+      throw new Error('Git extension not found');
+    }
+    const git = gitExtension.exports.getAPI(1);
+    const repository = git.repositories[0];
+    if (!repository) {
       return null;
     }
 
-    const { stdout } = await execAsync('git rev-parse HEAD', {
-      cwd: workspaceFolder.uri.fsPath
-    });
-
-    return stdout.trim();
+    return repository.state.HEAD?.commit || null;
   } catch (error) {
     logger.appendLine(`[Jules] Error getting current branch sha: ${error}`);
     return null;
