@@ -190,9 +190,22 @@ export function getComposerHtml(
   label {
     cursor: pointer;
   }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 </style>
 </head>
 <body>
+  <div id="status-announcer" class="sr-only" aria-live="polite"></div>
   <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
@@ -206,6 +219,7 @@ export function getComposerHtml(
     const submitButton = document.getElementById('submit');
     const createPrCheckbox = document.getElementById('create-pr');
     const requireApprovalCheckbox = document.getElementById('require-approval');
+    const statusAnnouncer = document.getElementById('status-announcer');
 
     const validate = () => {
       const isValid = textarea.value.trim().length > 0;
@@ -220,6 +234,7 @@ export function getComposerHtml(
 
       submitButton.disabled = true;
       submitButton.innerText = 'Sending...';
+      statusAnnouncer.textContent = 'Sending message...';
       textarea.disabled = true;
       if (createPrCheckbox) createPrCheckbox.disabled = true;
       if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;

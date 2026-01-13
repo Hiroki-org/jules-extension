@@ -477,10 +477,32 @@ suite("Composer Test Suite", () => {
       );
       // Check for loading state logic
       assert.ok(html.includes("submitButton.innerText = 'Sending...';"));
+      assert.ok(html.includes("statusAnnouncer.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
       assert.ok(html.includes("textarea.disabled = true;"));
       assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
+    });
+
+    test("should include screen reader only class", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes(".sr-only {"));
+      assert.ok(html.includes("position: absolute;"));
+      assert.ok(html.includes("clip: rect(0, 0, 0, 0);"));
+    });
+
+    test("should include status announcer element", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes('<div id="status-announcer" class="sr-only" aria-live="polite"></div>'));
+      assert.ok(html.includes("const statusAnnouncer = document.getElementById('status-announcer');"));
     });
 
     test("should disable checkboxes in loading state when present", () => {
