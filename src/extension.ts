@@ -2,9 +2,16 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import { JulesApiClient } from './julesApiClient';
-import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse } from './types';
+import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse, Session, SessionOutput, SessionState } from './types';
 import { getBranchesForSession } from './branchUtils';
 import { showMessageComposer } from './composer';
+import {
+  mapApiStateToSessionState,
+  areOutputsEqual,
+  areSessionListsEqual,
+  checkForCompletedSessions,
+  checkForSessionsInState,
+} from './sessionState';
 import { parseGitHubUrl } from "./githubUtils";
 import { GitHubAuth } from './githubAuth';
 import { promisify } from 'util';
@@ -63,57 +70,6 @@ interface SessionResponse {
   // Add other fields if needed
 }
 
-export interface SessionOutput {
-  pullRequest?: {
-    url: string;
-    title: string;
-    description: string;
-  };
-}
-
-export interface Session {
-  name: string;
-  title: string;
-  state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  rawState: string;
-  url?: string;
-  outputs?: SessionOutput[];
-  sourceContext?: {
-    source: string;
-  };
-  requirePlanApproval?: boolean; // ⭐ NEW
-}
-
-export function mapApiStateToSessionState(
-  apiState: string
-): "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" {
-  switch (apiState) {
-    case "PLANNING":
-    case "AWAITING_PLAN_APPROVAL":
-    case "AWAITING_USER_FEEDBACK":
-    case "IN_PROGRESS":
-    case "QUEUED":
-    case "STATE_UNSPECIFIED":
-      return "RUNNING";
-    case "COMPLETED":
-      return "COMPLETED";
-    case "FAILED":
-      return "FAILED";
-    case "PAUSED":
-    case "CANCELLED":
-      return "CANCELLED";
-    default:
-      return "RUNNING"; // default to RUNNING
-  }
-}
-
-interface SessionState {
-  name: string;
-  state: string;
-  rawState: string;
-  outputs?: SessionOutput[];
-  isTerminated?: boolean;
-}
 
 let previousSessionStates: Map<string, SessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
@@ -443,43 +399,6 @@ async function checkPRStatus(
   }
 }
 
-function checkForCompletedSessions(currentSessions: Session[]): Session[] {
-  const completedSessions: Session[] = [];
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-    if (prevState?.isTerminated) {
-      continue; // Skip terminated sessions
-    }
-    if (
-      session.state === "COMPLETED" &&
-      (!prevState || prevState.state !== "COMPLETED")
-    ) {
-      const prUrl = extractPRUrl(session);
-      if (prUrl) {
-        // Only count as a new completion if there's a PR URL.
-        completedSessions.push(session);
-      }
-    }
-  }
-  return completedSessions;
-}
-
-function checkForSessionsInState(
-  currentSessions: Session[],
-  targetState: string
-): Session[] {
-  return currentSessions.filter((session) => {
-    const prevState = previousSessionStates.get(session.name);
-    const isNotTerminated = !prevState?.isTerminated;
-    const isTargetState = session.rawState === targetState;
-    const isStateChanged = !prevState || prevState.rawState !== targetState;
-    const willNotify = isNotTerminated && isTargetState && isStateChanged;
-    if (isTargetState) {
-      logChannel.appendLine(`Jules: Debug - Session ${session.name}: terminated=${!isNotTerminated}, rawState=${session.rawState}, prevRawState=${prevState?.rawState}, willNotify=${willNotify}`);
-    }
-    return willNotify;
-  });
-}
 
 async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
   const result = await vscode.window.showInformationMessage(
@@ -602,57 +521,6 @@ async function notifyUserFeedbackRequired(session: Session): Promise<void> {
   }
 }
 
-export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boolean {
-  if (a === b) {
-    return true;
-  }
-  if (!a || !b || a.length !== b.length) {
-    return false;
-  }
-
-  for (let i = 0; i < a.length; i++) {
-    const prA = a[i]?.pullRequest;
-    const prB = b[i]?.pullRequest;
-
-    if (
-      prA?.url !== prB?.url ||
-      prA?.title !== prB?.title ||
-      prA?.description !== prB?.description
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
-  if (a === b) {
-    return true;
-  }
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  const mapA = new Map(a.map((s) => [s.name, s]));
-
-  for (const s2 of b) {
-    const s1 = mapA.get(s2.name);
-    if (!s1) {
-      return false;
-    }
-    if (
-      s1.state !== s2.state ||
-      s1.rawState !== s2.rawState ||
-      s1.title !== s2.title ||
-      s1.requirePlanApproval !== s2.requirePlanApproval ||
-      JSON.stringify(s1.sourceContext) !== JSON.stringify(s2.sourceContext) ||
-      !areOutputsEqual(s1.outputs, s2.outputs)
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
 
 export async function updatePreviousStates(
   currentSessions: Session[],
@@ -941,7 +809,7 @@ export class JulesSessionsProvider
 
       logChannel.appendLine(`Jules: Found ${data.sessions.length} total sessions`);
 
-      const allSessionsMapped = data.sessions.map((session) => ({
+      const allSessionsMapped = data.sessions.map((session: any) => ({
         ...session,
         rawState: session.state,
         state: mapApiStateToSessionState(session.state),
@@ -974,7 +842,7 @@ export class JulesSessionsProvider
         );
 
         // --- Check for completed sessions (PR created) ---
-        const completedSessions = checkForCompletedSessions(allSessionsMapped);
+        const completedSessions = checkForCompletedSessions(allSessionsMapped, previousSessionStates);
         if (completedSessions.length > 0) {
           logChannel.appendLine(
             `Jules: Found ${completedSessions.length} completed sessions`
@@ -1060,7 +928,12 @@ export class JulesSessionsProvider
     notifier: (session: Session) => Promise<void>,
     notificationType: string
   ) {
-    const sessionsToNotify = checkForSessionsInState(sessions, state);
+    const sessionsToNotify = checkForSessionsInState(
+      sessions,
+      state,
+      previousSessionStates,
+      (msg) => logChannel.appendLine(msg)
+    );
     if (sessionsToNotify.length > 0) {
       logChannel.appendLine(
         `Jules: Found ${sessionsToNotify.length} sessions awaiting ${notificationType}`

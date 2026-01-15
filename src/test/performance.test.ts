@@ -1,7 +1,8 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { updatePreviousStates, Session } from "../extension";
+import { updatePreviousStates } from "../extension";
+import { Session } from "../types";
 import * as sinon from "sinon";
 
 suite("Performance Tests", () => {
