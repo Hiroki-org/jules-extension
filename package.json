@@ -42,11 +42,6 @@
     "configuration": {
       "title": "Jules Extension",
       "properties": {
-        "jules-extension.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "API Key for Jules API"
-        },
         "jules-extension.autoRefresh.enabled": {
           "type": "boolean",
           "default": true,

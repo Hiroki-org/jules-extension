@@ -78,3 +78,27 @@ export function sanitizeForLogging(value: unknown, maxLength: number = 500): str
         // \x00-\x08, \x0B-\x0C, \x0E-\x1F, \x7F
         .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
+
+/**
+ * Validates a session ID to ensure it is safe to use in a URL path.
+ * Allows alphanumeric characters, hyphens, underscores, and forward slashes.
+ * Explicitly rejects any path traversal attempts (..) or other special characters.
+ *
+ * @param sessionId The session ID to validate
+ * @returns true if the session ID is valid, false otherwise
+ */
+export function isValidSessionId(sessionId: string): boolean {
+    if (!sessionId || typeof sessionId !== 'string') {
+        return false;
+    }
+
+    // Reject path traversal attempts
+    if (sessionId.includes('..')) {
+        return false;
+    }
+
+    // Allow only alphanumeric, slashes, dashes, and underscores
+    // This supports formats like "sessions/123" or "projects/foo/locations/bar/sessions/baz"
+    const allowedPattern = /^[a-zA-Z0-9_\-\/]+$/;
+    return allowedPattern.test(sessionId);
+}
