@@ -15,6 +15,7 @@ import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './securityUtils';
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
+import { formatPlanForNotification, Plan } from './planUtils';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -526,30 +527,6 @@ async function fetchPlanFromActivities(
   }
 }
 
-function formatPlanForNotification(plan: Plan): string {
-  const parts: string[] = [];
-  if (plan.title) {
-    parts.push(`📋 ${plan.title}`);
-  }
-  if (plan.steps && plan.steps.length > 0) {
-    const stepsPreview = plan.steps
-      .filter((step): step is PlanStep => !!step)
-      .slice(0, MAX_PLAN_STEPS_IN_NOTIFICATION);
-    stepsPreview.forEach((step, index) => {
-      const stepDescription = step?.description || '';
-      // Truncate long steps for notification display
-      const truncatedStep = stepDescription.length > MAX_PLAN_STEP_LENGTH
-        ? stepDescription.substring(0, MAX_PLAN_STEP_LENGTH - 3) + '...'
-        : stepDescription;
-      parts.push(`${index + 1}. ${truncatedStep}`);
-    });
-    if (plan.steps.length > MAX_PLAN_STEPS_IN_NOTIFICATION) {
-      parts.push(`... and ${plan.steps.length - MAX_PLAN_STEPS_IN_NOTIFICATION} more steps`);
-    }
-  }
-  return parts.join('\n');
-}
-
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext
@@ -561,7 +538,11 @@ async function notifyPlanAwaitingApproval(
   if (apiKey) {
     const plan = await fetchPlanFromActivities(session.name, apiKey);
     if (plan) {
-      planDetails = formatPlanForNotification(plan);
+      planDetails = formatPlanForNotification(
+        plan,
+        MAX_PLAN_STEPS_IN_NOTIFICATION,
+        MAX_PLAN_STEP_LENGTH
+      );
     }
   }
 
@@ -818,15 +799,6 @@ function resetAutoRefresh(
 
 interface SessionsResponse {
   sessions: Session[];
-}
-
-interface PlanStep {
-  description: string;
-}
-
-interface Plan {
-  title?: string;
-  steps?: PlanStep[];
 }
 
 interface Activity {

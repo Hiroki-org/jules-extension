@@ -260,7 +260,7 @@ suite("Extension Test Suite", () => {
       const fetchStub = localSandbox.stub(fetchUtils, 'fetchWithTimeout').resolves({ ok: true, json: async () => ({ state: 'open' }) } as any);
 
       // Prevent duplicate command registration errors during test
-      const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => {} } as any));
+      const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => { } } as any));
 
       // Call activate to load and clean cache
       activate(mockContext);
