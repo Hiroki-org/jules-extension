@@ -832,6 +832,7 @@ interface Plan {
 interface Activity {
   name: string;
   createTime: string;
+  description?: string;
   originator?: "user" | "agent" | "system" | string;
   id: string;
   type?: string;
@@ -842,6 +843,13 @@ interface Activity {
   progressUpdated?: { title?: string; description?: string };
   sessionCompleted?: Record<string, never>;
   sessionFailed?: { reason?: string };
+  artifacts?: Artifact[];
+}
+
+interface Artifact {
+  changeSet?: Record<string, unknown>;
+  bashOutput?: Record<string, unknown>;
+  media?: Record<string, unknown>;
 }
 
 interface ActivitiesResponse {
@@ -911,6 +919,83 @@ function truncateForDisplay(text: string, maxLength: number = 300): string {
     return text;
   }
   return `${text.slice(0, maxLength)}...`;
+}
+
+function getActivityTypeLabel(key: ActivityUnionKey): string {
+  switch (key) {
+    case "planGenerated":
+      return "Plan generated";
+    case "planApproved":
+      return "Plan approved";
+    case "agentMessaged":
+      return "Agent messaged";
+    case "userMessaged":
+      return "User messaged";
+    case "progressUpdated":
+      return "Progress updated";
+    case "sessionCompleted":
+      return "Session completed";
+    case "sessionFailed":
+      return "Session failed";
+    default:
+      return "Activity";
+  }
+}
+
+function summarizeArtifacts(artifacts?: Artifact[]): string | null {
+  if (!artifacts || artifacts.length === 0) {
+    return null;
+  }
+  const types = new Set<string>();
+  artifacts.forEach((artifact) => {
+    if (artifact.changeSet) {
+      types.add("changeSet");
+    }
+    if (artifact.bashOutput) {
+      types.add("bashOutput");
+    }
+    if (artifact.media) {
+      types.add("media");
+    }
+  });
+  if (types.size === 0) {
+    return null;
+  }
+  return `Artifacts: ${[...types].join(", ")}`;
+}
+
+function getActivitySummaryText(activity: Activity): string {
+  const progressText = pickFirstNonEmpty(
+    activity.progressUpdated?.title,
+    activity.progressUpdated?.description
+  );
+  if (progressText) {
+    return progressText;
+  }
+
+  const failureReason = pickFirstNonEmpty(activity.sessionFailed?.reason);
+  if (failureReason) {
+    return `Session failed: ${failureReason}`;
+  }
+
+  const activityDescription = pickFirstNonEmpty(activity.description);
+  if (activityDescription) {
+    return activityDescription;
+  }
+
+  const artifactsSummary = summarizeArtifacts(activity.artifacts);
+  if (artifactsSummary) {
+    return artifactsSummary;
+  }
+
+  const activeKeys = getActiveActivityKeys(activity);
+  if (activeKeys.length === 1) {
+    return getActivityTypeLabel(activeKeys[0]);
+  }
+
+  const originator = activity.originator ?? "unknown";
+  const timePart = activity.createTime ? `, time=${activity.createTime}` : "";
+  return `Activity (originator=${originator}${timePart})`;
 }
 
 export class JulesSessionsProvider
@@ -1938,43 +2023,47 @@ export function activate(context: vscode.ExtensionContext) {
             const timestamp = new Date(activity.createTime).toLocaleString();
             const originator = activity.originator ?? "unknown";
             const activeKeys = getActiveActivityKeys(activity);
+            const summary = getActivitySummaryText(activity);
             let message = "";
 
             if (activeKeys.length === 1) {
               switch (activeKeys[0]) {
                 case "planGenerated": {
-                  message = `Plan generated: ${activity.planGenerated?.plan?.title || "Plan"}`;
+                  const planTitle = activity.planGenerated?.plan?.title;
+                  message = `Plan generated: ${planTitle || summary}`;
                   planDetected = true;
                   break;
                 }
                 case "planApproved": {
-                  message = `Plan approved: ${activity.planApproved?.planId || "(no plan id)"}`;
+                  const planId = activity.planApproved?.planId;
+                  message = `Plan approved: ${planId || summary}`;
                   break;
                 }
                 case "progressUpdated": {
-                  const progressText = pickFirstNonEmpty(
+                  const rawProgressText = pickFirstNonEmpty(
                     activity.progressUpdated?.title,
                     activity.progressUpdated?.description
-                  ) ?? "(no details)";
-                  message = `Progress: ${progressText}`;
+                  );
+                  message = rawProgressText
+                    ? `Progress: ${summary}`
+                    : `ℹ️ ${summary}`;
                   break;
                 }
                 case "sessionCompleted": {
-                  message = "Session completed";
+                  message = summary;
                   break;
                 }
                 case "sessionFailed": {
-                  const reason = pickFirstNonEmpty(activity.sessionFailed?.reason) ?? "(no reason)";
-                  message = `Session failed: ${reason}`;
+                  message = summary;
                   break;
                 }
                 case "agentMessaged": {
-                  const text = pickFirstNonEmpty(activity.agentMessaged?.agentMessage) ?? "(no message)";
+                  const text = pickFirstNonEmpty(activity.agentMessaged?.agentMessage, summary) ?? "(no message)";
                   message = `Agent message: ${truncateForDisplay(text)}`;
                   break;
                 }
                 case "userMessaged": {
-                  const text = pickFirstNonEmpty(activity.userMessaged?.userMessage) ?? "(no message)";
+                  const text = pickFirstNonEmpty(activity.userMessaged?.userMessage, summary) ?? "(no message)";
                   message = `User message: ${truncateForDisplay(text)}`;
                   break;
                 }
