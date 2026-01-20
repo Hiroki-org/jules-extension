@@ -832,33 +832,170 @@ interface Plan {
 interface Activity {
   name: string;
   createTime: string;
-  originator: "user" | "agent";
+  description?: string;
+  originator?: "user" | "agent" | "system" | string;
   id: string;
   type?: string;
+  agentMessaged?: { agentMessage?: string };
+  userMessaged?: { userMessage?: string };
   planGenerated?: { plan: Plan };
   planApproved?: { planId: string };
-  progressUpdated?: { title: string; description?: string };
+  progressUpdated?: { title?: string; description?: string };
   sessionCompleted?: Record<string, never>;
+  sessionFailed?: { reason?: string };
+  artifacts?: Artifact[];
+}
+
+interface Artifact {
+  changeSet?: Record<string, unknown>;
+  bashOutput?: Record<string, unknown>;
+  media?: Record<string, unknown>;
 }
 
 interface ActivitiesResponse {
   activities: Activity[];
 }
 
+const ACTIVITY_UNION_KEYS = [
+  "agentMessaged",
+  "userMessaged",
+  "planGenerated",
+  "planApproved",
+  "progressUpdated",
+  "sessionCompleted",
+  "sessionFailed",
+] as const;
+
+type ActivityUnionKey = (typeof ACTIVITY_UNION_KEYS)[number];
+
+function getActiveActivityKeys(activity: Activity): ActivityUnionKey[] {
+  return ACTIVITY_UNION_KEYS.filter(
+    (key) => {
+      const value = (activity as unknown as Record<string, unknown>)[key];
+      return value !== undefined && value !== null;
+    }
+  );
+}
+
 function getActivityIcon(activity: Activity): string {
-  if (activity.planGenerated) {
-    return "📝";
+  const keys = getActiveActivityKeys(activity);
+  if (keys.length !== 1) {
+    return "ℹ️";
   }
-  if (activity.planApproved) {
-    return "👍";
+  switch (keys[0]) {
+    case "planGenerated":
+      return "📝";
+    case "planApproved":
+      return "👍";
+    case "progressUpdated":
+      return "🔄";
+    case "sessionCompleted":
+      return "✅";
+    case "sessionFailed":
+      return "❌";
+    case "agentMessaged":
+      return "💬";
+    case "userMessaged":
+      return "🗨️";
+    default:
+      return "ℹ️";
   }
-  if (activity.progressUpdated) {
-    return "🔄";
+}
+
+function pickFirstNonEmpty(...values: Array<string | undefined | null>): string | null {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
   }
-  if (activity.sessionCompleted) {
-    return "✅";
+  return null;
+}
+
+function truncateForDisplay(text: string, maxLength: number = 300): string {
+  if (text.length <= maxLength) {
+    return text;
   }
-  return "ℹ️";
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function getActivityTypeLabel(key: ActivityUnionKey): string {
+  switch (key) {
+    case "planGenerated":
+      return "Plan generated";
+    case "planApproved":
+      return "Plan approved";
+    case "agentMessaged":
+      return "Agent messaged";
+    case "userMessaged":
+      return "User messaged";
+    case "progressUpdated":
+      return "Progress updated";
+    case "sessionCompleted":
+      return "Session completed";
+    case "sessionFailed":
+      return "Session failed";
+    default:
+      return "Activity";
+  }
+}
+
+function summarizeArtifacts(artifacts?: Artifact[]): string | null {
+  if (!artifacts || artifacts.length === 0) {
+    return null;
+  }
+  const types = new Set<string>();
+  artifacts.forEach((artifact) => {
+    if (artifact.changeSet) {
+      types.add("changeSet");
+    }
+    if (artifact.bashOutput) {
+      types.add("bashOutput");
+    }
+    if (artifact.media) {
+      types.add("media");
+    }
+  });
+  if (types.size === 0) {
+    return null;
+  }
+  return `Artifacts: ${[...types].join(", ")}`;
+}
+
+function getActivitySummaryText(activity: Activity): string {
+  const progressText = pickFirstNonEmpty(
+    activity.progressUpdated?.title,
+    activity.progressUpdated?.description
+  );
+  if (progressText) {
+    return progressText;
+  }
+
+  const failureReason = pickFirstNonEmpty(activity.sessionFailed?.reason);
+  if (failureReason) {
+    return `Session failed: ${failureReason}`;
+  }
+
+  const activityDescription = pickFirstNonEmpty(activity.description);
+  if (activityDescription) {
+    return activityDescription;
+  }
+
+  const artifactsSummary = summarizeArtifacts(activity.artifacts);
+  if (artifactsSummary) {
+    return artifactsSummary;
+  }
+
+  const activeKeys = getActiveActivityKeys(activity);
+  if (activeKeys.length === 1) {
+    return getActivityTypeLabel(activeKeys[0]);
+  }
+
+  const originator = activity.originator ?? "unknown";
+  const timePart = activity.createTime ? `, time=${activity.createTime}` : "";
+  return `Activity (originator=${originator}${timePart})`;
 }
 
 export class JulesSessionsProvider
@@ -1192,7 +1329,7 @@ export class SessionTreeItem extends vscode.TreeItem {
         const repoName = repoMatch ? repoMatch[1] : source;
         const lockIcon = getPrivacyIcon(this.selectedSource?.isPrivate);
         const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
-        
+
         tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
       }
     }
@@ -1357,7 +1494,7 @@ function updateStatusBar(
 
     const lockIcon = getPrivacyIcon(selectedSource.isPrivate);
     const privacyStatus = getPrivacyStatusText(selectedSource.isPrivate, 'short');
-    
+
     statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
     statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
     statusBarItem.show();
@@ -1546,7 +1683,7 @@ export function activate(context: vscode.ExtensionContext) {
           // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
           const repoMatch = source.name?.match(/sources\/github\/(.+)/);
           const repoName = repoMatch ? repoMatch[1] : (source.name || source.id || "Unknown");
-          
+
           return {
             label: source.isPrivate === true ? `$(lock) ${repoName}` : repoName,
             description: getSourceDescription(source),
@@ -1884,25 +2021,106 @@ export function activate(context: vscode.ExtensionContext) {
           data.activities.forEach((activity) => {
             const icon = getActivityIcon(activity);
             const timestamp = new Date(activity.createTime).toLocaleString();
+            const originator = activity.originator ?? "unknown";
+            const activeKeys = getActiveActivityKeys(activity);
+            const summary = getActivitySummaryText(activity);
             let message = "";
-            if (activity.planGenerated) {
-              message = `Plan generated: ${activity.planGenerated.plan?.title || "Plan"
-                }`;
-              planDetected = true;
-            } else if (activity.planApproved) {
-              message = `Plan approved: ${activity.planApproved.planId}`;
-            } else if (activity.progressUpdated) {
-              message = `Progress: ${activity.progressUpdated.title}${activity.progressUpdated.description
-                ? " - " + activity.progressUpdated.description
-                : ""
-                }`;
-            } else if (activity.sessionCompleted) {
-              message = "Session completed";
+
+            if (activeKeys.length === 1) {
+              switch (activeKeys[0]) {
+                case "planGenerated": {
+                  const planTitle = activity.planGenerated?.plan?.title;
+                  message = `Plan generated: ${planTitle || summary}`;
+                  planDetected = true;
+                  break;
+                }
+                case "planApproved": {
+                  const planId = activity.planApproved?.planId;
+                  message = `Plan approved: ${planId || summary}`;
+                  break;
+                }
+                case "progressUpdated": {
+                  const progressText = pickFirstNonEmpty(
+                    activity.progressUpdated?.title,
+                    activity.progressUpdated?.description
+                  );
+                  message = progressText
+                    ? `Progress: ${summary}`
+                    : `ℹ️ ${summary}`;
+                  break;
+                }
+                case "sessionCompleted": {
+                  message = summary;
+                  break;
+                }
+                case "sessionFailed": {
+                  message = summary;
+                  break;
+                }
+                case "agentMessaged": {
+                  const text = pickFirstNonEmpty(activity.agentMessaged?.agentMessage) ?? "(no message)";
+                  message = `Agent message: ${truncateForDisplay(text)}`;
+                  break;
+                }
+                case "userMessaged": {
+                  const text = pickFirstNonEmpty(activity.userMessaged?.userMessage) ?? "(no message)";
+                  message = `User message: ${truncateForDisplay(text)}`;
+                  break;
+                }
+                default: {
+                  message = "Unknown activity";
+                }
+              }
             } else {
-              message = "Unknown activity";
+              let keySummary = activeKeys.join(", ");
+              if (activeKeys.length === 0) {
+                const baseKeys = new Set([
+                  "name",
+                  "createTime",
+                  "description",
+                  "originator",
+                  "id",
+                  "type",
+                  "artifacts",
+                ]);
+                const unionKeys = new Set(ACTIVITY_UNION_KEYS);
+                const inferredKeys = Object.keys(activity).filter((key) => {
+                  if (baseKeys.has(key) || unionKeys.has(key as ActivityUnionKey)) {
+                    return false;
+                  }
+                  const value = (activity as unknown as Record<string, unknown>)[key];
+                  return value !== undefined && value !== null;
+                });
+                keySummary = inferredKeys.length === 0 ? "none" : inferredKeys.join(", ");
+              }
+
+              let rawForLog = "";
+              try {
+                const safeActivity = {
+                  ...activity,
+                  agentMessaged: activity.agentMessaged
+                    ? { ...activity.agentMessaged, agentMessage: activity.agentMessaged.agentMessage ? "[REDACTED]" : activity.agentMessaged.agentMessage }
+                    : activity.agentMessaged,
+                  userMessaged: activity.userMessaged
+                    ? { ...activity.userMessaged, userMessage: activity.userMessaged.userMessage ? "[REDACTED]" : activity.userMessaged.userMessage }
+                    : activity.userMessaged,
+                };
+                rawForLog = JSON.stringify(safeActivity);
+                const sanitizedRaw = sanitizeForLogging(rawForLog);
+                const truncatedRaw = truncateForDisplay(sanitizedRaw, 2000);
+                logChannel.appendLine(
+                  `Jules: Unknown activity raw (sanitized, truncated):\n${truncatedRaw}`
+                );
+              } catch (error) {
+                logChannel.appendLine(
+                  `Jules: Unknown activity raw stringify failed: ${sanitizeError(error)}`
+                );
+              }
+              message = `Unknown activity (keys: ${keySummary}). See output log for details.`;
             }
+
             activitiesChannel.appendLine(
-              `${icon} ${timestamp} (${activity.originator}): ${message}`
+              `${icon} ${timestamp} (${originator}): ${message}`
             );
           });
         }
