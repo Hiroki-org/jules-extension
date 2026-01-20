@@ -92,6 +92,11 @@ export function isValidSessionId(sessionId: string): boolean {
         return false;
     }
 
+    // Defense-in-depth: explicitly block path traversal sequences
+    if (sessionId.includes("..")) {
+        return false;
+    }
+
     // Allow only alphanumeric, slashes, dashes, and underscores
     // This supports formats like "sessions/123" or "projects/foo/locations/bar/sessions/baz"
     const allowedPattern = /^[a-zA-Z0-9_\-\/]+$/;
