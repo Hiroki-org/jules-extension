@@ -2040,10 +2040,11 @@ export function activate(context: vscode.ExtensionContext) {
                   break;
                 }
                 case "progressUpdated": {
-                  const hasProgressText = Boolean(
-                    activity.progressUpdated?.title || activity.progressUpdated?.description
+                  const progressText = pickFirstNonEmpty(
+                    activity.progressUpdated?.title,
+                    activity.progressUpdated?.description
                   );
-                  message = hasProgressText
+                  message = progressText
                     ? `Progress: ${summary}`
                     : `ℹ️ ${summary}`;
                   break;
