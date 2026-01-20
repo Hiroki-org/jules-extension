@@ -12,7 +12,7 @@ import { exec } from 'child_process';
 
 const execAsync = promisify(exec);
 import { SourcesCache, isCacheValid } from './cache';
-import { stripUrlCredentials, sanitizeForLogging } from './securityUtils';
+import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './securityUtils';
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 
@@ -1364,6 +1364,11 @@ async function approvePlan(
   sessionId: string,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  if (!isValidSessionId(sessionId)) {
+    vscode.window.showErrorMessage(`Invalid session ID: ${sessionId}`);
+    return;
+  }
+
   const apiKey = await context.secrets.get("jules-api-key");
   if (!apiKey) {
     vscode.window.showErrorMessage("API Key is not set. Please set it first.");
@@ -1422,6 +1427,11 @@ async function sendMessageToSession(
     vscode.window.showErrorMessage(
       "No active session available. Please create or select a session first."
     );
+    return;
+  }
+
+  if (!isValidSessionId(sessionId)) {
+    vscode.window.showErrorMessage(`Invalid session ID: ${sessionId}`);
     return;
   }
 
@@ -1965,6 +1975,11 @@ export function activate(context: vscode.ExtensionContext) {
   const showActivitiesDisposable = vscode.commands.registerCommand(
     "jules-extension.showActivities",
     async (sessionId: string) => {
+      if (!isValidSessionId(sessionId)) {
+        vscode.window.showErrorMessage(`Invalid session ID: ${sessionId}`);
+        return;
+      }
+
       const apiKey = await getStoredApiKey(context);
       if (!apiKey) {
         return;

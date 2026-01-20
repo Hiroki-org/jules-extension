@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { stripUrlCredentials, sanitizeForLogging } from "../securityUtils";
+import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from "../securityUtils";
 
 suite("Security Utils Test Suite", () => {
     test("stripUrlCredentials should remove credentials from HTTPS URLs", () => {
@@ -454,5 +454,33 @@ suite("Security Utils Test Suite", () => {
         const expected = "https://github.com/repo";
         const result = stripUrlCredentials(url);
         assert.strictEqual(result, expected);
+    });
+
+    suite("isValidSessionId", () => {
+        test("should return true for valid session IDs", () => {
+            assert.strictEqual(isValidSessionId("sessions/123"), true);
+            assert.strictEqual(isValidSessionId("projects/p/locations/l/sessions/s"), true);
+            assert.strictEqual(isValidSessionId("abc-def_123"), true);
+        });
+
+        test("should return false for path traversal", () => {
+            assert.strictEqual(isValidSessionId("../evil"), false);
+            assert.strictEqual(isValidSessionId("sessions/../../passwd"), false);
+            assert.strictEqual(isValidSessionId(".."), false);
+        });
+
+        test("should return false for invalid characters", () => {
+            assert.strictEqual(isValidSessionId("sessions/123?query=1"), false);
+            assert.strictEqual(isValidSessionId("sessions/123#frag"), false);
+            assert.strictEqual(isValidSessionId("sessions/123%00"), false);
+            assert.strictEqual(isValidSessionId("sessions/123<script>"), false);
+            assert.strictEqual(isValidSessionId("sessions/123 space"), false);
+        });
+
+        test("should return false for empty or non-string inputs", () => {
+            assert.strictEqual(isValidSessionId(""), false);
+            assert.strictEqual(isValidSessionId(null as any), false);
+            assert.strictEqual(isValidSessionId(undefined as any), false);
+        });
     });
 });
