@@ -331,25 +331,6 @@ function getPrivacyIcon(isPrivate?: boolean): string {
 }
 
 /**
- * Ensures that a session ID is valid, showing an error message if not.
- * This consolidates validation logic for all session ID operations.
- * 
- * @param sessionId - The session ID to validate (may be null/undefined)
- * @param logChannel - Optional channel for dev-level logging (not exposed to user)
- * @returns true if the sessionId is valid, false if invalid (error message already shown)
- */
-function ensureValidSessionId(sessionId: string | undefined | null, logChannel?: vscode.OutputChannel): boolean {
-  if (!sessionId || !isValidSessionId(sessionId)) {
-    vscode.window.showErrorMessage("Invalid session ID provided.");
-    if (logChannel && sessionId) {
-      logChannel.appendLine(`[Jules] Debug: Invalid session ID encountered: ${sanitizeForLogging(sessionId, 100)}`);
-    }
-    return false;
-  }
-  return true;
-}
-
-/**
  * Get privacy status text for tooltip/status bar
  * @param isPrivate - The isPrivate field from Source
  * @param format - Format style ('short' for status bar, 'long' for tooltip)
@@ -1246,7 +1227,8 @@ async function approvePlan(
   sessionId: string,
   context: vscode.ExtensionContext
 ): Promise<void> {
-  if (!ensureValidSessionId(sessionId, logChannel)) {
+  if (!isValidSessionId(sessionId)) {
+    vscode.window.showErrorMessage(`Invalid session ID: ${sessionId}`);
     return;
   }
 
@@ -1311,7 +1293,8 @@ async function sendMessageToSession(
     return;
   }
 
-  if (!ensureValidSessionId(sessionId, logChannel)) {
+  if (!isValidSessionId(sessionId)) {
+    vscode.window.showErrorMessage(`Invalid session ID: ${sessionId}`);
     return;
   }
 
@@ -1855,7 +1838,8 @@ export function activate(context: vscode.ExtensionContext) {
   const showActivitiesDisposable = vscode.commands.registerCommand(
     "jules-extension.showActivities",
     async (sessionId: string) => {
-      if (!ensureValidSessionId(sessionId, logChannel)) {
+      if (!isValidSessionId(sessionId)) {
+        vscode.window.showErrorMessage(`Invalid session ID: ${sessionId}`);
         return;
       }
 
