@@ -832,33 +832,85 @@ interface Plan {
 interface Activity {
   name: string;
   createTime: string;
-  originator: "user" | "agent";
+  originator?: "user" | "agent" | "system" | string;
   id: string;
   type?: string;
+  agentMessaged?: { agentMessage?: string };
+  userMessaged?: { userMessage?: string };
   planGenerated?: { plan: Plan };
   planApproved?: { planId: string };
-  progressUpdated?: { title: string; description?: string };
+  progressUpdated?: { title?: string; description?: string };
   sessionCompleted?: Record<string, never>;
+  sessionFailed?: { reason?: string };
 }
 
 interface ActivitiesResponse {
   activities: Activity[];
 }
 
+const ACTIVITY_UNION_KEYS = [
+  "agentMessaged",
+  "userMessaged",
+  "planGenerated",
+  "planApproved",
+  "progressUpdated",
+  "sessionCompleted",
+  "sessionFailed",
+] as const;
+
+type ActivityUnionKey = (typeof ACTIVITY_UNION_KEYS)[number];
+
+function getActiveActivityKeys(activity: Activity): ActivityUnionKey[] {
+  return ACTIVITY_UNION_KEYS.filter(
+    (key) => {
+      const value = (activity as unknown as Record<string, unknown>)[key];
+      return value !== undefined && value !== null;
+    }
+  );
+}
+
 function getActivityIcon(activity: Activity): string {
-  if (activity.planGenerated) {
-    return "📝";
+  const keys = getActiveActivityKeys(activity);
+  if (keys.length !== 1) {
+    return "ℹ️";
   }
-  if (activity.planApproved) {
-    return "👍";
+  switch (keys[0]) {
+    case "planGenerated":
+      return "📝";
+    case "planApproved":
+      return "👍";
+    case "progressUpdated":
+      return "🔄";
+    case "sessionCompleted":
+      return "✅";
+    case "sessionFailed":
+      return "❌";
+    case "agentMessaged":
+      return "💬";
+    case "userMessaged":
+      return "🗨️";
+    default:
+      return "ℹ️";
   }
-  if (activity.progressUpdated) {
-    return "🔄";
+}
+
+function pickFirstNonEmpty(...values: Array<string | undefined | null>): string | null {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
   }
-  if (activity.sessionCompleted) {
-    return "✅";
+  return null;
+}
+
+function truncateForDisplay(text: string, maxLength: number = 300): string {
+  if (text.length <= maxLength) {
+    return text;
   }
-  return "ℹ️";
+  return `${text.slice(0, maxLength)}...`;
 }
 
 export class JulesSessionsProvider
@@ -1192,7 +1244,7 @@ export class SessionTreeItem extends vscode.TreeItem {
         const repoName = repoMatch ? repoMatch[1] : source;
         const lockIcon = getPrivacyIcon(this.selectedSource?.isPrivate);
         const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
-        
+
         tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
       }
     }
@@ -1357,7 +1409,7 @@ function updateStatusBar(
 
     const lockIcon = getPrivacyIcon(selectedSource.isPrivate);
     const privacyStatus = getPrivacyStatusText(selectedSource.isPrivate, 'short');
-    
+
     statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
     statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
     statusBarItem.show();
@@ -1546,7 +1598,7 @@ export function activate(context: vscode.ExtensionContext) {
           // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
           const repoMatch = source.name?.match(/sources\/github\/(.+)/);
           const repoName = repoMatch ? repoMatch[1] : (source.name || source.id || "Unknown");
-          
+
           return {
             label: source.isPrivate === true ? `$(lock) ${repoName}` : repoName,
             description: getSourceDescription(source),
@@ -1884,25 +1936,71 @@ export function activate(context: vscode.ExtensionContext) {
           data.activities.forEach((activity) => {
             const icon = getActivityIcon(activity);
             const timestamp = new Date(activity.createTime).toLocaleString();
+            const originator = activity.originator ?? "unknown";
+            const activeKeys = getActiveActivityKeys(activity);
             let message = "";
-            if (activity.planGenerated) {
-              message = `Plan generated: ${activity.planGenerated.plan?.title || "Plan"
-                }`;
-              planDetected = true;
-            } else if (activity.planApproved) {
-              message = `Plan approved: ${activity.planApproved.planId}`;
-            } else if (activity.progressUpdated) {
-              message = `Progress: ${activity.progressUpdated.title}${activity.progressUpdated.description
-                ? " - " + activity.progressUpdated.description
-                : ""
-                }`;
-            } else if (activity.sessionCompleted) {
-              message = "Session completed";
+
+            if (activeKeys.length === 1) {
+              switch (activeKeys[0]) {
+                case "planGenerated": {
+                  message = `Plan generated: ${activity.planGenerated?.plan?.title || "Plan"}`;
+                  planDetected = true;
+                  break;
+                }
+                case "planApproved": {
+                  message = `Plan approved: ${activity.planApproved?.planId || "(no plan id)"}`;
+                  break;
+                }
+                case "progressUpdated": {
+                  const progressText = pickFirstNonEmpty(
+                    activity.progressUpdated?.title,
+                    activity.progressUpdated?.description
+                  ) ?? "(no details)";
+                  message = `Progress: ${progressText}`;
+                  break;
+                }
+                case "sessionCompleted": {
+                  message = "Session completed";
+                  break;
+                }
+                case "sessionFailed": {
+                  const reason = pickFirstNonEmpty(activity.sessionFailed?.reason) ?? "(no reason)";
+                  message = `Session failed: ${reason}`;
+                  break;
+                }
+                case "agentMessaged": {
+                  const text = pickFirstNonEmpty(activity.agentMessaged?.agentMessage) ?? "(no message)";
+                  message = `Agent message: ${truncateForDisplay(text)}`;
+                  break;
+                }
+                case "userMessaged": {
+                  const text = pickFirstNonEmpty(activity.userMessaged?.userMessage) ?? "(no message)";
+                  message = `User message: ${truncateForDisplay(text)}`;
+                  break;
+                }
+                default: {
+                  message = "Unknown activity";
+                }
+              }
             } else {
-              message = "Unknown activity";
+              const keySummary = activeKeys.length === 0 ? "none" : activeKeys.join(", ");
+              let raw = "";
+              try {
+                raw = JSON.stringify(activity);
+                logChannel.appendLine(
+                  `Jules: Unknown activity raw:\n${JSON.stringify(activity, null, 2)}`
+                );
+              } catch (error) {
+                raw = "(failed to stringify activity)";
+                logChannel.appendLine(
+                  `Jules: Unknown activity raw stringify failed: ${sanitizeError(error)}`
+                );
+              }
+              message = `Unknown activity (keys: ${keySummary}, raw: ${truncateForDisplay(raw)})`;
             }
+
             activitiesChannel.appendLine(
-              `${icon} ${timestamp} (${activity.originator}): ${message}`
+              `${icon} ${timestamp} (${originator}): ${message}`
             );
           });
         }
