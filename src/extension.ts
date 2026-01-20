@@ -2040,11 +2040,10 @@ export function activate(context: vscode.ExtensionContext) {
                   break;
                 }
                 case "progressUpdated": {
-                  const rawProgressText = pickFirstNonEmpty(
-                    activity.progressUpdated?.title,
-                    activity.progressUpdated?.description
+                  const hasProgressText = Boolean(
+                    activity.progressUpdated?.title || activity.progressUpdated?.description
                   );
-                  message = rawProgressText
+                  message = hasProgressText
                     ? `Progress: ${summary}`
                     : `ℹ️ ${summary}`;
                   break;
@@ -2058,12 +2057,12 @@ export function activate(context: vscode.ExtensionContext) {
                   break;
                 }
                 case "agentMessaged": {
-                  const text = pickFirstNonEmpty(activity.agentMessaged?.agentMessage, summary) ?? "(no message)";
+                  const text = pickFirstNonEmpty(activity.agentMessaged?.agentMessage) ?? "(no message)";
                   message = `Agent message: ${truncateForDisplay(text)}`;
                   break;
                 }
                 case "userMessaged": {
-                  const text = pickFirstNonEmpty(activity.userMessaged?.userMessage, summary) ?? "(no message)";
+                  const text = pickFirstNonEmpty(activity.userMessaged?.userMessage) ?? "(no message)";
                   message = `User message: ${truncateForDisplay(text)}`;
                   break;
                 }
@@ -2072,20 +2071,51 @@ export function activate(context: vscode.ExtensionContext) {
                 }
               }
             } else {
-              const keySummary = activeKeys.length === 0 ? "none" : activeKeys.join(", ");
-              let raw = "";
+              let keySummary = activeKeys.join(", ");
+              if (activeKeys.length === 0) {
+                const baseKeys = new Set([
+                  "name",
+                  "createTime",
+                  "description",
+                  "originator",
+                  "id",
+                  "type",
+                  "artifacts",
+                ]);
+                const unionKeys = new Set(ACTIVITY_UNION_KEYS);
+                const inferredKeys = Object.keys(activity).filter((key) => {
+                  if (baseKeys.has(key) || unionKeys.has(key as ActivityUnionKey)) {
+                    return false;
+                  }
+                  const value = (activity as unknown as Record<string, unknown>)[key];
+                  return value !== undefined && value !== null;
+                });
+                keySummary = inferredKeys.length === 0 ? "none" : inferredKeys.join(", ");
+              }
+
+              let rawForLog = "";
               try {
-                raw = JSON.stringify(activity);
+                const safeActivity = {
+                  ...activity,
+                  agentMessaged: activity.agentMessaged
+                    ? { ...activity.agentMessaged, agentMessage: activity.agentMessaged.agentMessage ? "[REDACTED]" : activity.agentMessaged.agentMessage }
+                    : activity.agentMessaged,
+                  userMessaged: activity.userMessaged
+                    ? { ...activity.userMessaged, userMessage: activity.userMessaged.userMessage ? "[REDACTED]" : activity.userMessaged.userMessage }
+                    : activity.userMessaged,
+                };
+                rawForLog = JSON.stringify(safeActivity);
+                const sanitizedRaw = sanitizeForLogging(rawForLog);
+                const truncatedRaw = truncateForDisplay(sanitizedRaw, 2000);
                 logChannel.appendLine(
-                  `Jules: Unknown activity raw:\n${JSON.stringify(activity, null, 2)}`
+                  `Jules: Unknown activity raw (sanitized, truncated):\n${truncatedRaw}`
                 );
               } catch (error) {
-                raw = "(failed to stringify activity)";
                 logChannel.appendLine(
                   `Jules: Unknown activity raw stringify failed: ${sanitizeError(error)}`
                 );
               }
-              message = `Unknown activity (keys: ${keySummary}, raw: ${truncateForDisplay(raw)})`;
+              message = `Unknown activity (keys: ${keySummary}). See output log for details.`;
             }
 
             activitiesChannel.appendLine(
