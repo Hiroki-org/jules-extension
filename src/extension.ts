@@ -1277,6 +1277,14 @@ export class JulesSessionsProvider
       return (hadDiff !== hasDiff) || (hadChangeset !== hasChangeset);
     }));
 
+    // Log rejected promises for debugging and monitoring
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const session = targetSessions[index];
+        console.error(`Jules: Failed to prefetch artifacts for session ${sanitizeForLogging(session.name)}: ${sanitizeError(result.reason)}`);
+      }
+    });
+
     // If any session resulted in a relevant state change, refresh the tree
     hasChanges = results.some(r => r.status === 'fulfilled' && r.value === true);
 
