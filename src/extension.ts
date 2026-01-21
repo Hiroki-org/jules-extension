@@ -12,6 +12,7 @@ import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './sec
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
+import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -220,7 +221,7 @@ function getRepositoryForWorkspaceFolder(git: any, workspaceFolder: vscode.Works
  */
 function getRemoteUrl(repository: any, preferredRemoteName: string = 'origin', outputChannel?: vscode.OutputChannel): string | null {
   const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  
+
   if (!repository.state.remotes || repository.state.remotes.length === 0) {
     logger.appendLine('[Jules] No remotes found in repository');
     return null;
@@ -1359,8 +1360,13 @@ export class SessionTreeItem extends vscode.TreeItem {
     'CANCELLED': 'Cancelled',
   };
 
+  public readonly prUrl: string | null;
+
   constructor(public readonly session: Session, private readonly selectedSource?: SourceType) {
     super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
+
+    // Calculate prUrl once and cache it
+    this.prUrl = getPullRequestUrlForSession(session);
 
     const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
     tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
@@ -1393,10 +1399,17 @@ export class SessionTreeItem extends vscode.TreeItem {
 
     this.description = session.state;
     this.iconPath = this.getIcon(session.rawState);
-    this.contextValue = "jules-session";
+
+    // Build contextValue using array for idempotent result
+    const contextValues = ["jules-session"];
     if (session.url) {
-      this.contextValue += " jules-session-with-url";
+      contextValues.push("jules-session-with-url");
     }
+    if (this.prUrl) {
+      contextValues.push("jules-session-with-pr");
+    }
+    this.contextValue = contextValues.join(" ");
+
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
       title: "Show Activities",
@@ -2426,6 +2439,22 @@ export function activate(context: vscode.ExtensionContext) {
     "jules-extension.openInWebApp",
     (item?: SessionTreeItem) => handleOpenInWebApp(item, logChannel)
   );
+
+  const openPRInBrowserDisposable = vscode.commands.registerCommand(
+    "jules-extension.openPRInBrowser",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      if (item.prUrl) {
+        await openPullRequestInBrowser(item.prUrl);
+      } else {
+        vscode.window.showErrorMessage("No pull request URL available for this session.");
+      }
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2442,7 +2471,8 @@ export function activate(context: vscode.ExtensionContext) {
     setGithubTokenDisposable,
     setGitHubPatDisposable,
     clearCacheDisposable,
-    openInWebAppDisposable
+    openInWebAppDisposable,
+    openPRInBrowserDisposable
   );
 }
 

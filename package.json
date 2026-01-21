@@ -184,6 +184,12 @@
         "title": "Open in Web App",
         "category": "Jules",
         "icon": "$(globe)"
+      },
+      {
+        "command": "jules-extension.openPRInBrowser",
+        "title": "Open PR in browser",
+        "category": "Jules",
+        "icon": "$(link-external)"
       }
     ],
     "viewsWelcome": [
@@ -250,6 +256,11 @@
         {
           "command": "jules-extension.openInWebApp",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-with-url/",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.openPRInBrowser",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-with-pr/",
           "group": "navigation"
         }
       ]
