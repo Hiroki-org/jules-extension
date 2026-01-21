@@ -22,6 +22,9 @@ export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProv
     }
 }
 
+// Intentionally keep a small wrapper around the async implementation to
+// provide a stable exported API and allow future logic (e.g., logging or
+// alternative resolution strategies) without changing callers.
 export function resolveWorkspaceFile(targetPath: string): Promise<vscode.Uri | null> {
     return resolveWorkspaceFileAsync(targetPath);
 }
