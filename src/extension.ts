@@ -1399,7 +1399,7 @@ export class SessionTreeItem extends vscode.TreeItem {
 
     this.description = session.state;
     this.iconPath = this.getIcon(session.rawState);
-    
+
     // Build contextValue using array for idempotent result
     const contextValues = ["jules-session"];
     if (session.url) {

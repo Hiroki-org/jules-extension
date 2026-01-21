@@ -22,7 +22,7 @@ export function getPullRequestUrlForSession(session: Session): string | null {
 
         // Validate: Must be a string
         if (typeof raw !== "string") {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL type validation failed: expected string, got ${typeof raw}`);
             return null;
         }
 
@@ -30,19 +30,19 @@ export function getPullRequestUrlForSession(session: Session): string | null {
         let u: URL;
         try {
             u = new URL(raw);
-        } catch {
-            console.warn("[Jules] Invalid pull request url");
+        } catch (e) {
+            console.warn(`[Jules] PR URL parsing failed: invalid URL format`);
             return null;
         }
 
         // Validate protocol and hostname
         if (u.protocol !== "https:") {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL protocol validation failed: expected https:, got ${u.protocol}`);
             return null;
         }
 
         if (u.hostname !== "github.com") {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL hostname validation failed: expected github.com, got ${u.hostname}`);
             return null;
         }
 
@@ -52,7 +52,7 @@ export function getPullRequestUrlForSession(session: Session): string | null {
             .filter((seg) => seg.length > 0);
 
         if (segments.length < 4) {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL pathname validation failed: expected at least 4 segments, got ${segments.length}`);
             return null;
         }
 
@@ -60,19 +60,19 @@ export function getPullRequestUrlForSession(session: Session): string | null {
 
         // Validate owner and repo are not empty
         if (!owner || !repo) {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL owner/repo validation failed: owner or repo is empty`);
             return null;
         }
 
         // Validate pull keyword
         if (pullKeyword !== "pull") {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL keyword validation failed: expected 'pull', got '${pullKeyword}'`);
             return null;
         }
 
         // Validate number is a positive integer
         if (!/^\d+$/.test(numberStr)) {
-            console.warn("[Jules] Invalid pull request url");
+            console.warn(`[Jules] PR URL number validation failed: expected numeric PR number, got '${numberStr}'`);
             return null;
         }
 
@@ -80,7 +80,7 @@ export function getPullRequestUrlForSession(session: Session): string | null {
         const canonical = `https://github.com/${owner}/${repo}/pull/${numberStr}`;
         return canonical;
     } catch (error) {
-        console.warn("[Jules] Invalid pull request url");
+        console.warn(`[Jules] Unexpected error extracting PR URL from session`);
         return null;
     }
 }
