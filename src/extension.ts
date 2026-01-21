@@ -13,6 +13,8 @@ import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
+import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
+import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -1077,11 +1079,14 @@ export class JulesSessionsProvider
   private isFetching = false;
   private lastBranchRefreshTime: number = 0;
   private readonly BRANCH_REFRESH_INTERVAL = 4 * 60 * 1000; // 4 minutes
+  private lastArtifactsPrefetchTime: number = 0;
+  private readonly ARTIFACTS_PREFETCH_INTERVAL = 3 * 60 * 1000; // 3 minutes
 
   constructor(private context: vscode.ExtensionContext) { }
 
   private async fetchAndProcessSessions(
-    isBackground: boolean = false
+    isBackground: boolean = false,
+    forceUIUpdate: boolean = false
   ): Promise<void> {
     if (this.isFetching) {
       logChannel.appendLine("Jules: Fetch already in progress. Skipping.");
@@ -1190,6 +1195,11 @@ export class JulesSessionsProvider
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
+
+      // Always try to prefetch artifacts for recent sessions to ensure context menus are available
+      // matches user expectation. Await to avoid out-of-order tree refreshes.
+      await this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped);
+
       if (isBackground) {
         // Errors are handled inside _refreshBranchCacheInBackground, so we call it fire-and-forget.
         // The void operator is used to intentionally ignore the promise and avoid lint errors about floating promises.
@@ -1197,7 +1207,10 @@ export class JulesSessionsProvider
       }
 
       // Only fire event if meaningful change occurred
-      if (sessionsChanged || statesChanged) {
+      if (sessionsChanged || statesChanged || forceUIUpdate) {
+        if (forceUIUpdate && !sessionsChanged && !statesChanged) {
+          logChannel.appendLine("Jules: Forcing UI update (artifacts changed)");
+        }
         this._onDidChangeTreeData.fire();
       } else {
         logChannel.appendLine("Jules: No view updates required.");
@@ -1239,11 +1252,64 @@ export class JulesSessionsProvider
     }
   }
 
-  async refresh(isBackground: boolean = false): Promise<void> {
+  private async _prefetchArtifactsForRecentSessions(apiKey: string, sessions: Session[]): Promise<void> {
+    // Throttle prefetch to avoid excessive API calls during frequent refreshes
+    const now = Date.now();
+    if (now - this.lastArtifactsPrefetchTime < this.ARTIFACTS_PREFETCH_INTERVAL) {
+      return;
+    }
+
+    // Update timestamp immediately to prevent concurrent prefetches
+    this.lastArtifactsPrefetchTime = now;
+
+    // Prefetch artifacts for the top N sessions to enable context menu items (diff/changeset)
+    // without requiring the user to manually run "Show Activities".
+    const TARGET_COUNT = 5;
+    const targetSessions = sessions.slice(0, TARGET_COUNT);
+
+    if (targetSessions.length === 0) {
+      return;
+    }
+
+    let hasChanges = false;
+
+    // Run fetches in parallel
+    const results = await Promise.allSettled(targetSessions.map(async (session) => {
+      const before = getCachedSessionArtifacts(session.name);
+      await fetchLatestSessionArtifacts(apiKey, session.name, JULES_API_BASE_URL);
+      const after = getCachedSessionArtifacts(session.name);
+
+      // Check if availability of diff/changeset flipped
+      const hadDiff = !!before?.latestDiff;
+      const hasDiff = !!after?.latestDiff;
+      const hadChangeset = !!before?.latestChangeSet;
+      const hasChangeset = !!after?.latestChangeSet;
+
+      return (hadDiff !== hasDiff) || (hadChangeset !== hasChangeset);
+    }));
+
+    // Log rejected promises for debugging and monitoring
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const session = targetSessions[index];
+        console.error(`Jules: Failed to prefetch artifacts for session ${sanitizeForLogging(session.name)}: ${sanitizeError(result.reason)}`);
+      }
+    });
+
+    // If any session resulted in a relevant state change, refresh the tree
+    hasChanges = results.some(r => r.status === 'fulfilled' && r.value === true);
+
+    if (hasChanges) {
+      console.log("Jules: Artifacts updated during prefetch, triggering tree refresh.");
+      this._onDidChangeTreeData.fire();
+    }
+  }
+
+  async refresh(isBackground: boolean = false, forceUIUpdate: boolean = false): Promise<void> {
     console.log(
-      `Jules: refresh() called (isBackground: ${isBackground}), starting fetch.`
+      `Jules: refresh() called (isBackground: ${isBackground}, forceUIUpdate: ${forceUIUpdate}), starting fetch.`
     );
-    await this.fetchAndProcessSessions(isBackground);
+    await this.fetchAndProcessSessions(isBackground, forceUIUpdate);
   }
 
   private processSessionNotifications(
@@ -1361,12 +1427,17 @@ export class SessionTreeItem extends vscode.TreeItem {
   };
 
   public readonly prUrl: string | null;
+  public readonly hasDiff: boolean;
+  public readonly hasChangeset: boolean;
 
   constructor(public readonly session: Session, private readonly selectedSource?: SourceType) {
     super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
 
     // Calculate prUrl once and cache it
     this.prUrl = getPullRequestUrlForSession(session);
+    const cachedArtifacts = getCachedSessionArtifacts(session.name);
+    this.hasDiff = Boolean(cachedArtifacts?.latestDiff);
+    this.hasChangeset = Boolean(cachedArtifacts?.latestChangeSet);
 
     const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
     tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
@@ -1408,7 +1479,15 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (this.prUrl) {
       contextValues.push("jules-session-with-pr");
     }
+    if (this.hasDiff) {
+      contextValues.push("jules-session-with-diff");
+    }
+    if (this.hasChangeset) {
+      contextValues.push("jules-session-with-changeset");
+    }
     this.contextValue = contextValues.join(" ");
+
+    // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
 
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
@@ -2092,6 +2171,13 @@ export function activate(context: vscode.ExtensionContext) {
           vscode.window.showErrorMessage("Invalid response format from API.");
           return;
         }
+
+        const artifactsChanged = updateSessionArtifactsCache(sessionId, data.activities);
+
+        if (artifactsChanged) {
+          // Force TreeView update with forceUIUpdate=true
+          sessionsProvider.refresh(true, true);
+        }
         activitiesChannel.clear();
         activitiesChannel.show();
         activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
@@ -2455,6 +2541,59 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const diffProvider = new JulesDiffDocumentProvider();
+  const diffProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
+    "jules-diff",
+    diffProvider
+  );
+
+  const openLatestDiffDisposable = vscode.commands.registerCommand(
+    "jules-extension.openLatestDiff",
+    async (item?: SessionTreeItem | string) => {
+      const sessionId = resolveSessionId(context, item);
+      if (!sessionId) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+      const sessionTitle = item instanceof SessionTreeItem ? item.session.title : undefined;
+      await openLatestDiffForSession({
+        sessionId,
+        sessionTitle,
+        apiKey,
+        apiBaseUrl: JULES_API_BASE_URL,
+        logChannel,
+        diffProvider,
+      });
+    }
+  );
+
+  const openChangesetDisposable = vscode.commands.registerCommand(
+    "jules-extension.openChangeset",
+    async (item?: SessionTreeItem | string) => {
+      const sessionId = resolveSessionId(context, item);
+      if (!sessionId) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+      const sessionTitle = item instanceof SessionTreeItem ? item.session.title : undefined;
+      await openChangesetForSession({
+        sessionId,
+        sessionTitle,
+        apiKey,
+        apiBaseUrl: JULES_API_BASE_URL,
+        logChannel,
+      });
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2472,7 +2611,10 @@ export function activate(context: vscode.ExtensionContext) {
     setGitHubPatDisposable,
     clearCacheDisposable,
     openInWebAppDisposable,
-    openPRInBrowserDisposable
+    openPRInBrowserDisposable,
+    diffProviderDisposable,
+    openLatestDiffDisposable,
+    openChangesetDisposable
   );
 }
 
