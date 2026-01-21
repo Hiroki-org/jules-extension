@@ -13,7 +13,7 @@ import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
-import { getCachedSessionArtifacts, updateSessionArtifactsCache } from './sessionArtifacts';
+import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 
 // Constants
@@ -1193,6 +1193,11 @@ export class JulesSessionsProvider
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
+      
+      // Always try to prefetch artifacts for recent sessions to ensure context menus are available
+      // matches user expectation. Run in background (fire-and-forget).
+      void this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped);
+
       if (isBackground) {
         // Errors are handled inside _refreshBranchCacheInBackground, so we call it fire-and-forget.
         // The void operator is used to intentionally ignore the promise and avoid lint errors about floating promises.
@@ -1242,6 +1247,42 @@ export class JulesSessionsProvider
       console.log("Jules: Branch cache updated successfully during background refresh");
     } catch (error: unknown) {
       console.error(`Jules: Failed to update branch cache during background refresh for ${sanitizeForLogging(selectedSource.name)}: ${sanitizeError(error)}`);
+    }
+  }
+
+  private async _prefetchArtifactsForRecentSessions(apiKey: string, sessions: Session[]): Promise<void> {
+    // Prefetch artifacts for the top N sessions to enable context menu items (diff/changeset)
+    // without requiring the user to manually run "Show Activities".
+    const TARGET_COUNT = 5;
+    const targetSessions = sessions.slice(0, TARGET_COUNT);
+    
+    if (targetSessions.length === 0) {
+      return;
+    }
+
+    let hasChanges = false;
+    
+    // Run fetches in parallel
+    const results = await Promise.allSettled(targetSessions.map(async (session) => {
+      const before = getCachedSessionArtifacts(session.name);
+      await fetchLatestSessionArtifacts(apiKey, session.name, JULES_API_BASE_URL);
+      const after = getCachedSessionArtifacts(session.name);
+      
+      // Check if availability of diff/changeset flipped
+      const hadDiff = !!before?.latestDiff;
+      const hasDiff = !!after?.latestDiff;
+      const hadChangeset = !!before?.latestChangeSet;
+      const hasChangeset = !!after?.latestChangeSet;
+      
+      return (hadDiff !== hasDiff) || (hadChangeset !== hasChangeset);
+    }));
+
+    // If any session resulted in a relevant state change, refresh the tree
+    hasChanges = results.some(r => r.status === 'fulfilled' && r.value === true);
+
+    if (hasChanges) {
+       console.log("Jules: Artifacts updated during prefetch, triggering tree refresh.");
+       this._onDidChangeTreeData.fire();
     }
   }
 
@@ -1427,13 +1468,8 @@ export class SessionTreeItem extends vscode.TreeItem {
     }
     this.contextValue = contextValues.join(" ");
 
-    // ⭐ DEBUG: TreeItem contextValue 確認用ログ
-    logChannel.appendLine(`[DEBUG TreeItem] session.name=${session.name}`);
-    logChannel.appendLine(`[DEBUG TreeItem] cachedArtifacts exists=${!!cachedArtifacts}`);
-    logChannel.appendLine(`[DEBUG TreeItem] cachedArtifacts.latestDiff exists=${!!cachedArtifacts?.latestDiff}`);
-    logChannel.appendLine(`[DEBUG TreeItem] cachedArtifacts.latestChangeSet exists=${!!cachedArtifacts?.latestChangeSet}`);
-    logChannel.appendLine(`[DEBUG TreeItem] this.contextValue="${this.contextValue}"`);
-    logChannel.appendLine(`[DEBUG TreeItem] ---`);
+    // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
+    // logChannel.appendLine(`[DEBUG TreeItem] session.name=${session.name}`); ...
 
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,

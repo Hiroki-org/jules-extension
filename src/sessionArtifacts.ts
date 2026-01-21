@@ -127,7 +127,7 @@ function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?
             return diffFiles;
         }
     }
-    
+
     return [];
 }
 
@@ -143,10 +143,10 @@ function extractLatestDiff(activities: Activity[]): string | undefined {
         const artifacts = activities[i]?.artifacts;
         if (Array.isArray(artifacts)) {
             for (const artifact of artifacts) {
-                 const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
-                 if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
-                     return uniDiff;
-                 }
+                const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
+                    return uniDiff;
+                }
             }
         }
     }
@@ -176,7 +176,7 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
     if (!Array.isArray(activities) || activities.length === 0) {
         return {};
     }
-    
+
     const latestDiff = extractLatestDiff(activities);
     const latestChangeSet = extractLatestChangeSet(activities, latestDiff);
 
@@ -198,8 +198,13 @@ function areChangeSetFilesEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boo
     if (aFiles.length !== bFiles.length) {
         return false;
     }
-    for (let i = 0; i < aFiles.length; i += 1) {
-        if (aFiles[i].path !== bFiles[i].path || aFiles[i].status !== bFiles[i].status) {
+
+    // Sort files by path to ensure order-independence
+    const sortedA = [...aFiles].sort((x, y) => x.path.localeCompare(y.path));
+    const sortedB = [...bFiles].sort((x, y) => x.path.localeCompare(y.path));
+
+    for (let i = 0; i < sortedA.length; i += 1) {
+        if (sortedA[i].path !== sortedB[i].path || sortedA[i].status !== sortedB[i].status) {
             return false;
         }
     }

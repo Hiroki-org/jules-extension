@@ -22,16 +22,39 @@ export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProv
     }
 }
 
-function resolveWorkspaceFile(targetPath: string): vscode.Uri | null {
-    const normalized = targetPath.replace(/^\//, "");
-    if (path.isAbsolute(normalized)) {
-        return fs.existsSync(normalized) ? vscode.Uri.file(normalized) : null;
+export function resolveWorkspaceFile(targetPath: string): Promise<vscode.Uri | null> {
+    return resolveWorkspaceFileAsync(targetPath);
+}
+
+async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri | null> {
+    // 1. Reject absolute paths immediately for security
+    if (path.isAbsolute(targetPath)) {
+        console.warn(`[Security] Rejected absolute path in changeset: ${targetPath}`);
+        return null;
     }
+
     const folders = vscode.workspace.workspaceFolders ?? [];
     for (const folder of folders) {
-        const candidate = path.join(folder.uri.fsPath, normalized);
-        if (fs.existsSync(candidate)) {
-            return vscode.Uri.file(candidate);
+        const folderPath = folder.uri.fsPath;
+        // Use path.resolve to handle relative paths and normalization
+        const candidatePath = path.resolve(folderPath, targetPath);
+
+        // Security Check: Ensure resolved path is still inside the workspace folder
+        const relative = path.relative(folderPath, candidatePath);
+        const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
+
+        if (!isSafe) {
+            console.warn(`[Security] Rejected path traversal attempt: ${targetPath} -> ${candidatePath}`);
+            continue;
+        }
+
+        const candidateUri = vscode.Uri.file(candidatePath);
+        try {
+            // Use async fs.stat instead of synchronous fs.existsSync
+            await vscode.workspace.fs.stat(candidateUri);
+            return candidateUri;
+        } catch {
+            // File does not exist in this folder, try next
         }
     }
     return null;
@@ -147,9 +170,9 @@ export async function openChangesetForSession(options: {
             return;
         }
 
-        const uri = resolveWorkspaceFile(selection.filePath);
+        const uri = await resolveWorkspaceFile(selection.filePath);
         if (!uri) {
-            vscode.window.showErrorMessage("File not found in workspace.");
+            vscode.window.showErrorMessage("File not found in workspace (or invalid path).");
             return;
         }
 
