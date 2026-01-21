@@ -65,7 +65,7 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
 function buildChangeSetItems(changeSet: ChangeSetSummary): Array<vscode.QuickPickItem & { filePath: string }> {
     const files = changeSet.files ?? [];
     return files.map((file) => {
-        const description = file.status ? file.status : undefined;
+        const description = file.status;
         return {
             label: file.path,
             description,
