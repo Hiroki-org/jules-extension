@@ -1193,7 +1193,7 @@ export class JulesSessionsProvider
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
-      
+
       // Always try to prefetch artifacts for recent sessions to ensure context menus are available
       // matches user expectation. Run in background (fire-and-forget).
       void this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped);
@@ -1255,25 +1255,25 @@ export class JulesSessionsProvider
     // without requiring the user to manually run "Show Activities".
     const TARGET_COUNT = 5;
     const targetSessions = sessions.slice(0, TARGET_COUNT);
-    
+
     if (targetSessions.length === 0) {
       return;
     }
 
     let hasChanges = false;
-    
+
     // Run fetches in parallel
     const results = await Promise.allSettled(targetSessions.map(async (session) => {
       const before = getCachedSessionArtifacts(session.name);
       await fetchLatestSessionArtifacts(apiKey, session.name, JULES_API_BASE_URL);
       const after = getCachedSessionArtifacts(session.name);
-      
+
       // Check if availability of diff/changeset flipped
       const hadDiff = !!before?.latestDiff;
       const hasDiff = !!after?.latestDiff;
       const hadChangeset = !!before?.latestChangeSet;
       const hasChangeset = !!after?.latestChangeSet;
-      
+
       return (hadDiff !== hasDiff) || (hadChangeset !== hasChangeset);
     }));
 
@@ -1281,8 +1281,8 @@ export class JulesSessionsProvider
     hasChanges = results.some(r => r.status === 'fulfilled' && r.value === true);
 
     if (hasChanges) {
-       console.log("Jules: Artifacts updated during prefetch, triggering tree refresh.");
-       this._onDidChangeTreeData.fire();
+      console.log("Jules: Artifacts updated during prefetch, triggering tree refresh.");
+      this._onDidChangeTreeData.fire();
     }
   }
 

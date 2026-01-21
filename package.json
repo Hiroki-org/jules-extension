@@ -300,7 +300,7 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "pretest:unit": "npm run compile-tests",
-    "test:unit": "mocha --ui tdd --require source-map-support/register \"out/test/*.unit.test.js\""
+    "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
