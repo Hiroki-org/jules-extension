@@ -14,6 +14,7 @@ import {
   SessionOutput,
   handleOpenInWebApp
 } from "../extension";
+import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { activate } from "../extension";
@@ -102,6 +103,33 @@ suite("Extension Test Suite", () => {
       } as any);
 
       assert.strictEqual(item.contextValue, "jules-session");
+    });
+
+    test("SessionTreeItem reflects cached artifacts in context value", () => {
+      updateSessionArtifactsCache("sessions/999", [
+        {
+          gitPatch: { diff: "diff --git a/file.ts b/file.ts" },
+          artifacts: [
+            {
+              changeSet: {
+                files: [{ path: "src/file.ts", status: "modified" }],
+              },
+            },
+          ],
+        },
+      ] as any);
+
+      const item = new SessionTreeItem({
+        name: "sessions/999",
+        title: "Test Session",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+      } as any);
+
+      assert.ok(item.contextValue?.includes("jules-session-with-diff"));
+      assert.ok(item.contextValue?.includes("jules-session-with-changeset"));
+      assert.strictEqual(item.hasDiff, true);
+      assert.strictEqual(item.hasChangeset, true);
     });
 
     test("SessionTreeItem should have proper command", () => {

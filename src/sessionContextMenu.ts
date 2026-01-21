@@ -98,6 +98,7 @@ export async function openPullRequestInBrowser(prUrl: string): Promise<void> {
             );
         }
     } catch (error) {
+        console.error("Failed to open pull request in browser:", error);
         vscode.window.showErrorMessage(
             "Failed to open pull request in browser."
         );

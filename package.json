@@ -190,6 +190,16 @@
         "title": "Open PR in browser",
         "category": "Jules",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "jules-extension.openLatestDiff",
+        "title": "Open latest diff",
+        "category": "Jules"
+      },
+      {
+        "command": "jules-extension.openChangeset",
+        "title": "Open changeset",
+        "category": "Jules"
       }
     ],
     "viewsWelcome": [
@@ -261,6 +271,16 @@
         {
           "command": "jules-extension.openPRInBrowser",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-with-pr/",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.openLatestDiff",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-with-diff/",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.openChangeset",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-with-changeset/",
           "group": "navigation"
         }
       ]

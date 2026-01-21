@@ -13,6 +13,8 @@ import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
+import { getCachedSessionArtifacts, updateSessionArtifactsCache } from './sessionArtifacts';
+import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -1081,7 +1083,8 @@ export class JulesSessionsProvider
   constructor(private context: vscode.ExtensionContext) { }
 
   private async fetchAndProcessSessions(
-    isBackground: boolean = false
+    isBackground: boolean = false,
+    forceUIUpdate: boolean = false
   ): Promise<void> {
     if (this.isFetching) {
       logChannel.appendLine("Jules: Fetch already in progress. Skipping.");
@@ -1197,7 +1200,10 @@ export class JulesSessionsProvider
       }
 
       // Only fire event if meaningful change occurred
-      if (sessionsChanged || statesChanged) {
+      if (sessionsChanged || statesChanged || forceUIUpdate) {
+        if (forceUIUpdate && !sessionsChanged && !statesChanged) {
+          logChannel.appendLine("Jules: Forcing UI update (artifacts changed)");
+        }
         this._onDidChangeTreeData.fire();
       } else {
         logChannel.appendLine("Jules: No view updates required.");
@@ -1239,11 +1245,11 @@ export class JulesSessionsProvider
     }
   }
 
-  async refresh(isBackground: boolean = false): Promise<void> {
+  async refresh(isBackground: boolean = false, forceUIUpdate: boolean = false): Promise<void> {
     console.log(
-      `Jules: refresh() called (isBackground: ${isBackground}), starting fetch.`
+      `Jules: refresh() called (isBackground: ${isBackground}, forceUIUpdate: ${forceUIUpdate}), starting fetch.`
     );
-    await this.fetchAndProcessSessions(isBackground);
+    await this.fetchAndProcessSessions(isBackground, forceUIUpdate);
   }
 
   private processSessionNotifications(
@@ -1361,12 +1367,17 @@ export class SessionTreeItem extends vscode.TreeItem {
   };
 
   public readonly prUrl: string | null;
+  public readonly hasDiff: boolean;
+  public readonly hasChangeset: boolean;
 
   constructor(public readonly session: Session, private readonly selectedSource?: SourceType) {
     super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
 
     // Calculate prUrl once and cache it
     this.prUrl = getPullRequestUrlForSession(session);
+    const cachedArtifacts = getCachedSessionArtifacts(session.name);
+    this.hasDiff = Boolean(cachedArtifacts?.latestDiff);
+    this.hasChangeset = Boolean(cachedArtifacts?.latestChangeSet);
 
     const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
     tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
@@ -1408,7 +1419,21 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (this.prUrl) {
       contextValues.push("jules-session-with-pr");
     }
+    if (this.hasDiff) {
+      contextValues.push("jules-session-with-diff");
+    }
+    if (this.hasChangeset) {
+      contextValues.push("jules-session-with-changeset");
+    }
     this.contextValue = contextValues.join(" ");
+
+    // ⭐ DEBUG: TreeItem contextValue 確認用ログ
+    logChannel.appendLine(`[DEBUG TreeItem] session.name=${session.name}`);
+    logChannel.appendLine(`[DEBUG TreeItem] cachedArtifacts exists=${!!cachedArtifacts}`);
+    logChannel.appendLine(`[DEBUG TreeItem] cachedArtifacts.latestDiff exists=${!!cachedArtifacts?.latestDiff}`);
+    logChannel.appendLine(`[DEBUG TreeItem] cachedArtifacts.latestChangeSet exists=${!!cachedArtifacts?.latestChangeSet}`);
+    logChannel.appendLine(`[DEBUG TreeItem] this.contextValue="${this.contextValue}"`);
+    logChannel.appendLine(`[DEBUG TreeItem] ---`);
 
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
@@ -2092,6 +2117,13 @@ export function activate(context: vscode.ExtensionContext) {
           vscode.window.showErrorMessage("Invalid response format from API.");
           return;
         }
+
+        const artifactsChanged = updateSessionArtifactsCache(sessionId, data.activities);
+
+        if (artifactsChanged) {
+          // forceUIUpdate=true で TreeView を強制更新
+          sessionsProvider.refresh(true, true);
+        }
         activitiesChannel.clear();
         activitiesChannel.show();
         activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
@@ -2455,6 +2487,59 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const diffProvider = new JulesDiffDocumentProvider();
+  const diffProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
+    "jules-diff",
+    diffProvider
+  );
+
+  const openLatestDiffDisposable = vscode.commands.registerCommand(
+    "jules-extension.openLatestDiff",
+    async (item?: SessionTreeItem | string) => {
+      const sessionId = resolveSessionId(context, item);
+      if (!sessionId) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+      const sessionTitle = item instanceof SessionTreeItem ? item.session.title : undefined;
+      await openLatestDiffForSession({
+        sessionId,
+        sessionTitle,
+        apiKey,
+        apiBaseUrl: JULES_API_BASE_URL,
+        logChannel,
+        diffProvider,
+      });
+    }
+  );
+
+  const openChangesetDisposable = vscode.commands.registerCommand(
+    "jules-extension.openChangeset",
+    async (item?: SessionTreeItem | string) => {
+      const sessionId = resolveSessionId(context, item);
+      if (!sessionId) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+      const sessionTitle = item instanceof SessionTreeItem ? item.session.title : undefined;
+      await openChangesetForSession({
+        sessionId,
+        sessionTitle,
+        apiKey,
+        apiBaseUrl: JULES_API_BASE_URL,
+        logChannel,
+      });
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2472,7 +2557,10 @@ export function activate(context: vscode.ExtensionContext) {
     setGitHubPatDisposable,
     clearCacheDisposable,
     openInWebAppDisposable,
-    openPRInBrowserDisposable
+    openPRInBrowserDisposable,
+    diffProviderDisposable,
+    openLatestDiffDisposable,
+    openChangesetDisposable
   );
 }
 
