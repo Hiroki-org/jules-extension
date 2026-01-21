@@ -1079,6 +1079,8 @@ export class JulesSessionsProvider
   private isFetching = false;
   private lastBranchRefreshTime: number = 0;
   private readonly BRANCH_REFRESH_INTERVAL = 4 * 60 * 1000; // 4 minutes
+  private lastArtifactsPrefetchTime: number = 0;
+  private readonly ARTIFACTS_PREFETCH_INTERVAL = 3 * 60 * 1000; // 3 minutes
 
   constructor(private context: vscode.ExtensionContext) { }
 
@@ -1251,6 +1253,15 @@ export class JulesSessionsProvider
   }
 
   private async _prefetchArtifactsForRecentSessions(apiKey: string, sessions: Session[]): Promise<void> {
+    // Throttle prefetch to avoid excessive API calls during frequent refreshes
+    const now = Date.now();
+    if (now - this.lastArtifactsPrefetchTime < this.ARTIFACTS_PREFETCH_INTERVAL) {
+      return;
+    }
+
+    // Update timestamp immediately to prevent concurrent prefetches
+    this.lastArtifactsPrefetchTime = now;
+
     // Prefetch artifacts for the top N sessions to enable context menu items (diff/changeset)
     // without requiring the user to manually run "Show Activities".
     const TARGET_COUNT = 5;
