@@ -792,7 +792,7 @@ index 2345678..bcdefgh 100644
 
             assert.ok(fetchStub.calledOnce);
             const callArgs = fetchStub.firstCall.args;
-            assert.ok(callArgs[0].includes(customBaseUrl));
+            assert.ok(callArgs[0].startsWith(customBaseUrl));
         });
 
         test('API キーがヘッダーに正しく設定されること', async () => {
