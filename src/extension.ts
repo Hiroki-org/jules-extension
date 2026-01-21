@@ -1469,7 +1469,6 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.contextValue = contextValues.join(" ");
 
     // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
-    // logChannel.appendLine(`[DEBUG TreeItem] session.name=${session.name}`); ...
 
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
