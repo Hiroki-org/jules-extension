@@ -1,56 +1,86 @@
 import * as vscode from "vscode";
-import { Session } from "./extension";
+import type { Session } from "./extension";
 
 /**
- * Extracts PR URL from a session, with basic validation.
+ * Extracts PR URL from a session, with URL parsing-based validation.
  * Returns null if no PR URL is found or if the URL is invalid.
- *
- * Priority:
- * 1. PR URL from session outputs (session.outputs[].pullRequest.url)
- *
+ * 
  * Validation:
- * - Must start with https://github.com/
- * - Must match GitHub PR URL pattern
+ * - Must be a valid URL with https:// protocol
+ * - Must be hosted on github.com
+ * - Must have path matching /owner/repo/pull/number
+ * - Canonical form is returned (without query strings or fragments)
  */
 export function getPullRequestUrlForSession(session: Session): string | null {
     try {
         // Extract PR URL from outputs
-        const prUrl = session.outputs?.find((o) => o.pullRequest)?.pullRequest?.url;
+        const raw = session.outputs?.find((o) => o.pullRequest)?.pullRequest?.url;
 
-        if (!prUrl) {
+        if (!raw) {
             return null;
         }
 
         // Validate: Must be a string
-        if (typeof prUrl !== "string") {
-            console.warn(
-                `[Jules] Invalid PR URL type: expected string, got ${typeof prUrl}`
-            );
+        if (typeof raw !== "string") {
+            console.warn("[Jules] Invalid pull request url");
             return null;
         }
 
-        // Validate: Must start with https://github.com/
-        if (!prUrl.startsWith("https://github.com/")) {
-            console.warn(
-                `[Jules] PR URL does not start with https://github.com/: ${prUrl}`
-            );
+        // Parse URL
+        let u: URL;
+        try {
+            u = new URL(raw);
+        } catch {
+            console.warn("[Jules] Invalid pull request url");
             return null;
         }
 
-        // Validate: Must match GitHub PR URL pattern
-        // Pattern: https://github.com/{owner}/{repo}/pull/{number}
-        const githubPrPattern = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/;
-        if (!githubPrPattern.test(prUrl)) {
-            console.warn(`[Jules] PR URL does not match expected GitHub pattern: ${prUrl}`);
+        // Validate protocol and hostname
+        if (u.protocol !== "https:") {
+            console.warn("[Jules] Invalid pull request url");
             return null;
         }
 
-        return prUrl;
+        if (u.hostname !== "github.com") {
+            console.warn("[Jules] Invalid pull request url");
+            return null;
+        }
+
+        // Parse pathname: should be /owner/repo/pull/number
+        const segments = u.pathname
+            .split("/")
+            .filter((seg) => seg.length > 0);
+
+        if (segments.length < 4) {
+            console.warn("[Jules] Invalid pull request url");
+            return null;
+        }
+
+        const [owner, repo, pullKeyword, numberStr] = segments;
+
+        // Validate owner and repo are not empty
+        if (!owner || !repo) {
+            console.warn("[Jules] Invalid pull request url");
+            return null;
+        }
+
+        // Validate pull keyword
+        if (pullKeyword !== "pull") {
+            console.warn("[Jules] Invalid pull request url");
+            return null;
+        }
+
+        // Validate number is a positive integer
+        if (!/^\d+$/.test(numberStr)) {
+            console.warn("[Jules] Invalid pull request url");
+            return null;
+        }
+
+        // Return canonical form (normalized URL without query/fragment)
+        const canonical = `https://github.com/${owner}/${repo}/pull/${numberStr}`;
+        return canonical;
     } catch (error) {
-        console.error(
-            `[Jules] Error extracting PR URL from session:`,
-            error instanceof Error ? error.message : error
-        );
+        console.warn("[Jules] Invalid pull request url");
         return null;
     }
 }
@@ -63,13 +93,13 @@ export async function openPullRequestInBrowser(prUrl: string): Promise<void> {
     try {
         const success = await vscode.env.openExternal(vscode.Uri.parse(prUrl));
         if (!success) {
-            vscode.window.showWarningMessage(
-                "Failed to open the pull request URL in the browser."
+            vscode.window.showErrorMessage(
+                "Failed to open pull request in browser."
             );
         }
     } catch (error) {
         vscode.window.showErrorMessage(
-            `Error opening PR: ${error instanceof Error ? error.message : "Unknown error"}`
+            "Failed to open pull request in browser."
         );
     }
 }

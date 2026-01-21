@@ -1360,8 +1360,13 @@ export class SessionTreeItem extends vscode.TreeItem {
     'CANCELLED': 'Cancelled',
   };
 
+  public readonly prUrl: string | null;
+
   constructor(public readonly session: Session, private readonly selectedSource?: SourceType) {
     super(session.title || session.name, vscode.TreeItemCollapsibleState.None);
+
+    // Calculate prUrl once and cache it
+    this.prUrl = getPullRequestUrlForSession(session);
 
     const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
     tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
@@ -1394,15 +1399,17 @@ export class SessionTreeItem extends vscode.TreeItem {
 
     this.description = session.state;
     this.iconPath = this.getIcon(session.rawState);
-    this.contextValue = "jules-session";
+    
+    // Build contextValue using array for idempotent result
+    const contextValues = ["jules-session"];
     if (session.url) {
-      this.contextValue += " jules-session-with-url";
+      contextValues.push("jules-session-with-url");
     }
-    // Add context value for PR menu item
-    const prUrl = getPullRequestUrlForSession(session);
-    if (prUrl) {
-      this.contextValue += " jules-session-with-pr";
+    if (this.prUrl) {
+      contextValues.push("jules-session-with-pr");
     }
+    this.contextValue = contextValues.join(" ");
+
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
       title: "Show Activities",
@@ -2440,9 +2447,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage("No session selected.");
         return;
       }
-      const prUrl = getPullRequestUrlForSession(item.session);
-      if (prUrl) {
-        await openPullRequestInBrowser(prUrl);
+      if (item.prUrl) {
+        await openPullRequestInBrowser(item.prUrl);
       } else {
         vscode.window.showErrorMessage("No pull request URL available for this session.");
       }
