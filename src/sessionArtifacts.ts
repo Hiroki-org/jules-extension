@@ -76,43 +76,58 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     return files;
 }
 
-function extractChangeSetFiles(changeSet: Record<string, unknown>): ChangeSetFile[] {
-    // 1. Try to extract from gitPatch.unidiffPatch
-    const gitPatch = changeSet.gitPatch as Record<string, unknown> | undefined;
-    if (gitPatch && typeof gitPatch.unidiffPatch === 'string') {
-        const files = parseFilesFromDiff(gitPatch.unidiffPatch);
+function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
+    const candidates = [
+        changeSet.files,
+        changeSet.changes,
+        changeSet.entries,
+        changeSet.changedFiles,
+        changeSet.paths,
+    ];
+
+    const files: ChangeSetFile[] = [];
+    const seenPaths = new Set<string>();
+
+    for (const candidate of candidates) {
+        if (!Array.isArray(candidate)) {
+            continue;
+        }
+
+        for (const entry of candidate) {
+            let extractedPath: string | null = null;
+            let extractedStatus: string | undefined = undefined;
+
+            if (typeof entry === 'string') {
+                extractedPath = normalizePath(entry);
+            } else if (entry && typeof entry === 'object') {
+                const record = entry as Record<string, unknown>;
+                extractedPath = normalizePath(record.path ?? record.filePath ?? record.file ?? record.name ?? record.filename);
+                extractedStatus = normalizeStatus(record.status ?? record.action ?? record.type);
+            }
+
+            if (extractedPath && !seenPaths.has(extractedPath)) {
+                files.push({ path: extractedPath, status: extractedStatus });
+                seenPaths.add(extractedPath);
+            }
+        }
+
+        // If we successfully extracted files from this candidate type, we stop.
+        // This assumes that one changeSet object uses only one consistent property name.
         if (files.length > 0) {
             return files;
         }
     }
 
-    // 2. Try existing candidates
-    const candidates = [
-        changeSet.files,
-        changeSet.entries,
-        changeSet.changes,
-    ];
-
-    for (const candidate of candidates) {
-        if (Array.isArray(candidate)) {
-            const files: ChangeSetFile[] = [];
-            for (const entry of candidate) {
-                if (!entry || typeof entry !== "object") {
-                    continue;
-                }
-                const record = entry as Record<string, unknown>;
-                const path = normalizePath(record.path ?? record.filePath ?? record.file ?? record.name);
-                if (!path) {
-                    continue;
-                }
-                const status = normalizeStatus(record.status ?? record.action ?? record.type);
-                files.push({ path, status });
-            }
-            if (files.length > 0) {
-                return files;
-            }
+    // Fallback: Try to extract from diff if available
+    if (fallbackDiff) {
+        // We only use the explicitly provided fallbackDiff (which comes from gitPatch.diff)
+        // We DO NOT look at changeSet.gitPatch.unidiffPatch here anymore.
+        const diffFiles = parseFilesFromDiff(fallbackDiff);
+        if (diffFiles.length > 0) {
+            return diffFiles;
         }
     }
+    
     return [];
 }
 
@@ -128,17 +143,17 @@ function extractLatestDiff(activities: Activity[]): string | undefined {
         const artifacts = activities[i]?.artifacts;
         if (Array.isArray(artifacts)) {
             for (const artifact of artifacts) {
-                const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
-                if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
-                    return uniDiff;
-                }
+                 const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                 if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
+                     return uniDiff;
+                 }
             }
         }
     }
     return undefined;
 }
 
-function extractLatestChangeSet(activities: Activity[]): ChangeSetSummary | undefined {
+function extractLatestChangeSet(activities: Activity[], latestDiff?: string): ChangeSetSummary | undefined {
     for (let i = activities.length - 1; i >= 0; i -= 1) {
         const artifacts = activities[i]?.artifacts;
         if (!artifacts || artifacts.length === 0) {
@@ -148,7 +163,7 @@ function extractLatestChangeSet(activities: Activity[]): ChangeSetSummary | unde
             const changeSet = artifact?.changeSet;
             if (changeSet && typeof changeSet === "object") {
                 return {
-                    files: extractChangeSetFiles(changeSet),
+                    files: extractChangeSetFiles(changeSet, latestDiff),
                     raw: changeSet,
                 };
             }
@@ -161,9 +176,13 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
     if (!Array.isArray(activities) || activities.length === 0) {
         return {};
     }
+    
+    const latestDiff = extractLatestDiff(activities);
+    const latestChangeSet = extractLatestChangeSet(activities, latestDiff);
+
     return {
-        latestDiff: extractLatestDiff(activities),
-        latestChangeSet: extractLatestChangeSet(activities),
+        latestDiff,
+        latestChangeSet,
     };
 }
 
