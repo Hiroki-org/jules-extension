@@ -12,6 +12,7 @@ import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './sec
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
+import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -220,7 +221,7 @@ function getRepositoryForWorkspaceFolder(git: any, workspaceFolder: vscode.Works
  */
 function getRemoteUrl(repository: any, preferredRemoteName: string = 'origin', outputChannel?: vscode.OutputChannel): string | null {
   const logger = outputChannel ?? { appendLine: (s: string) => console.log(s) } as vscode.OutputChannel;
-  
+
   if (!repository.state.remotes || repository.state.remotes.length === 0) {
     logger.appendLine('[Jules] No remotes found in repository');
     return null;
@@ -1397,6 +1398,11 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (session.url) {
       this.contextValue += " jules-session-with-url";
     }
+    // Add context value for PR menu item
+    const prUrl = getPullRequestUrlForSession(session);
+    if (prUrl) {
+      this.contextValue += " jules-session-with-pr";
+    }
     this.command = {
       command: SHOW_ACTIVITIES_COMMAND,
       title: "Show Activities",
@@ -2426,6 +2432,23 @@ export function activate(context: vscode.ExtensionContext) {
     "jules-extension.openInWebApp",
     (item?: SessionTreeItem) => handleOpenInWebApp(item, logChannel)
   );
+
+  const openPRInBrowserDisposable = vscode.commands.registerCommand(
+    "jules-extension.openPRInBrowser",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      const prUrl = getPullRequestUrlForSession(item.session);
+      if (prUrl) {
+        await openPullRequestInBrowser(prUrl);
+      } else {
+        vscode.window.showErrorMessage("No pull request URL available for this session.");
+      }
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2442,7 +2465,8 @@ export function activate(context: vscode.ExtensionContext) {
     setGithubTokenDisposable,
     setGitHubPatDisposable,
     clearCacheDisposable,
-    openInWebAppDisposable
+    openInWebAppDisposable,
+    openPRInBrowserDisposable
   );
 }
 
