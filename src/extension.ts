@@ -2157,7 +2157,7 @@ export function activate(context: vscode.ExtensionContext) {
         const artifactsChanged = updateSessionArtifactsCache(sessionId, data.activities);
 
         if (artifactsChanged) {
-          // forceUIUpdate=true で TreeView を強制更新
+          // Force TreeView update with forceUIUpdate=true
           sessionsProvider.refresh(true, true);
         }
         activitiesChannel.clear();
