@@ -110,3 +110,38 @@ export function formatPlanForNotification(
   }
   return parts.join("\n");
 }
+
+/**
+ * Formats a full plan for display in a read-only document.
+ *
+ * Includes the title and all steps without truncation.
+ *
+ * @param plan - Plan object with optional title and steps
+ * @returns Formatted markdown string
+ */
+export function formatFullPlan(plan: Plan): string {
+  const parts: string[] = [];
+  if (plan.title) {
+    const trimmedTitle = plan.title.trim();
+    if (trimmedTitle.length > 0) {
+      parts.push(`# ${trimmedTitle}`);
+    }
+  }
+
+  if (Array.isArray(plan.steps) && plan.steps.length > 0) {
+    let index = 1;
+    for (const step of plan.steps) {
+      const stepText = formatPlanStepText(step);
+      if (stepText) {
+        parts.push(`${index}. ${stepText}`);
+        index++;
+      }
+    }
+  }
+
+  if (parts.length === 0) {
+    return "(No plan content available)";
+  }
+
+  return parts.join("\n\n");
+}

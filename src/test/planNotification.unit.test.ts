@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { formatPlanForNotification } from "../planUtils";
+import { formatPlanForNotification, formatFullPlan } from "../planUtils";
 
 suite("Plan Notification Formatting", () => {
   test("uses title as fallback when description is missing", () => {
@@ -158,5 +158,45 @@ suite("Plan Notification Formatting", () => {
     // maxSteps floors to 1, so only first step shown
     assert.ok(result.includes("1. Do X"));
     assert.ok(!result.includes("2. Do Y"));
+  });
+});
+
+suite("Plan Full Formatting", () => {
+  test("formats title correctly", () => {
+    const result = formatFullPlan({
+      title: "My Plan",
+      steps: [],
+    });
+    assert.strictEqual(result, "# My Plan");
+  });
+
+  test("formats steps correctly", () => {
+    const result = formatFullPlan({
+      title: "My Plan",
+      steps: ["Step 1", "Step 2"],
+    });
+    assert.ok(result.includes("# My Plan"));
+    assert.ok(result.includes("1. Step 1"));
+    assert.ok(result.includes("2. Step 2"));
+  });
+
+  test("handles missing title", () => {
+    const result = formatFullPlan({
+      steps: ["Step 1"],
+    });
+    assert.strictEqual(result, "1. Step 1");
+  });
+
+  test("handles empty plan", () => {
+    const result = formatFullPlan({});
+    assert.strictEqual(result, "(No plan content available)");
+  });
+
+  test("handles object steps", () => {
+    const result = formatFullPlan({
+      steps: [{ description: "Do X" }, { title: "Do Y" }],
+    });
+    assert.ok(result.includes("1. Do X"));
+    assert.ok(result.includes("2. Do Y"));
   });
 });

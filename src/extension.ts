@@ -11,7 +11,7 @@ import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './securityUtils';
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
-import { formatPlanForNotification, Plan } from './planUtils';
+import { formatPlanForNotification, formatFullPlan, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
@@ -1485,6 +1485,11 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (this.hasChangeset) {
       contextValues.push("jules-session-with-changeset");
     }
+
+    if (session.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
+      contextValues.push("jules-session-awaiting-plan-approval");
+    }
+
     this.contextValue = contextValues.join(" ");
 
     // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
@@ -2594,6 +2599,51 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const reviewPlanDisposable = vscode.commands.registerCommand(
+    "jules-extension.reviewPlan",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+
+      const session = item.session;
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+
+      try {
+        const plan = await fetchPlanFromActivities(session.name, apiKey);
+        if (!plan) {
+          vscode.window.showErrorMessage("Failed to fetch plan for this session.");
+          return;
+        }
+
+        const formattedPlan = formatFullPlan(plan);
+        const doc = await vscode.workspace.openTextDocument({
+          content: formattedPlan,
+          language: "markdown",
+        });
+        await vscode.window.showTextDocument(doc, { preview: true });
+
+        // Show approval dialog immediately after opening the document
+        const selection = await vscode.window.showInformationMessage(
+          `Do you want to approve the plan for "${session.title}"?`,
+          "Approve Plan",
+          "Cancel"
+        );
+
+        if (selection === "Approve Plan") {
+          await approvePlan(session.name, context);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        vscode.window.showErrorMessage(`Failed to review plan: ${message}`);
+      }
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2614,7 +2664,8 @@ export function activate(context: vscode.ExtensionContext) {
     openPRInBrowserDisposable,
     diffProviderDisposable,
     openLatestDiffDisposable,
-    openChangesetDisposable
+    openChangesetDisposable,
+    reviewPlanDisposable
   );
 }
 
