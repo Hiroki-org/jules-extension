@@ -199,4 +199,26 @@ suite("Plan Full Formatting", () => {
     assert.ok(result.includes("1. Do X"));
     assert.ok(result.includes("2. Do Y"));
   });
+
+  test("handles whitespace-only title", () => {
+    const result = formatFullPlan({
+      title: "   ",
+      steps: ["Step 1"],
+    } as any);
+    assert.strictEqual(result, "1. Step 1");
+  });
+
+  test("skips empty description steps", () => {
+    const result = formatFullPlan({
+      steps: [{ description: "" }, { description: "Valid step" }],
+    } as any);
+    assert.strictEqual(result, "1. Valid step");
+  });
+
+  test("ignores invalid steps", () => {
+    const result = formatFullPlan({
+      steps: [null, undefined, "Valid step"] as any,
+    } as any);
+    assert.strictEqual(result, "1. Valid step");
+  });
 });
