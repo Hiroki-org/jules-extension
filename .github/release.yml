@@ -28,7 +28,7 @@ changelog:
     - title: ⚡ Performance
       labels:
         - performance
-        - bolt
+        - perf
     - title: 🎨 UI/UX
       labels:
         - ui
