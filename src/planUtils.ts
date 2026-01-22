@@ -127,26 +127,37 @@ export function formatFullPlan(plan: Plan): string {
     }
   }
 
-  if (Array.isArray(plan.steps) && plan.steps.length > 0) {
-    plan.steps.forEach((step, index) => {
-        lines.push(`## Step ${index + 1}`);
-        if (typeof step === 'string') {
-            lines.push(step);
-        } else {
-             const title = (step as PlanStep).title;
-             const desc = (step as PlanStep).description;
-             if (title) {
-                 lines.push(`**${title}**`);
-                 lines.push("");
-             }
-             if (desc) {
-                 lines.push(desc);
-             }
-        }
-        lines.push('');
-    });
-  } else {
-      lines.push('No plan steps available.');
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  let renderedSteps = 0;
+  steps.forEach((step) => {
+    const stepLines: string[] = [];
+    if (typeof step === "string") {
+      const trimmed = step.trim();
+      if (trimmed.length > 0) {
+        stepLines.push(trimmed);
+      }
+    } else if (step && typeof step === "object") {
+      const rawTitle = (step as PlanStep).title;
+      const rawDesc = (step as PlanStep).description;
+      const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+      const desc = typeof rawDesc === "string" ? rawDesc.trim() : "";
+      if (title) {
+        stepLines.push(`**${title}**`, "");
+      }
+      if (desc) {
+        stepLines.push(desc);
+      }
+    }
+    if (stepLines.length === 0) {
+      return;
+    }
+    renderedSteps += 1;
+    lines.push(`## Step ${renderedSteps}`);
+    lines.push(...stepLines);
+    lines.push("");
+  });
+  if (renderedSteps === 0) {
+    lines.push("No plan steps available.");
   }
   return lines.join('\n');
 }

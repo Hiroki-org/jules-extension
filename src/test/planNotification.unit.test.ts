@@ -199,4 +199,32 @@ suite("Plan Full Formatting", () => {
         assert.ok(result.includes("## Step 1"));
         assert.ok(result.includes("Only step"));
     });
+
+    test("skips empty and whitespace-only steps in full plan", () => {
+        const result = formatFullPlan({
+            title: "Sparse Plan",
+            steps: [
+                "  ",  // whitespace only
+                { title: "", description: "" }, // empty object
+                "Real Step"
+            ]
+        });
+
+        assert.ok(result.includes("# Sparse Plan"));
+        // "Real Step" should be Step 1
+        assert.ok(result.includes("## Step 1"));
+        assert.ok(result.includes("Real Step"));
+        // Should not have Step 2
+        assert.ok(!result.includes("## Step 2"));
+    });
+
+    test("handles plan where all steps are empty", () => {
+        const result = formatFullPlan({
+            title: "Ghost Plan",
+            steps: [" ", {} as any, { description: "  " }]
+        });
+
+        assert.ok(result.includes("No plan steps available."));
+        assert.ok(!result.includes("## Step 1"));
+    });
 });
