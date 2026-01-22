@@ -15,6 +15,7 @@ import { formatPlanForNotification, formatFullPlan, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
+import { JulesPlanProvider } from './planProvider';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -2552,6 +2553,12 @@ export function activate(context: vscode.ExtensionContext) {
     diffProvider
   );
 
+  const planProvider = new JulesPlanProvider();
+  const planProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
+    "jules-plan",
+    planProvider
+  );
+
   const openLatestDiffDisposable = vscode.commands.registerCommand(
     "jules-extension.openLatestDiff",
     async (item?: SessionTreeItem | string) => {
@@ -2621,10 +2628,13 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const formattedPlan = formatFullPlan(plan);
-        const doc = await vscode.workspace.openTextDocument({
-          content: formattedPlan,
-          language: "markdown",
-        });
+
+        // Update provider with content
+        planProvider.updatePlan(session.name, formattedPlan);
+
+        // Open virtual document
+        const uri = vscode.Uri.parse(`jules-plan:Plan - ${encodeURIComponent(session.title)}.md?sessionId=${encodeURIComponent(session.name)}`);
+        const doc = await vscode.workspace.openTextDocument(uri);
         await vscode.window.showTextDocument(doc, { preview: true });
 
         // Show approval dialog immediately after opening the document
@@ -2663,6 +2673,7 @@ export function activate(context: vscode.ExtensionContext) {
     openInWebAppDisposable,
     openPRInBrowserDisposable,
     diffProviderDisposable,
+    planProviderDisposable,
     openLatestDiffDisposable,
     openChangesetDisposable,
     reviewPlanDisposable
