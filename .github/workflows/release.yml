@@ -12,9 +12,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: "20.x"
 
@@ -34,84 +34,8 @@ jobs:
         run: vsce package
 
       - name: Create Release
-        uses: actions/github-script@v8
+        uses: softprops/action-gh-release@v2
         with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-
-            const vsixDir = './';
-            const files = fs.readdirSync(vsixDir);
-            const vsixFile = files.find((file) => file.endsWith('.vsix'));
-
-            if (!vsixFile) {
-              throw new Error('VSIX file not found. Ensure vsce package succeeded.');
-            }
-
-            const vsixPath = path.join(vsixDir, vsixFile);
-            const vsixData = fs.readFileSync(vsixPath);
-            const tagName = context.ref.replace('refs/tags/', '');
-
-            async function ensureRelease() {
-              try {
-                const created = await github.rest.repos.createRelease({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  tag_name: tagName,
-                  name: `Release ${tagName}`,
-                  draft: false,
-                  prerelease: false,
-                  generate_release_notes: true
-                });
-                core.info(`Created new release for ${tagName}`);
-                return created.data;
-              } catch (error) {
-                if (error.status !== 422) {
-                  throw error;
-                }
-
-                core.info(`Release for ${tagName} already exists. Reusing existing release.`);
-                const existing = await github.rest.repos.getReleaseByTag({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  tag: tagName
-                });
-                return existing.data;
-              }
-            }
-
-            const release = await ensureRelease();
-
-            const assets = await github.paginate(github.rest.repos.listReleaseAssets, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: release.id,
-              per_page: 100
-            });
-
-            const existingAsset = assets.find(asset => asset.name === vsixFile);
-            if (existingAsset) {
-              core.info(`Deleting existing asset ${existingAsset.name} (id: ${existingAsset.id})`);
-              await github.rest.repos.deleteReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                asset_id: existingAsset.id
-              });
-            }
-
-            await github.rest.repos.uploadReleaseAsset({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: release.id,
-              name: vsixFile,
-              data: vsixData,
-              headers: {
-                'content-type': 'application/octet-stream',
-                'content-length': Buffer.byteLength(vsixData)
-              }
-            });
-
-            core.info(`Release ready at ${release.html_url}`);
-            core.info(`Uploaded VSIX asset ${vsixFile}`);
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: "*.vsix"
+          generate_release_notes: true
+          fail_on_unmatched_files: true
