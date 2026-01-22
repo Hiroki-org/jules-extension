@@ -602,6 +602,15 @@ async function notifyUserFeedbackRequired(session: Session): Promise<void> {
   }
 }
 
+/**
+ * 2つのセッション出力配列が、含まれるプルリクエスト情報の値レベルで等しいかどうかを判定する。
+ *
+ * 配列と配列の要素数、各要素の `pullRequest` に含まれる `url`、`title`、`description` を順序通りに比較し、すべて一致する場合に等しいとみなします。
+ *
+ * @param a - 比較元のセッション出力配列（省略または undefined 可）
+ * @param b - 比較先のセッション出力配列（省略または undefined 可）
+ * @returns `true` ならば配列構造と各プルリクエストの `url`・`title`・`description` がすべて一致する、`false` ならそれ以外。 
+ */
 export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boolean {
   if (a === b) {
     return true;
@@ -625,6 +634,16 @@ export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boole
   return true;
 }
 
+/**
+ * ソースコンテキストが等しいかどうかを判定します。
+ *
+ * 比較は次のルールで行われます：同一オブジェクト参照であれば等しいと見なし、そうでなければ両方が存在し `source` が一致し、
+ * `githubRepoContext` が双方とも未定義であるか、または `startingBranch` が一致する場合に等しいと判定します。
+ *
+ * @param a - 比較対象の一方のソースコンテキスト
+ * @param b - 比較対象の他方のソースコンテキスト
+ * @returns `true` が等しい場合、`false` はそれ以外の場合
+ */
 export function areSourceContextsEqual(
   a?: { source: string; githubRepoContext?: { startingBranch: string } },
   b?: { source: string; githubRepoContext?: { startingBranch: string } }
@@ -647,6 +666,15 @@ export function areSourceContextsEqual(
   return a.githubRepoContext.startingBranch === b.githubRepoContext.startingBranch;
 }
 
+/**
+ * セッション配列同士を比較し、同一と見なせるかを判定する。
+ *
+ * 名前で対応させた各セッションについて、`state`、`rawState`、`title`、`requirePlanApproval`、`sourceContext`（`startingBranch` を含む）および `outputs` がすべて一致する場合に同一と判断する。
+ *
+ * @param a - 比較対象の先頭のセッション配列
+ * @param b - 比較対象のもう一方のセッション配列
+ * @returns `true` もし両配列が同じセッション集合を持ち、対応するセッションの前述のフィールドがすべて一致する場合、`false` otherwise.
+ */
 export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   if (a === b) {
     return true;
@@ -2185,4 +2213,3 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   stopAutoRefresh();
 }
-
