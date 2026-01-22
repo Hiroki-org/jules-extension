@@ -1,0 +1,67 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - no-changelog
+      - bot
+      - duplicate
+      - invalid
+      - question
+      - wontfix
+    authors:
+      - dependabot[bot]
+      - renovate[bot]
+  categories:
+    - title: 🔒 Security
+      labels:
+        - security
+        - sentinel
+        - "possible-security-concern"
+    - title: ✨ Features
+      labels:
+        - enhancement
+        - feature
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: ⚡ Performance
+      labels:
+        - performance
+        - perf
+    - title: 🎨 UI/UX
+      labels:
+        - ui
+        - ux
+        - design
+        - palette
+    - title: 🧪 Tests
+      labels:
+        - test
+        - testing
+    - title: 👷 CI/CD
+      labels:
+        - ci
+        - cd
+        - workflow
+        - build
+        - github_actions
+        - title: ♻️ Refactor
+          labels:
+            - refactor
+            - cleanup
+        - title: 📝 Documentation
+          labels:
+            - docs
+            - documentation
+        - title: 📦 Dependencies
+          labels:
+            - dependencies
+            - deps
+    - title: 📚 Documentation
+      labels:
+        - documentation
+        - docs
+    - title: 🔧 Other Changes
+      labels:
+        - "*"
