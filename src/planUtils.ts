@@ -110,3 +110,43 @@ export function formatPlanForNotification(
   }
   return parts.join("\n");
 }
+
+/**
+ * Formats a full plan for display in a read-only document.
+ *
+ * @param plan - Plan object with optional title and steps
+ * @returns Full formatted markdown string
+ */
+export function formatFullPlan(plan: Plan): string {
+  const lines: string[] = [];
+  if (plan.title) {
+    const trimmedTitle = plan.title.trim();
+    if (trimmedTitle.length > 0) {
+      lines.push(`# ${trimmedTitle}`);
+      lines.push('');
+    }
+  }
+
+  if (Array.isArray(plan.steps) && plan.steps.length > 0) {
+    plan.steps.forEach((step, index) => {
+        lines.push(`## Step ${index + 1}`);
+        if (typeof step === 'string') {
+            lines.push(step);
+        } else {
+             const title = (step as PlanStep).title;
+             const desc = (step as PlanStep).description;
+             if (title) {
+                 lines.push(`**${title}**`);
+                 lines.push("");
+             }
+             if (desc) {
+                 lines.push(desc);
+             }
+        }
+        lines.push('');
+    });
+  } else {
+      lines.push('No plan steps available.');
+  }
+  return lines.join('\n');
+}

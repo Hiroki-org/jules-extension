@@ -11,7 +11,7 @@ import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './securityUtils';
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
-import { formatPlanForNotification, Plan } from './planUtils';
+import { formatPlanForNotification, formatFullPlan, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
@@ -1485,6 +1485,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (this.hasChangeset) {
       contextValues.push("jules-session-with-changeset");
     }
+    if (session.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
+      contextValues.push("jules-session-awaiting-plan-approval");
+    }
     this.contextValue = contextValues.join(" ");
 
     // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
@@ -2594,6 +2597,58 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const reviewPlanDisposable = vscode.commands.registerCommand(
+    "jules-extension.reviewPlan",
+    async (item?: SessionTreeItem | string) => {
+      const sessionId = resolveSessionId(context, item);
+      if (!sessionId) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Fetching plan...",
+        },
+        async () => {
+          const plan = await fetchPlanFromActivities(sessionId, apiKey);
+          if (!plan) {
+            vscode.window.showWarningMessage("No plan found for this session.");
+            return;
+          }
+
+          const planContent = formatFullPlan(plan);
+          const document = await vscode.workspace.openTextDocument({
+            content: planContent,
+            language: "markdown",
+          });
+          await vscode.window.showTextDocument(document, { preview: true });
+
+          // Show info message with Approve/Cancel
+          // Use non-modal for better UX while reading the doc, or modal if forced decision is needed.
+          // User request says: "Display after... Approve plan / Cancel"
+          // If we use non-modal, the user can read the doc comfortably.
+          // Use modal: true to ensure the notification persists while the user reviews the document
+          const choice = await vscode.window.showInformationMessage(
+            `Reviewing plan for session: ${item instanceof SessionTreeItem ? item.session.title : sessionId}`,
+            { modal: true },
+            "Approve Plan",
+            "Cancel"
+          );
+
+          if (choice === "Approve Plan") {
+            await approvePlan(sessionId, context);
+          }
+        }
+      );
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2614,7 +2669,8 @@ export function activate(context: vscode.ExtensionContext) {
     openPRInBrowserDisposable,
     diffProviderDisposable,
     openLatestDiffDisposable,
-    openChangesetDisposable
+    openChangesetDisposable,
+    reviewPlanDisposable
   );
 }
 

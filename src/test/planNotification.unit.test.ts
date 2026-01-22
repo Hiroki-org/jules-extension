@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { formatPlanForNotification } from "../planUtils";
+import { formatPlanForNotification, formatFullPlan } from "../planUtils";
 
 suite("Plan Notification Formatting", () => {
   test("uses title as fallback when description is missing", () => {
@@ -159,4 +159,44 @@ suite("Plan Notification Formatting", () => {
     assert.ok(result.includes("1. Do X"));
     assert.ok(!result.includes("2. Do Y"));
   });
+});
+
+suite("Plan Full Formatting", () => {
+    test("formats full plan with title and steps", () => {
+        const result = formatFullPlan({
+            title: "Test Plan",
+            steps: [
+                { title: "Step 1", description: "Desc 1" },
+                "Step 2 string"
+            ]
+        });
+
+        assert.ok(result.includes("# Test Plan"));
+        assert.ok(result.includes("## Step 1"));
+        assert.ok(result.includes("**Step 1**"));
+        assert.ok(result.includes("Desc 1"));
+        assert.ok(result.includes("## Step 2"));
+        assert.ok(result.includes("Step 2 string"));
+    });
+
+    test("formats full plan with empty steps", () => {
+        const result = formatFullPlan({
+            title: "Empty Plan",
+            steps: []
+        });
+
+        assert.ok(result.includes("# Empty Plan"));
+        assert.ok(result.includes("No plan steps available."));
+    });
+
+    test("formats full plan with only steps", () => {
+        const result = formatFullPlan({
+            steps: ["Only step"]
+        });
+
+        // Should not have H1 title
+        assert.ok(!result.startsWith("# "));
+        assert.ok(result.includes("## Step 1"));
+        assert.ok(result.includes("Only step"));
+    });
 });
