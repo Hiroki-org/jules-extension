@@ -46,6 +46,18 @@ changelog:
         - workflow
         - build
         - github_actions
+        - title: ♻️ Refactor
+          labels:
+            - refactor
+            - cleanup
+        - title: 📝 Documentation
+          labels:
+            - docs
+            - documentation
+        - title: 📦 Dependencies
+          labels:
+            - dependencies
+            - deps
     - title: 📚 Documentation
       labels:
         - documentation
