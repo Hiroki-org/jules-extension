@@ -4,6 +4,10 @@ changelog:
       - ignore-for-release
       - no-changelog
       - bot
+      - duplicate
+      - invalid
+      - question
+      - wontfix
     authors:
       - dependabot[bot]
       - renovate[bot]
@@ -11,8 +15,8 @@ changelog:
     - title: 🔒 Security
       labels:
         - security
-        - vulnerability
         - sentinel
+        - "Possible security concern"
     - title: ✨ Features
       labels:
         - enhancement
@@ -41,3 +45,4 @@ changelog:
         - cd
         - workflow
         - build
+        - github_actions
