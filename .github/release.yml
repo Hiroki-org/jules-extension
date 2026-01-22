@@ -46,3 +46,10 @@ changelog:
         - workflow
         - build
         - github_actions
+    - title: 📚 Documentation
+      labels:
+        - documentation
+        - docs
+    - title: 🔧 Other Changes
+      labels:
+        - "*"
