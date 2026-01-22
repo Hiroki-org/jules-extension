@@ -60,7 +60,8 @@ jobs:
                   tag_name: tagName,
                   name: `Release ${tagName}`,
                   draft: false,
-                  prerelease: false
+                  prerelease: false,
+                  generate_release_notes: true
                 });
                 core.info(`Created new release for ${tagName}`);
                 return created.data;
