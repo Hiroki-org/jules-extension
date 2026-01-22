@@ -16,7 +16,7 @@ changelog:
       labels:
         - security
         - sentinel
-        - "Possible security concern"
+        - "possible-security-concern"
     - title: ✨ Features
       labels:
         - enhancement
