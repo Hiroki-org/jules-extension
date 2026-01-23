@@ -2560,25 +2560,55 @@ export function activate(context: vscode.ExtensionContext) {
 
   const reviewPlanDisposable = vscode.commands.registerCommand(
     "jules-extension.reviewPlan",
-    async (item?: SessionTreeItem) => {
-      if (!item || !(item instanceof SessionTreeItem)) {
-        vscode.window.showErrorMessage("プラン承認待ちのセッションを右クリックして選択してください。");
+    async (item?: SessionTreeItem | string) => {
+      const sessionId = resolveSessionId(context, item);
+      if (!sessionId) {
+        vscode.window.showErrorMessage("プラン承認待ちのセッションを選択してください。");
         return;
       }
 
-      const session = item.session;
+      // Check if session is AWAITING_PLAN_APPROVAL via previousSessionStates
+      // Note: We might not have the full session object if invoked via command palette,
+      // but previousSessionStates should have it.
+      const sessionState = previousSessionStates.get(sessionId);
+      const isAwaitingApproval = sessionState?.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL;
+
+      if (!isAwaitingApproval) {
+        // Allow if we have the session object directly and it says so (e.g. from context menu)
+        const sessionFromItem = item instanceof SessionTreeItem ? item.session : undefined;
+        if (sessionFromItem?.rawState !== SESSION_STATE.AWAITING_PLAN_APPROVAL) {
+           vscode.window.showErrorMessage("このセッションはプラン承認待ちではありません。");
+           return;
+        }
+      }
+
+      // We need the full session object or at least name/title for display.
+      // If we don't have it from item, try to find it in cache.
+      let sessionName = sessionId;
+      let sessionTitle = sessionState?.name || sessionId;
+
+      if (item instanceof SessionTreeItem) {
+        sessionName = item.session.name;
+        sessionTitle = item.session.title;
+      } else if (sessionState) {
+        sessionName = sessionState.name;
+        // Title isn't stored in SessionState interface currently defined in extension.ts (it has name, state, rawState, outputs, isTerminated)
+        // But the Session interface has title.
+        // If we can't get title, fallback to name.
+      }
+
       const apiKey = await getStoredApiKey(context);
       if (!apiKey) return;
 
       try {
-        const plan = await fetchPlanFromActivities(session.name, apiKey);
+        const plan = await fetchPlanFromActivities(sessionName, apiKey);
         if (!plan) {
           vscode.window.showErrorMessage("このセッションのプランが見つかりませんでした。");
           return;
         }
 
         const formattedPlan = formatFullPlan(plan);
-        const uri = vscode.Uri.parse(`jules-plan://authority/Plan: ${session.title || session.name}.md`);
+        const uri = vscode.Uri.parse(`jules-plan://authority/Plan: ${sessionTitle}.md`);
         planProvider.updatePlan(uri, formattedPlan);
 
         // ドキュメントを開く
@@ -2591,7 +2621,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         if (action === 'Approve Plan') {
-          await approvePlan(session.name, context);
+          await approvePlan(sessionName, context);
         }
 
       } catch (error) {
