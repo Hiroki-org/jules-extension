@@ -2614,7 +2614,17 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         if (selection?.label === "$(check) Approve Plan") {
-          await approvePlan(session.name, context);
+          try {
+            await approvePlan(session.name, context);
+            // Close the plan document editor after approval
+            const activeEditor = vscode.window.activeTextEditor;
+            if (activeEditor && activeEditor.document.uri.toString() === uri.toString()) {
+              await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+            }
+          } catch (approvalError) {
+            console.error("Jules: Error approving plan:", sanitizeError(approvalError));
+            vscode.window.showErrorMessage("Failed to approve plan.");
+          }
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";

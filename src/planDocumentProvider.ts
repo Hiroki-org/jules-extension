@@ -17,6 +17,8 @@ export class JulesPlanDocumentProvider implements vscode.TextDocumentContentProv
     buildUri(sessionId: string): vscode.Uri {
         // Encode session ID safely in the path
         const normalized = sessionId.replace(/^sessions\//, "");
-        return vscode.Uri.parse(`jules-plan://authority/Plan for ${normalized}.md`);
+        // Encode the path component to handle special characters safely
+        const encodedPath = encodeURIComponent(`Plan for ${normalized}.md`);
+        return vscode.Uri.parse(`jules-plan://authority/${encodedPath}`);
     }
 }

@@ -133,10 +133,11 @@ export function formatFullPlan(plan: Plan): string {
   }
 
   if (Array.isArray(plan.steps) && plan.steps.length > 0) {
-    plan.steps.forEach((step, index) => {
+    let stepCounter = 1;
+    plan.steps.forEach((step) => {
       const stepText = formatPlanStepText(step);
       if (stepText) {
-        parts.push(`${index + 1}. ${stepText}`);
+        parts.push(`${stepCounter++}. ${stepText}`);
       }
     });
   } else {
