@@ -2578,7 +2578,14 @@ export function activate(context: vscode.ExtensionContext) {
             title: "Fetching plan...",
           },
           async () => {
-            return fetchPlanFromActivities(session.name, apiKey);
+            try {
+              return await fetchPlanFromActivities(session.name, apiKey);
+            } catch (error) {
+              console.error(`Jules: Error fetching plan for review: ${sanitizeError(error)}`);
+              // fetchPlanFromActivities already returns null on error internally, but let's be safe
+              // and ensure we catch any unexpected errors from the wrapper.
+              return null;
+            }
           }
         );
 
