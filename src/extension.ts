@@ -110,6 +110,7 @@ export function mapApiStateToSessionState(
 
 interface SessionState {
   name: string;
+  title?: string;
   state: string;
   rawState: string;
   outputs?: SessionOutput[];
@@ -769,6 +770,7 @@ export async function updatePreviousStates(
       ) {
         previousSessionStates.set(session.name, {
           ...prevState,
+        title: session.title,
           state: session.state,
           rawState: session.rawState,
           outputs: session.outputs,
@@ -806,10 +808,12 @@ export async function updatePreviousStates(
       prevState.state !== session.state ||
       prevState.rawState !== session.rawState ||
       prevState.isTerminated !== isTerminated ||
-      !areOutputsEqual(prevState.outputs, session.outputs)
+      !areOutputsEqual(prevState.outputs, session.outputs) ||
+      prevState.title !== session.title
     ) {
       previousSessionStates.set(session.name, {
         name: session.name,
+        title: session.title,
         state: session.state,
         rawState: session.rawState,
         outputs: session.outputs,
@@ -2598,7 +2602,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       const apiKey = await getStoredApiKey(context);
-      if (!apiKey) return;
+      if (!apiKey) {
+        return;
+      }
 
       try {
         const plan = await fetchPlanFromActivities(sessionName, apiKey);
@@ -2608,7 +2614,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const formattedPlan = formatFullPlan(plan);
-        const uri = vscode.Uri.parse(`jules-plan://authority/Plan: ${sessionTitle}.md`);
+        // Use Uri.from to safely encode special characters in the title
+        // Include sessionName (ID) to ensure uniqueness if titles are duplicate
+        const planLabel = `Plan - ${sessionTitle} (${sessionName}).md`;
+        const uri = vscode.Uri.from({
+          scheme: "jules-plan",
+          authority: "plan",
+          path: `/${planLabel}`, // Path should start with /
+        });
         planProvider.updatePlan(uri, formattedPlan);
 
         // ドキュメントを開く
