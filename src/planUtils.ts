@@ -110,3 +110,71 @@ export function formatPlanForNotification(
   }
   return parts.join("\n");
 }
+
+/**
+ * Formats a full plan for display in a virtual document.
+ *
+ * Generates a comprehensive Markdown representation of the plan, including
+ * title and all steps with full details (title and description).
+ *
+ * @param plan - The plan to format
+ * @returns Markdown string of the full plan
+ */
+export function formatFullPlan(plan: Plan): string {
+  const parts: string[] = [];
+
+  // 1. Title
+  if (plan.title) {
+    const trimmedTitle = plan.title.trim();
+    if (trimmedTitle.length > 0) {
+      parts.push(`# ${trimmedTitle}`);
+    }
+  }
+
+  // 2. Steps
+  if (Array.isArray(plan.steps) && plan.steps.length > 0) {
+    let stepIndex = 1;
+    for (const step of plan.steps) {
+      if (typeof step === "string") {
+        const trimmed = step.trim();
+        if (trimmed.length > 0) {
+          parts.push(`${stepIndex}. ${trimmed}`);
+          stepIndex++;
+        }
+      } else if (typeof step === "object" && step !== null) {
+        const title = (step as { title?: unknown }).title;
+        const desc = (step as { description?: unknown }).description;
+
+        const titleStr = typeof title === 'string' ? title.trim() : '';
+        const descStr = typeof desc === 'string' ? desc.trim() : '';
+
+        if (titleStr.length === 0 && descStr.length === 0) {
+          continue;
+        }
+
+        let stepContent = '';
+        if (titleStr.length > 0) {
+          stepContent += `**${titleStr}**`;
+        }
+
+        if (descStr.length > 0) {
+          if (stepContent.length > 0) {
+            // If we have a title, put description on a new line, indented
+            stepContent += `\n   ${descStr}`;
+          } else {
+            stepContent += descStr;
+          }
+        }
+
+        parts.push(`${stepIndex}. ${stepContent}`);
+        stepIndex++;
+      }
+    }
+  }
+
+  if (parts.length === 0) {
+    return "(No plan details available)";
+  }
+
+  return parts.join("\n\n");
+}

@@ -145,6 +145,12 @@
         "icon": "$(check)"
       },
       {
+        "command": "jules-extension.reviewPlan",
+        "title": "Review Plan...",
+        "category": "Jules",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "jules-extension.openSettings",
         "title": "Open Jules Settings",
         "category": "Jules",
@@ -253,6 +259,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "jules-extension.reviewPlan",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-awaiting-plan-approval/",
+          "group": "1_plan"
+        },
         {
           "command": "jules-extension.sendMessage",
           "when": "view == julesSessionsView && viewItem =~ /jules-session/",

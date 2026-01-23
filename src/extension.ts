@@ -11,10 +11,11 @@ import { SourcesCache, isCacheValid } from './cache';
 import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './securityUtils';
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
-import { formatPlanForNotification, Plan } from './planUtils';
+import { formatPlanForNotification, Plan, formatFullPlan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
+import { JulesPlanDocumentProvider } from './planDocumentProvider';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -1485,6 +1486,10 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (this.hasChangeset) {
       contextValues.push("jules-session-with-changeset");
     }
+    // プラン承認待ちの状態をコンテキストメニューに反映
+    if (session.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
+      contextValues.push("jules-session-awaiting-plan-approval");
+    }
     this.contextValue = contextValues.join(" ");
 
     // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
@@ -2547,6 +2552,55 @@ export function activate(context: vscode.ExtensionContext) {
     diffProvider
   );
 
+  const planProvider = new JulesPlanDocumentProvider();
+  const planProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
+    "jules-plan",
+    planProvider
+  );
+
+  const reviewPlanDisposable = vscode.commands.registerCommand(
+    "jules-extension.reviewPlan",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("プラン承認待ちのセッションを右クリックして選択してください。");
+        return;
+      }
+
+      const session = item.session;
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) return;
+
+      try {
+        const plan = await fetchPlanFromActivities(session.name, apiKey);
+        if (!plan) {
+          vscode.window.showErrorMessage("このセッションのプランが見つかりませんでした。");
+          return;
+        }
+
+        const formattedPlan = formatFullPlan(plan);
+        const uri = vscode.Uri.parse(`jules-plan://authority/Plan: ${session.title || session.name}.md`);
+        planProvider.updatePlan(uri, formattedPlan);
+
+        // ドキュメントを開く
+        await vscode.window.showTextDocument(uri, { viewColumn: vscode.ViewColumn.Beside, preview: true });
+
+        // アクションを選択させる
+        const action = await vscode.window.showQuickPick(['Approve Plan', 'Cancel'], {
+          placeHolder: 'このプランを承認しますか？',
+          ignoreFocusOut: true
+        });
+
+        if (action === 'Approve Plan') {
+          await approvePlan(session.name, context);
+        }
+
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        vscode.window.showErrorMessage(`プランのレビュー中にエラーが発生しました: ${msg}`);
+      }
+    }
+  );
+
   const openLatestDiffDisposable = vscode.commands.registerCommand(
     "jules-extension.openLatestDiff",
     async (item?: SessionTreeItem | string) => {
@@ -2613,6 +2667,8 @@ export function activate(context: vscode.ExtensionContext) {
     openInWebAppDisposable,
     openPRInBrowserDisposable,
     diffProviderDisposable,
+    planProviderDisposable,
+    reviewPlanDisposable,
     openLatestDiffDisposable,
     openChangesetDisposable
   );
