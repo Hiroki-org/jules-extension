@@ -110,3 +110,38 @@ export function formatPlanForNotification(
   }
   return parts.join("\n");
 }
+
+/**
+ * Formats a complete plan for display in a full-screen view (e.g., virtual document).
+ *
+ * Includes the title (as an H1 header) and all steps numbered sequentially.
+ * Does not truncate steps or limit the number of steps.
+ *
+ * @param plan - Plan object with optional title and steps
+ * @returns Formatted markdown string
+ */
+export function formatFullPlan(plan: Plan): string {
+  const parts: string[] = [];
+
+  // Include title if present
+  if (plan.title) {
+    const trimmedTitle = plan.title.trim();
+    if (trimmedTitle.length > 0) {
+      parts.push(`# ${trimmedTitle}`);
+      parts.push(""); // Add empty line after title
+    }
+  }
+
+  if (Array.isArray(plan.steps) && plan.steps.length > 0) {
+    plan.steps.forEach((step, index) => {
+      const stepText = formatPlanStepText(step);
+      if (stepText) {
+        parts.push(`${index + 1}. ${stepText}`);
+      }
+    });
+  } else {
+    parts.push("_No steps provided in the plan._");
+  }
+
+  return parts.join("\n");
+}

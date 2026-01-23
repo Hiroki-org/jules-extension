@@ -42,10 +42,15 @@ const mockVscode = {
             scheme: "file",
             toString: () => `file://${fsPath}`,
         }),
-        parse: (value: string) => ({
-            fsPath: value.replace(/^file:\/\//, ""),
-            toString: () => value,
-        }),
+        parse: (value: string) => {
+            const schemeMatch = value.match(/^([^:]+):/);
+            return {
+                scheme: schemeMatch ? schemeMatch[1] : "file",
+                path: value,
+                fsPath: value,
+                toString: () => value,
+            };
+        },
     },
     FileType: {
         File: 1,
@@ -63,6 +68,27 @@ const mockVscode = {
     },
     ProgressLocation: {
         Notification: 15,
+    },
+    EventEmitter: class EventEmitter {
+        private listeners: Function[] = [];
+        event = (listener: Function) => {
+            this.listeners.push(listener);
+            return { dispose: () => { } };
+        };
+        fire(data: any) {
+            this.listeners.forEach((l) => l(data));
+        }
+    },
+    TreeItem: class TreeItem {
+        constructor(public label: string | { label: string }, public collapsibleState?: any) { }
+    },
+    TreeItemCollapsibleState: {
+        None: 0,
+        Collapsed: 1,
+        Expanded: 2,
+    },
+    ThemeIcon: class ThemeIcon {
+        constructor(public id: string) { }
     },
 };
 

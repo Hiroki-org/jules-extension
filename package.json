@@ -200,6 +200,11 @@
         "command": "jules-extension.openChangeset",
         "title": "Open changeset",
         "category": "Jules"
+      },
+      {
+        "command": "jules-extension.reviewPlanContext",
+        "title": "Review Plan...",
+        "icon": "$(checklist)"
       }
     ],
     "viewsWelcome": [
@@ -262,6 +267,11 @@
           "command": "jules-extension.deleteSession",
           "when": "view == julesSessionsView && viewItem =~ /jules-session/",
           "group": "management"
+        },
+        {
+          "command": "jules-extension.reviewPlanContext",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-awaiting-plan/",
+          "group": "navigation@1"
         },
         {
           "command": "jules-extension.openInWebApp",
