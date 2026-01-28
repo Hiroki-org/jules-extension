@@ -46,7 +46,10 @@ suite('Performance Optimization - getActiveRepository', () => {
         // Mock active editor to point to a file in repo2
         const activeEditorStub = {
             document: {
-                uri: { fsPath: '/repo2/src/file.ts' }
+                uri: {
+                    fsPath: '/repo2/src/file.ts',
+                    scheme: 'file'
+                }
             }
         };
         sandbox.stub(vscode.window, 'activeTextEditor').value(activeEditorStub);

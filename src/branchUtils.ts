@@ -30,10 +30,10 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
         if (options.silent) {
             // Try to infer repository from active text editor
             const activeEditor = vscode.window.activeTextEditor;
-            if (activeEditor) {
-                const docPath = activeEditor.document.uri.fsPath;
+            if (activeEditor && activeEditor.document.uri.scheme === 'file') {
+                const docPath = path.resolve(activeEditor.document.uri.fsPath);
                 repository = git.repositories.find((repo: any) => {
-                    const repoPath = repo.rootUri.fsPath;
+                    const repoPath = path.resolve(repo.rootUri.fsPath);
                     const relative = path.relative(repoPath, docPath);
                     // If relative is empty, docPath is the same as repoPath.
                     // If relative is not empty, it should not start with '..' and not be an absolute path.
@@ -51,7 +51,7 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
                 repo: any;
             }
             const repoItems: RepoItem[] = git.repositories.map((repo: any, index: number) => ({
-                label: repo.rootUri.fsPath.split('/').pop() || `Repository ${index + 1}`,
+                label: path.basename(repo.rootUri.fsPath) || `Repository ${index + 1}`,
                 description: repo.rootUri.fsPath,
                 repo
             }));
