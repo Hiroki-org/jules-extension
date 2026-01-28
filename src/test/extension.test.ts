@@ -432,6 +432,22 @@ suite("Extension Test Suite", () => {
         false
       );
     });
+    test("should return false when one has githubRepoContext and the other does not", () => {
+      assert.strictEqual(
+        areSourceContextsEqual(
+          { source: "s", githubRepoContext: { startingBranch: "b" } },
+          { source: "s" }
+        ),
+        false
+      );
+      assert.strictEqual(
+        areSourceContextsEqual(
+          { source: "s" },
+          { source: "s", githubRepoContext: { startingBranch: "b" } }
+        ),
+        false
+      );
+    });
     test("should return true when identical", () => {
       const ctx = { source: "s", githubRepoContext: { startingBranch: "b" } };
       assert.strictEqual(areSourceContextsEqual(ctx, ctx), true);
