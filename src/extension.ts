@@ -654,16 +654,11 @@ export function areSourceContextsEqual(
   if (!a || !b) {
     return false;
   }
-  if (a.source !== b.source) {
-    return false;
-  }
-  if (a.githubRepoContext === b.githubRepoContext) {
-    return true;
-  }
-  if (!a.githubRepoContext || !b.githubRepoContext) {
-    return false;
-  }
-  return a.githubRepoContext.startingBranch === b.githubRepoContext.startingBranch;
+
+  return (
+    a.source === b.source &&
+    a.githubRepoContext?.startingBranch === b.githubRepoContext?.startingBranch
+  );
 }
 
 /**
