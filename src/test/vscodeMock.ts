@@ -36,6 +36,10 @@ const mockVscode = {
     env: {
         openExternal: async () => true,
     },
+    extensions: {
+        getExtension: () => undefined,
+        all: [],
+    },
     Uri: {
         file: (fsPath: string) => ({
             fsPath,
