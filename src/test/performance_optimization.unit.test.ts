@@ -3,7 +3,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { getCurrentBranch } from '../branchUtils';
 
-suite('Performance Optimization - getActiveRepository', () => {
+suite('Performance Optimization - getCurrentBranch', () => {
     let sandbox: sinon.SinonSandbox;
     let showQuickPickStub: sinon.SinonStub;
     let outputChannelStub: any;
