@@ -15,6 +15,7 @@ import { formatPlanForNotification, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
+import { mapLimit } from './asyncUtils';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -746,13 +747,15 @@ export async function updatePreviousStates(
       token = (await context.secrets.get("jules-github-token"));
     }
 
-    await Promise.all(sessionsToCheck.map(async (session) => {
+    // Optimization: Use mapLimit to process PR checks with concurrency limit.
+    // This prevents rate limiting issues when checking many sessions at once.
+    await mapLimit(sessionsToCheck, 5, async (session) => {
       const prUrl = extractPRUrl(session);
       // The `if (prUrl)` check is redundant because `sessionsToCheck` is already filtered.
       // `prUrl` is guaranteed to be non-null here.
       const isClosed = await checkPRStatus(prUrl!, context, token);
       prStatusMap.set(session.name, isClosed);
-    }));
+    });
   }
 
   for (const session of currentSessions) {
