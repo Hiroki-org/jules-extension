@@ -1245,7 +1245,7 @@ export class JulesSessionsProvider
       const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
       // Use forceRefresh: false to respect the cache TTL (5 min).
       // The createSession command handles stale cache gracefully by re-fetching if the selected branch is missing from the remote list.
-      await getBranchesForSession(selectedSource, apiClient, JulesSessionsProvider.silentOutputChannel, this.context, { forceRefresh: false, showProgress: false });
+      await getBranchesForSession(selectedSource, apiClient, JulesSessionsProvider.silentOutputChannel, this.context, { forceRefresh: false, showProgress: false, silent: true });
       console.log("Jules: Branch cache updated successfully during background refresh");
     } catch (error: unknown) {
       console.error(`Jules: Failed to update branch cache during background refresh for ${sanitizeForLogging(selectedSource.name)}: ${sanitizeError(error)}`);

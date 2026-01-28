@@ -38,9 +38,10 @@ suite("Performance Tests", () => {
     });
 
     test("updatePreviousStates should be performant with multiple PR checks", async () => {
-        // Create 5 completed sessions with PRs
-        // Using fewer sessions to keep test fast, but enough to show difference
-        const sessions: Session[] = Array.from({ length: 5 }, (_, i) => ({
+        // Create 10 completed sessions with PRs to clearly distinguish parallel vs sequential
+        // Sequential: 10 * 100ms = 1000ms
+        // Parallel: ~100ms + overhead (should be well under 600ms)
+        const sessions: Session[] = Array.from({ length: 10 }, (_, i) => ({
             name: `session-${i}`,
             title: `Session ${i}`,
             state: "COMPLETED",
@@ -58,15 +59,12 @@ suite("Performance Tests", () => {
         await updatePreviousStates(sessions, mockContext);
         const duration = Date.now() - start;
 
-        // If sequential: 5 * 100ms = 500ms
-        // If parallel: ~100ms (plus overhead)
-
         console.log(`Performance test duration: ${duration}ms`);
 
-        // This assertion will fail initially if it's sequential (expected > 500ms)
-        // I'll set a threshold that requires parallelism.
-        // 5 * 100 = 500ms. Parallel should be around 100-200ms.
-        // Let's be generous and say < 300ms.
-        assert.ok(duration < 400, `Expected < 400ms (parallel), but got ${duration}ms (sequential?)`);
+        // Sequential execution would be > 1000ms.
+        // Parallel execution should be significantly faster.
+        // We set the threshold to 800ms to allow plenty of CI overhead buffer
+        // while still strictly failing for sequential execution.
+        assert.ok(duration < 800, `Expected < 800ms (parallel), but got ${duration}ms (sequential?)`);
     });
 });

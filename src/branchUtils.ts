@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as path from 'path';
 import { JulesApiClient } from './julesApiClient';
 import { Source as SourceType } from './types';
 import { BranchesCache, isCacheValid } from './cache';
@@ -8,7 +9,7 @@ import { sanitizeForLogging } from './securityUtils';
 const DEFAULT_FALLBACK_BRANCH = 'main';
 const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
-async function getActiveRepository(outputChannel: vscode.OutputChannel): Promise<any | null> {
+async function getActiveRepository(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<any | null> {
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
         outputChannel.appendLine('Git extension not available');
@@ -25,23 +26,44 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel): Promise
     if (git.repositories.length === 1) {
         repository = git.repositories[0];
     } else {
-        // Multi-root workspace: let user select repository
-        interface RepoItem extends vscode.QuickPickItem {
-            repo: any;
+        // Multi-root workspace
+        if (options.silent) {
+            // Try to infer repository from active text editor
+            const activeEditor = vscode.window.activeTextEditor;
+            if (activeEditor && activeEditor.document.uri.scheme === 'file') {
+                const docPath = path.resolve(activeEditor.document.uri.fsPath);
+                repository = git.repositories.find((repo: any) => {
+                    const repoPath = path.resolve(repo.rootUri.fsPath);
+                    const relative = path.relative(repoPath, docPath);
+                    // If relative is empty, docPath is the same as repoPath.
+                    // If relative is not empty, it should not start with '..' and not be an absolute path.
+                    return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+                });
+            }
+
+            if (!repository) {
+                outputChannel.appendLine('Multiple repositories found and silent mode is on. Cannot determine active repository.');
+                return null;
+            }
+        } else {
+            // Let user select repository
+            interface RepoItem extends vscode.QuickPickItem {
+                repo: any;
+            }
+            const repoItems: RepoItem[] = git.repositories.map((repo: any, index: number) => ({
+                label: path.basename(repo.rootUri.fsPath) || `Repository ${index + 1}`,
+                description: repo.rootUri.fsPath,
+                repo
+            }));
+            const selected = await vscode.window.showQuickPick(repoItems, {
+                placeHolder: 'Select a Git repository'
+            });
+            if (!selected) {
+                outputChannel.appendLine('No repository selected');
+                return null;
+            }
+            repository = selected.repo;
         }
-        const repoItems: RepoItem[] = git.repositories.map((repo: any, index: number) => ({
-            label: repo.rootUri.fsPath.split('/').pop() || `Repository ${index + 1}`,
-            description: repo.rootUri.fsPath,
-            repo
-        }));
-        const selected = await vscode.window.showQuickPick(repoItems, {
-            placeHolder: 'Select a Git repository'
-        });
-        if (!selected) {
-            outputChannel.appendLine('No repository selected');
-            return null;
-        }
-        repository = selected.repo;
     }
 
     return repository;
@@ -50,11 +72,12 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel): Promise
 /**
  * 現在のGitブランチを取得する
  * @param outputChannel ログ出力チャンネル
+ * @param options オプション
  * @returns 現在のブランチ名、またはnull（Git拡張が利用できない場合など）
  */
-export async function getCurrentBranch(outputChannel: vscode.OutputChannel): Promise<string | null> {
+export async function getCurrentBranch(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<string | null> {
     try {
-        const repository = await getActiveRepository(outputChannel);
+        const repository = await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
@@ -72,9 +95,9 @@ export async function getCurrentBranch(outputChannel: vscode.OutputChannel): Pro
     }
 }
 
-async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel): Promise<{ owner: string; repo: string } | null> {
+async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<{ owner: string; repo: string } | null> {
     try {
-        const repository = await getActiveRepository(outputChannel);
+        const repository = await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
@@ -145,7 +168,7 @@ export async function getBranchesForSession(
     apiClient: JulesApiClient,
     outputChannel: vscode.OutputChannel,
     context: vscode.ExtensionContext,
-    options: { forceRefresh?: boolean, showProgress?: boolean } = {}
+    options: { forceRefresh?: boolean, showProgress?: boolean, silent?: boolean } = {}
 ): Promise<{
     branches: string[];
     defaultBranch: string;
@@ -154,7 +177,7 @@ export async function getBranchesForSession(
 }> {
     const sourceId = selectedSource.name || selectedSource.id || '';
     const cacheKey = `jules.branches.${sourceId}`;
-    const { forceRefresh = false, showProgress = true } = options;
+    const { forceRefresh = false, showProgress = true, silent = false } = options;
 
     // キャッシュチェック（簡潔なログ）
     if (!forceRefresh) {
@@ -197,7 +220,7 @@ export async function getBranchesForSession(
             branches = [defaultBranch];
         }
 
-        const currentBranch = await getCurrentBranch(outputChannel);
+        const currentBranch = await getCurrentBranch(outputChannel, { silent });
 
         // 警告は1回だけ
         if (currentBranch && !remoteBranches.includes(currentBranch)) {
@@ -210,7 +233,7 @@ export async function getBranchesForSession(
 
         let selectedDefaultBranch = defaultBranch;
         if (defaultBranchConfig === 'current' && currentBranch) {
-            const workspaceRepo = await getWorkspaceGitHubRepo(outputChannel);
+            const workspaceRepo = await getWorkspaceGitHubRepo(outputChannel, { silent });
             const sourceRepo = selectedSource.githubRepo;
             const isRepoMatched = workspaceRepo && sourceRepo &&
                 workspaceRepo.owner === sourceRepo.owner.toLowerCase() &&

@@ -32,9 +32,14 @@ const mockVscode = {
         showQuickPick: async () => undefined,
         withProgress: async (_opts: any, task: any) => task(),
         showTextDocument: async () => undefined,
+        activeTextEditor: undefined,
     },
     env: {
         openExternal: async () => true,
+    },
+    extensions: {
+        getExtension: () => undefined,
+        all: [],
     },
     Uri: {
         file: (fsPath: string) => ({
@@ -63,6 +68,27 @@ const mockVscode = {
     },
     ProgressLocation: {
         Notification: 15,
+    },
+    TreeItem: class TreeItem {
+        label: string;
+        collapsibleState: any;
+        constructor(label: string, collapsibleState: any) {
+            this.label = label;
+            this.collapsibleState = collapsibleState;
+        }
+    },
+    TreeItemCollapsibleState: {
+        None: 0,
+        Collapsed: 1,
+        Expanded: 2,
+    },
+    ThemeIcon: class ThemeIcon {
+        id: string;
+        color?: any;
+        constructor(id: string, color?: any) {
+            this.id = id;
+            this.color = color;
+        }
     },
 };
 
