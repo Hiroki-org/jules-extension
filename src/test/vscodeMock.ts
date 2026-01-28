@@ -69,6 +69,27 @@ const mockVscode = {
     ProgressLocation: {
         Notification: 15,
     },
+    TreeItem: class TreeItem {
+        label: string;
+        collapsibleState: any;
+        constructor(label: string, collapsibleState: any) {
+            this.label = label;
+            this.collapsibleState = collapsibleState;
+        }
+    },
+    TreeItemCollapsibleState: {
+        None: 0,
+        Collapsed: 1,
+        Expanded: 2,
+    },
+    ThemeIcon: class ThemeIcon {
+        id: string;
+        color?: any;
+        constructor(id: string, color?: any) {
+            this.id = id;
+            this.color = color;
+        }
+    },
 };
 
 const originalLoad = (Module as any)._load;
