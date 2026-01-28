@@ -24,7 +24,7 @@ suite('AsyncUtils Test Suite', () => {
       return item;
     });
 
-    assert.ok(maxActiveCount <= 2, `Max active count ${maxActiveCount} should be <= 2`);
+    assert.strictEqual(maxActiveCount, 2, `Max active count ${maxActiveCount} should be exactly 2`);
     assert.strictEqual(activeCount, 0, 'All tasks should finish');
   });
 
