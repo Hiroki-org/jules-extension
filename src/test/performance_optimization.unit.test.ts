@@ -41,4 +41,19 @@ suite('Performance Optimization - getActiveRepository', () => {
         await getCurrentBranch(outputChannelStub, { silent: true });
         assert.ok(showQuickPickStub.notCalled, 'showQuickPick should NOT be called');
     });
+
+    test('Optimization: correctly infers repository from active editor in silent mode', async () => {
+        // Mock active editor to point to a file in repo2
+        const activeEditorStub = {
+            document: {
+                uri: { fsPath: '/repo2/src/file.ts' }
+            }
+        };
+        sandbox.stub(vscode.window, 'activeTextEditor').value(activeEditorStub);
+
+        const branch = await getCurrentBranch(outputChannelStub, { silent: true });
+
+        assert.strictEqual(branch, 'dev', 'Should infer repo2 and return its branch "dev"');
+        assert.ok(showQuickPickStub.notCalled, 'showQuickPick should NOT be called');
+    });
 });

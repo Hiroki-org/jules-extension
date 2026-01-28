@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as path from 'path';
 import { JulesApiClient } from './julesApiClient';
 import { Source as SourceType } from './types';
 import { BranchesCache, isCacheValid } from './cache';
@@ -33,15 +34,10 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
                 const docPath = activeEditor.document.uri.fsPath;
                 repository = git.repositories.find((repo: any) => {
                     const repoPath = repo.rootUri.fsPath;
-                    if (docPath === repoPath) {
-                        return true;
-                    }
-                    if (docPath.startsWith(repoPath)) {
-                        const separator = docPath.charAt(repoPath.length);
-                        // Ensure it is a subpath by checking for separator
-                        return separator === '/' || separator === '\\';
-                    }
-                    return false;
+                    const relative = path.relative(repoPath, docPath);
+                    // If relative is empty, docPath is the same as repoPath.
+                    // If relative is not empty, it should not start with '..' and not be an absolute path.
+                    return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
                 });
             }
 

@@ -32,6 +32,7 @@ const mockVscode = {
         showQuickPick: async () => undefined,
         withProgress: async (_opts: any, task: any) => task(),
         showTextDocument: async () => undefined,
+        activeTextEditor: undefined,
     },
     env: {
         openExternal: async () => true,
