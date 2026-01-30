@@ -1398,20 +1398,6 @@ export class SessionTreeItem extends vscode.TreeItem {
     'CANCELLED': new vscode.ThemeIcon('close'),
   };
 
-  // State descriptions for tooltips (English) - now in tooltipUtils.ts
-  private static readonly stateDescriptionMap: Record<string, string> = {
-    'STATE_UNSPECIFIED': 'Unknown state',
-    'QUEUED': 'Queued',
-    'PLANNING': 'Planning',
-    'AWAITING_PLAN_APPROVAL': 'Awaiting plan approval',
-    'AWAITING_USER_FEEDBACK': 'Awaiting user feedback',
-    'IN_PROGRESS': 'In progress',
-    'PAUSED': 'Paused',
-    'FAILED': 'Failed',
-    'COMPLETED': 'Completed',
-    'CANCELLED': 'Cancelled',
-  };
-
   public readonly prUrl: string | null;
   public readonly hasDiff: boolean;
   public readonly hasChangeset: boolean;

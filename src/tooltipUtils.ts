@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 import type { Session, SourceType } from "./types";
 
 // State descriptions for tooltips
-const stateDescriptionMap: Record<string, string> = {
+export const stateDescriptionMap: Record<string, string> = {
   'STATE_UNSPECIFIED': 'Unknown state',
   'QUEUED': 'Queued',
   'PLANNING': 'Planning',
@@ -101,14 +101,12 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   if (session.sourceContext?.source) {
     // Extract repo name if possible for cleaner display
     const source = session.sourceContext.source;
-    if (typeof source === 'string') {
-      const repoMatch = source.match(/sources\/github\/(.+)/);
-      const repoName = repoMatch ? repoMatch[1] : source;
-      const lockIcon = getPrivacyIcon(selectedSource?.isPrivate);
-      const privacyStatus = getPrivacyStatusText(selectedSource?.isPrivate, 'long');
+    const repoMatch = source.match(/sources\/github\/(.+)/);
+    const repoName = repoMatch ? repoMatch[1] : source;
+    const lockIcon = getPrivacyIcon(selectedSource?.isPrivate);
+    const privacyStatus = getPrivacyStatusText(selectedSource?.isPrivate, 'long');
 
-      tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
-    }
+    tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
   }
 
   // Add starting branch if available

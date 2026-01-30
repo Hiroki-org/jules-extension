@@ -282,7 +282,7 @@ suite("Extension Test Suite", () => {
       } as any);
 
       const tooltip = (item.tooltip as vscode.MarkdownString).value;
-      assert.ok(!tooltip.includes("� **Pull Request**"));
+      assert.ok(!tooltip.includes("🔗 **Pull Request**"));
     });
 
     test("SessionTreeItem tooltip should handle session with all optional fields", () => {
