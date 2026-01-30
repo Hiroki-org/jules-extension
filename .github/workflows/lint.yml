@@ -12,8 +12,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: latest
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -26,6 +24,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Security Audit (pnpm)
+        continue-on-error: true
         shell: bash
-        run: |
-          pnpm audit --audit-level=moderate || true
+        run: pnpm audit --audit-level=moderate
