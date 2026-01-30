@@ -292,7 +292,7 @@ suite("Extension Test Suite", () => {
       const localSandbox = sinon.createSandbox();
 
       const getStub = localSandbox.stub().callsFake((key: string, def?: any) => {
-        if (key === 'jules.prStatusCache') return prCache;
+        if (key === 'jules.prStatusCache') { return prCache; }
         return def;
       });
 
@@ -593,7 +593,9 @@ suite("Extension Test Suite", () => {
       await handleOpenInWebApp(item, logChannel);
 
       assert.ok(openExternalStub.calledOnce);
-      assert.strictEqual(openExternalStub.getCall(0).args[0].toString(), "http://example.com");
+      const calledUrl = openExternalStub.getCall(0).args[0].toString();
+      // VS Code Uri.parse normalization may add a trailing slash
+      assert.ok(calledUrl === "http://example.com" || calledUrl === "http://example.com/", `Expected http://example.com or http://example.com/, got ${calledUrl}`);
       assert.ok(showWarningMessageStub.notCalled);
     });
 

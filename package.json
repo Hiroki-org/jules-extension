@@ -36,7 +36,6 @@
   "categories": [
     "Other"
   ],
-  "packageManager": "pnpm@10.28.0",
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {

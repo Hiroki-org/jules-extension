@@ -2,6 +2,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { JulesSessionsProvider } from "../extension";
 import * as sinon from "sinon";
+import * as fetchUtils from "../fetchUtils";
 
 suite("JulesSessionsProvider Test Suite", () => {
     let sandbox: sinon.SinonSandbox;
@@ -20,7 +21,8 @@ suite("JulesSessionsProvider Test Suite", () => {
                 get: sandbox.stub().resolves('fake-api-key'),
             }
         } as any;
-        fetchStub = sandbox.stub(global, 'fetch');
+        // Stub fetchWithTimeout instead of global.fetch because extension uses it
+        fetchStub = sandbox.stub(fetchUtils, 'fetchWithTimeout');
     });
 
     teardown(() => {
