@@ -22,3 +22,38 @@ export interface Source {
 export interface SourcesResponse {
     sources: Source[];
 }
+
+// Pull Request output interface
+export interface PullRequestOutput {
+    url: string;
+    title?: string;
+    description?: string;
+}
+
+// Session output interface
+export interface SessionOutput {
+    pullRequest?: PullRequestOutput;
+}
+
+// Session interface
+export interface Session {
+    name: string;
+    title: string;
+    state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+    rawState: string;
+    url?: string;
+    outputs?: SessionOutput[];
+    sourceContext?: {
+        source: string;
+        githubRepoContext?: {
+            startingBranch?: string;
+        };
+    };
+    requirePlanApproval?: boolean;
+    createTime?: string;  // ISO 8601 timestamp
+    updateTime?: string;  // ISO 8601 timestamp
+    automationMode?: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
+}
+
+// Convenience type alias
+export type SourceType = Source;

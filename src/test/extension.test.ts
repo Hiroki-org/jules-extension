@@ -170,7 +170,7 @@ suite("Extension Test Suite", () => {
         title: "Auto Session",
         state: "RUNNING",
         rawState: "IN_PROGRESS",
-        automationMode: "AUTO_APPLY",
+        automationMode: "AUTO_CREATE_PR",
       } as any);
       const autoTooltip = (autoItem.tooltip as vscode.MarkdownString).value;
       assert.ok(autoTooltip.includes("🤖 Auto Create PR"));
@@ -180,7 +180,7 @@ suite("Extension Test Suite", () => {
         title: "Manual Session",
         state: "RUNNING",
         rawState: "IN_PROGRESS",
-        automationMode: "REQUIRES_APPROVAL",
+        automationMode: "MANUAL",
       } as any);
       const manualTooltip = (manualItem.tooltip as vscode.MarkdownString).value;
       assert.ok(manualTooltip.includes("✋ Manual"));
@@ -204,9 +204,9 @@ suite("Extension Test Suite", () => {
       } as any);
 
       const tooltip = (sessionWithPR.tooltip as vscode.MarkdownString).value;
-      assert.ok(tooltip.includes("📋 **Pull Request**"));
+      assert.ok(tooltip.includes("🔗 **Pull Request**"));
       assert.ok(tooltip.includes("Fix bug in parser"));
-      assert.ok(tooltip.includes("[#42](https://github.com/owner/repo/pull/42)"));
+      assert.ok(tooltip.includes("[Open PR](https://github.com/owner/repo/pull/42)"));
     });
 
     test("SessionTreeItem tooltip should display creation and update timestamps", () => {
@@ -223,8 +223,8 @@ suite("Extension Test Suite", () => {
       } as any);
 
       const tooltip = (item.tooltip as vscode.MarkdownString).value;
-      assert.ok(tooltip.includes("📅 Created:"));
-      assert.ok(tooltip.includes("🔄 Updated:"));
+      assert.ok(tooltip.includes("Created:"));
+      assert.ok(tooltip.includes("Updated:"));
     });
 
     test("SessionTreeItem tooltip should display starting branch", () => {
@@ -242,7 +242,7 @@ suite("Extension Test Suite", () => {
       } as any);
 
       const tooltip = (item.tooltip as vscode.MarkdownString).value;
-      assert.ok(tooltip.includes("🌿 Branch: `feature/new-feature`"));
+      assert.ok(tooltip.includes("Branch: `feature/new-feature`"));
     });
 
     test("SessionTreeItem tooltip should display artifacts availability", () => {
@@ -282,7 +282,7 @@ suite("Extension Test Suite", () => {
       } as any);
 
       const tooltip = (item.tooltip as vscode.MarkdownString).value;
-      assert.ok(!tooltip.includes("📋 **Pull Request**"));
+      assert.ok(!tooltip.includes("� **Pull Request**"));
     });
 
     test("SessionTreeItem tooltip should handle session with all optional fields", () => {
@@ -299,7 +299,7 @@ suite("Extension Test Suite", () => {
         state: "COMPLETED",
         rawState: "COMPLETED",
         requirePlanApproval: false,
-        automationMode: "AUTO_APPLY",
+        automationMode: "AUTO_CREATE_PR",
         createTime: "2024-02-01T08:00:00Z",
         updateTime: "2024-02-01T12:00:00Z",
         sourceContext: {
@@ -325,15 +325,15 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltip.includes("**Complete Session**"), "Title should be present");
       assert.ok(tooltip.includes("Status: **COMPLETED**"), "Status should be present");
       assert.ok(tooltip.includes("🤖 Auto Create PR"), "Automation mode should be present");
-      assert.ok(tooltip.includes("📋 **Pull Request**"), "PR section should be present");
+      assert.ok(tooltip.includes("🔗 **Pull Request**"), "PR section should be present");
       assert.ok(tooltip.includes("Complete Feature"), "PR title should be present");
-      assert.ok(tooltip.includes("[#100]"), "PR link should be present");
+      assert.ok(tooltip.includes("[Open PR](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
       assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
       assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");
-      assert.ok(tooltip.includes("🌿 Branch: `main`"), "Branch should be present");
+      assert.ok(tooltip.includes("Branch: `main`"), "Branch should be present");
       assert.ok(tooltip.includes("Source: `myorg/myrepo`"), "Source should be present");
-      assert.ok(tooltip.includes("📅 Created:"), "Create time should be present");
-      assert.ok(tooltip.includes("🔄 Updated:"), "Update time should be present");
+      assert.ok(tooltip.includes("Created:"), "Create time should be present");
+      assert.ok(tooltip.includes("Updated:"), "Update time should be present");
       assert.ok(tooltip.includes("ID: `sessions/full-session`"), "ID should be present");
     });
   });

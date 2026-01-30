@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import { JulesApiClient } from './julesApiClient';
-import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse } from './types';
+import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse, Session, SessionOutput } from './types';
 import { getBranchesForSession } from './branchUtils';
 import { showMessageComposer } from './composer';
 import { parseGitHubUrl } from "./githubUtils";
@@ -16,6 +16,7 @@ import { getPullRequestUrlForSession, openPullRequestInBrowser } from './session
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 import { mapLimit } from './asyncUtils';
+import { buildSessionTooltip } from './tooltipUtils';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -64,32 +65,8 @@ interface SessionResponse {
   // Add other fields if needed
 }
 
-export interface SessionOutput {
-  pullRequest?: {
-    url: string;
-    title: string;
-    description: string;
-  };
-}
-
-export interface Session {
-  name: string;
-  title: string;
-  state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  rawState: string;
-  url?: string;
-  outputs?: SessionOutput[];
-  sourceContext?: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch?: string;
-    };
-  };
-  requirePlanApproval?: boolean;
-  createTime?: string;  // ISO 8601 timestamp
-  updateTime?: string;  // ISO 8601 timestamp
-  automationMode?: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
-}
+// Re-export Session and SessionOutput from types for backward compatibility
+export { Session, SessionOutput } from './types';
 
 export function mapApiStateToSessionState(
   apiState: string
@@ -1421,7 +1398,7 @@ export class SessionTreeItem extends vscode.TreeItem {
     'CANCELLED': new vscode.ThemeIcon('close'),
   };
 
-  // State descriptions for tooltips (English)
+  // State descriptions for tooltips (English) - now in tooltipUtils.ts
   private static readonly stateDescriptionMap: Record<string, string> = {
     'STATE_UNSPECIFIED': 'Unknown state',
     'QUEUED': 'Queued',
@@ -1448,82 +1425,14 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.hasDiff = Boolean(cachedArtifacts?.latestDiff);
     this.hasChangeset = Boolean(cachedArtifacts?.latestChangeSet);
 
-    const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
-    tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
-
-    // Add state description from rawState
-    if (session.rawState && SessionTreeItem.stateDescriptionMap[session.rawState]) {
-      const stateDescription = SessionTreeItem.stateDescriptionMap[session.rawState];
-      tooltip.appendMarkdown(`\n\nState: ${stateDescription}`);
-    }
-
-    if (session.requirePlanApproval) {
-      tooltip.appendMarkdown(`\n\n⚠️ **Plan Approval Required**`);
-    }
-
-    // Add automation mode
-    if (session.automationMode) {
-      const automationLabel = session.automationMode === 'AUTO_CREATE_PR'
-        ? '🤖 Auto Create PR'
-        : session.automationMode === 'MANUAL'
-          ? '✋ Manual'
-          : session.automationMode;
-      tooltip.appendMarkdown(`\n\nMode: ${automationLabel}`);
-    }
-
-    // Add Pull Request info if available
-    if (this.prUrl) {
-      const prTitle = session.outputs?.find(o => o.pullRequest?.url === this.prUrl)?.pullRequest?.title;
-      tooltip.appendMarkdown(`\n\n---`);
-      tooltip.appendMarkdown(`\n\n🔗 **Pull Request**`);
-      if (prTitle) {
-        tooltip.appendMarkdown(`\n\n${prTitle}`);
-      }
-      tooltip.appendMarkdown(`\n\n[Open PR](${this.prUrl})`);
-    }
-
-    // Add diff/changeset availability
-    if (this.hasDiff || this.hasChangeset) {
-      const artifacts: string[] = [];
-      if (this.hasDiff) { artifacts.push('📄 Diff'); }
-      if (this.hasChangeset) { artifacts.push('📁 Changeset'); }
-      tooltip.appendMarkdown(`\n\nArtifacts: ${artifacts.join(', ')}`);
-    }
-
-    if (session.sourceContext?.source) {
-      // Extract repo name if possible for cleaner display
-      const source = session.sourceContext.source;
-      if (typeof source === 'string') {
-        const repoMatch = source.match(/sources\/github\/(.+)/);
-        const repoName = repoMatch ? repoMatch[1] : source;
-        const lockIcon = getPrivacyIcon(this.selectedSource?.isPrivate);
-        const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
-
-        tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
-      }
-    }
-
-    // Add starting branch if available
-    if (session.sourceContext?.githubRepoContext?.startingBranch) {
-      tooltip.appendMarkdown(`\n\nBranch: \`${session.sourceContext.githubRepoContext.startingBranch}\``);
-    }
-
-    // Add timestamps
-    if (session.createTime || session.updateTime) {
-      tooltip.appendMarkdown(`\n\n---`);
-      if (session.createTime) {
-        const createDate = new Date(session.createTime);
-        tooltip.appendMarkdown(`\n\nCreated: ${createDate.toLocaleString()}`);
-      }
-      if (session.updateTime) {
-        const updateDate = new Date(session.updateTime);
-        tooltip.appendMarkdown(`\n\nUpdated: ${updateDate.toLocaleString()}`);
-      }
-    }
-
-    tooltip.appendMarkdown(`\n\n---`);
-    tooltip.appendMarkdown(`\n\nID: \`${session.name}\``);
-    this.tooltip = tooltip;
+    // Build tooltip using extracted utility function
+    this.tooltip = buildSessionTooltip({
+      session,
+      prUrl: this.prUrl,
+      hasDiff: this.hasDiff,
+      hasChangeset: this.hasChangeset,
+      selectedSource: this.selectedSource
+    });
 
     this.description = session.state;
     this.iconPath = this.getIcon(session.rawState);
