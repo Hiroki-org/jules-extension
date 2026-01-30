@@ -163,6 +163,179 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltipValue.includes("Source: `owner/repo`"));
       assert.ok(tooltipValue.includes("ID: `sessions/123`"));
     });
+
+    test("SessionTreeItem tooltip should display automation mode", () => {
+      const autoItem = new SessionTreeItem({
+        name: "sessions/auto-1",
+        title: "Auto Session",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+        automationMode: "AUTO_APPLY",
+      } as any);
+      const autoTooltip = (autoItem.tooltip as vscode.MarkdownString).value;
+      assert.ok(autoTooltip.includes("🤖 Auto Create PR"));
+
+      const manualItem = new SessionTreeItem({
+        name: "sessions/manual-1",
+        title: "Manual Session",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+        automationMode: "REQUIRES_APPROVAL",
+      } as any);
+      const manualTooltip = (manualItem.tooltip as vscode.MarkdownString).value;
+      assert.ok(manualTooltip.includes("✋ Manual"));
+    });
+
+    test("SessionTreeItem tooltip should display PR info with link", () => {
+      const sessionWithPR = new SessionTreeItem({
+        name: "sessions/pr-1",
+        title: "Session with PR",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [
+          {
+            pullRequest: {
+              url: "https://github.com/owner/repo/pull/42",
+              title: "Fix bug in parser",
+              description: "Detailed description",
+            },
+          },
+        ],
+      } as any);
+
+      const tooltip = (sessionWithPR.tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltip.includes("📋 **Pull Request**"));
+      assert.ok(tooltip.includes("Fix bug in parser"));
+      assert.ok(tooltip.includes("[#42](https://github.com/owner/repo/pull/42)"));
+    });
+
+    test("SessionTreeItem tooltip should display creation and update timestamps", () => {
+      const createTime = "2024-01-15T10:30:00Z";
+      const updateTime = "2024-01-15T14:45:00Z";
+
+      const item = new SessionTreeItem({
+        name: "sessions/time-1",
+        title: "Session with times",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        createTime,
+        updateTime,
+      } as any);
+
+      const tooltip = (item.tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltip.includes("📅 Created:"));
+      assert.ok(tooltip.includes("🔄 Updated:"));
+    });
+
+    test("SessionTreeItem tooltip should display starting branch", () => {
+      const item = new SessionTreeItem({
+        name: "sessions/branch-1",
+        title: "Session with branch",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+        sourceContext: {
+          source: "sources/github/owner/repo",
+          githubRepoContext: {
+            startingBranch: "feature/new-feature",
+          },
+        },
+      } as any);
+
+      const tooltip = (item.tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltip.includes("🌿 Branch: `feature/new-feature`"));
+    });
+
+    test("SessionTreeItem tooltip should display artifacts availability", () => {
+      // First update cache to have artifacts
+      updateSessionArtifactsCache("sessions/artifacts-1", [
+        {
+          gitPatch: { diff: "diff content" },
+          artifacts: [
+            {
+              changeSet: {
+                files: [{ path: "src/file.ts", status: "modified" }],
+              },
+            },
+          ],
+        },
+      ] as any);
+
+      const item = new SessionTreeItem({
+        name: "sessions/artifacts-1",
+        title: "Session with artifacts",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+      } as any);
+
+      const tooltip = (item.tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltip.includes("📄 Diff"));
+      assert.ok(tooltip.includes("📁 Changeset"));
+    });
+
+    test("SessionTreeItem tooltip should not show PR section when no PR exists", () => {
+      const item = new SessionTreeItem({
+        name: "sessions/no-pr",
+        title: "Session without PR",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+        outputs: [],
+      } as any);
+
+      const tooltip = (item.tooltip as vscode.MarkdownString).value;
+      assert.ok(!tooltip.includes("📋 **Pull Request**"));
+    });
+
+    test("SessionTreeItem tooltip should handle session with all optional fields", () => {
+      updateSessionArtifactsCache("sessions/full-session", [
+        {
+          gitPatch: { diff: "diff" },
+          artifacts: [{ changeSet: { files: [{ path: "a.ts", status: "added" }] } }],
+        },
+      ] as any);
+
+      const item = new SessionTreeItem({
+        name: "sessions/full-session",
+        title: "Complete Session",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        requirePlanApproval: false,
+        automationMode: "AUTO_APPLY",
+        createTime: "2024-02-01T08:00:00Z",
+        updateTime: "2024-02-01T12:00:00Z",
+        sourceContext: {
+          source: "sources/github/myorg/myrepo",
+          githubRepoContext: {
+            startingBranch: "main",
+          },
+        },
+        outputs: [
+          {
+            pullRequest: {
+              url: "https://github.com/myorg/myrepo/pull/100",
+              title: "Complete Feature",
+              description: "Full implementation",
+            },
+          },
+        ],
+      } as any);
+
+      const tooltip = (item.tooltip as vscode.MarkdownString).value;
+      
+      // Verify all sections are present
+      assert.ok(tooltip.includes("**Complete Session**"), "Title should be present");
+      assert.ok(tooltip.includes("Status: **COMPLETED**"), "Status should be present");
+      assert.ok(tooltip.includes("🤖 Auto Create PR"), "Automation mode should be present");
+      assert.ok(tooltip.includes("📋 **Pull Request**"), "PR section should be present");
+      assert.ok(tooltip.includes("Complete Feature"), "PR title should be present");
+      assert.ok(tooltip.includes("[#100]"), "PR link should be present");
+      assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
+      assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");
+      assert.ok(tooltip.includes("🌿 Branch: `main`"), "Branch should be present");
+      assert.ok(tooltip.includes("Source: `myorg/myrepo`"), "Source should be present");
+      assert.ok(tooltip.includes("📅 Created:"), "Create time should be present");
+      assert.ok(tooltip.includes("🔄 Updated:"), "Update time should be present");
+      assert.ok(tooltip.includes("ID: `sessions/full-session`"), "ID should be present");
+    });
   });
 
   suite("buildFinalPrompt", () => {

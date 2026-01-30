@@ -81,8 +81,14 @@ export interface Session {
   outputs?: SessionOutput[];
   sourceContext?: {
     source: string;
+    githubRepoContext?: {
+      startingBranch?: string;
+    };
   };
-  requirePlanApproval?: boolean; // ⭐ NEW
+  requirePlanApproval?: boolean;
+  createTime?: string;  // ISO 8601 timestamp
+  updateTime?: string;  // ISO 8601 timestamp
+  automationMode?: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
 }
 
 export function mapApiStateToSessionState(
@@ -1455,6 +1461,35 @@ export class SessionTreeItem extends vscode.TreeItem {
       tooltip.appendMarkdown(`\n\n⚠️ **Plan Approval Required**`);
     }
 
+    // Add automation mode
+    if (session.automationMode) {
+      const automationLabel = session.automationMode === 'AUTO_CREATE_PR'
+        ? '🤖 Auto Create PR'
+        : session.automationMode === 'MANUAL'
+          ? '✋ Manual'
+          : session.automationMode;
+      tooltip.appendMarkdown(`\n\nMode: ${automationLabel}`);
+    }
+
+    // Add Pull Request info if available
+    if (this.prUrl) {
+      const prTitle = session.outputs?.find(o => o.pullRequest?.url === this.prUrl)?.pullRequest?.title;
+      tooltip.appendMarkdown(`\n\n---`);
+      tooltip.appendMarkdown(`\n\n🔗 **Pull Request**`);
+      if (prTitle) {
+        tooltip.appendMarkdown(`\n\n${prTitle}`);
+      }
+      tooltip.appendMarkdown(`\n\n[Open PR](${this.prUrl})`);
+    }
+
+    // Add diff/changeset availability
+    if (this.hasDiff || this.hasChangeset) {
+      const artifacts: string[] = [];
+      if (this.hasDiff) { artifacts.push('📄 Diff'); }
+      if (this.hasChangeset) { artifacts.push('📁 Changeset'); }
+      tooltip.appendMarkdown(`\n\nArtifacts: ${artifacts.join(', ')}`);
+    }
+
     if (session.sourceContext?.source) {
       // Extract repo name if possible for cleaner display
       const source = session.sourceContext.source;
@@ -1468,6 +1503,25 @@ export class SessionTreeItem extends vscode.TreeItem {
       }
     }
 
+    // Add starting branch if available
+    if (session.sourceContext?.githubRepoContext?.startingBranch) {
+      tooltip.appendMarkdown(`\n\nBranch: \`${session.sourceContext.githubRepoContext.startingBranch}\``);
+    }
+
+    // Add timestamps
+    if (session.createTime || session.updateTime) {
+      tooltip.appendMarkdown(`\n\n---`);
+      if (session.createTime) {
+        const createDate = new Date(session.createTime);
+        tooltip.appendMarkdown(`\n\nCreated: ${createDate.toLocaleString()}`);
+      }
+      if (session.updateTime) {
+        const updateDate = new Date(session.updateTime);
+        tooltip.appendMarkdown(`\n\nUpdated: ${updateDate.toLocaleString()}`);
+      }
+    }
+
+    tooltip.appendMarkdown(`\n\n---`);
     tooltip.appendMarkdown(`\n\nID: \`${session.name}\``);
     this.tooltip = tooltip;
 
