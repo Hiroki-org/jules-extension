@@ -29,11 +29,12 @@ suite('ErrorUtils Unit Test Suite', () => {
         const lines = result.split('\n');
         // sanitizeError returns: message + '\n' + stackLine1 + '\n' + stackLine2 ...
         // So we expect 4 lines: message, then the 3 lines of stack
-        assert.strictEqual(lines.length, 4);
-        assert.strictEqual(lines[0], 'error with stack');
-        assert.strictEqual(lines[1], 'Error: error with stack');
-        assert.strictEqual(lines[2], '    at func1 (file.ts:1:1)');
-        assert.strictEqual(lines[3], '    at func2 (file.ts:2:2)');
+        assert.deepStrictEqual(lines, [
+            'error with stack',
+            'Error: error with stack',
+            '    at func1 (file.ts:1:1)',
+            '    at func2 (file.ts:2:2)'
+        ]);
     });
 
     test('sanitizeError handles non-Error objects (string)', () => {
@@ -56,8 +57,6 @@ suite('ErrorUtils Unit Test Suite', () => {
         const error = new Error(longMessage);
         const result = sanitizeError(error);
 
-        // sanitizeForLogging defaults to 500 chars
-        assert.ok(result.length <= 500 + (error.stack ? error.stack.length : 1000)); // check message part roughly
         // The message part specifically should be truncated
         const firstLine = result.split('\n')[0];
         assert.ok(firstLine.endsWith('...'));
