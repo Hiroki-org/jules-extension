@@ -1145,11 +1145,19 @@ export class JulesSessionsProvider
 
       logChannel.appendLine(`Jules: Found ${data.sessions.length} total sessions`);
 
-      const allSessionsMapped = data.sessions.map((session) => ({
+      const allSessionsMapped = data.sessions.map((session: any) => ({
         ...session,
+        createTime: session.createTime || session.create_time,
+        updateTime: session.updateTime || session.update_time,
         rawState: session.state,
         state: mapApiStateToSessionState(session.state),
       }));
+
+      if (data.sessions.length > 0) {
+        logChannel.appendLine(`Jules: Debug - First session keys: ${Object.keys(data.sessions[0]).join(', ')}`);
+        const s = allSessionsMapped[0];
+        logChannel.appendLine(`Jules: Debug - First session mapped timestamps: createTime=${s.createTime}, updateTime=${s.updateTime}`);
+      }
 
       // デバッグ: 全セッションのrawStateをログ出力
       logChannel.appendLine(`Jules: Debug - Total sessions: ${allSessionsMapped.length}`);
