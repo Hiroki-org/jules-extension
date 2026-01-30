@@ -158,10 +158,10 @@ suite("Extension Test Suite", () => {
       assert.ok(item.tooltip instanceof vscode.MarkdownString);
       const tooltipValue = (item.tooltip as vscode.MarkdownString).value;
       assert.ok(tooltipValue.includes("**Test Session**"));
-      assert.ok(tooltipValue.includes("Status: **RUNNING**"));
-      assert.ok(tooltipValue.includes("⚠️ **Plan Approval Required**"));
-      assert.ok(tooltipValue.includes("Source: `owner/repo`"));
-      assert.ok(tooltipValue.includes("ID: `sessions/123`"));
+      assert.ok(tooltipValue.includes("**ステータス**: **RUNNING**"));
+      assert.ok(tooltipValue.includes("⚠️ **計画の承認が必要です**"));
+      assert.ok(tooltipValue.includes("**ソース**: `owner/repo`"));
+      assert.ok(tooltipValue.includes("**ID**: `sessions/123`"));
     });
   });
 

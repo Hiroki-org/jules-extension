@@ -65,6 +65,9 @@ const mockVscode = {
         constructor(value: string) {
             this.value = value;
         }
+        appendMarkdown(value: string) {
+            this.value += value;
+        }
     },
     ProgressLocation: {
         Notification: 15,

@@ -83,6 +83,8 @@ export interface Session {
     source: string;
   };
   requirePlanApproval?: boolean; // ⭐ NEW
+  createTime?: string;
+  updateTime?: string;
 }
 
 export function mapApiStateToSessionState(
@@ -1415,18 +1417,18 @@ export class SessionTreeItem extends vscode.TreeItem {
     'CANCELLED': new vscode.ThemeIcon('close'),
   };
 
-  // State descriptions for tooltips (English)
+  // State descriptions for tooltips (Japanese)
   private static readonly stateDescriptionMap: Record<string, string> = {
-    'STATE_UNSPECIFIED': 'Unknown state',
-    'QUEUED': 'Queued',
-    'PLANNING': 'Planning',
-    'AWAITING_PLAN_APPROVAL': 'Awaiting plan approval',
-    'AWAITING_USER_FEEDBACK': 'Awaiting user feedback',
-    'IN_PROGRESS': 'In progress',
-    'PAUSED': 'Paused',
-    'FAILED': 'Failed',
-    'COMPLETED': 'Completed',
-    'CANCELLED': 'Cancelled',
+    'STATE_UNSPECIFIED': '状態不明',
+    'QUEUED': '待機中',
+    'PLANNING': '計画作成中',
+    'AWAITING_PLAN_APPROVAL': '計画承認待ち',
+    'AWAITING_USER_FEEDBACK': 'ユーザーフィードバック待ち',
+    'IN_PROGRESS': '進行中',
+    'PAUSED': '一時停止中',
+    'FAILED': '失敗',
+    'COMPLETED': '完了',
+    'CANCELLED': 'キャンセル済み',
   };
 
   public readonly prUrl: string | null;
@@ -1443,16 +1445,16 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.hasChangeset = Boolean(cachedArtifacts?.latestChangeSet);
 
     const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
-    tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
+    tooltip.appendMarkdown(`\n\n**ステータス**: **${session.state}**`);
 
     // Add state description from rawState
     if (session.rawState && SessionTreeItem.stateDescriptionMap[session.rawState]) {
       const stateDescription = SessionTreeItem.stateDescriptionMap[session.rawState];
-      tooltip.appendMarkdown(`\n\nState: ${stateDescription}`);
+      tooltip.appendMarkdown(`\n\n**詳細状態**: ${stateDescription}`);
     }
 
     if (session.requirePlanApproval) {
-      tooltip.appendMarkdown(`\n\n⚠️ **Plan Approval Required**`);
+      tooltip.appendMarkdown(`\n\n⚠️ **計画の承認が必要です**`);
     }
 
     if (session.sourceContext?.source) {
@@ -1462,13 +1464,28 @@ export class SessionTreeItem extends vscode.TreeItem {
         const repoMatch = source.match(/sources\/github\/(.+)/);
         const repoName = repoMatch ? repoMatch[1] : source;
         const lockIcon = getPrivacyIcon(this.selectedSource?.isPrivate);
-        const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
 
-        tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
+        // ローカライズされたプライバシー状態
+        let privacyLabel = '';
+        if (this.selectedSource?.isPrivate === true) {
+          privacyLabel = ' (非公開リポジトリ)';
+        } else if (this.selectedSource?.isPrivate === false) {
+          privacyLabel = ' (公開リポジトリ)';
+        }
+
+        tooltip.appendMarkdown(`\n\n**ソース**: ${lockIcon}\`${repoName}\`${privacyLabel}`);
       }
     }
 
-    tooltip.appendMarkdown(`\n\nID: \`${session.name}\``);
+    tooltip.appendMarkdown(`\n\n**ID**: \`${session.name}\``);
+
+    if (session.createTime) {
+      tooltip.appendMarkdown(`\n\n**作成日時**: ${new Date(session.createTime).toLocaleString('ja-JP')}`);
+    }
+    if (session.updateTime) {
+      tooltip.appendMarkdown(`\n\n**最終更新**: ${new Date(session.updateTime).toLocaleString('ja-JP')}`);
+    }
+
     this.tooltip = tooltip;
 
     this.description = session.state;
