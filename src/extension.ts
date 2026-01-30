@@ -1353,7 +1353,7 @@ export class JulesSessionsProvider
     } else {
       filteredSessions = this.sessionsCache.filter(
         (session) =>
-          (session as any).sourceContext?.source === selectedSource.name
+          session.sourceContext?.source === selectedSource.name
       );
       console.log(
         `Jules: Found ${filteredSessions.length} sessions for the selected source from cache`

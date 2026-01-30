@@ -82,10 +82,33 @@ const mockVscode = {
             return this;
         }
     },
-    EventEmitter: class EventEmitter {
-        event = (listener: any) => ({ dispose: () => { } });
-        fire(data: any) { }
-        dispose() { }
+    EventEmitter: class EventEmitter<T> {
+        private _listeners: Array<(e: T) => any> = [];
+        get event() {
+            return (listener: (e: T) => any) => {
+                this._listeners.push(listener);
+                return {
+                    dispose: () => {
+                        const index = this._listeners.indexOf(listener);
+                        if (index > -1) {
+                            this._listeners.splice(index, 1);
+                        }
+                    }
+                };
+            };
+        }
+        fire(data: T) {
+            for (const listener of this._listeners) {
+                try {
+                    listener(data);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+        dispose() {
+            this._listeners = [];
+        }
     },
     ProgressLocation: {
         Notification: 15,
