@@ -73,6 +73,9 @@ const mockVscode = {
         appendMarkdown(value: string) {
             this.value += value;
         }
+        appendText(value: string) {
+            this.value += value;
+        }
     },
     EventEmitter: class EventEmitter {
         event: any;

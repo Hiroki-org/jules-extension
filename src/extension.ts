@@ -1497,12 +1497,14 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (pr) {
       const title = pr.title ? pr.title.trim() : "";
       if (title) {
-        tooltip.appendMarkdown(`\n\nPR Title: ${title}`);
+        tooltip.appendMarkdown(`\n\nPR Title: `);
+        tooltip.appendText(title);
       }
       const description = pr.description ? pr.description.trim() : "";
       if (description) {
         const desc = truncateForDisplay(description, 200);
-        tooltip.appendMarkdown(`\n\nPR Description: ${desc}`);
+        tooltip.appendMarkdown(`\n\nPR Description: `);
+        tooltip.appendText(desc);
       }
     }
 
