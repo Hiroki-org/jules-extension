@@ -189,6 +189,32 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltipValue.includes("PR Title: My PR"));
       assert.ok(tooltipValue.includes("PR Description: This is a description"));
     });
+
+    test("SessionTreeItem should trim empty PR details and handle invalid dates", () => {
+      const item = new SessionTreeItem({
+        name: "sessions/123",
+        title: "Test Session",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        createTime: "Invalid Date",
+        updateTime: "Invalid Date",
+        outputs: [{
+          pullRequest: {
+            url: "http://pr",
+            title: "   ",
+            description: "   "
+          }
+        }]
+      } as any);
+
+      const tooltipValue = (item.tooltip as vscode.MarkdownString).value;
+      // Should not include invalid dates
+      assert.ok(!tooltipValue.includes("Created:"));
+      assert.ok(!tooltipValue.includes("Updated:"));
+      // Should not include empty PR details
+      assert.ok(!tooltipValue.includes("PR Title:"));
+      assert.ok(!tooltipValue.includes("PR Description:"));
+    });
   });
 
   suite("buildFinalPrompt", () => {
@@ -485,6 +511,16 @@ suite("Extension Test Suite", () => {
       const s1 = { name: "1", state: "RUNNING", rawState: "RUNNING", sourceContext: { source: "a" } } as Session;
       const s2 = { ...s1, sourceContext: { source: "b" } } as Session;
       assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
+    });
+
+    test("should return false if timestamps differ", () => {
+      const s1 = { name: "1", state: "RUNNING", rawState: "RUNNING", createTime: "2023-01-01" } as Session;
+      const s2 = { ...s1, createTime: "2023-01-02" } as Session;
+      assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
+
+      const s3 = { ...s1, updateTime: "2023-01-01" } as Session;
+      const s4 = { ...s3, updateTime: "2023-01-02" } as Session;
+      assert.strictEqual(areSessionListsEqual([s3], [s4]), false);
     });
   });
 

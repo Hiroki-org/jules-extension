@@ -714,6 +714,8 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
       s1.rawState !== s2.rawState ||
       s1.title !== s2.title ||
       s1.requirePlanApproval !== s2.requirePlanApproval ||
+      s1.createTime !== s2.createTime ||
+      s1.updateTime !== s2.updateTime ||
       JSON.stringify(s1.sourceContext) !== JSON.stringify(s2.sourceContext) ||
       !areOutputsEqual(s1.outputs, s2.outputs)
     ) {
@@ -1471,17 +1473,27 @@ export class SessionTreeItem extends vscode.TreeItem {
     }
 
     if (session.createTime) {
-      tooltip.appendMarkdown(`\n\nCreated: ${new Date(session.createTime).toLocaleString()}`);
+      const date = new Date(session.createTime);
+      if (!isNaN(date.getTime())) {
+        tooltip.appendMarkdown(`\n\nCreated: ${date.toLocaleString()}`);
+      }
     }
     if (session.updateTime) {
-      tooltip.appendMarkdown(`\n\nUpdated: ${new Date(session.updateTime).toLocaleString()}`);
+      const date = new Date(session.updateTime);
+      if (!isNaN(date.getTime())) {
+        tooltip.appendMarkdown(`\n\nUpdated: ${date.toLocaleString()}`);
+      }
     }
 
     const pr = session.outputs?.find((o) => o.pullRequest)?.pullRequest;
     if (pr) {
-      tooltip.appendMarkdown(`\n\nPR Title: ${pr.title}`);
-      if (pr.description) {
-        const desc = truncateForDisplay(pr.description, 200);
+      const title = pr.title ? pr.title.trim() : "";
+      if (title) {
+        tooltip.appendMarkdown(`\n\nPR Title: ${title}`);
+      }
+      const description = pr.description ? pr.description.trim() : "";
+      if (description) {
+        const desc = truncateForDisplay(description, 200);
         tooltip.appendMarkdown(`\n\nPR Description: ${desc}`);
       }
     }
