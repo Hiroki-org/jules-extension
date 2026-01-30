@@ -163,6 +163,32 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltipValue.includes("Source: `owner/repo`"));
       assert.ok(tooltipValue.includes("ID: `sessions/123`"));
     });
+
+    test("SessionTreeItem should include PR details and timestamps in tooltip", () => {
+      const createTime = "2023-01-01T10:00:00Z";
+      const updateTime = "2023-01-01T11:00:00Z";
+      const item = new SessionTreeItem({
+        name: "sessions/123",
+        title: "Test Session",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        createTime: createTime,
+        updateTime: updateTime,
+        outputs: [{
+          pullRequest: {
+            url: "http://pr",
+            title: "My PR",
+            description: "This is a description"
+          }
+        }]
+      } as any);
+
+      const tooltipValue = (item.tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltipValue.includes(`Created: ${new Date(createTime).toLocaleString()}`));
+      assert.ok(tooltipValue.includes(`Updated: ${new Date(updateTime).toLocaleString()}`));
+      assert.ok(tooltipValue.includes("PR Title: My PR"));
+      assert.ok(tooltipValue.includes("PR Description: This is a description"));
+    });
   });
 
   suite("buildFinalPrompt", () => {
@@ -567,7 +593,7 @@ suite("Extension Test Suite", () => {
       await handleOpenInWebApp(item, logChannel);
 
       assert.ok(openExternalStub.calledOnce);
-      assert.strictEqual(openExternalStub.getCall(0).args[0].toString(), "http://example.com/");
+      assert.strictEqual(openExternalStub.getCall(0).args[0].toString(), "http://example.com");
       assert.ok(showWarningMessageStub.notCalled);
     });
 

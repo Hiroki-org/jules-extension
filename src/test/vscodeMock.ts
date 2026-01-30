@@ -19,7 +19,9 @@ const mockVscode = {
         getConfiguration: () => ({
             get: () => undefined,
         }),
+        onDidChangeConfiguration: () => ({ dispose: () => { } }),
         openTextDocument: async () => ({}) as any,
+        registerTextDocumentContentProvider: () => ({ dispose: () => { } }),
     },
     commands: {
         registerCommand: () => ({ dispose: () => { } }),
@@ -33,6 +35,9 @@ const mockVscode = {
         withProgress: async (_opts: any, task: any) => task(),
         showTextDocument: async () => undefined,
         activeTextEditor: undefined,
+        createTreeView: () => ({ dispose: () => { } }),
+        createStatusBarItem: () => ({ show: () => { }, dispose: () => { } }),
+        createOutputChannel: () => ({ appendLine: () => { }, clear: () => { }, show: () => { }, dispose: () => { } }),
     },
     env: {
         openExternal: async () => true,
@@ -62,9 +67,19 @@ const mockVscode = {
     },
     MarkdownString: class MarkdownString {
         value: string;
-        constructor(value: string) {
+        constructor(value: string = '') {
             this.value = value;
         }
+        appendMarkdown(value: string) {
+            this.value += value;
+        }
+    },
+    EventEmitter: class EventEmitter {
+        event: any;
+        constructor() {
+            this.event = () => ({ dispose: () => { } });
+        }
+        fire() { }
     },
     ProgressLocation: {
         Notification: 15,
@@ -89,6 +104,10 @@ const mockVscode = {
             this.id = id;
             this.color = color;
         }
+    },
+    StatusBarAlignment: {
+        Left: 1,
+        Right: 2,
     },
 };
 

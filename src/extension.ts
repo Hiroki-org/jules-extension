@@ -83,6 +83,8 @@ export interface Session {
     source: string;
   };
   requirePlanApproval?: boolean; // ⭐ NEW
+  createTime?: string;
+  updateTime?: string;
 }
 
 export function mapApiStateToSessionState(
@@ -1465,6 +1467,22 @@ export class SessionTreeItem extends vscode.TreeItem {
         const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
 
         tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
+      }
+    }
+
+    if (session.createTime) {
+      tooltip.appendMarkdown(`\n\nCreated: ${new Date(session.createTime).toLocaleString()}`);
+    }
+    if (session.updateTime) {
+      tooltip.appendMarkdown(`\n\nUpdated: ${new Date(session.updateTime).toLocaleString()}`);
+    }
+
+    const pr = session.outputs?.find((o) => o.pullRequest)?.pullRequest;
+    if (pr) {
+      tooltip.appendMarkdown(`\n\nPR Title: ${pr.title}`);
+      if (pr.description) {
+        const desc = truncateForDisplay(pr.description, 200);
+        tooltip.appendMarkdown(`\n\nPR Description: ${desc}`);
       }
     }
 
