@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import { JulesApiClient } from './julesApiClient';
-import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse } from './types';
+import { GitHubBranch, GitHubRepo, Source as SourceType, SourcesResponse, Session, SessionOutput } from './types';
 import { getBranchesForSession } from './branchUtils';
 import { showMessageComposer } from './composer';
 import { parseGitHubUrl } from "./githubUtils";
@@ -16,6 +16,7 @@ import { getPullRequestUrlForSession, openPullRequestInBrowser } from './session
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 import { mapLimit } from './asyncUtils';
+import { buildSessionTooltip } from './tooltipUtils';
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -64,26 +65,8 @@ interface SessionResponse {
   // Add other fields if needed
 }
 
-export interface SessionOutput {
-  pullRequest?: {
-    url: string;
-    title: string;
-    description: string;
-  };
-}
-
-export interface Session {
-  name: string;
-  title: string;
-  state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  rawState: string;
-  url?: string;
-  outputs?: SessionOutput[];
-  sourceContext?: {
-    source: string;
-  };
-  requirePlanApproval?: boolean; // ⭐ NEW
-}
+// Re-export Session and SessionOutput from types for backward compatibility
+export { Session, SessionOutput } from './types';
 
 export function mapApiStateToSessionState(
   apiState: string
@@ -1415,20 +1398,6 @@ export class SessionTreeItem extends vscode.TreeItem {
     'CANCELLED': new vscode.ThemeIcon('close'),
   };
 
-  // State descriptions for tooltips (English)
-  private static readonly stateDescriptionMap: Record<string, string> = {
-    'STATE_UNSPECIFIED': 'Unknown state',
-    'QUEUED': 'Queued',
-    'PLANNING': 'Planning',
-    'AWAITING_PLAN_APPROVAL': 'Awaiting plan approval',
-    'AWAITING_USER_FEEDBACK': 'Awaiting user feedback',
-    'IN_PROGRESS': 'In progress',
-    'PAUSED': 'Paused',
-    'FAILED': 'Failed',
-    'COMPLETED': 'Completed',
-    'CANCELLED': 'Cancelled',
-  };
-
   public readonly prUrl: string | null;
   public readonly hasDiff: boolean;
   public readonly hasChangeset: boolean;
@@ -1442,34 +1411,14 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.hasDiff = Boolean(cachedArtifacts?.latestDiff);
     this.hasChangeset = Boolean(cachedArtifacts?.latestChangeSet);
 
-    const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
-    tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
-
-    // Add state description from rawState
-    if (session.rawState && SessionTreeItem.stateDescriptionMap[session.rawState]) {
-      const stateDescription = SessionTreeItem.stateDescriptionMap[session.rawState];
-      tooltip.appendMarkdown(`\n\nState: ${stateDescription}`);
-    }
-
-    if (session.requirePlanApproval) {
-      tooltip.appendMarkdown(`\n\n⚠️ **Plan Approval Required**`);
-    }
-
-    if (session.sourceContext?.source) {
-      // Extract repo name if possible for cleaner display
-      const source = session.sourceContext.source;
-      if (typeof source === 'string') {
-        const repoMatch = source.match(/sources\/github\/(.+)/);
-        const repoName = repoMatch ? repoMatch[1] : source;
-        const lockIcon = getPrivacyIcon(this.selectedSource?.isPrivate);
-        const privacyStatus = getPrivacyStatusText(this.selectedSource?.isPrivate, 'long');
-
-        tooltip.appendMarkdown(`\n\nSource: ${lockIcon}\`${repoName}\`${privacyStatus}`);
-      }
-    }
-
-    tooltip.appendMarkdown(`\n\nID: \`${session.name}\``);
-    this.tooltip = tooltip;
+    // Build tooltip using extracted utility function
+    this.tooltip = buildSessionTooltip({
+      session,
+      prUrl: this.prUrl,
+      hasDiff: this.hasDiff,
+      hasChangeset: this.hasChangeset,
+      selectedSource: this.selectedSource
+    });
 
     this.description = session.state;
     this.iconPath = this.getIcon(session.rawState);
