@@ -1386,7 +1386,27 @@ export class JulesSessionsProvider
       return [];
     }
 
-    return filteredSessions.map((session) => new SessionTreeItem(session, selectedSource));
+    // Retrieve full source list from cache to look up source details for each session
+    // when "All repositories" is selected.
+    let sourcesMap: Map<string, SourceType> | undefined;
+    if (selectedSource.id === ALL_SOURCES_ID) {
+      const cachedSources = this.context.globalState.get<SourcesCache>('jules.sources');
+      if (cachedSources?.sources) {
+        sourcesMap = new Map(cachedSources.sources.map(s => [s.name, s]));
+      }
+    }
+
+    return filteredSessions.map((session) => {
+      let sessionSource = selectedSource;
+      // If "All repositories" is selected, try to find the actual source object for this session
+      if (selectedSource.id === ALL_SOURCES_ID && session.sourceContext?.source && sourcesMap) {
+        const foundSource = sourcesMap.get(session.sourceContext.source);
+        if (foundSource) {
+          sessionSource = foundSource;
+        }
+      }
+      return new SessionTreeItem(session, sessionSource);
+    });
   }
 }
 
