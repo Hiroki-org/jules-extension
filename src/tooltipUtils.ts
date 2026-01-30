@@ -55,7 +55,7 @@ export function getPrivacyStatusText(isPrivate?: boolean, format: 'short' | 'lon
  */
 export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownString {
   const { session, prUrl, hasDiff, hasChangeset, selectedSource } = context;
-  
+
   const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
   tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
 

@@ -320,7 +320,7 @@ suite("Extension Test Suite", () => {
       } as any);
 
       const tooltip = (item.tooltip as vscode.MarkdownString).value;
-      
+
       // Verify all sections are present
       assert.ok(tooltip.includes("**Complete Session**"), "Title should be present");
       assert.ok(tooltip.includes("Status: **COMPLETED**"), "Status should be present");
