@@ -100,7 +100,7 @@ export function mapApiStateToSessionState(
 
 interface CachedSessionState {
   name: string;
-  state: string;
+  state: SessionState;
   rawState: string;
   outputs?: SessionOutput[];
   isTerminated?: boolean;
