@@ -12,7 +12,7 @@ import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './sec
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
-import { getPullRequestUrlForSession, openPullRequestInBrowser, getBranchNameForSession, checkoutToBranch, checkoutToBranchForSession } from './sessionContextMenu';
+import { getPullRequestUrlForSession, openPullRequestInBrowser, checkoutToBranchForSession } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 import { mapLimit } from './asyncUtils';

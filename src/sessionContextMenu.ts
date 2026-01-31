@@ -550,10 +550,10 @@ async function fetchAndCheckoutFromPRInfo(
     try {
         // リポジトリのリモート一覧を取得
         const remotes: { remote: string; fetchUrl: string }[] = repository.state?.remotes || [];
-        
+
         // headCloneUrlに一致するリモートを探す
         let targetRemote = remotes.find(
-            (r: { fetchUrl?: string; pushUrl?: string }) => 
+            (r: { fetchUrl?: string; pushUrl?: string }) =>
                 r.fetchUrl === headCloneUrl || r.fetchUrl?.replace('.git', '') === headCloneUrl.replace('.git', '')
         );
 
@@ -561,7 +561,7 @@ async function fetchAndCheckoutFromPRInfo(
         if (!targetRemote) {
             // origin/upstreamを確認
             const originRemote = remotes.find((r: { remote: string }) => r.remote === 'origin');
-            
+
             // originがheadCloneUrlと同じなら、originを使う
             if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {
                 targetRemote = originRemote;
@@ -614,7 +614,7 @@ async function fetchAndCheckoutFromPRInfo(
             // ローカルにない場合、リモートトラッキングブランチからチェックアウト
             const trackingBranch = `${remoteName}/${headBranch}`;
             log(`Local branch not found, trying tracking branch: ${trackingBranch}`);
-            
+
             try {
                 // createBranch でリモートトラッキングブランチからローカルブランチを作成
                 await repository.createBranch(headBranch, true, trackingBranch);
@@ -627,7 +627,7 @@ async function fetchAndCheckoutFromPRInfo(
                 // createBranch が失敗した場合、直接チェックアウトを試みる
                 const createMsg = createError?.message || String(createError);
                 log(`createBranch failed: ${createMsg}, trying direct checkout to ${trackingBranch}`);
-                
+
                 try {
                     await repository.checkout(trackingBranch);
                     log(`Successfully checked out to tracking branch: ${trackingBranch}`);
