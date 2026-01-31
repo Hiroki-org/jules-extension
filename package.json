@@ -193,6 +193,12 @@
         "icon": "$(link-external)"
       },
       {
+        "command": "jules-extension.checkoutToBranch",
+        "title": "Checkout to branch",
+        "category": "Jules",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "jules-extension.openLatestDiff",
         "title": "Open latest diff",
         "category": "Jules"
@@ -271,6 +277,11 @@
         },
         {
           "command": "jules-extension.openPRInBrowser",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-with-pr/",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.checkoutToBranch",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-with-pr/",
           "group": "navigation"
         },

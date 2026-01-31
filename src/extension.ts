@@ -12,7 +12,7 @@ import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './sec
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
-import { getPullRequestUrlForSession, openPullRequestInBrowser } from './sessionContextMenu';
+import { getPullRequestUrlForSession, openPullRequestInBrowser, checkoutToBranchForSession } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 import { mapLimit } from './asyncUtils';
@@ -2543,6 +2543,18 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const checkoutToBranchDisposable = vscode.commands.registerCommand(
+    "jules-extension.checkoutToBranch",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+      // Use session-aware checkout that leverages GitHub API for PR branch info
+      await checkoutToBranchForSession(item.session, logChannel);
+    }
+  );
+
   const diffProvider = new JulesDiffDocumentProvider();
   const diffProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
     "jules-diff",
@@ -2614,6 +2626,7 @@ export function activate(context: vscode.ExtensionContext) {
     clearCacheDisposable,
     openInWebAppDisposable,
     openPRInBrowserDisposable,
+    checkoutToBranchDisposable,
     diffProviderDisposable,
     openLatestDiffDisposable,
     openChangesetDisposable
