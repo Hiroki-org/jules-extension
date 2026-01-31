@@ -20,6 +20,8 @@ const mockVscode = {
             get: () => undefined,
         }),
         openTextDocument: async () => ({}) as any,
+        onDidChangeConfiguration: () => ({ dispose: () => { } }),
+        registerTextDocumentContentProvider: () => ({ dispose: () => { } }),
     },
     commands: {
         registerCommand: () => ({ dispose: () => { } }),
@@ -33,6 +35,9 @@ const mockVscode = {
         withProgress: async (_opts: any, task: any) => task(),
         showTextDocument: async () => undefined,
         activeTextEditor: undefined,
+        createTreeView: () => ({ dispose: () => { } }),
+        createStatusBarItem: () => ({ show: () => { }, hide: () => { }, dispose: () => { } }),
+        createOutputChannel: () => ({ append: () => { }, appendLine: () => { }, replace: () => { }, clear: () => { }, show: () => { }, hide: () => { }, dispose: () => { } }),
     },
     env: {
         openExternal: async () => true,
@@ -62,8 +67,47 @@ const mockVscode = {
     },
     MarkdownString: class MarkdownString {
         value: string;
-        constructor(value: string) {
+        isTrusted?: boolean;
+        constructor(value: string = "", isTrusted: boolean = false) {
             this.value = value;
+            this.isTrusted = isTrusted;
+        }
+        appendMarkdown(value: string) {
+            this.value += value;
+            return this;
+        }
+        appendText(value: string) {
+            // Simple escaping for mock purposes, or just append
+            this.value += value;
+            return this;
+        }
+    },
+    EventEmitter: class EventEmitter<T> {
+        private _listeners: Array<(e: T) => any> = [];
+        get event() {
+            return (listener: (e: T) => any) => {
+                this._listeners.push(listener);
+                return {
+                    dispose: () => {
+                        const index = this._listeners.indexOf(listener);
+                        if (index > -1) {
+                            this._listeners.splice(index, 1);
+                        }
+                    }
+                };
+            };
+        }
+        fire(data: T) {
+            for (const listener of this._listeners) {
+                try {
+                    listener(data);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+        dispose() {
+            this._listeners = [];
         }
     },
     ProgressLocation: {
@@ -90,6 +134,10 @@ const mockVscode = {
             this.color = color;
         }
     },
+    StatusBarAlignment: {
+        Left: 1,
+        Right: 2,
+    }
 };
 
 const originalLoad = (Module as any)._load;

@@ -22,6 +22,7 @@ import { buildSessionTooltip } from './tooltipUtils';
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 const VIEW_DETAILS_ACTION = 'View Details';
 const SHOW_ACTIVITIES_COMMAND = 'jules-extension.showActivities';
+const ALL_SOURCES_ID = 'all_repos';
 
 // Plan notification display constants
 const MAX_PLAN_STEPS_IN_NOTIFICATION = 5;
@@ -1222,7 +1223,7 @@ export class JulesSessionsProvider
     this.lastBranchRefreshTime = now;
 
     const selectedSource = this.context.globalState.get<SourceType>("selected-source");
-    if (!selectedSource) {
+    if (!selectedSource || selectedSource.id === ALL_SOURCES_ID) {
       return;
     }
 
@@ -1344,14 +1345,20 @@ export class JulesSessionsProvider
     }
 
     // Now, use the cache to build the tree
-    let filteredSessions = this.sessionsCache.filter(
-      (session) =>
-        (session as any).sourceContext?.source === selectedSource.name
-    );
+    let filteredSessions: Session[] = [];
 
-    console.log(
-      `Jules: Found ${filteredSessions.length} sessions for the selected source from cache`
-    );
+    if (selectedSource.id === ALL_SOURCES_ID) {
+      filteredSessions = this.sessionsCache;
+      console.log(`Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`);
+    } else {
+      filteredSessions = this.sessionsCache.filter(
+        (session) =>
+          session.sourceContext?.source === selectedSource.name
+      );
+      console.log(
+        `Jules: Found ${filteredSessions.length} sessions for the selected source from cache`
+      );
+    }
 
     // Filter out sessions with closed PRs if the setting is enabled
     const hideClosedPRs = vscode.workspace
@@ -1379,7 +1386,27 @@ export class JulesSessionsProvider
       return [];
     }
 
-    return filteredSessions.map((session) => new SessionTreeItem(session, selectedSource));
+    // Retrieve full source list from cache to look up source details for each session
+    // when "All repositories" is selected.
+    let sourcesMap: Map<string, SourceType> | undefined;
+    if (selectedSource.id === ALL_SOURCES_ID) {
+      const cachedSources = this.context.globalState.get<SourcesCache>('jules.sources');
+      if (cachedSources?.sources) {
+        sourcesMap = new Map(cachedSources.sources.map(s => [s.name, s]));
+      }
+    }
+
+    return filteredSessions.map((session) => {
+      let sessionSource = selectedSource;
+      // If "All repositories" is selected, try to find the actual source object for this session
+      if (selectedSource.id === ALL_SOURCES_ID && session.sourceContext?.source && sourcesMap) {
+        const foundSource = sourcesMap.get(session.sourceContext.source);
+        if (foundSource) {
+          sessionSource = foundSource;
+        }
+      }
+      return new SessionTreeItem(session, sessionSource);
+    });
   }
 }
 
@@ -1596,16 +1623,22 @@ function updateStatusBar(
   const selectedSource = context.globalState.get<SourceType>("selected-source");
 
   if (selectedSource) {
-    // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
-    const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
-    const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
+    if (selectedSource.id === ALL_SOURCES_ID) {
+      statusBarItem.text = `$(repo) Jules: All Repositories`;
+      statusBarItem.tooltip = `Current Source: All Repositories\nClick to change source`;
+      statusBarItem.show();
+    } else {
+      // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
+      const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
+      const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
 
-    const lockIcon = getPrivacyIcon(selectedSource.isPrivate);
-    const privacyStatus = getPrivacyStatusText(selectedSource.isPrivate, 'short');
+      const lockIcon = getPrivacyIcon(selectedSource.isPrivate);
+      const privacyStatus = getPrivacyStatusText(selectedSource.isPrivate, 'short');
 
-    statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
-    statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
-    statusBarItem.show();
+      statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
+      statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
+      statusBarItem.show();
+    }
   } else {
     statusBarItem.text = `$(repo) Jules: No source selected`;
     statusBarItem.tooltip = "Click to select a source";
@@ -1799,6 +1832,15 @@ export function activate(context: vscode.ExtensionContext) {
             source: source,
           };
         });
+
+        // Add "All repositories" option
+        const allRepoItem: SourceQuickPickItem = {
+          label: "All repositories",
+          description: "Show sessions from all sources",
+          source: { id: ALL_SOURCES_ID, name: "All repositories" } as SourceType
+        };
+        items.unshift(allRepoItem);
+
         const selected: SourceQuickPickItem | undefined =
           await vscode.window.showQuickPick(items, {
             placeHolder: "Select a Jules Source",
@@ -1835,6 +1877,14 @@ export function activate(context: vscode.ExtensionContext) {
         );
         return;
       }
+
+      if (selectedSource.id === ALL_SOURCES_ID) {
+        vscode.window.showErrorMessage(
+          "Please select a specific repository to create a session."
+        );
+        return;
+      }
+
       const apiKey = await context.secrets.get("jules-api-key");
       if (!apiKey) {
         vscode.window.showErrorMessage(
