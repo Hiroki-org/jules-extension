@@ -29,16 +29,16 @@ suite("Extension Test Suite", () => {
 
   // Tests for mapApiStateToSessionState function behavior
   suite("API State Mapping", () => {
-    test("PLANNING should map to RUNNING", () => {
-      assert.strictEqual(mapApiStateToSessionState("PLANNING"), "RUNNING");
+    test("PLANNING should map to PLANNING", () => {
+      assert.strictEqual(mapApiStateToSessionState("PLANNING"), "PLANNING");
     });
 
-    test("AWAITING_PLAN_APPROVAL should map to RUNNING", () => {
-      assert.strictEqual(mapApiStateToSessionState("AWAITING_PLAN_APPROVAL"), "RUNNING");
+    test("AWAITING_PLAN_APPROVAL should map to AWAITING_PLAN_APPROVAL", () => {
+      assert.strictEqual(mapApiStateToSessionState("AWAITING_PLAN_APPROVAL"), "AWAITING_PLAN_APPROVAL");
     });
 
-    test("AWAITING_USER_FEEDBACK should map to RUNNING", () => {
-      assert.strictEqual(mapApiStateToSessionState("AWAITING_USER_FEEDBACK"), "RUNNING");
+    test("AWAITING_USER_FEEDBACK should map to AWAITING_USER_FEEDBACK", () => {
+      assert.strictEqual(mapApiStateToSessionState("AWAITING_USER_FEEDBACK"), "AWAITING_USER_FEEDBACK");
     });
 
     test("IN_PROGRESS should map to RUNNING", () => {
@@ -65,8 +65,8 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(mapApiStateToSessionState("CANCELLED"), "CANCELLED");
     });
 
-    test("PAUSED API state should map to CANCELLED UI state", () => {
-      assert.strictEqual(mapApiStateToSessionState("PAUSED"), "CANCELLED");
+    test("PAUSED API state should map to PAUSED UI state", () => {
+      assert.strictEqual(mapApiStateToSessionState("PAUSED"), "PAUSED");
     });
 
     test("Unknown states should default to RUNNING", () => {
