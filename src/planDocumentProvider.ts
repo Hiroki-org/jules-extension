@@ -83,10 +83,15 @@ export async function reviewPlanForSession(options: ReviewPlanOptions): Promise<
             "Approve Plan"
         );
 
-        if (action === "Approve Plan") {
-            await onApprove(sessionId);
+        try {
+            if (action === "Approve Plan") {
+                await onApprove(sessionId);
+            }
+            // If dismissed, plan remains in pending state
+        } finally {
+            // Clean up the virtual document content to prevent memory leaks
+            planProvider.clearContent(uri);
         }
-        // If dismissed, plan remains in pending state
     } catch (error) {
         logChannel.appendLine(`Jules: Failed to review plan: ${String(error)}`);
         vscode.window.showErrorMessage("Failed to load plan for review.");

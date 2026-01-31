@@ -167,7 +167,7 @@ export function formatFullPlan(plan: Plan, sessionTitle?: string): string {
   lines.push("");
   lines.push("---");
   lines.push("");
-  lines.push("*Use the buttons in the notification to Approve or Cancel this plan.*");
+  lines.push("*Use the buttons in the editor to Approve or Cancel this plan.*");
 
   return lines.join("\n");
 }
