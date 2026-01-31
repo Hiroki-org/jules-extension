@@ -2,6 +2,189 @@ import * as vscode from "vscode";
 import type { Session } from "./extension";
 
 /**
+ * Extracts the source branch name (PR head branch) from a session.
+ * This is the branch that was used to create the PR.
+ * Returns null if no branch information is available.
+ */
+export function getBranchNameForSession(session: Session): string | null {
+    try {
+        const branchName = session.sourceContext?.githubRepoContext?.startingBranch;
+        if (!branchName || typeof branchName !== "string" || branchName.trim() === "") {
+            return null;
+        }
+        return branchName.trim();
+    } catch (error) {
+        console.warn(`[Jules] Unexpected error extracting branch name from session`);
+        return null;
+    }
+}
+
+/**
+ * Checkout to a specified branch using VS Code's Git extension.
+ * Handles various error cases including missing Git extension, uncommitted changes, etc.
+ * 
+ * @param branchName The name of the branch to checkout
+ * @param logChannel Optional output channel for logging
+ * @returns true if checkout succeeded, false otherwise
+ */
+export async function checkoutToBranch(
+    branchName: string,
+    logChannel?: vscode.OutputChannel
+): Promise<boolean> {
+    const log = (msg: string) => {
+        console.log(`[Jules] ${msg}`);
+        logChannel?.appendLine(`[Jules] ${msg}`);
+    };
+
+    try {
+        // Get Git extension
+        const gitExtension = vscode.extensions.getExtension("vscode.git");
+        if (!gitExtension) {
+            vscode.window.showErrorMessage(
+                "Git extension is not available. Please ensure Git is installed."
+            );
+            return false;
+        }
+
+        const git = gitExtension.exports.getAPI(1);
+        if (!git) {
+            vscode.window.showErrorMessage(
+                "Failed to access Git API."
+            );
+            return false;
+        }
+
+        // Get repository
+        const repositories = git.repositories;
+        if (!repositories || repositories.length === 0) {
+            vscode.window.showErrorMessage(
+                "No Git repository found in the workspace."
+            );
+            return false;
+        }
+
+        // Select repository (if multiple, let user choose)
+        let repository;
+        if (repositories.length === 1) {
+            repository = repositories[0];
+        } else {
+            interface RepoItem extends vscode.QuickPickItem {
+                repo: any;
+            }
+            const repoItems: RepoItem[] = repositories.map((repo: any, index: number) => ({
+                label: repo.rootUri.fsPath.split("/").pop() || `Repository ${index + 1}`,
+                description: repo.rootUri.fsPath,
+                repo
+            }));
+            const selected = await vscode.window.showQuickPick(repoItems, {
+                placeHolder: "Select a Git repository for checkout"
+            });
+            if (!selected) {
+                log("Repository selection cancelled");
+                return false;
+            }
+            repository = selected.repo;
+        }
+
+        log(`Checking out to branch: ${branchName}`);
+
+        // Check for uncommitted changes
+        const hasUncommittedChanges = 
+            repository.state.workingTreeChanges.length > 0 ||
+            repository.state.indexChanges.length > 0;
+
+        if (hasUncommittedChanges) {
+            const action = await vscode.window.showWarningMessage(
+                `You have uncommitted changes. Checkout to "${branchName}" may fail or cause issues.`,
+                { modal: true },
+                "Checkout Anyway",
+                "Stash Changes & Checkout",
+                "Cancel"
+            );
+
+            if (action === "Cancel" || !action) {
+                log("Checkout cancelled due to uncommitted changes");
+                return false;
+            }
+
+            if (action === "Stash Changes & Checkout") {
+                try {
+                    await repository.stash();
+                    log("Changes stashed successfully");
+                } catch (stashError) {
+                    const msg = stashError instanceof Error ? stashError.message : String(stashError);
+                    vscode.window.showErrorMessage(`Failed to stash changes: ${msg}`);
+                    return false;
+                }
+            }
+        }
+
+        // Try to checkout the branch
+        try {
+            await repository.checkout(branchName);
+            log(`Successfully checked out to branch: ${branchName}`);
+            vscode.window.showInformationMessage(
+                `Checked out to branch: ${branchName}`
+            );
+            return true;
+        } catch (checkoutError: any) {
+            const errorMsg = checkoutError?.message || String(checkoutError);
+            
+            // If branch not found locally, try to fetch and checkout from remote
+            if (errorMsg.includes("did not match") || errorMsg.includes("not found") || errorMsg.includes("pathspec")) {
+                log(`Branch "${branchName}" not found locally, attempting to fetch from remote...`);
+                
+                const fetchAndCheckout = await vscode.window.showInformationMessage(
+                    `Branch "${branchName}" not found locally. Fetch from remote?`,
+                    "Fetch & Checkout",
+                    "Cancel"
+                );
+
+                if (fetchAndCheckout !== "Fetch & Checkout") {
+                    return false;
+                }
+
+                try {
+                    // Fetch all remotes
+                    await repository.fetch();
+                    log("Fetched from remotes successfully");
+
+                    // Try checkout again (Git should now see the remote branch)
+                    await repository.checkout(branchName);
+                    log(`Successfully checked out to branch: ${branchName}`);
+                    vscode.window.showInformationMessage(
+                        `Checked out to branch: ${branchName}`
+                    );
+                    return true;
+                } catch (fetchError: any) {
+                    const fetchMsg = fetchError?.message || String(fetchError);
+                    log(`Failed to fetch and checkout: ${fetchMsg}`);
+                    vscode.window.showErrorMessage(
+                        `Failed to checkout branch "${branchName}": ${fetchMsg}`
+                    );
+                    return false;
+                }
+            }
+
+            // Other checkout errors
+            log(`Checkout failed: ${errorMsg}`);
+            vscode.window.showErrorMessage(
+                `Failed to checkout branch "${branchName}": ${errorMsg}`
+            );
+            return false;
+        }
+    } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`[Jules] Checkout error: ${msg}`);
+        logChannel?.appendLine(`[Jules] Checkout error: ${msg}`);
+        vscode.window.showErrorMessage(
+            `Failed to checkout: ${msg}`
+        );
+        return false;
+    }
+}
+
+/**
  * Extracts PR URL from a session, with URL parsing-based validation.
  * Returns null if no PR URL is found or if the URL is invalid.
  * 
