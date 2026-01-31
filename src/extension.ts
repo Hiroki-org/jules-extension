@@ -15,6 +15,7 @@ import { formatPlanForNotification, Plan } from './planUtils';
 import { getPullRequestUrlForSession, openPullRequestInBrowser, checkoutToBranchForSession } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
+import { JulesPlanDocumentProvider, reviewPlanForSession } from './planDocumentProvider';
 import { mapLimit } from './asyncUtils';
 import { buildSessionTooltip } from './tooltipUtils';
 
@@ -1464,6 +1465,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     if (this.hasChangeset) {
       contextValues.push("jules-session-with-changeset");
     }
+    if (session.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
+      contextValues.push("jules-session-awaiting-plan");
+    }
     this.contextValue = contextValues.join(" ");
 
     // ⭐ DEBUG: TreeItem contextValue 確認用ログ - REMOVED for production
@@ -2608,6 +2612,49 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Plan review provider for displaying plan content in virtual documents
+  const planProvider = new JulesPlanDocumentProvider();
+  const planProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
+    "jules-plan",
+    planProvider
+  );
+
+  const reviewPlanDisposable = vscode.commands.registerCommand(
+    "jules-extension.reviewPlan",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+
+      const apiKey = await getStoredApiKey(context);
+      if (!apiKey) {
+        return;
+      }
+
+      // Fetch plan with progress indicator
+      const plan = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Loading plan...",
+          cancellable: false,
+        },
+        async () => fetchPlanFromActivities(item.session.name, apiKey)
+      );
+
+      await reviewPlanForSession({
+        sessionId: item.session.name,
+        sessionTitle: item.session.title,
+        plan,
+        logChannel,
+        planProvider,
+        onApprove: async (sessionId) => {
+          await approvePlan(sessionId, context);
+        },
+      });
+    }
+  );
+
   context.subscriptions.push(
     setApiKeyDisposable,
     verifyApiKeyDisposable,
@@ -2629,7 +2676,9 @@ export function activate(context: vscode.ExtensionContext) {
     checkoutToBranchDisposable,
     diffProviderDisposable,
     openLatestDiffDisposable,
-    openChangesetDisposable
+    openChangesetDisposable,
+    planProviderDisposable,
+    reviewPlanDisposable
   );
 }
 
