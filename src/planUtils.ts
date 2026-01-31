@@ -110,3 +110,64 @@ export function formatPlanForNotification(
   }
   return parts.join("\n");
 }
+
+/**
+ * Formats a plan as a full Markdown document for Review Plan display.
+ *
+ * This function creates a complete Markdown representation of the plan,
+ * suitable for displaying in a virtual document via TextDocumentContentProvider.
+ * Unlike formatPlanForNotification, this function does not truncate steps.
+ *
+ * @param plan - Plan object with optional title and steps
+ * @param sessionTitle - Optional session title for context header
+ * @returns Formatted Markdown string for virtual document display
+ */
+export function formatFullPlan(plan: Plan, sessionTitle?: string): string {
+  const lines: string[] = [];
+
+  // Header with session title if available
+  if (sessionTitle) {
+    lines.push(`# Plan Review: ${sessionTitle}`);
+  } else {
+    lines.push("# Plan Review");
+  }
+  lines.push("");
+
+  // Plan title
+  if (plan.title) {
+    const trimmedTitle = plan.title.trim();
+    if (trimmedTitle.length > 0) {
+      lines.push(`## 📋 ${trimmedTitle}`);
+      lines.push("");
+    }
+  }
+
+  // Steps
+  if (Array.isArray(plan.steps) && plan.steps.length > 0) {
+    lines.push("### Steps");
+    lines.push("");
+
+    let stepNumber = 0;
+    for (const step of plan.steps) {
+      const stepText = formatPlanStepText(step);
+      if (!stepText) {
+        continue;
+      }
+      stepNumber++;
+      lines.push(`${stepNumber}. ${stepText}`);
+    }
+
+    if (stepNumber === 0) {
+      lines.push("*No steps defined in this plan.*");
+    }
+  } else {
+    lines.push("*No steps defined in this plan.*");
+  }
+
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+  lines.push("*Use the buttons in the editor to Approve or Cancel this plan.*");
+
+  return lines.join("\n");
+}

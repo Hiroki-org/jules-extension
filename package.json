@@ -207,6 +207,12 @@
         "command": "jules-extension.openChangeset",
         "title": "Open changeset",
         "category": "Jules"
+      },
+      {
+        "command": "jules-extension.reviewPlan",
+        "title": "Review Plan...",
+        "category": "Jules",
+        "icon": "$(preview)"
       }
     ],
     "viewsWelcome": [
@@ -293,6 +299,11 @@
         {
           "command": "jules-extension.openChangeset",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-with-changeset/",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.reviewPlan",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-awaiting-plan/",
           "group": "navigation"
         }
       ]
