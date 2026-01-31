@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import type { Session } from "./extension";
+import * as path from "path";
+import type { Session } from "./types";
 
 /**
  * Extracts the source branch name (PR head branch) from a session.
@@ -46,6 +47,8 @@ export async function checkoutToBranch(
             return false;
         }
 
+        // Ensure Git extension is activated before accessing API
+        await gitExtension.activate();
         const git = gitExtension.exports.getAPI(1);
         if (!git) {
             vscode.window.showErrorMessage(
@@ -72,7 +75,7 @@ export async function checkoutToBranch(
                 repo: any;
             }
             const repoItems: RepoItem[] = repositories.map((repo: any, index: number) => ({
-                label: repo.rootUri.fsPath.split("/").pop() || `Repository ${index + 1}`,
+                label: path.basename(repo.rootUri.fsPath) || `Repository ${index + 1}`,
                 description: repo.rootUri.fsPath,
                 repo
             }));
@@ -90,8 +93,8 @@ export async function checkoutToBranch(
 
         // Check for uncommitted changes
         const hasUncommittedChanges = 
-            repository.state.workingTreeChanges.length > 0 ||
-            repository.state.indexChanges.length > 0;
+            (repository.state?.workingTreeChanges?.length ?? 0) > 0 ||
+            (repository.state?.indexChanges?.length ?? 0) > 0;
 
         if (hasUncommittedChanges) {
             const action = await vscode.window.showWarningMessage(
@@ -131,6 +134,8 @@ export async function checkoutToBranch(
             const errorMsg = checkoutError?.message || String(checkoutError);
             
             // If branch not found locally, try to fetch and checkout from remote
+            // Note: These error message checks depend on Git CLI's output strings,
+            // which may change in future Git versions or vary by locale.
             if (errorMsg.includes("did not match") || errorMsg.includes("not found") || errorMsg.includes("pathspec")) {
                 log(`Branch "${branchName}" not found locally, attempting to fetch from remote...`);
                 
