@@ -67,25 +67,30 @@ interface SessionResponse {
   // Add other fields if needed
 }
 
-// Re-export Session and SessionOutput from types for backward compatibility
-export { Session, SessionOutput } from './types';
+// Re-export Session, SessionOutput, and SessionState from types for backward compatibility
+export { Session, SessionOutput, SessionState } from './types';
+import type { SessionState } from './types';
 
 export function mapApiStateToSessionState(
   apiState: string
-): "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" {
+): SessionState {
   switch (apiState) {
-    case "PLANNING":
-    case "AWAITING_PLAN_APPROVAL":
-    case "AWAITING_USER_FEEDBACK":
     case "IN_PROGRESS":
     case "QUEUED":
     case "STATE_UNSPECIFIED":
       return "RUNNING";
+    case "PLANNING":
+      return "PLANNING";
+    case "AWAITING_PLAN_APPROVAL":
+      return "AWAITING_PLAN_APPROVAL";
+    case "AWAITING_USER_FEEDBACK":
+      return "AWAITING_USER_FEEDBACK";
+    case "PAUSED":
+      return "PAUSED";
     case "COMPLETED":
       return "COMPLETED";
     case "FAILED":
       return "FAILED";
-    case "PAUSED":
     case "CANCELLED":
       return "CANCELLED";
     default:
@@ -93,7 +98,7 @@ export function mapApiStateToSessionState(
   }
 }
 
-interface SessionState {
+interface CachedSessionState {
   name: string;
   state: string;
   rawState: string;
@@ -101,7 +106,7 @@ interface SessionState {
   isTerminated?: boolean;
 }
 
-let previousSessionStates: Map<string, SessionState> = new Map();
+let previousSessionStates: Map<string, CachedSessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
@@ -116,7 +121,7 @@ let logChannel: vscode.OutputChannel = {
 };
 
 function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
-  const storedStates = context.globalState.get<{ [key: string]: SessionState }>(
+  const storedStates = context.globalState.get<{ [key: string]: CachedSessionState }>(
     "jules.previousSessionStates",
     {}
   );
@@ -440,7 +445,7 @@ function resolveSessionId(
   );
 }
 
-function extractPRUrl(sessionOrState: Session | SessionState): string | null {
+function extractPRUrl(sessionOrState: Session | CachedSessionState): string | null {
   return (
     sessionOrState.outputs?.find((o) => o.pullRequest)?.pullRequest?.url || null
   );
