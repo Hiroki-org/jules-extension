@@ -35,11 +35,22 @@ export interface SessionOutput {
     pullRequest?: PullRequestOutput;
 }
 
+// Session state type
+export type SessionState =
+    | "RUNNING"
+    | "COMPLETED"
+    | "FAILED"
+    | "CANCELLED"
+    | "PAUSED"
+    | "AWAITING_PLAN_APPROVAL"
+    | "AWAITING_USER_FEEDBACK"
+    | "PLANNING";
+
 // Session interface
 export interface Session {
     name: string;
     title: string;
-    state: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+    state: SessionState;
     rawState: string;
     url?: string;
     outputs?: SessionOutput[];
