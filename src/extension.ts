@@ -12,7 +12,7 @@ import { stripUrlCredentials, sanitizeForLogging, isValidSessionId } from './sec
 import { sanitizeError } from './errorUtils';
 import { fetchWithTimeout } from './fetchUtils';
 import { formatPlanForNotification, Plan } from './planUtils';
-import { getPullRequestUrlForSession, openPullRequestInBrowser, getBranchNameForSession, checkoutToBranch } from './sessionContextMenu';
+import { getPullRequestUrlForSession, openPullRequestInBrowser, getBranchNameForSession, checkoutToBranch, checkoutToBranchForSession } from './sessionContextMenu';
 import { getCachedSessionArtifacts, updateSessionArtifactsCache, fetchLatestSessionArtifacts } from './sessionArtifacts';
 import { JulesDiffDocumentProvider, openLatestDiffForSession, openChangesetForSession } from './sessionContextMenuArtifacts';
 import { mapLimit } from './asyncUtils';
@@ -2550,12 +2550,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage("No session selected.");
         return;
       }
-      const branchName = getBranchNameForSession(item.session);
-      if (!branchName) {
-        vscode.window.showErrorMessage("No branch information available for this session.");
-        return;
-      }
-      await checkoutToBranch(branchName, logChannel);
+      // Use session-aware checkout that leverages GitHub API for PR branch info
+      await checkoutToBranchForSession(item.session, logChannel);
     }
   );
 
