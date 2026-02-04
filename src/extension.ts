@@ -686,7 +686,8 @@ function areSessionsEqual(s1: Session, s2: Session): boolean {
   return (
     s1.state === s2.state &&
     s1.rawState === s2.rawState &&
-    s1.title === s2.title &&
+    s1.sourceContext?.source === s2.sourceContext?.source &&
+    s1.sourceContext?.githubRepoContext?.startingBranch === s2.sourceContext?.githubRepoContext?.startingBranch &&
     s1.requirePlanApproval === s2.requirePlanApproval &&
     JSON.stringify(s1.sourceContext) === JSON.stringify(s2.sourceContext) &&
     areOutputsEqual(s1.outputs, s2.outputs)
