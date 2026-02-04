@@ -220,6 +220,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     const latest = extractLatestArtifactsFromActivities(activities);
     const previousEntry = artifactsCache.get(sessionId);
     const previousArtifacts = previousEntry?.artifacts;
+    const nextUpdateTime = updateTime ?? previousEntry?.updateTime;
 
     const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
     const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
@@ -228,7 +229,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
         artifactsCache.set(sessionId, {
             artifacts: latest,
-            updateTime: updateTime
+            updateTime: nextUpdateTime
         });
     }
     return diffChanged || changeSetChanged || (!!updateTime && timeChanged);
