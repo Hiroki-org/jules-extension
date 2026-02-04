@@ -223,14 +223,15 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
 
     const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
     const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
+    const timeChanged = updateTime !== previousEntry?.updateTime;
 
-    if (diffChanged || changeSetChanged || (updateTime && previousEntry?.updateTime !== updateTime)) {
+    if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
         artifactsCache.set(sessionId, {
             artifacts: latest,
-            updateTime: updateTime ?? previousEntry?.updateTime
+            updateTime: updateTime
         });
     }
-    return diffChanged || changeSetChanged;
+    return diffChanged || changeSetChanged || (!!updateTime && timeChanged);
 }
 
 export async function fetchLatestSessionArtifacts(
