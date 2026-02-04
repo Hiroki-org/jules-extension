@@ -1043,6 +1043,31 @@ export class JulesSessionsProvider
 
   constructor(private context: vscode.ExtensionContext) { }
 
+
+  private sendNotifications(
+    sessions: Session[],
+    notificationType: string,
+    notifier: (session: Session) => Promise<void>
+  ) {
+    if (sessions.length === 0) {
+      return;
+    }
+
+    logChannel.appendLine(
+      `Jules: Found ${sessions.length} sessions awaiting ${notificationType}`
+    );
+    for (const session of sessions) {
+      if (!notifiedSessions.has(session.name)) {
+        notifier(session).catch((error) => {
+          logChannel.appendLine(
+            `Jules: Failed to show ${notificationType} notification for session '${sanitizeForLogging(session.name)}' (${sanitizeForLogging(session.title)}): ${sanitizeError(error)}`
+          );
+        });
+        notifiedSessions.add(session.name);
+      }
+    }
+  }
+
   private async fetchAndProcessSessions(
     isBackground: boolean = false,
     forceUIUpdate: boolean = false
@@ -1153,35 +1178,20 @@ export class JulesSessionsProvider
           }
         }
 
+
         // Notify Plan Approval
-        if (sessionsToNotifyPlan.length > 0) {
-          logChannel.appendLine(`Jules: Found ${sessionsToNotifyPlan.length} sessions awaiting plan approval`);
-          for (const session of sessionsToNotifyPlan) {
-            if (!notifiedSessions.has(session.name)) {
-              notifyPlanAwaitingApproval(session, this.context).catch((error) => {
-                logChannel.appendLine(
-                  `Jules: Failed to show plan approval notification for session '${sanitizeForLogging(session.name)}' (${sanitizeForLogging(session.title)}): ${sanitizeError(error)}`
-                );
-              });
-              notifiedSessions.add(session.name);
-            }
-          }
-        }
+        this.sendNotifications(
+          sessionsToNotifyPlan,
+          "plan approval",
+          (session) => notifyPlanAwaitingApproval(session, this.context)
+        );
 
         // Notify User Feedback
-        if (sessionsToNotifyFeedback.length > 0) {
-          logChannel.appendLine(`Jules: Found ${sessionsToNotifyFeedback.length} sessions awaiting user feedback`);
-          for (const session of sessionsToNotifyFeedback) {
-            if (!notifiedSessions.has(session.name)) {
-              notifyUserFeedbackRequired(session).catch((error) => {
-                logChannel.appendLine(
-                  `Jules: Failed to show user feedback notification for session '${sanitizeForLogging(session.name)}' (${sanitizeForLogging(session.title)}): ${sanitizeError(error)}`
-                );
-              });
-              notifiedSessions.add(session.name);
-            }
-          }
-        }
+        this.sendNotifications(
+          sessionsToNotifyFeedback,
+          "user feedback",
+          notifyUserFeedbackRequired
+        );
 
         // Notify Completed (PR Created)
         if (completedSessions.length > 0) {
