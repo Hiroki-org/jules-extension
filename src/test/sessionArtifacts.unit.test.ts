@@ -1006,4 +1006,73 @@ index 2345678..bcdefgh 100644
             assert.strictEqual(result.latestDiff, 'diff 999');
         });
     });
+
+    // =========================================================================
+    // Performance Optimization Tests
+    // =========================================================================
+
+    suite('Performance Optimization', () => {
+        test('updateTimeが一致する場合、ネットワーク呼び出しをスキップしてキャッシュを返すこと', async () => {
+            const sessionId = 'session-perf-1';
+            const apiKey = 'test-api-key';
+            const updateTime = '2024-01-01T12:00:00Z';
+
+            // Initial fetch to populate cache
+            const mockActivities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    gitPatch: { diff: 'diff 1' },
+                },
+            ];
+
+            fetchStub.resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockActivities }),
+            } as Response);
+
+            // First call - should fetch
+            await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime);
+            assert.ok(fetchStub.calledOnce, 'First call should fetch');
+
+            fetchStub.resetHistory();
+
+            // Second call with same updateTime - should NOT fetch
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime);
+            assert.ok(fetchStub.notCalled, 'Second call should use cache');
+            assert.strictEqual(result.latestDiff, 'diff 1');
+        });
+
+        test('updateTimeが異なる場合、ネットワーク呼び出しを行うこと', async () => {
+            const sessionId = 'session-perf-2';
+            const apiKey = 'test-api-key';
+            const updateTime1 = '2024-01-01T12:00:00Z';
+            const updateTime2 = '2024-01-01T13:00:00Z';
+
+            // Initial fetch
+            const mockActivities1 = [{ gitPatch: { diff: 'diff 1' } }];
+            fetchStub.resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockActivities1 }),
+            } as Response);
+
+            await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime1);
+            assert.ok(fetchStub.calledOnce);
+
+            fetchStub.resetHistory();
+
+            // Second call with different updateTime - should fetch
+            const mockActivities2 = [{ gitPatch: { diff: 'diff 2' } }];
+            fetchStub.resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockActivities2 }),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime2);
+            assert.ok(fetchStub.calledOnce, 'Should fetch when updateTime changes');
+            assert.strictEqual(result.latestDiff, 'diff 2');
+        });
+    });
 });
