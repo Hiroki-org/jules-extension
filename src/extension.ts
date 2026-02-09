@@ -2434,6 +2434,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // On success, permanently remove from previous states to prevent re-notification.
         previousSessionStates.delete(session.name);
+        notifiedSessions.delete(session.name);
         await context.globalState.update(
           "jules.previousSessionStates",
           Object.fromEntries(previousSessionStates)
