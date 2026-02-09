@@ -2429,7 +2429,8 @@ export function activate(context: vscode.ExtensionContext) {
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Failed to delete session on server: ${response.status} ${response.statusText} - ${errorText}`);
+          const safeDisplayText = truncateForDisplay(sanitizeForLogging(errorText));
+          throw new Error(`Failed to delete session on server: ${response.status} ${response.statusText} - ${safeDisplayText}`);
         }
 
         // On success, permanently remove from previous states to prevent re-notification.
