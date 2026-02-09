@@ -2399,6 +2399,11 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
+      if (!isValidSessionId(session.name)) {
+        vscode.window.showErrorMessage(`Invalid session ID: ${session.name}`);
+        return;
+      }
+
       const apiKey = await getStoredApiKey(context);
       if (!apiKey) {
         return;
@@ -2433,6 +2438,12 @@ export function activate(context: vscode.ExtensionContext) {
           "jules.previousSessionStates",
           Object.fromEntries(previousSessionStates)
         );
+
+        // Clear active session if the deleted session was the active one
+        const activeSessionId = context.globalState.get<string>("active-session-id");
+        if (activeSessionId === session.name) {
+          await context.globalState.update("active-session-id", undefined);
+        }
 
         // Remove from deleting set (it's gone now, so filter doesn't matter, but good cleanup)
         sessionsProvider.unmarkSessionAsDeleting(session.name);
