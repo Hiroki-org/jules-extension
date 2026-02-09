@@ -2409,14 +2409,14 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      // Mark as deleting to prevent background refresh from restoring it
-      sessionsProvider.markSessionAsDeleting(session.name);
-
-      // Optimistic UI update: Remove from local view immediately
-      sessionsProvider.removeSession(session.name);
-
       // Perform background server deletion
       try {
+        // Mark as deleting to prevent background refresh from restoring it
+        sessionsProvider.markSessionAsDeleting(session.name);
+
+        // Optimistic UI update: Remove from local view immediately
+        sessionsProvider.removeSession(session.name);
+
         const response = await fetchWithTimeout(
           `${JULES_API_BASE_URL}/${session.name}`,
           {
