@@ -33,10 +33,15 @@ export interface SessionArtifacts {
     latestChangeSet?: ChangeSetSummary;
 }
 
-const artifactsCache = new Map<string, SessionArtifacts>();
+interface CachedSessionArtifacts {
+    artifacts: SessionArtifacts;
+    updateTime?: string;
+}
+
+const artifactsCache = new Map<string, CachedSessionArtifacts>();
 
 export function getCachedSessionArtifacts(sessionId: string): SessionArtifacts | undefined {
-    return artifactsCache.get(sessionId);
+    return artifactsCache.get(sessionId)?.artifacts;
 }
 
 function normalizePath(value: unknown): string | null {
@@ -211,25 +216,36 @@ function areChangeSetFilesEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boo
     return true;
 }
 
-export function updateSessionArtifactsCache(sessionId: string, activities: Activity[]): boolean {
+export function updateSessionArtifactsCache(sessionId: string, activities: Activity[], updateTime?: string): boolean {
     const latest = extractLatestArtifactsFromActivities(activities);
-    const previous = artifactsCache.get(sessionId);
+    const previousEntry = artifactsCache.get(sessionId);
+    const previousArtifacts = previousEntry?.artifacts;
+    const nextUpdateTime = updateTime ?? previousEntry?.updateTime;
 
-    const diffChanged = previous?.latestDiff !== latest.latestDiff;
-    const changeSetChanged = !areChangeSetFilesEqual(previous?.latestChangeSet, latest.latestChangeSet);
+    const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
+    const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
+    const timeChanged = updateTime !== previousEntry?.updateTime;
 
-    if (diffChanged || changeSetChanged) {
-        artifactsCache.set(sessionId, latest);
-        return true;
+    if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
+        artifactsCache.set(sessionId, {
+            artifacts: latest,
+            updateTime: nextUpdateTime
+        });
     }
-    return false;
+    return diffChanged || changeSetChanged || (!!updateTime && timeChanged);
 }
 
 export async function fetchLatestSessionArtifacts(
     apiKey: string,
     sessionId: string,
-    apiBaseUrl: string = DEFAULT_API_BASE_URL
+    apiBaseUrl: string = DEFAULT_API_BASE_URL,
+    sessionUpdateTime?: string
 ): Promise<SessionArtifacts> {
+    const cached = artifactsCache.get(sessionId);
+    if (sessionUpdateTime && cached && cached.updateTime === sessionUpdateTime) {
+        return cached.artifacts;
+    }
+
     const response = await fetchWithTimeout(`${apiBaseUrl}/${sessionId}/activities`, {
         method: "GET",
         headers: {
@@ -247,6 +263,6 @@ export async function fetchLatestSessionArtifacts(
         throw new Error("Invalid response format from API.");
     }
 
-    updateSessionArtifactsCache(sessionId, data.activities);
-    return artifactsCache.get(sessionId) ?? {};
+    updateSessionArtifactsCache(sessionId, data.activities, sessionUpdateTime);
+    return artifactsCache.get(sessionId)?.artifacts ?? {};
 }

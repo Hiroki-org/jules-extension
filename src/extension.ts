@@ -1306,7 +1306,7 @@ export class JulesSessionsProvider
     // Run fetches in parallel
     const results = await Promise.allSettled(targetSessions.map(async (session) => {
       const before = getCachedSessionArtifacts(session.name);
-      await fetchLatestSessionArtifacts(apiKey, session.name, JULES_API_BASE_URL);
+      await fetchLatestSessionArtifacts(apiKey, session.name, JULES_API_BASE_URL, session.updateTime);
       const after = getCachedSessionArtifacts(session.name);
 
       // Check if availability of diff/changeset flipped
