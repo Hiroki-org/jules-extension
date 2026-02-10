@@ -520,43 +520,9 @@ async function checkPRStatus(
   }
 }
 
-function checkForCompletedSessions(currentSessions: Session[]): Session[] {
-  const completedSessions: Session[] = [];
-  for (const session of currentSessions) {
-    const prevState = previousSessionStates.get(session.name);
-    if (prevState?.isTerminated) {
-      continue; // Skip terminated sessions
-    }
-    if (
-      session.state === "COMPLETED" &&
-      (!prevState || prevState.state !== "COMPLETED")
-    ) {
-      const prUrl = extractPRUrl(session);
-      if (prUrl) {
-        // Only count as a new completion if there's a PR URL.
-        completedSessions.push(session);
-      }
-    }
-  }
-  return completedSessions;
-}
 
-function checkForSessionsInState(
-  currentSessions: Session[],
-  targetState: string
-): Session[] {
-  return currentSessions.filter((session) => {
-    const prevState = previousSessionStates.get(session.name);
-    const isNotTerminated = !prevState?.isTerminated;
-    const isTargetState = session.rawState === targetState;
-    const isStateChanged = !prevState || prevState.rawState !== targetState;
-    const willNotify = isNotTerminated && isTargetState && isStateChanged;
-    if (isTargetState) {
-      logChannel.appendLine(`Jules: Debug - Session ${session.name}: terminated=${!isNotTerminated}, rawState=${session.rawState}, prevRawState=${prevState?.rawState}, willNotify=${willNotify}`);
-    }
-    return willNotify;
-  });
-}
+
+
 
 async function notifyPRCreated(session: Session, prUrl: string): Promise<void> {
   const result = await vscode.window.showInformationMessage(
@@ -1110,6 +1076,31 @@ export class JulesSessionsProvider
 
   constructor(private context: vscode.ExtensionContext) { }
 
+
+  private sendNotifications(
+    sessions: Session[],
+    notificationType: string,
+    notifier: (session: Session) => Promise<void>
+  ) {
+    if (sessions.length === 0) {
+      return;
+    }
+
+    logChannel.appendLine(
+      `Jules: Found ${sessions.length} sessions awaiting ${notificationType}`
+    );
+    for (const session of sessions) {
+      if (!notifiedSessions.has(session.name)) {
+        notifier(session).catch((error) => {
+          logChannel.appendLine(
+            `Jules: Failed to show ${notificationType} notification for session '${sanitizeForLogging(session.name)}' (${sanitizeForLogging(session.title)}): ${sanitizeError(error)}`
+          );
+        });
+        notifiedSessions.add(session.name);
+      }
+    }
+  }
+
   private async fetchAndProcessSessions(
     isBackground: boolean = false,
     forceUIUpdate: boolean = false
@@ -1186,22 +1177,60 @@ export class JulesSessionsProvider
       const sessionsChanged = !areSessionListsEqual(this.sessionsCache, allSessionsMapped);
 
       if (sessionsChanged) {
-        this.processSessionNotifications(
-          allSessionsMapped,
-          SESSION_STATE.AWAITING_PLAN_APPROVAL,
-          (session) => notifyPlanAwaitingApproval(session, this.context),
-          "plan approval"
+        // Optimization: Single pass iteration over sessions to identify notification candidates
+        const sessionsToNotifyPlan: Session[] = [];
+        const sessionsToNotifyFeedback: Session[] = [];
+        const completedSessions: Session[] = [];
+
+        for (const session of allSessionsMapped) {
+          const prevState = previousSessionStates.get(session.name);
+          const isNotTerminated = !prevState?.isTerminated;
+
+          if (!isNotTerminated) {
+            continue;
+          }
+
+          // Check Plan Approval
+          if (session.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
+            const isStateChanged = !prevState || prevState.rawState !== SESSION_STATE.AWAITING_PLAN_APPROVAL;
+            if (isStateChanged) {
+              sessionsToNotifyPlan.push(session);
+            }
+          }
+
+          // Check User Feedback
+          if (session.rawState === SESSION_STATE.AWAITING_USER_FEEDBACK) {
+            const isStateChanged = !prevState || prevState.rawState !== SESSION_STATE.AWAITING_USER_FEEDBACK;
+            if (isStateChanged) {
+              sessionsToNotifyFeedback.push(session);
+            }
+          }
+
+          // Check Completed
+          if (session.state === "COMPLETED" && (!prevState || prevState.state !== "COMPLETED")) {
+            const prUrl = extractPRUrl(session);
+            if (prUrl) {
+              completedSessions.push(session);
+            }
+          }
+        }
+
+
+        // Notify Plan Approval
+        await this.sendNotifications(
+          sessionsToNotifyPlan,
+          "plan approval",
+          (session) => notifyPlanAwaitingApproval(session, this.context)
         );
 
-        this.processSessionNotifications(
-          allSessionsMapped,
-          SESSION_STATE.AWAITING_USER_FEEDBACK,
-          notifyUserFeedbackRequired,
-          "user feedback"
+        // Notify User Feedback
+        await this.sendNotifications(
+          sessionsToNotifyFeedback,
+          "user feedback",
+          notifyUserFeedbackRequired
         );
 
-        // --- Check for completed sessions (PR created) ---
-        const completedSessions = checkForCompletedSessions(allSessionsMapped);
+        // Notify Completed (PR Created)
         if (completedSessions.length > 0) {
           logChannel.appendLine(
             `Jules: Found ${completedSessions.length} completed sessions`
@@ -1215,8 +1244,6 @@ export class JulesSessionsProvider
             }
           }
         }
-      } else {
-        logChannel.appendLine("Jules: Sessions unchanged, skipping notifications.");
       }
 
       // --- Update previous states after all checks ---
@@ -1342,6 +1369,8 @@ export class JulesSessionsProvider
     await this.fetchAndProcessSessions(isBackground, forceUIUpdate);
   }
 
+
+
   public removeSession(sessionId: string): void {
     this.sessionsCache = this.sessionsCache.filter(s => s.name !== sessionId);
     this._onDidChangeTreeData.fire();
@@ -1353,30 +1382,6 @@ export class JulesSessionsProvider
 
   public unmarkSessionAsDeleting(sessionId: string): void {
     this.deletingSessions.delete(sessionId);
-  }
-
-  private processSessionNotifications(
-    sessions: Session[],
-    state: string,
-    notifier: (session: Session) => Promise<void>,
-    notificationType: string
-  ) {
-    const sessionsToNotify = checkForSessionsInState(sessions, state);
-    if (sessionsToNotify.length > 0) {
-      logChannel.appendLine(
-        `Jules: Found ${sessionsToNotify.length} sessions awaiting ${notificationType}`
-      );
-      for (const session of sessionsToNotify) {
-        if (!notifiedSessions.has(session.name)) {
-          notifier(session).catch((error) => {
-            logChannel.appendLine(
-              `Jules: Failed to show ${notificationType} notification for session '${sanitizeForLogging(session.name)}' (${sanitizeForLogging(session.title)}): ${sanitizeError(error)}`
-            );
-          });
-          notifiedSessions.add(session.name);
-        }
-      }
-    }
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
