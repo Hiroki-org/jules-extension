@@ -682,6 +682,18 @@ export function areOutputsEqual(a?: SessionOutput[], b?: SessionOutput[]): boole
   return true;
 }
 
+function areSessionsEqual(s1: Session, s2: Session): boolean {
+  return (
+    s1.state === s2.state &&
+    s1.rawState === s2.rawState &&
+    s1.sourceContext?.source === s2.sourceContext?.source &&
+    s1.sourceContext?.githubRepoContext?.startingBranch === s2.sourceContext?.githubRepoContext?.startingBranch &&
+    s1.requirePlanApproval === s2.requirePlanApproval &&
+    JSON.stringify(s1.sourceContext) === JSON.stringify(s2.sourceContext) &&
+    areOutputsEqual(s1.outputs, s2.outputs)
+  );
+}
+
 export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   if (a === b) {
     return true;
@@ -690,6 +702,34 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
     return false;
   }
 
+  // Fast path: Check equality by index
+  let mismatchFound = false;
+  for (let i = 0; i < a.length; i++) {
+    const s1 = a[i];
+    const s2 = b[i];
+
+    if (s1 === s2) {
+      continue;
+    }
+
+    // If names match, check content
+    if (s1.name === s2.name) {
+      if (!areSessionsEqual(s1, s2)) {
+        return false;
+      }
+    } else {
+      // Names mismatch implies potential reordering
+      mismatchFound = true;
+      break;
+    }
+  }
+
+  // If we iterated through the whole list without mismatches (or finding differences), they are equal
+  if (!mismatchFound) {
+    return true;
+  }
+
+  // Slow path: Check set equality ignoring order
   const mapA = new Map(a.map((s) => [s.name, s]));
 
   for (const s2 of b) {
@@ -697,20 +737,12 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
     if (!s1) {
       return false;
     }
-    if (
-      s1.state !== s2.state ||
-      s1.rawState !== s2.rawState ||
-      s1.title !== s2.title ||
-      s1.requirePlanApproval !== s2.requirePlanApproval ||
-      JSON.stringify(s1.sourceContext) !== JSON.stringify(s2.sourceContext) ||
-      !areOutputsEqual(s1.outputs, s2.outputs)
-    ) {
+    if (!areSessionsEqual(s1, s2)) {
       return false;
     }
   }
   return true;
 }
-
 export async function updatePreviousStates(
   currentSessions: Session[],
   context: vscode.ExtensionContext
