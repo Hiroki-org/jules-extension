@@ -1217,14 +1217,14 @@ export class JulesSessionsProvider
 
 
         // Notify Plan Approval
-        this.sendNotifications(
+        await this.sendNotifications(
           sessionsToNotifyPlan,
           "plan approval",
           (session) => notifyPlanAwaitingApproval(session, this.context)
         );
 
         // Notify User Feedback
-        this.sendNotifications(
+        await this.sendNotifications(
           sessionsToNotifyFeedback,
           "user feedback",
           notifyUserFeedbackRequired
