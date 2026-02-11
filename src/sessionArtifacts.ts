@@ -246,6 +246,57 @@ export async function fetchLatestSessionArtifacts(
         return cached.artifacts;
     }
 
+    // Optimization: Try to fetch only the latest activities (Newest -> Oldest)
+    // We request a page of 50 activities. If the API supports 'orderBy', we get the 50 newest.
+    // If we find artifacts in these 50, we avoid fetching the full history.
+    try {
+        const optimizedUrl = `${apiBaseUrl}/${sessionId}/activities?pageSize=50&orderBy=create_time%20desc`;
+        const response = await fetchWithTimeout(optimizedUrl, {
+            method: "GET",
+            headers: {
+                "X-Goog-Api-Key": apiKey,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (response.ok) {
+            const data = (await response.json()) as ActivitiesResponse;
+            if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+                const activities = data.activities;
+
+                // Verify sort order: First item should be newer than or equal to last item
+                const firstActivity = activities[0];
+                const lastActivity = activities[activities.length - 1];
+
+                const firstTime = firstActivity.createTime ? new Date(firstActivity.createTime).getTime() : 0;
+                const lastTime = lastActivity.createTime ? new Date(lastActivity.createTime).getTime() : 0;
+
+                // If activities are sorted Descending (Newest -> Oldest), firstTime >= lastTime.
+                // If the API ignored orderBy, it likely returns Ascending (Oldest -> Newest), so firstTime < lastTime.
+                const isDescending = firstTime >= lastTime;
+
+                if (isDescending) {
+                    // We have the newest activities.
+                    // extractLatestArtifactsFromActivities expects Oldest -> Newest (ascending).
+                    // So we reverse the array before processing.
+                    const reversedActivities = [...activities].reverse();
+
+                    const latest = extractLatestArtifactsFromActivities(reversedActivities);
+
+                    // If we found artifacts, update cache and return.
+                    if (latest.latestDiff || latest.latestChangeSet) {
+                         updateSessionArtifactsCache(sessionId, reversedActivities, sessionUpdateTime);
+                         return artifactsCache.get(sessionId)?.artifacts ?? {};
+                    }
+                    // If no artifacts found in the latest 50, we MUST fallback to full fetch to check older history.
+                }
+            }
+        }
+    } catch (error) {
+        // Ignore optimization errors and fallback
+    }
+
+    // Fallback: Fetch all activities
     const response = await fetchWithTimeout(`${apiBaseUrl}/${sessionId}/activities`, {
         method: "GET",
         headers: {
