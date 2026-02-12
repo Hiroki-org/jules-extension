@@ -239,7 +239,8 @@ export async function fetchLatestSessionArtifacts(
     apiKey: string,
     sessionId: string,
     apiBaseUrl: string = DEFAULT_API_BASE_URL,
-    sessionUpdateTime?: string
+    sessionUpdateTime?: string,
+    requiredArtifacts: ('diff' | 'changeset')[] = ['diff', 'changeset']
 ): Promise<SessionArtifacts> {
     const cached = artifactsCache.get(sessionId);
     if (sessionUpdateTime && cached && cached.updateTime === sessionUpdateTime) {
@@ -283,12 +284,49 @@ export async function fetchLatestSessionArtifacts(
 
                     const latest = extractLatestArtifactsFromActivities(reversedActivities);
 
-                    // If we found artifacts, update cache and return.
-                    if (latest.latestDiff || latest.latestChangeSet) {
-                         updateSessionArtifactsCache(sessionId, reversedActivities, sessionUpdateTime);
-                         return artifactsCache.get(sessionId)?.artifacts ?? {};
+                    // MERGE STRATEGY:
+                    // Combine what we found (latest) with what we had (cached).
+                    // - If latest has a diff, it's newer than cache. Use it.
+                    // - If latest doesn't have a diff, maybe it's in cache. Use cache.
+                    // (Same for changeset)
+                    const mergedDiff = latest.latestDiff ?? cached?.artifacts.latestDiff;
+                    const mergedChangeSet = latest.latestChangeSet ?? cached?.artifacts.latestChangeSet;
+
+                    const mergedArtifacts: SessionArtifacts = {
+                        latestDiff: mergedDiff,
+                        latestChangeSet: mergedChangeSet
+                    };
+
+                    // COMPLETENESS CHECK:
+                    // 1. History Exhausted: We fetched < 50 items, so we saw everything.
+                    // 2. Data Complete: We have both Diff and ChangeSet (either from fetch or cache).
+                    const historyExhausted = activities.length < 50;
+                    const dataComplete = !!mergedDiff && !!mergedChangeSet;
+
+                    // If we are "safe" to update cache, do so.
+                    if (historyExhausted || dataComplete) {
+                        artifactsCache.set(sessionId, {
+                            artifacts: mergedArtifacts,
+                            updateTime: sessionUpdateTime ?? cached?.updateTime
+                        });
+                        return mergedArtifacts;
                     }
-                    // If no artifacts found in the latest 50, we MUST fallback to full fetch to check older history.
+
+                    // CONDITIONAL FALLBACK:
+                    // If we have what the caller asked for, we can return early.
+                    // BUT we might NOT want to update the cache if it's incomplete,
+                    // to prevent poisoning it with missing data for future calls.
+                    const hasRequiredDiff = requiredArtifacts.includes('diff') ? !!mergedDiff : true;
+                    const hasRequiredChangeSet = requiredArtifacts.includes('changeset') ? !!mergedChangeSet : true;
+
+                    if (hasRequiredDiff && hasRequiredChangeSet) {
+                         // We have what was asked. Return it.
+                         // Do NOT update cache to avoid storing incomplete state (unless we did above).
+                         return mergedArtifacts;
+                    }
+
+                    // If we are here, we are missing something required AND history wasn't exhausted.
+                    // Must fall back to full fetch.
                 }
             }
         }

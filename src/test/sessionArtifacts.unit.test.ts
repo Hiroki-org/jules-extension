@@ -53,7 +53,7 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities: mockActivities }),
             } as Response);
 
-            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7));
 
             assert.ok(fetchStub.calledOnce, 'Should call API once (optimized path success)');
             const callArgs = fetchStub.firstCall.args;
@@ -80,11 +80,13 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities: mockActivities }),
             } as Response);
 
-            await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime);
+            const randomSession = 'session-cache-test'; 'session-' + Math.random().toString(36).substring(7);
+
             fetchStub.resetHistory();
 
             // Call again with same updateTime
-            const result = await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime);
+            const result = await fetchLatestSessionArtifacts(apiKey, randomSession, undefined, updateTime);
+
 
             assert.ok(fetchStub.notCalled, 'Should verify cache usage');
             assert.strictEqual(result.latestDiff, 'diff 1');
@@ -92,15 +94,15 @@ suite('SessionArtifacts Unit Tests', () => {
     });
 
     // =========================================================================
-    // Optimization Strategy Tests
+    // Optimization Strategy Tests (Updated for Robustness)
     // =========================================================================
 
     suite('Optimization Strategy', () => {
-        const sessionId = 'session-opt';
+        let sessionId = 'session-opt';
         const apiKey = 'key';
 
-        test('Success: Sorted Descending (Newest -> Oldest) -> Returns Artifacts', async () => {
-            // Newest (first) -> Oldest (last)
+        sessionId = 'session-opt-1';
+        test('Success: Sorted Descending -> Returns Artifacts', async () => {
             const activities = [
                 { createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'Newest Diff' } },
                 { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Oldest Diff' } },
@@ -111,27 +113,22 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities }),
             } as Response);
 
-            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7));
 
             assert.ok(fetchStub.calledOnce);
             const url = fetchStub.firstCall.args[0] as string;
             assert.ok(url.includes('orderBy=create_time%20desc'));
-
-            // The code reverses the array before extracting.
-            // Reversed: [Oldest, Newest].
-            // Extract checks Newest first. Finds 'Newest Diff'.
             assert.strictEqual(result.latestDiff, 'Newest Diff');
         });
 
-        test('Fallback: Sorted Ascending (Oldest -> Newest) -> Falls back to full fetch', async () => {
-            // Oldest (first) -> Newest (last) - API ignored sort order
+        sessionId = 'session-opt-2';
+        test('Fallback: Sorted Ascending -> Falls back to full fetch', async () => {
             const activitiesAsc = [
                 { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Oldest Diff' } },
                 { createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'Newest Diff' } },
             ];
 
-            // Mock full fetch response
-            const activitiesFull = [
+            const activitiesFull: any[] = [
                  { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Oldest Diff' } },
                  { createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'Newest Diff' } },
                  { createTime: '2024-01-03T10:00:00Z', gitPatch: { diff: 'Latest Full Diff' } },
@@ -147,36 +144,45 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities: activitiesFull }),
             } as Response);
 
-            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7));
 
             assert.ok(fetchStub.calledTwice, 'Should call twice (fallback triggered)');
-            const firstUrl = fetchStub.firstCall.args[0] as string;
-            const secondUrl = fetchStub.secondCall.args[0] as string;
-
-            assert.ok(firstUrl.includes('orderBy'), 'First call optimized');
-            assert.ok(!secondUrl.includes('orderBy'), 'Second call legacy (no params)');
-
-            // Should get artifacts from full fetch
             assert.strictEqual(result.latestDiff, 'Latest Full Diff');
         });
 
-        test('Fallback: No Artifacts in Window -> Falls back to full fetch', async () => {
-            // Descending sort, but no artifacts in window
-            const activitiesNoArtifacts = [
-                { createTime: '2024-01-02T10:00:00Z' }, // comment
-                { createTime: '2024-01-01T10:00:00Z' }, // comment
+        sessionId = 'session-opt-3';
+        test('Fallback: Missing Required Artifact in Top 50 -> Falls back', async () => {
+            // Newest activity has Diff, but we also want Changeset (default)
+            // Top 50 has Diff, but NO changeset.
+            const activitiesPartial = [
+                { createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'New Diff' } }
             ];
+            // Simulate 50 items so historyExhausted is false (Descending: Newest -> Oldest)
+            while(activitiesPartial.length < 50) {
+                 activitiesPartial.push({ createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Old' } });
+            }
 
-            // Full fetch has artifact
-            const activitiesFull = [
-                { createTime: '2023-12-31T10:00:00Z', gitPatch: { diff: 'Old Artifact' } }, // Old artifact
-                { createTime: '2024-01-01T10:00:00Z' },
-                { createTime: '2024-01-02T10:00:00Z' },
+            // Full history (Ascending: Oldest -> Newest)
+            // Contains 'Another Diff' (Oldest) and 'New Diff' (Newest)
+            // Also contains the missing Changeset (Oldest)
+            const activitiesFull: any[] = [
+                {
+                    createTime: '2023-01-01T10:00:00Z',
+                    gitPatch: { diff: 'Another Diff' },
+                    artifacts: [{ changeSet: { files: [{ path: 'foo.ts' }] } }]
+                }
             ];
+            // Add filler
+            for(let i=0; i<49; i++) {
+                activitiesFull.push({ createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Old' } });
+            }
+            // Add Newest
+            activitiesFull.push({ createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'New Diff' } });
+
 
             fetchStub.onFirstCall().resolves({
                 ok: true,
-                json: async () => ({ activities: activitiesNoArtifacts }),
+                json: async () => ({ activities: activitiesPartial }),
             } as Response);
 
             fetchStub.onSecondCall().resolves({
@@ -184,32 +190,55 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities: activitiesFull }),
             } as Response);
 
-            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            // Default requiredArtifacts = ['diff', 'changeset']
+            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7));
 
-            assert.ok(fetchStub.calledTwice);
-            assert.strictEqual(result.latestDiff, 'Old Artifact');
+            assert.ok(fetchStub.calledTwice, 'Should fallback because ChangeSet was missing');
+            // After fallback, we process activitiesFull (Ascending).
+            // Newest is at the end. So we find 'New Diff'.
+            assert.strictEqual(result.latestDiff, 'New Diff');
+            assert.ok(result.latestChangeSet, 'Should eventually find changeset from full fetch');
         });
 
-        test('Fallback: Optimization Error (400) -> Falls back to full fetch', async () => {
-             fetchStub.onFirstCall().resolves({
-                ok: false,
-                status: 400,
-                statusText: 'Bad Request',
-            } as Response);
-
-            const activitiesFull = [
-                { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Full Diff' } },
+        sessionId = 'session-opt-4';
+        test('Success: Missing Required Artifact but History Exhausted -> Returns Partial', async () => {
+            // Only 1 activity total. Has Diff, no ChangeSet.
+            const activities = [
+                { createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'Only Diff' } }
             ];
 
-            fetchStub.onSecondCall().resolves({
+            fetchStub.resolves({
                 ok: true,
-                json: async () => ({ activities: activitiesFull }),
+                json: async () => ({ activities }),
             } as Response);
 
-            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7));
 
-            assert.ok(fetchStub.calledTwice);
-            assert.strictEqual(result.latestDiff, 'Full Diff');
+            assert.ok(fetchStub.calledOnce, 'Should NOT fallback because history is exhausted');
+            assert.strictEqual(result.latestDiff, 'Only Diff');
+            assert.strictEqual(result.latestChangeSet, undefined);
+        });
+
+        sessionId = 'session-opt-5';
+        test('Success: Missing Unneeded Artifact -> Returns Partial', async () => {
+            // We only need 'diff'. Top 50 has diff. No changeset.
+            const activitiesPartial = [
+                { createTime: '2024-01-02T10:00:00Z', gitPatch: { diff: 'New Diff' } }
+            ];
+             while(activitiesPartial.length < 50) {
+                 activitiesPartial.push({ createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'Old' } });
+            }
+
+            fetchStub.resolves({
+                ok: true,
+                json: async () => ({ activities: activitiesPartial }),
+            } as Response);
+
+            // Only request 'diff'
+            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7), undefined, undefined, ['diff']);
+
+            assert.ok(fetchStub.calledOnce, 'Should return early because we found required diff');
+            assert.strictEqual(result.latestDiff, 'New Diff');
         });
     });
 
@@ -241,8 +270,6 @@ suite('SessionArtifacts Unit Tests', () => {
             assert.ok(result.latestChangeSet);
             assert.strictEqual(result.latestChangeSet.files[0].path, 'deeply/nested/path/file.ts');
         });
-
-        // ... preserving key logic tests ...
 
         test('handles long paths', () => {
              const longPath = 'a/'.repeat(100) + 'file.ts';

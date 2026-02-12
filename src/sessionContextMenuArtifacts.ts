@@ -100,7 +100,8 @@ export async function openLatestDiffForSession(options: {
                 if (cached?.latestDiff) {
                     return cached;
                 }
-                return fetchLatestSessionArtifacts(apiKey, sessionId, apiBaseUrl);
+                // Request 'diff' specifically to optimize fallback logic
+                return fetchLatestSessionArtifacts(apiKey, sessionId, apiBaseUrl, undefined, ['diff']);
             }
         );
 
@@ -147,7 +148,8 @@ export async function openChangesetForSession(options: {
                 if (cached?.latestChangeSet) {
                     return cached;
                 }
-                return fetchLatestSessionArtifacts(apiKey, sessionId, apiBaseUrl);
+                // Request 'changeset' specifically to optimize fallback logic
+                return fetchLatestSessionArtifacts(apiKey, sessionId, apiBaseUrl, undefined, ['changeset']);
             }
         );
 
