@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as fetchUtils from '../fetchUtils';
@@ -53,7 +52,7 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities: mockActivities }),
             } as Response);
 
-            const result = await fetchLatestSessionArtifacts(apiKey, 'session-' + Math.random().toString(36).substring(7));
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
 
             assert.ok(fetchStub.calledOnce, 'Should call API once (optimized path success)');
             const callArgs = fetchStub.firstCall.args;
@@ -80,13 +79,14 @@ suite('SessionArtifacts Unit Tests', () => {
                 json: async () => ({ activities: mockActivities }),
             } as Response);
 
-            const randomSession = 'session-cache-test'; 'session-' + Math.random().toString(36).substring(7);
+            const randomSession = 'session-cache-test';
+
+            await fetchLatestSessionArtifacts(apiKey, randomSession, undefined, updateTime);
 
             fetchStub.resetHistory();
 
             // Call again with same updateTime
             const result = await fetchLatestSessionArtifacts(apiKey, randomSession, undefined, updateTime);
-
 
             assert.ok(fetchStub.notCalled, 'Should verify cache usage');
             assert.strictEqual(result.latestDiff, 'diff 1');

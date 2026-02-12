@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { fetchWithTimeout } from '../fetchUtils';
