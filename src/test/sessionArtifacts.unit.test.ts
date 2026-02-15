@@ -800,7 +800,7 @@ index 2345678..bcdefgh 100644
             const apiKey = 'test-api-key-12345';
             const mockActivities = [
                 {
-                    createTime: '2024-01-01T00:00:00Z',
+                    createTime: '2024-01-01T00:00:00Z', gitPatch: { diff: 'dummy' },
                 },
             ];
 
@@ -1073,6 +1073,138 @@ index 2345678..bcdefgh 100644
             const result = await fetchLatestSessionArtifacts(apiKey, sessionId, undefined, updateTime2);
             assert.ok(fetchStub.calledOnce, 'Should fetch when updateTime changes');
             assert.strictEqual(result.latestDiff, 'diff 2');
+        });
+    });
+
+    // =========================================================================
+    // Optimized Fetch Strategy Tests
+    // =========================================================================
+
+    suite('Performance Optimization (Fetch Strategy)', () => {
+        const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
+
+        test('最適化フェッチが成功（降順）した場合、フォールバックせずに返却すること', async () => {
+            const sessionId = 'session-opt-success';
+            const apiKey = 'test-api-key';
+
+            // 降順（最新が先頭）のレスポンス
+            const mockActivities = [
+                { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'latest diff' } },
+                { createTime: '2024-01-01T09:00:00Z' }
+            ];
+
+            fetchStub.resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockActivities }),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+
+            assert.strictEqual(result.latestDiff, 'latest diff');
+            assert.ok(fetchStub.calledOnce, '最適化フェッチ成功時は1回のみ呼び出されるべき');
+
+            const callArgs = fetchStub.firstCall.args;
+            const url = callArgs[0] as string;
+            assert.ok(url.includes('orderBy=create_time+desc'));
+            assert.ok(url.includes('pageSize=50'));
+        });
+
+        test('最適化フェッチが昇順（古い順）で返ってきた場合、フォールバックすること', async () => {
+            const sessionId = 'session-opt-fallback-asc';
+            const apiKey = 'test-api-key';
+
+            // 1回目: 昇順（古い順）
+            const mockAscending = [
+                { createTime: '2024-01-01T09:00:00Z' },
+                { createTime: '2024-01-01T10:00:00Z' }
+            ];
+            // 2回目: 全件（新しい順に並んでいるか関係なく、ここから抽出される）
+            const mockAll = [
+                { createTime: '2024-01-01T09:00:00Z' },
+                { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'fallback diff' } }
+            ];
+
+            fetchStub.onFirstCall().resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockAscending }),
+            } as Response);
+
+            fetchStub.onSecondCall().resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockAll }),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+
+            assert.strictEqual(result.latestDiff, 'fallback diff');
+            assert.ok(fetchStub.calledTwice, '昇順レスポンス時はフォールバックすべき');
+
+            const call2Args = fetchStub.secondCall.args;
+            const url2 = call2Args[0] as string;
+            assert.strictEqual(url2, `${DEFAULT_API_BASE_URL}/${sessionId}/activities`);
+        });
+
+        test('最適化フェッチでアーティファクトが見つからない場合、フォールバックすること', async () => {
+            const sessionId = 'session-opt-fallback-empty';
+            const apiKey = 'test-api-key';
+
+            // 1回目: 降順だがアーティファクトなし
+            const mockNoArtifacts = [
+                { createTime: '2024-01-01T10:00:00Z' },
+                { createTime: '2024-01-01T09:00:00Z' }
+            ];
+            // 2回目: 全件（古い履歴にアーティファクトあり）
+            const mockAll = [
+                { createTime: '2024-01-01T08:00:00Z', gitPatch: { diff: 'old diff' } }, // Oldest
+                { createTime: '2024-01-01T09:00:00Z' },
+                { createTime: '2024-01-01T10:00:00Z' }
+            ];
+
+            fetchStub.onFirstCall().resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockNoArtifacts }),
+            } as Response);
+
+            fetchStub.onSecondCall().resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockAll }),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+
+            assert.strictEqual(result.latestDiff, 'old diff');
+            assert.ok(fetchStub.calledTwice, 'アーティファクトが見つからない場合はフォールバックすべき');
+        });
+
+        test('最適化フェッチがエラーの場合、フォールバックすること', async () => {
+            const sessionId = 'session-opt-fallback-error';
+            const apiKey = 'test-api-key';
+
+            fetchStub.onFirstCall().resolves({
+                ok: false,
+                status: 400,
+                statusText: 'Bad Request'
+            } as Response);
+
+            const mockAll = [
+                { createTime: '2024-01-01T10:00:00Z', gitPatch: { diff: 'success diff' } }
+            ];
+
+            fetchStub.onSecondCall().resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({ activities: mockAll }),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+
+            assert.strictEqual(result.latestDiff, 'success diff');
+            assert.ok(fetchStub.calledTwice, 'エラー時はフォールバックすべき');
         });
     });
 });

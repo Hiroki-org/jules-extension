@@ -246,12 +246,74 @@ export async function fetchLatestSessionArtifacts(
         return cached.artifacts;
     }
 
+    const headers = {
+        "X-Goog-Api-Key": apiKey,
+        "Content-Type": "application/json",
+    };
+
+    // Optimization: Try to fetch only the latest activities (newest first) to avoid large payload
+    // We request 50 items, which should be enough to find the latest artifacts in most cases.
+    try {
+        const params = new URLSearchParams({
+            pageSize: "50",
+            orderBy: "create_time desc"
+        });
+        const optimizedUrl = `${apiBaseUrl}/${sessionId}/activities?${params.toString()}`;
+
+        const response = await fetchWithTimeout(optimizedUrl, {
+            method: "GET",
+            headers,
+        });
+
+        if (response.ok) {
+            const data = (await response.json()) as ActivitiesResponse;
+
+            // Check if we got valid activities
+            if (data.activities && Array.isArray(data.activities) && data.activities.length > 0) {
+                const activities = data.activities;
+
+                // Check if the response respected the sort order (Newest first)
+                // Timestamps are ISO strings, lexicographical comparison works, but Date parse is safer.
+                const act0 = activities[0];
+                const actLast = activities[activities.length - 1];
+                const firstTime = act0 && act0.createTime ? new Date(act0.createTime).getTime() : 0;
+                const lastTime = actLast && actLast.createTime ? new Date(actLast.createTime).getTime() : 0;
+
+                // If first >= last, it's likely Descending (Newest -> Oldest).
+                // If the API ignored orderBy and returned Ascending (Oldest -> Newest), first < last.
+                if (firstTime >= lastTime) {
+                    // The extraction logic expects activities in chronological order (Oldest -> Newest).
+                    // Since we received them in reverse (Newest -> Oldest), we must reverse them back.
+                    const reversedActivities = [...activities].reverse();
+
+                    // Attempt to extract artifacts from this subset
+                    const latest = extractLatestArtifactsFromActivities(reversedActivities);
+
+                    // If we found ANY artifacts in this latest window, we can be confident they are the LATEST.
+                    if (latest.latestDiff || latest.latestChangeSet) {
+                        updateSessionArtifactsCache(sessionId, reversedActivities, sessionUpdateTime);
+                        return artifactsCache.get(sessionId)?.artifacts ?? {};
+                    }
+                }
+            } else if (data.activities && Array.isArray(data.activities) && data.activities.length === 0) {
+                 // Empty list means no activities at all. No need to fallback.
+                 updateSessionArtifactsCache(sessionId, [], sessionUpdateTime);
+                 return {};
+            }
+        }
+    } catch (error) {
+        // Ignore optimization errors (network, parsing, etc.) and fallback to full fetch
+        // console.warn(`[Jules] Optimized fetch failed, falling back: ${error}`);
+    }
+
+    // Fallback: Fetch all activities (without pagination/sorting)
+    // This handles cases where:
+    // 1. API doesn't support optimization params
+    // 2. Optimization fetch failed
+    // 3. No artifacts found in the latest 50 items (but might exist in older history)
     const response = await fetchWithTimeout(`${apiBaseUrl}/${sessionId}/activities`, {
         method: "GET",
-        headers: {
-            "X-Goog-Api-Key": apiKey,
-            "Content-Type": "application/json",
-        },
+        headers,
     });
 
     if (!response.ok) {
