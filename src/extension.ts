@@ -561,7 +561,13 @@ async function fetchPlanFromActivities(
     }
 
     // Find the most recent planGenerated activity (reverse to get latest first)
-    const planActivity = [...data.activities].reverse().find((a) => a.planGenerated);
+    let planActivity: Activity | undefined;
+    for (let i = data.activities.length - 1; i >= 0; i--) {
+      if (data.activities[i].planGenerated) {
+        planActivity = data.activities[i];
+        break;
+      }
+    }
     return planActivity?.planGenerated?.plan || null;
   } catch (error) {
     console.error(`Jules: Error fetching plan from activities: ${sanitizeError(error)}`);
