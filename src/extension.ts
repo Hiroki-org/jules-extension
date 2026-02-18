@@ -1152,13 +1152,6 @@ export class JulesSessionsProvider
         return;
       }
 
-      // デバッグ: APIレスポンスの生データを確認
-      logChannel.appendLine(`Jules: Debug - Raw API response sample (first 3 sessions):`);
-      data.sessions.slice(0, 3).forEach((s: any, i: number) => {
-        logChannel.appendLine(`  [${i}] name=${s.name}, state=${s.state}, title=${sanitizeForLogging(s.title)}`);
-        logChannel.appendLine(`      updateTime=${s.updateTime}`);
-      });
-
       logChannel.appendLine(`Jules: Found ${data.sessions.length} total sessions`);
 
       // Filter out sessions that are currently being deleted to prevent race conditions
