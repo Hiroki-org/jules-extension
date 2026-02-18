@@ -75,9 +75,9 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
  * @param options オプション
  * @returns 現在のブランチ名、またはnull（Git拡張が利用できない場合など）
  */
-export async function getCurrentBranch(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<string | null> {
+export async function getCurrentBranch(outputChannel: vscode.OutputChannel, options: { silent?: boolean, repository?: any } = {}): Promise<string | null> {
     try {
-        const repository = await getActiveRepository(outputChannel, options);
+        const repository = options.repository || await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
@@ -95,9 +95,9 @@ export async function getCurrentBranch(outputChannel: vscode.OutputChannel, opti
     }
 }
 
-async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<{ owner: string; repo: string } | null> {
+async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel, options: { silent?: boolean, repository?: any } = {}): Promise<{ owner: string; repo: string } | null> {
     try {
-        const repository = await getActiveRepository(outputChannel, options);
+        const repository = options.repository || await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
@@ -222,7 +222,8 @@ export async function getBranchesForSession(
             branches = [defaultBranch];
         }
 
-        const currentBranch = await getCurrentBranch(outputChannel, { silent });
+        let repository = null; try { repository = await getActiveRepository(outputChannel, { silent }); } catch (e) { }
+        const currentBranch = await getCurrentBranch(outputChannel, { silent, repository });
 
         // 警告は1回だけ
         if (currentBranch && !remoteBranches.includes(currentBranch)) {
@@ -235,7 +236,7 @@ export async function getBranchesForSession(
 
         let selectedDefaultBranch = defaultBranch;
         if (defaultBranchConfig === 'current' && currentBranch) {
-            const workspaceRepo = await getWorkspaceGitHubRepo(outputChannel, { silent });
+            const workspaceRepo = await getWorkspaceGitHubRepo(outputChannel, { silent, repository });
             const sourceRepo = selectedSource.githubRepo;
             const isRepoMatched = workspaceRepo && sourceRepo &&
                 workspaceRepo.owner === sourceRepo.owner.toLowerCase() &&
