@@ -136,54 +136,66 @@ function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?
     return [];
 }
 
-function extractLatestDiff(activities: Activity[]): string | undefined {
-    for (let i = activities.length - 1; i >= 0; i -= 1) {
-        // 1. Check direct gitPatch
-        const diff = activities[i]?.gitPatch?.diff;
-        if (typeof diff === "string" && diff.trim().length > 0) {
-            return diff;
-        }
-
-        // 2. Check artifacts.changeSet.gitPatch.unidiffPatch
-        const artifacts = activities[i]?.artifacts;
-        if (Array.isArray(artifacts)) {
-            for (const artifact of artifacts) {
-                const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
-                if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
-                    return uniDiff;
-                }
-            }
-        }
-    }
-    return undefined;
-}
-
-function extractLatestChangeSet(activities: Activity[], latestDiff?: string): ChangeSetSummary | undefined {
-    for (let i = activities.length - 1; i >= 0; i -= 1) {
-        const artifacts = activities[i]?.artifacts;
-        if (!artifacts || artifacts.length === 0) {
-            continue;
-        }
-        for (const artifact of artifacts) {
-            const changeSet = artifact?.changeSet;
-            if (changeSet && typeof changeSet === "object") {
-                return {
-                    files: extractChangeSetFiles(changeSet, latestDiff),
-                    raw: changeSet,
-                };
-            }
-        }
-    }
-    return undefined;
-}
-
 export function extractLatestArtifactsFromActivities(activities: Activity[]): SessionArtifacts {
     if (!Array.isArray(activities) || activities.length === 0) {
         return {};
     }
 
-    const latestDiff = extractLatestDiff(activities);
-    const latestChangeSet = extractLatestChangeSet(activities, latestDiff);
+    let latestDiff: string | undefined;
+    let latestChangeSetRaw: Record<string, unknown> | undefined;
+
+    // Iterate backwards to find the latest artifacts
+    for (let i = activities.length - 1; i >= 0; i--) {
+        const activity = activities[i];
+        if (!activity) {
+            continue;
+        }
+
+        // Check direct gitPatch for diff (Priority 1)
+        if (!latestDiff) {
+            const diff = activity.gitPatch?.diff;
+            if (typeof diff === "string" && diff.trim().length > 0) {
+                latestDiff = diff;
+            }
+        }
+
+        const artifacts = activity.artifacts;
+        if (Array.isArray(artifacts)) {
+            // If we still need to find something, scan artifacts
+            if (!latestChangeSetRaw || !latestDiff) {
+                for (const artifact of artifacts) {
+                    // Check for ChangeSet
+                    if (!latestChangeSetRaw) {
+                        const changeSet = artifact?.changeSet;
+                        if (changeSet && typeof changeSet === "object") {
+                            latestChangeSetRaw = changeSet as Record<string, unknown>;
+                        }
+                    }
+
+                    // Check for Diff from artifact (Priority 2)
+                    if (!latestDiff) {
+                        const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                        if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
+                            latestDiff = uniDiff;
+                        }
+                    }
+                }
+            }
+        }
+
+        // If both are found, we can stop early
+        if (latestDiff && latestChangeSetRaw) {
+            break;
+        }
+    }
+
+    let latestChangeSet: ChangeSetSummary | undefined;
+    if (latestChangeSetRaw) {
+        latestChangeSet = {
+            files: extractChangeSetFiles(latestChangeSetRaw, latestDiff),
+            raw: latestChangeSetRaw,
+        };
+    }
 
     return {
         latestDiff,
