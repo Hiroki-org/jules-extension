@@ -77,7 +77,7 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
  */
 export async function getCurrentBranch(outputChannel: vscode.OutputChannel, options: { silent?: boolean, repository?: any } = {}): Promise<string | null> {
     try {
-        const repository = options.repository || await getActiveRepository(outputChannel, options);
+        const repository = options.repository !== undefined ? options.repository : await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
@@ -97,7 +97,7 @@ export async function getCurrentBranch(outputChannel: vscode.OutputChannel, opti
 
 async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel, options: { silent?: boolean, repository?: any } = {}): Promise<{ owner: string; repo: string } | null> {
     try {
-        const repository = options.repository || await getActiveRepository(outputChannel, options);
+        const repository = options.repository !== undefined ? options.repository : await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
