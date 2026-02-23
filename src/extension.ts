@@ -523,9 +523,10 @@ function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
   if (!sessionOrState.outputs) return [];
-  return sessionOrState.outputs
+  const allPrs = sessionOrState.outputs
     .map((o) => o.pullRequest)
     .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
+  return Array.from(new Map(allPrs.map(pr => [pr.url, pr])).values());
 }
 
 async function checkPRStatus(

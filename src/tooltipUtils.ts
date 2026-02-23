@@ -79,9 +79,12 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   }
 
   // Add Pull Request info if available
-  const prs = session.outputs
+  const allPrs = session.outputs
     ?.map(o => o.pullRequest)
     .filter((pr): pr is NonNullable<PullRequestOutput> => !!pr && !!pr.url) || [];
+  
+  // De-duplicate PRs by URL to avoid redundant entries in the tooltip
+  const prs = Array.from(new Map(allPrs.map(pr => [pr.url, pr])).values());
 
   if (prs.length > 0) {
     tooltip.appendMarkdown(`\n\n---`);
