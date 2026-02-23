@@ -1702,7 +1702,6 @@ export class SessionTreeItem extends vscode.TreeItem {
     // Build tooltip using extracted utility function
     this.tooltip = buildSessionTooltip({
       session,
-      prUrl: this.prUrl,
       hasDiff: this.hasDiff,
       hasChangeset: this.hasChangeset,
       selectedSource: this.selectedSource,
