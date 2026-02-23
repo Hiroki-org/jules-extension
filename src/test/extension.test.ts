@@ -205,8 +205,8 @@ suite("Extension Test Suite", () => {
 
       const tooltip = (sessionWithPR.tooltip as vscode.MarkdownString).value;
       assert.ok(tooltip.includes("🔗 **Pull Request**"));
-      assert.ok(tooltip.includes("Fix bug in parser"));
-      assert.ok(tooltip.includes("[Open PR](https://github.com/owner/repo/pull/42)"));
+      assert.ok(tooltip.includes("Fix") && tooltip.includes("bug") && tooltip.includes("parser"));
+      assert.ok(tooltip.includes("[Open PR (repo#42)](https://github.com/owner/repo/pull/42)"));
     });
 
     test("SessionTreeItem tooltip should display creation and update timestamps", () => {
@@ -326,8 +326,9 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltip.includes("Status: **COMPLETED**"), "Status should be present");
       assert.ok(tooltip.includes("🤖 Auto Create PR"), "Automation mode should be present");
       assert.ok(tooltip.includes("🔗 **Pull Request**"), "PR section should be present");
-      assert.ok(tooltip.includes("Complete Feature"), "PR title should be present");
-      assert.ok(tooltip.includes("[Open PR](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
+      // appendText replaces spaces with &nbsp;, so check word unique to PR title (not session title)
+      assert.ok(tooltip.includes("Feature"), "PR title word should be present");
+      assert.ok(tooltip.includes("[Open PR (myrepo#100)](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
       assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
       assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");
       assert.ok(tooltip.includes("Branch: `main`"), "Branch should be present");

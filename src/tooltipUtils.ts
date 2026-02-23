@@ -2,7 +2,7 @@
  * Tooltip generation utilities for session tree items
  */
 import * as vscode from "vscode";
-import type { Session, SourceType } from "./types";
+import type { Session, SourceType, PullRequestOutput } from "./types";
 
 // State descriptions for tooltips
 export const stateDescriptionMap: Record<string, string> = {
@@ -20,7 +20,6 @@ export const stateDescriptionMap: Record<string, string> = {
 
 export interface TooltipContext {
   session: Session;
-  prUrl: string | null;
   hasDiff: boolean;
   hasChangeset: boolean;
   selectedSource?: SourceType;
@@ -54,7 +53,7 @@ export function getPrivacyStatusText(isPrivate?: boolean, format: 'short' | 'lon
  * Build a MarkdownString tooltip for a session
  */
 export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownString {
-  const { session, prUrl, hasDiff, hasChangeset, selectedSource } = context;
+  const { session, hasDiff, hasChangeset, selectedSource } = context;
 
   const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
   tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
@@ -80,14 +79,50 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   }
 
   // Add Pull Request info if available
-  if (prUrl) {
-    const prTitle = session.outputs?.find(o => o.pullRequest?.url === prUrl)?.pullRequest?.title;
+  const allPrs = session.outputs
+    ?.map(o => o.pullRequest)
+    .filter((pr): pr is NonNullable<PullRequestOutput> => !!pr && !!pr.url) || [];
+  
+  // De-duplicate PRs by URL to avoid redundant entries in the tooltip
+  const prs = Array.from(new Map(allPrs.map(pr => [pr.url, pr])).values());
+
+  if (prs.length > 0) {
     tooltip.appendMarkdown(`\n\n---`);
-    tooltip.appendMarkdown(`\n\n🔗 **Pull Request**`);
-    if (prTitle) {
-      tooltip.appendMarkdown(`\n\n${prTitle}`);
-    }
-    tooltip.appendMarkdown(`\n\n[Open PR](${prUrl})`);
+    tooltip.appendMarkdown(`\n\n🔗 **Pull Request${prs.length > 1 ? 's' : ''}**`);
+    
+    prs.forEach((pr, index) => {
+      if (index > 0) {
+        tooltip.appendMarkdown(`\n\n---`);
+      }
+
+      if (pr.title) {
+        tooltip.appendMarkdown(`\n\n**`);
+        tooltip.appendText(pr.title);
+        tooltip.appendMarkdown(`**`);
+      }
+      
+      const url = pr.url;
+      const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+      const repoInfoStr = match ? ` (${match[2]}#${match[3]})` : '';
+      
+      if (pr.description) {
+        // Normalize line endings to \n
+        const normalizedDesc = pr.description.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        // Truncate at word boundary safely without leaving open markdown tokens
+        // For simplicity, we just take 100 characters, but use appendText to safely render it.
+        // But since we want blockquotes, we'll prefix blockquotes and then appendText the lines.
+        let descPreview = normalizedDesc;
+        if (descPreview.length > 100) {
+          descPreview = descPreview.substring(0, 100) + '...';
+        }
+        
+        // Use appendText to avoid executing random user markdown
+        tooltip.appendMarkdown(`\n\n> `);
+        tooltip.appendText(descPreview.replace(/\n/g, ' '));
+      }
+      
+      tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
+    });
   }
 
   // Add diff/changeset availability
