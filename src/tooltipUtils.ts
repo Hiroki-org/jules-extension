@@ -80,14 +80,28 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   }
 
   // Add Pull Request info if available
-  if (prUrl) {
-    const prTitle = session.outputs?.find(o => o.pullRequest?.url === prUrl)?.pullRequest?.title;
+  const prs = session.outputs?.map(o => o.pullRequest).filter(pr => pr && pr.url) || [];
+  if (prs.length > 0) {
     tooltip.appendMarkdown(`\n\n---`);
-    tooltip.appendMarkdown(`\n\n🔗 **Pull Request**`);
-    if (prTitle) {
-      tooltip.appendMarkdown(`\n\n${prTitle}`);
+    tooltip.appendMarkdown(`\n\n🔗 **Pull Request${prs.length > 1 ? 's' : ''}**`);
+    for (const pr of prs) {
+      const title = pr?.title ? `\n\n**${pr.title}**` : '';
+      const url = pr?.url;
+      const match = url?.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+      const repoInfoStr = match ? ` (${match[2]}#${match[3]})` : '';
+      
+      tooltip.appendMarkdown(`${title}`);
+      
+      if (pr?.description) {
+        // Show preview of description
+        const descPreview = pr.description.length > 100 ? pr.description.substring(0, 100) + '...' : pr.description;
+        tooltip.appendMarkdown(`\n\n>${descPreview.replace(/\n/g, '\n>')}`);
+      }
+      
+      if (url) {
+        tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
+      }
     }
-    tooltip.appendMarkdown(`\n\n[Open PR](${prUrl})`);
   }
 
   // Add diff/changeset availability
