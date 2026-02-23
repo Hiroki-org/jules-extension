@@ -1259,9 +1259,11 @@ export class JulesSessionsProvider
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
 
-      // Always try to prefetch artifacts for recent sessions to ensure context menus are available
-      // matches user expectation. Await to avoid out-of-order tree refreshes.
-      await this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped);
+      // Always try to prefetch artifacts for recent sessions to ensure context menus match user expectation.
+      // Optimization: Do not await to allow immediate UI update.
+      void this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped).catch(error => {
+        logChannel.appendLine(`Jules: Error during background artifact prefetch: ${sanitizeError(error)}`);
+      });
 
       if (isBackground) {
         // Errors are handled inside _refreshBranchCacheInBackground, so we call it fire-and-forget.
