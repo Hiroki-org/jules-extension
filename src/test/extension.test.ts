@@ -326,7 +326,8 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltip.includes("Status: **COMPLETED**"), "Status should be present");
       assert.ok(tooltip.includes("🤖 Auto Create PR"), "Automation mode should be present");
       assert.ok(tooltip.includes("🔗 **Pull Request**"), "PR section should be present");
-      assert.ok(tooltip.includes("Complete") && tooltip.includes("Feature"), "PR title should be present");
+      // appendText replaces spaces with &nbsp;, so check word unique to PR title (not session title)
+      assert.ok(tooltip.includes("Feature"), "PR title word should be present");
       assert.ok(tooltip.includes("[Open PR (myrepo#100)](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
       assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
       assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");

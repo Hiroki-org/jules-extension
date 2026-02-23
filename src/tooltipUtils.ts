@@ -102,12 +102,12 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
       }
       
       const url = pr.url;
-      const match = url?.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+      const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
       const repoInfoStr = match ? ` (${match[2]}#${match[3]})` : '';
       
       if (pr.description) {
         // Normalize line endings to \n
-        const normalizedDesc = pr.description.replace(/\r\n/g, '\n');
+        const normalizedDesc = pr.description.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         // Truncate at word boundary safely without leaving open markdown tokens
         // For simplicity, we just take 100 characters, but use appendText to safely render it.
         // But since we want blockquotes, we'll prefix blockquotes and then appendText the lines.
@@ -121,9 +121,7 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
         tooltip.appendText(descPreview.replace(/\n/g, ' '));
       }
       
-      if (url) {
-        tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
-      }
+      tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
     });
   }
 
