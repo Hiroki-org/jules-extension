@@ -29,7 +29,10 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
 
         // Mock configuration
         const configStub = {
-            get: sandbox.stub().returns(true) // autoRefresh.enabled
+            get: sandbox.stub().callsFake((key: string) => {
+                if (key === 'autoRefresh.enabled') return true;
+                return undefined;
+            })
         };
         sandbox.stub(vscode.workspace, 'getConfiguration').returns(configStub as any);
 
@@ -45,17 +48,19 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
         sandbox.restore();
     });
 
-    test('Benchmark: refresh() duration', async () => {
+    test('refresh() resolves before prefetch completes (non-blocking)', async () => {
+        let prefetchResolved = false;
+
         // 1. Mock sessions response (Fast)
         const sessionsResponse = {
             ok: true,
             json: async () => ({
                 sessions: [
-                    { name: 'session1', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session2', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session3', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session4', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session5', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' }
+                    { name: 'session1', title: 'Session 1', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session2', title: 'Session 2', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session3', title: 'Session 3', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session4', title: 'Session 4', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session5', title: 'Session 5', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' }
                 ]
             })
         };
@@ -77,6 +82,7 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
             } else if (urlString.includes('/activities')) {
                 // Simulate slow network for artifacts prefetch
                 await delay(200);
+                prefetchResolved = true;
                 return artifactsResponse;
             } else if (urlString.includes('/sources')) {
                 return { ok: true, json: async () => ({ sources: [] }) };
@@ -85,16 +91,10 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
         });
 
         const provider = new JulesSessionsProvider(contextStub);
-
-        const startTime = Date.now();
         await provider.refresh(false, false);
-        const endTime = Date.now();
-        const duration = endTime - startTime;
 
-        console.log(`Refresh duration: ${duration}ms`);
-
-        // Ensure refresh is non-blocking (significantly less than the 200ms artifact fetch delay)
-        // With overhead, it should be well under 150ms (typically < 20ms)
-        assert.ok(duration < 150, `Expected < 150ms (async prefetch), but got ${duration}ms`);
+        // refresh() should resolve before the slow prefetch completes
+        assert.strictEqual(prefetchResolved, false,
+            'prefetch should still be running asynchronously after refresh() resolves');
     });
 });

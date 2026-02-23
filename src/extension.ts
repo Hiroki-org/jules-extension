@@ -1259,8 +1259,7 @@ export class JulesSessionsProvider
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
 
-      // Always try to prefetch artifacts for recent sessions to ensure context menus are available
-      // matches user expectation.
+      // Always try to prefetch artifacts for recent sessions to ensure context menus match user expectation.
       // Optimization: Do not await to allow immediate UI update.
       void this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped).catch(error => {
         logChannel.appendLine(`Jules: Error during background artifact prefetch: ${sanitizeError(error)}`);
