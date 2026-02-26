@@ -552,16 +552,10 @@ async function checkPRStatus(
     const [, owner, repo, prNumber] = match;
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
 
-    // Prefer OAuth token, fallback to manually set PAT
+    // Prefer OAuth token
     let authToken = token;
     if (!authToken) {
       authToken = await GitHubAuth.getToken();
-      if (!authToken) {
-        authToken = await context.secrets.get("jules-github-token");
-        if (authToken) {
-          console.log("[Jules] Using fallback GitHub PAT for PR status check.");
-        }
-      }
     }
 
     const headers: Record<string, string> = {
@@ -864,10 +858,7 @@ export async function updatePreviousStates(
   if (sessionsToCheck.length > 0) {
     // Optimization: Fetch token once for all parallel checks to avoid
     // hitting authentication provider or secure storage repeatedly.
-    let token = await GitHubAuth.getToken();
-    if (!token) {
-      token = await context.secrets.get("jules-github-token");
-    }
+    const token = await GitHubAuth.getToken();
 
     // Optimization: Use mapLimit to process PR checks with concurrency limit.
     // This prevents rate limiting issues when checking many sessions at once.
@@ -2833,119 +2824,6 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
-  const setGithubTokenDisposable = vscode.commands.registerCommand(
-    "jules-extension.setGithubToken",
-    async () => {
-      try {
-        const token = await vscode.window.showInputBox({
-          prompt:
-            "Enter your GitHub Personal Access Token (used for PR status checks)",
-          password: true,
-          placeHolder: "Enter your GitHub PAT",
-          ignoreFocusOut: true,
-        });
-
-        if (token === undefined) {
-          // User cancelled the input
-          console.log("Jules: GitHub Token input cancelled by user");
-          return;
-        }
-
-        if (token === "") {
-          vscode.window.showWarningMessage(
-            "GitHub token was empty — cancelled.",
-          );
-          return;
-        }
-
-        // Validate token format
-        if (!token.startsWith("ghp_") && !token.startsWith("github_pat_")) {
-          const proceed = await vscode.window.showWarningMessage(
-            "The token you entered doesn't look like a typical GitHub token. Save anyway?",
-            { modal: true },
-            "Save",
-            "Cancel",
-          );
-          if (proceed !== "Save") {
-            return;
-          }
-        }
-
-        await context.secrets.store("jules-github-token", token);
-        vscode.window.showInformationMessage("GitHub token saved securely.");
-        // Clear PR status cache when token changes
-        Object.keys(prStatusCache).forEach((key) => delete prStatusCache[key]);
-        sessionsProvider.refresh();
-      } catch (error) {
-        console.error(
-          "Jules: Error setting GitHub Token:",
-          sanitizeError(error),
-        );
-        vscode.window.showErrorMessage(
-          `GitHub Token の保存に失敗しました: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-        );
-      }
-    },
-  );
-
-  const setGitHubPatDisposable = vscode.commands.registerCommand(
-    "jules-extension.setGitHubPat",
-    async () => {
-      // Deprecation warning — suggest OAuth sign-in instead of PAT
-      const proceed = await vscode.window.showWarningMessage(
-        "GitHub PAT is deprecated and will be removed in a future version.\n\nPlease use OAuth sign-in instead.",
-        "Use OAuth (Recommended)",
-        "Continue with PAT",
-      );
-
-      if (proceed === "Use OAuth (Recommended)") {
-        await vscode.commands.executeCommand("jules-extension.signInGitHub");
-        return;
-      }
-
-      if (proceed !== "Continue with PAT") {
-        return; // user cancelled
-      }
-      const pat = await vscode.window.showInputBox({
-        prompt: "[DEPRECATED] Enter GitHub Personal Access Token",
-        password: true,
-        placeHolder: "Enter your GitHub PAT",
-        ignoreFocusOut: true,
-        validateInput: (value) => {
-          if (!value || value.trim().length === 0) {
-            return "PAT cannot be empty";
-          }
-
-          // 厳格なフォーマットチェック
-          const ghpPattern = /^ghp_[A-Za-z0-9]{36}$/;
-          const githubPatPattern = /^github_pat_[A-Za-z0-9_]{82}$/;
-
-          if (!ghpPattern.test(value) && !githubPatPattern.test(value)) {
-            return "Invalid PAT format. Please enter a valid GitHub Personal Access Token.";
-          }
-
-          return null;
-        },
-      });
-
-      if (pat) {
-        // 追加の検証（validateInputが通った場合でも再チェック）
-        const ghpPattern = /^ghp_[A-Za-z0-9]{36}$/;
-        const githubPatPattern = /^github_pat_[A-Za-z0-9_]{82}$/;
-        if (ghpPattern.test(pat) || githubPatPattern.test(pat)) {
-          await context.secrets.store("jules-github-pat", pat);
-          vscode.window.showInformationMessage("GitHub PAT saved (deprecated)");
-          logChannel.appendLine("[Jules] GitHub PAT saved (deprecated)");
-        } else {
-          vscode.window.showErrorMessage(
-            "Invalid PAT format. PAT was not saved.",
-          );
-        }
-      }
-    },
-  );
 
   const clearCacheDisposable = vscode.commands.registerCommand(
     "jules-extension.clearCache",
@@ -3127,8 +3005,6 @@ export function activate(context: vscode.ExtensionContext) {
     approvePlanDisposable,
     openSettingsDisposable,
     deleteSessionDisposable,
-    setGithubTokenDisposable,
-    setGitHubPatDisposable,
     clearCacheDisposable,
     openInWebAppDisposable,
     openPRInBrowserDisposable,

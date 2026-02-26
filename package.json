@@ -71,18 +71,6 @@
           "default": true,
           "description": "Automatically hide sessions with closed or merged pull requests from the session list"
         },
-        "jules-extension.githubToken": {
-          "type": "string",
-          "default": "",
-          "deprecationMessage": "This setting is deprecated. Use the 'Jules: Set GitHub Token' command instead for secure storage.",
-          "description": "[DEPRECATED] Use command 'Jules: Set GitHub Token' instead. GitHub Personal Access Token for checking PR status (optional, uses public API if not set)",
-          "markdownDescription": "⚠️ **DEPRECATED:** Please use the command `Jules: Set GitHub Token` instead to store your token securely.\n\nThis setting is only for display purposes. Tokens should be stored using VS Code's secure secrets storage via the command palette."
-        },
-        "jules.githubPat": {
-          "type": "string",
-          "description": "[DEPRECATED] GitHub Personal Access Token (use OAuth sign-in instead)",
-          "deprecationMessage": "GitHub PAT is deprecated. Use 'Jules: Sign in to GitHub' command instead. PAT support will be removed in a future version"
-        },
         "jules.defaultBranch": {
           "type": "string",
           "enum": [
@@ -156,18 +144,6 @@
         "title": "Delete Session",
         "category": "Jules",
         "icon": "$(trash)"
-      },
-      {
-        "command": "jules-extension.setGithubToken",
-        "title": "Set GitHub Token (for PR Status)",
-        "category": "Jules",
-        "icon": "$(github)"
-      },
-      {
-        "command": "jules-extension.setGitHubPat",
-        "title": "[DEPRECATED] Set GitHub PAT",
-        "category": "Jules",
-        "icon": "$(github)"
       },
       {
         "command": "jules-extension.clearCache",

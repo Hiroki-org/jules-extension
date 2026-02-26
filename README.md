@@ -34,7 +34,6 @@ This extension was created to take your development experience to the next level
 | **Open Settings**        | Open the settings for the Jules extension.                                                                                                                                                                         | `Jules: Open Settings`                |
 | **Delete Session**       | Delete a session from the local cache.                                                                                                                                                                             | `Jules: Delete Session from Local Cache` |
 | **Sign in to GitHub**    | Sign in to your GitHub account (Recommended for PR status checks).                                                                                                                                                 | `Jules: Sign in to GitHub`            |
-| **Set GitHub Token**     | Set your GitHub Personal Access Token for checking PR status (Deprecated).                                                                                                                                         | `Jules: Set GitHub Token`             |
 | **Clear Cache**          | Clear the Jules extension cache.                                                                                                                                                                                   | `Jules: Clear Cache`                  |
 | **Open in Web App**      | Open the current session in the Jules web application.                                                                                                                                                             | `Jules: Open in Web App`              |
 | **Open PR in browser**   | Open the pull request associated with the session in your browser.                                                                                                                                                 | `Jules: Open PR in browser`           |
@@ -111,13 +110,6 @@ Use the `Jules: Sign in to GitHub` command.
 2. Run `Jules: Sign in to GitHub`
 3. Authorize in browser
 
----
-
-### GitHub PAT (Deprecated) ⚠️
-
-**PAT support is deprecated and will be removed in a future version.**
-
-Please migrate to OAuth sign-in.
 
 ## ⚙️ Extension Settings
 
@@ -129,11 +121,6 @@ This extension contributes the following settings:
 - `jules-extension.customPrompt`: A custom prompt to automatically prepend to every message sent to Jules.
 - `jules-extension.hideClosedPRSessions`: Automatically hide sessions with closed or merged pull requests from the session list (default: `true`).
 - `jules.defaultBranch`: Default branch selection behavior when creating a Jules session (`current`, `default`, `main`).
-
-### Deprecated Settings ⚠️
-
-- `jules-extension.githubToken`: This setting is deprecated. Use the `Jules: Set GitHub Token` command instead.
-- `jules.githubPat`: This setting is deprecated. Use the `Jules: Sign in to GitHub` command instead.
 
 ## Quick Start
 
