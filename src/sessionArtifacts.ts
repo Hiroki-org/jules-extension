@@ -65,62 +65,73 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    const lines = diff.split('\n');
-    for (const line of lines) {
-        // Match: diff --git a/path/to/file b/path/to/file
-        if (line.startsWith('diff --git ')) {
-            const parts = line.split(' ');
-            if (parts.length >= 4) {
-                const bPart = parts[3]; // b/path/to/file
+    let pos = 0;
+    while (pos < diff.length) {
+        let nextLineBreak = diff.indexOf('\n', pos);
+        if (nextLineBreak === -1) {
+            nextLineBreak = diff.length;
+        }
+
+        // Optimization: Use startsWith to avoid line substring if not a diff line
+        if (diff.startsWith('diff --git ', pos)) {
+            const line = diff.substring(pos, nextLineBreak);
+            // Match: diff --git a/path/to/file b/path/to/file
+            // We need the 4th part (index 3) which starts with 'b/'
+            const thirdSpace = line.indexOf(' ', 11); // 11 is 'diff --git '.length
+            if (thirdSpace !== -1) {
+                let fourthSpace = line.indexOf(' ', thirdSpace + 1);
+                if (fourthSpace === -1) {
+                    fourthSpace = line.length;
+                }
+                const bPart = line.substring(thirdSpace + 1, fourthSpace);
                 if (bPart.startsWith('b/')) {
                     files.push({ path: bPart.slice(2) });
                 }
             }
         }
+        pos = nextLineBreak + 1;
     }
     return files;
 }
 
-function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
-    const candidates = [
-        changeSet.files,
-        changeSet.changes,
-        changeSet.entries,
-        changeSet.changedFiles,
-        changeSet.paths,
-    ];
+function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
+    if (!Array.isArray(candidate)) {
+        return null;
+    }
 
     const files: ChangeSetFile[] = [];
     const seenPaths = new Set<string>();
 
-    for (const candidate of candidates) {
-        if (!Array.isArray(candidate)) {
-            continue;
+    for (const entry of candidate) {
+        let extractedPath: string | null = null;
+        let extractedStatus: string | undefined = undefined;
+
+        if (typeof entry === 'string') {
+            extractedPath = normalizePath(entry);
+        } else if (entry && typeof entry === 'object') {
+            const record = entry as Record<string, unknown>;
+            extractedPath = normalizePath(record.path ?? record.filePath ?? record.file ?? record.name ?? record.filename);
+            extractedStatus = normalizeStatus(record.status ?? record.action ?? record.type);
         }
 
-        for (const entry of candidate) {
-            let extractedPath: string | null = null;
-            let extractedStatus: string | undefined = undefined;
-
-            if (typeof entry === 'string') {
-                extractedPath = normalizePath(entry);
-            } else if (entry && typeof entry === 'object') {
-                const record = entry as Record<string, unknown>;
-                extractedPath = normalizePath(record.path ?? record.filePath ?? record.file ?? record.name ?? record.filename);
-                extractedStatus = normalizeStatus(record.status ?? record.action ?? record.type);
-            }
-
-            if (extractedPath && !seenPaths.has(extractedPath)) {
-                files.push({ path: extractedPath, status: extractedStatus });
-                seenPaths.add(extractedPath);
-            }
+        if (extractedPath && !seenPaths.has(extractedPath)) {
+            files.push({ path: extractedPath, status: extractedStatus });
+            seenPaths.add(extractedPath);
         }
+    }
 
-        // If we successfully extracted files from this candidate type, we stop.
-        // This assumes that one changeSet object uses only one consistent property name.
-        if (files.length > 0) {
-            return files;
-        }
+    return files.length > 0 ? files : null;
+}
+
+function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
+    const files = tryExtractFromCandidate(changeSet.files) ??
+                  tryExtractFromCandidate(changeSet.changes) ??
+                  tryExtractFromCandidate(changeSet.entries) ??
+                  tryExtractFromCandidate(changeSet.changedFiles) ??
+                  tryExtractFromCandidate(changeSet.paths);
+
+    if (files) {
+        return files;
     }
 
     // Fallback: Try to extract from diff if available
