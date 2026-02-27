@@ -2,7 +2,7 @@
   "name": "jules-extension",
   "displayName": "Jules Extension",
   "description": "Control Google Jules AI coding agent directly from VS Code",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "publisher": "HirokiMukai",
   "license": "MIT",
   "icon": "icon.png",
@@ -320,6 +320,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "is-glob": "^4.0.3"
+    "is-glob": "^4.0.3",
+    "socks-proxy-agent": "^8.0.5"
   }
 }
