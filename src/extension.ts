@@ -1935,8 +1935,40 @@ export async function handleOpenInWebApp(
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
+/**
+ * 環境変数からSOCKSプロキシが設定されているか確認し、最初に見つかった値を返す。
+ * 設定されていない場合は null を返す。
+ */
+function detectSocksProxy(): string | null {
+    const proxyEnvVars: (string | undefined)[] = [
+        process.env.HTTP_PROXY,
+        process.env.http_proxy,
+        process.env.HTTPS_PROXY,
+        process.env.https_proxy,
+        process.env.ALL_PROXY,
+        process.env.all_proxy,
+    ];
+    // VS Code の http.proxy 設定も検出対象に含める
+    const vsCodeProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
+    if (vsCodeProxy) {
+        proxyEnvVars.push(vsCodeProxy);
+    }
+    const socksSchemes = ['socks://', 'socks4://', 'socks5://'];
+    // 大文字小文字を無視してスキームをマッチング
+    return proxyEnvVars.find(v => v && socksSchemes.some(s => v.toLowerCase().startsWith(s))) ?? null;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
+
+  // SOCKSプロキシ検出と警告表示
+  const socksProxy = detectSocksProxy();
+  if (socksProxy) {
+    const safeProxy = stripUrlCredentials(socksProxy);
+    vscode.window.showWarningMessage(
+      `SOCKSプロキシが検出されました（${safeProxy}）。現在SOCKSプロキシはサポートされていません。接続に問題がある場合は、HTTP/HTTPSプロキシを使用するか、プロキシ設定を無効にしてください。`
+    );
+  }
 
   // Load PR status cache to avoid redundant GitHub API calls on startup
   prStatusCache = context.globalState.get<PRStatusCache>(
