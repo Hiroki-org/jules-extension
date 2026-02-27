@@ -320,6 +320,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "is-glob": "^4.0.3"
+    "is-glob": "^4.0.3",
+    "socks-proxy-agent": "^8.0.5"
   }
 }

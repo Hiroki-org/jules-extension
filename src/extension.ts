@@ -22,7 +22,7 @@ import {
   isValidSessionId,
 } from "./securityUtils";
 import { sanitizeError } from "./errorUtils";
-import { fetchWithTimeout } from "./fetchUtils";
+import { fetchWithTimeout, setSocksProxy } from "./fetchUtils";
 import { formatPlanForNotification, Plan } from "./planUtils";
 import {
   getPullRequestUrlForSession,
@@ -139,10 +139,10 @@ let logChannel: vscode.OutputChannel = {
   append: (val: string) => console.log(val),
   appendLine: (val: string) => console.log(val),
   replace: (val: string) => console.log(val),
-  clear: () => {},
-  show: () => {},
-  hide: () => {},
-  dispose: () => {},
+  clear: () => { },
+  show: () => { },
+  hide: () => { },
+  dispose: () => { },
 };
 
 function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
@@ -778,7 +778,7 @@ function areSessionsEqual(s1: Session, s2: Session): boolean {
     s1.rawState === s2.rawState &&
     s1.sourceContext?.source === s2.sourceContext?.source &&
     s1.sourceContext?.githubRepoContext?.startingBranch ===
-      s2.sourceContext?.githubRepoContext?.startingBranch &&
+    s2.sourceContext?.githubRepoContext?.startingBranch &&
     s1.requirePlanApproval === s2.requirePlanApproval &&
     JSON.stringify(s1.sourceContext) === JSON.stringify(s2.sourceContext) &&
     areOutputsEqual(s1.outputs, s2.outputs)
@@ -1174,13 +1174,13 @@ function getActivitySummaryText(activity: Activity): string {
 export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
     name: "silent-channel",
-    append: () => {},
-    appendLine: () => {},
-    replace: () => {},
-    clear: () => {},
-    show: () => {},
-    hide: () => {},
-    dispose: () => {},
+    append: () => { },
+    appendLine: () => { },
+    replace: () => { },
+    clear: () => { },
+    show: () => { },
+    hide: () => { },
+    dispose: () => { },
   };
 
   private _onDidChangeTreeData: vscode.EventEmitter<
@@ -1198,7 +1198,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   private lastArtifactsPrefetchTime: number = 0;
   private readonly ARTIFACTS_PREFETCH_INTERVAL = 3 * 60 * 1000; // 3 minutes
 
-  constructor(private context: vscode.ExtensionContext) {}
+  constructor(private context: vscode.ExtensionContext) { }
 
   private sendNotifications(
     sessions: Session[],
@@ -1940,33 +1940,34 @@ export async function handleOpenInWebApp(
  * 設定されていない場合は null を返す。
  */
 function detectSocksProxy(): string | null {
-    const proxyEnvVars: (string | undefined)[] = [
-        process.env.HTTP_PROXY,
-        process.env.http_proxy,
-        process.env.HTTPS_PROXY,
-        process.env.https_proxy,
-        process.env.ALL_PROXY,
-        process.env.all_proxy,
-    ];
-    // VS Code の http.proxy 設定も検出対象に含める
-    const vsCodeProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
-    if (vsCodeProxy) {
-        proxyEnvVars.push(vsCodeProxy);
-    }
-    const socksSchemes = ['socks://', 'socks4://', 'socks5://'];
-    // 大文字小文字を無視してスキームをマッチング
-    return proxyEnvVars.find(v => v && socksSchemes.some(s => v.toLowerCase().startsWith(s))) ?? null;
+  const proxyEnvVars: (string | undefined)[] = [
+    process.env.HTTP_PROXY,
+    process.env.http_proxy,
+    process.env.HTTPS_PROXY,
+    process.env.https_proxy,
+    process.env.ALL_PROXY,
+    process.env.all_proxy,
+  ];
+  // VS Code の http.proxy 設定も検出対象に含める
+  const vsCodeProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
+  if (vsCodeProxy) {
+    proxyEnvVars.push(vsCodeProxy);
+  }
+  const socksSchemes = ['socks://', 'socks4://', 'socks5://'];
+  // 大文字小文字を無視してスキームをマッチング
+  return proxyEnvVars.find(v => v && socksSchemes.some(s => v.toLowerCase().startsWith(s))) ?? null;
 }
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
 
-  // SOCKSプロキシ検出と警告表示
+  // SOCKSプロキシ検出と設定
   const socksProxy = detectSocksProxy();
   if (socksProxy) {
+    setSocksProxy(socksProxy);
     const safeProxy = stripUrlCredentials(socksProxy);
-    vscode.window.showWarningMessage(
-      `SOCKSプロキシが検出されました（${safeProxy}）。現在SOCKSプロキシはサポートされていません。接続に問題がある場合は、HTTP/HTTPSプロキシを使用するか、プロキシ設定を無効にしてください。`
+    vscode.window.showInformationMessage(
+      `SOCKSプロキシ（${safeProxy}）経由で接続します。`
     );
   }
 
@@ -2465,8 +2466,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
       } catch (error) {
         vscode.window.showErrorMessage(
-          `Failed to create session: ${
-            error instanceof Error ? error.message : "Unknown error"
+          `Failed to create session: ${error instanceof Error ? error.message : "Unknown error"
           }`,
         );
       } finally {
@@ -2670,19 +2670,19 @@ export function activate(context: vscode.ExtensionContext) {
                   ...activity,
                   agentMessaged: activity.agentMessaged
                     ? {
-                        ...activity.agentMessaged,
-                        agentMessage: activity.agentMessaged.agentMessage
-                          ? "[REDACTED]"
-                          : activity.agentMessaged.agentMessage,
-                      }
+                      ...activity.agentMessaged,
+                      agentMessage: activity.agentMessaged.agentMessage
+                        ? "[REDACTED]"
+                        : activity.agentMessaged.agentMessage,
+                    }
                     : activity.agentMessaged,
                   userMessaged: activity.userMessaged
                     ? {
-                        ...activity.userMessaged,
-                        userMessage: activity.userMessaged.userMessage
-                          ? "[REDACTED]"
-                          : activity.userMessaged.userMessage,
-                      }
+                      ...activity.userMessaged,
+                      userMessage: activity.userMessaged.userMessage
+                        ? "[REDACTED]"
+                        : activity.userMessaged.userMessage,
+                    }
                     : activity.userMessaged,
                 };
                 rawForLog = JSON.stringify(safeActivity);
