@@ -9,9 +9,15 @@ export function setSocksProxy(url: string | null): void {
 }
 
 function normalizeHeaders(headers: RequestInit['headers']): Record<string, string> {
-    if (!headers) return {};
-    if (headers instanceof Headers) return Object.fromEntries(headers.entries());
-    if (Array.isArray(headers)) return Object.fromEntries(headers);
+    if (!headers) {
+        return {};
+    }
+    if (headers instanceof Headers) {
+        return Object.fromEntries(headers.entries());
+    }
+    if (Array.isArray(headers)) {
+        return Object.fromEntries(headers);
+    }
     return headers as Record<string, string>;
 }
 
@@ -65,11 +71,15 @@ async function fetchViaSocks(
         if (init?.signal) {
             init.signal.addEventListener('abort', () => {
                 req.destroy();
-                reject(new Error('AbortError'));
+                const abortError = new Error('The operation was aborted');
+                abortError.name = 'AbortError';
+                reject(abortError);
             }, { once: true });
         }
 
         if (body) {
+            // Note: Only string/Buffer bodies are supported via SOCKS proxy.
+            // Complex body types (ReadableStream, FormData, etc.) are not handled.
             req.write(body as string | Buffer);
         }
         req.end();

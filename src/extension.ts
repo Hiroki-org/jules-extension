@@ -1964,6 +1964,12 @@ export function activate(context: vscode.ExtensionContext) {
   // SOCKSプロキシ検出と設定
   const socksProxy = detectSocksProxy();
   if (socksProxy) {
+    try {
+      new URL(socksProxy);
+    } catch {
+      console.error(`Jules: Invalid SOCKS proxy URL: ${stripUrlCredentials(socksProxy)}`);
+      return;
+    }
     setSocksProxy(socksProxy);
     const safeProxy = stripUrlCredentials(socksProxy);
     vscode.window.showInformationMessage(
