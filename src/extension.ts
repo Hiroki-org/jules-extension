@@ -1940,7 +1940,7 @@ export async function handleOpenInWebApp(
  * 設定されていない場合は null を返す。
  */
 function detectSocksProxy(): string | null {
-    const proxyEnvVars = [
+    const proxyEnvVars: (string | undefined)[] = [
         process.env.HTTP_PROXY,
         process.env.http_proxy,
         process.env.HTTPS_PROXY,
@@ -1948,8 +1948,14 @@ function detectSocksProxy(): string | null {
         process.env.ALL_PROXY,
         process.env.all_proxy,
     ];
+    // VS Code の http.proxy 設定も検出対象に含める
+    const vsCodeProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
+    if (vsCodeProxy) {
+        proxyEnvVars.push(vsCodeProxy);
+    }
     const socksSchemes = ['socks://', 'socks4://', 'socks5://'];
-    return proxyEnvVars.find(v => v && socksSchemes.some(s => v.startsWith(s))) ?? null;
+    // 大文字小文字を無視してスキームをマッチング
+    return proxyEnvVars.find(v => v && socksSchemes.some(s => v.toLowerCase().startsWith(s))) ?? null;
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -1958,8 +1964,9 @@ export function activate(context: vscode.ExtensionContext) {
   // SOCKSプロキシ検出と警告表示
   const socksProxy = detectSocksProxy();
   if (socksProxy) {
+    const safeProxy = stripUrlCredentials(socksProxy);
     vscode.window.showWarningMessage(
-      `SOCKSプロキシが検出されました（${socksProxy}）。現在SOCKSプロキシはサポートされていません。接続に問題がある場合は、HTTP/HTTPSプロキシを使用するか、プロキシ設定を無効にしてください。`
+      `SOCKSプロキシが検出されました（${safeProxy}）。現在SOCKSプロキシはサポートされていません。接続に問題がある場合は、HTTP/HTTPSプロキシを使用するか、プロキシ設定を無効にしてください。`
     );
   }
 
