@@ -31,6 +31,13 @@ export async function fetchWithTimeout(input: string | URL | Request, init?: Req
             ...init,
             signal: finalSignal
         });
+    } catch (error: unknown) {
+        if (error instanceof Error && error.message.includes('Invalid URL protocol')) {
+            throw new Error(
+                `SOCKSプロキシが設定されているため接続できません。HTTP/HTTPSプロキシに変更するか、プロキシ設定を無効にしてください。（詳細: ${error.message}）`
+            );
+        }
+        throw error;
     } finally {
         if (timer) {
             clearTimeout(timer);
