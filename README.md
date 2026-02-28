@@ -146,7 +146,7 @@ This project is just getting started. We welcome all forms of contribution, incl
 Please check the Issue Tracker and Pull Requests.
 
 We welcome contributions, issues, and pull requests! English, Japanese, or any other languages are perfectly acceptable.
-
+コントリビューション、Issue、Pull Requestは日本語、英語、およびその他の言語のいずれでも歓迎します。(We welcome contributions, issues, and pull requests in Japanese, English, or any other languages.)
 ## 📝 License
 
 [MIT](LICENSE)
