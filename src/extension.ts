@@ -6,7 +6,6 @@ import {
   GitHubBranch,
   GitHubRepo,
   Source as SourceType,
-  SourcesResponse,
   Session,
   SessionOutput,
   PullRequestOutput,
@@ -478,6 +477,28 @@ function getPrivacyIcon(isPrivate?: boolean): string {
   return isPrivate === true ? "$(lock) " : "";
 }
 
+export function getSourceIsPrivate(source: SourceType): boolean | undefined {
+  if (source.githubRepo?.isPrivate !== undefined) {
+    return source.githubRepo.isPrivate;
+  }
+  return source.isPrivate;
+}
+
+export function getSourceDisplayName(source: SourceType): string {
+  const owner = source.githubRepo?.owner;
+  const repo = source.githubRepo?.repo;
+  if (owner && repo) {
+    return `${owner}/${repo}`;
+  }
+
+  const repoMatch = source.name?.match(/sources\/github\/(.+)/);
+  if (repoMatch) {
+    return repoMatch[1];
+  }
+
+  return source.name || source.id || "Unknown";
+}
+
 /**
  * Get privacy status text for tooltip/status bar
  * @param isPrivate - The isPrivate field from Source
@@ -502,10 +523,11 @@ function getPrivacyStatusText(
  * @returns Description text for QuickPick item
  */
 function getSourceDescription(source: SourceType): string {
-  if (source.isPrivate === true) {
+  const isPrivate = getSourceIsPrivate(source);
+  if (isPrivate === true) {
     return "Private";
   }
-  return source.url || (source.isPrivate === false ? "Public" : "");
+  return source.url || (isPrivate === false ? "Public" : "");
 }
 
 function resolveSessionId(
@@ -1886,13 +1908,11 @@ function updateStatusBar(
       statusBarItem.tooltip = `Current Source: All Repositories\nClick to change source`;
       statusBarItem.show();
     } else {
-      // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
-      const repoMatch = selectedSource.name?.match(/sources\/github\/(.+)/);
-      const repoName = repoMatch ? repoMatch[1] : selectedSource.name;
-
-      const lockIcon = getPrivacyIcon(selectedSource.isPrivate);
+      const repoName = getSourceDisplayName(selectedSource);
+      const isPrivate = getSourceIsPrivate(selectedSource);
+      const lockIcon = getPrivacyIcon(isPrivate);
       const privacyStatus = getPrivacyStatusText(
-        selectedSource.isPrivate,
+        isPrivate,
         "short",
       );
 
@@ -2099,7 +2119,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const listSourcesDisposable = vscode.commands.registerCommand(
     "jules-extension.listSources",
-    async () => {
+    async (filter?: string) => {
       const apiKey = await getStoredApiKey(context);
       if (!apiKey) {
         return;
@@ -2117,51 +2137,38 @@ export function activate(context: vscode.ExtensionContext) {
           logChannel.appendLine("Using cached sources");
           sources = cached.sources;
         } else {
+          const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
           sources = await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
               title: "Fetching sources...",
               cancellable: false,
             },
-            async (progress) => {
-              const response = await fetchWithTimeout(
-                `${JULES_API_BASE_URL}/sources`,
-                {
-                  method: "GET",
-                  headers: {
-                    "X-Goog-Api-Key": apiKey,
-                    "Content-Type": "application/json",
-                  },
-                },
-              );
-              if (!response.ok) {
-                throw new Error(
-                  `Failed to fetch sources: ${response.status} ${response.statusText}`,
-                );
-              }
-              const data = (await response.json()) as SourcesResponse;
-              if (!data.sources || !Array.isArray(data.sources)) {
-                throw new Error("Invalid response format from API.");
-              }
+            async () => {
+              const data = await apiClient.listAllSources({ filter });
               await context.globalState.update(cacheKey, {
-                sources: data.sources,
+                sources: data,
                 timestamp: Date.now(),
               });
-              logChannel.appendLine(`Fetched ${data.sources.length} sources`);
-              return data.sources;
+              logChannel.appendLine(`Fetched ${data.length} sources`);
+              return data;
             },
           );
         }
 
+        if (!sources || sources.length === 0) {
+          vscode.window.showWarningMessage(
+            "No Jules-connected repositories were found.",
+          );
+          return;
+        }
+
         const items: SourceQuickPickItem[] = sources.map((source) => {
-          // Extract repository name (e.g., "sources/github/owner/repo" -> "owner/repo")
-          const repoMatch = source.name?.match(/sources\/github\/(.+)/);
-          const repoName = repoMatch
-            ? repoMatch[1]
-            : source.name || source.id || "Unknown";
+          const repoName = getSourceDisplayName(source);
+          const isPrivate = getSourceIsPrivate(source);
 
           return {
-            label: source.isPrivate === true ? `$(lock) ${repoName}` : repoName,
+            label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
             description: getSourceDescription(source),
             detail: source.description || "",
             source: source,
@@ -2200,6 +2207,59 @@ export function activate(context: vscode.ExtensionContext) {
         const message =
           error instanceof Error ? error.message : "Unknown error occurred.";
         logChannel.appendLine(`Failed to list sources: ${message}`);
+
+        const cacheKey = "jules.sources";
+        const cached = context.globalState.get<SourcesCache>(cacheKey);
+        if (cached?.sources?.length) {
+          const useCached = await vscode.window.showWarningMessage(
+            `Failed to fetch latest sources: ${message}`,
+            "Use Cached Sources",
+            "Cancel",
+          );
+
+          if (useCached === "Use Cached Sources") {
+            const items: SourceQuickPickItem[] = cached.sources.map((source) => {
+              const repoName = getSourceDisplayName(source);
+              const isPrivate = getSourceIsPrivate(source);
+              return {
+                label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
+                description: getSourceDescription(source),
+                detail: source.description || "",
+                source,
+              };
+            });
+
+            const allRepoItem: SourceQuickPickItem = {
+              label: "All repositories",
+              description: "Show sessions from all sources",
+              source: {
+                id: ALL_SOURCES_ID,
+                name: "All repositories",
+              } as SourceType,
+            };
+            items.unshift(allRepoItem);
+
+            const selected: SourceQuickPickItem | undefined =
+              await vscode.window.showQuickPick(items, {
+                placeHolder: "Select a Jules Source (cached)",
+              });
+            if (selected) {
+              await context.globalState.update("selected-source", selected.source);
+              vscode.commands.executeCommand(
+                "setContext",
+                "jules-extension.hasSelectedSource",
+                true,
+              );
+              vscode.window.showInformationMessage(
+                `Selected source (cached): ${selected.label}`,
+              );
+              updateStatusBar(context, statusBarItem);
+              sessionsProvider.refresh();
+            }
+            return;
+          }
+        }
+
         vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
       } finally {
         isFetchingSensitiveData = false;
@@ -2415,10 +2475,17 @@ export function activate(context: vscode.ExtensionContext) {
         const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
+
+        if (!selectedSource.name) {
+          throw new Error(
+            "Selected source is missing resource name required by Sources API.",
+          );
+        }
+
         const requestBody: CreateSessionRequest = {
           prompt: finalPrompt,
           sourceContext: {
-            source: selectedSource.name || selectedSource.id || "",
+            source: selectedSource.name,
             githubRepoContext: {
               startingBranch,
             },
