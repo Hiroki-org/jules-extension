@@ -1073,6 +1073,27 @@ function addToActivitiesCache(sessionId: string, activities: Activity[]): void {
   sessionActivitiesCache.set(sessionId, activities);
 }
 
+function getLatestSessionFailedReason(sessionId: string): string | undefined {
+  const activities = sessionActivitiesCache.get(sessionId);
+  if (!activities || activities.length === 0) {
+    return undefined;
+  }
+
+  for (let i = activities.length - 1; i >= 0; i -= 1) {
+    const failed = activities[i].sessionFailed;
+    if (!failed) {
+      continue;
+    }
+    const reason = failed.reason;
+    if (typeof reason === "string" && reason.length > 0) {
+      return reason;
+    }
+    return undefined;
+  }
+
+  return undefined;
+}
+
 function getActivitiesLatestCreateTimeKey(sessionId: string): string {
   return `${ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX}.${sessionId}`;
 }
@@ -1909,11 +1930,20 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.hasChangeset = Boolean(cachedArtifacts?.latestChangeSet);
 
     // Build tooltip using extracted utility function
+    const failureReasonPreview =
+      session.state === "FAILED"
+        ? truncateForDisplay(getLatestSessionFailedReason(session.name) ?? "", 200)
+        : undefined;
+
     this.tooltip = buildSessionTooltip({
       session,
       hasDiff: this.hasDiff,
       hasChangeset: this.hasChangeset,
       selectedSource: this.selectedSource,
+      failureReasonPreview:
+        failureReasonPreview && failureReasonPreview.length > 0
+          ? failureReasonPreview
+          : undefined,
     });
 
     this.description = session.state;
@@ -1935,6 +1965,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     }
     if (session.rawState === SESSION_STATE.AWAITING_PLAN_APPROVAL) {
       contextValues.push("jules-session-awaiting-plan");
+    }
+    if (session.state === "FAILED") {
+      contextValues.push("jules-session-failed");
     }
     this.contextValue = contextValues.join(" ");
 
@@ -2932,6 +2965,7 @@ export function activate(context: vscode.ExtensionContext) {
             const activeKeys = getActiveActivityKeys(activity);
             const summary = getActivitySummaryText(activity);
             let message = "";
+            const detailLinesForActivity: string[] = [];
 
             if (activeKeys.length === 1) {
               switch (activeKeys[0]) {
@@ -2961,7 +2995,11 @@ export function activate(context: vscode.ExtensionContext) {
                   break;
                 }
                 case "sessionFailed": {
-                  message = `FAILED: ${summary}`;
+                  message = "Session failed";
+                  const failureReason = activity.sessionFailed?.reason;
+                  if (failureReason && failureReason.length > 0) {
+                    detailLinesForActivity.push(`  Reason: ${failureReason}`);
+                  }
                   break;
                 }
                 case "agentMessaged": {
@@ -3051,6 +3089,12 @@ export function activate(context: vscode.ExtensionContext) {
             const line = `${iconPrefix}${icon} ${timestamp} (${originator}): ${prefix}${message}`;
             activitiesChannel.appendLine(line);
             detailLines.push(line);
+            if (detailLinesForActivity.length > 0) {
+              detailLinesForActivity.forEach((detailLine) => {
+                activitiesChannel.appendLine(detailLine);
+                detailLines.push(detailLine);
+              });
+            }
           });
 
           if (planDetected) {
@@ -3102,6 +3146,35 @@ export function activate(context: vscode.ExtensionContext) {
         "jules-extension.showActivities",
         currentSessionId,
       );
+    },
+  );
+
+  const showFailureReasonDisposable = vscode.commands.registerCommand(
+    "jules.showFailureReason",
+    async (item?: SessionTreeItem) => {
+      if (!item || !(item instanceof SessionTreeItem)) {
+        vscode.window.showErrorMessage("No session selected.");
+        return;
+      }
+
+      const reason = getLatestSessionFailedReason(item.session.name);
+      if (!reason) {
+        vscode.window.showInformationMessage("Failure reason is not available.");
+        return;
+      }
+
+      const selection = await vscode.window.showInformationMessage(
+        `Jules Session Failed\n\n${reason}`,
+        { modal: true },
+        "Copy",
+      );
+
+      if (selection === "Copy") {
+        await vscode.env.clipboard.writeText(reason);
+        vscode.window.showInformationMessage(
+          "Failure reason copied to clipboard.",
+        );
+      }
     },
   );
 
@@ -3407,6 +3480,7 @@ export function activate(context: vscode.ExtensionContext) {
     showActivitiesDisposable,
     filterActivitiesCommand,
     refreshActivitiesDisposable,
+    showFailureReasonDisposable,
     sendMessageDisposable,
     approvePlanDisposable,
     openSettingsDisposable,
