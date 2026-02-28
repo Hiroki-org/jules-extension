@@ -1,6 +1,15 @@
 import { fetchWithTimeout } from "./fetchUtils";
 
 const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
+const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
+export const ARTIFACTS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const MAX_ARTIFACTS_CACHE_SIZE = 50;
+const MAX_PERSISTED_DIFF_SIZE_BYTES = 64 * 1024;
+
+interface GlobalStateLike {
+    get<T>(key: string, defaultValue: T): T;
+    update(key: string, value: unknown): PromiseLike<void>;
+}
 
 interface Activity {
     createTime?: string;
@@ -36,9 +45,141 @@ export interface SessionArtifacts {
 interface CachedSessionArtifacts {
     artifacts: SessionArtifacts;
     updateTime?: string;
+    savedAt: number;
 }
 
+interface PersistedArtifactsEntry {
+    latestDiff?: string;
+    latestChangeSetFiles?: ChangeSetFile[];
+    updateTime?: string;
+    savedAt: number;
+}
+
+type PersistedArtifactsCache = Record<string, PersistedArtifactsEntry>;
+
 const artifactsCache = new Map<string, CachedSessionArtifacts>();
+let artifactsGlobalState: GlobalStateLike | undefined;
+
+function shouldPersistDiff(diff?: string): boolean {
+    if (typeof diff !== "string") {
+        return false;
+    }
+    return Buffer.byteLength(diff, "utf8") <= MAX_PERSISTED_DIFF_SIZE_BYTES;
+}
+
+function evictOldestArtifactsEntryIfNeeded(): void {
+    if (artifactsCache.size <= MAX_ARTIFACTS_CACHE_SIZE) {
+        return;
+    }
+
+    let oldestSessionId: string | undefined;
+    let oldestSavedAt = Number.POSITIVE_INFINITY;
+    for (const [sessionId, entry] of artifactsCache.entries()) {
+        if (entry.savedAt < oldestSavedAt) {
+            oldestSavedAt = entry.savedAt;
+            oldestSessionId = sessionId;
+        }
+    }
+
+    if (oldestSessionId) {
+        artifactsCache.delete(oldestSessionId);
+    }
+}
+
+function persistArtifactsCache(): void {
+    if (!artifactsGlobalState) {
+        return;
+    }
+
+    const persisted: PersistedArtifactsCache = {};
+    for (const [sessionId, entry] of artifactsCache.entries()) {
+        persisted[sessionId] = {
+            latestDiff: shouldPersistDiff(entry.artifacts.latestDiff)
+                ? entry.artifacts.latestDiff
+                : undefined,
+            latestChangeSetFiles: entry.artifacts.latestChangeSet?.files,
+            updateTime: entry.updateTime,
+            savedAt: entry.savedAt,
+        };
+    }
+
+    void artifactsGlobalState.update(ARTIFACTS_CACHE_STATE_KEY, persisted);
+}
+
+function restoreArtifactsCacheFromGlobalState(now: number): boolean {
+    if (!artifactsGlobalState) {
+        return false;
+    }
+
+    const stored = artifactsGlobalState.get<PersistedArtifactsCache>(
+        ARTIFACTS_CACHE_STATE_KEY,
+        {},
+    );
+
+    const validEntries: Array<[string, CachedSessionArtifacts]> = [];
+    let didDropEntries = false;
+
+    for (const [sessionId, entry] of Object.entries(stored)) {
+        if (!entry || typeof entry !== "object") {
+            didDropEntries = true;
+            continue;
+        }
+
+        const savedAt = typeof entry.savedAt === "number" ? entry.savedAt : Number.NaN;
+        if (!Number.isFinite(savedAt) || now - savedAt > ARTIFACTS_CACHE_TTL_MS) {
+            didDropEntries = true;
+            continue;
+        }
+
+        const latestChangeSetFiles = Array.isArray(entry.latestChangeSetFiles)
+            ? entry.latestChangeSetFiles
+                .filter((file) => file && typeof file.path === "string")
+                .map((file) => ({
+                    path: file.path,
+                    status: typeof file.status === "string" ? file.status : undefined,
+                }))
+            : undefined;
+
+        validEntries.push([
+            sessionId,
+            {
+                artifacts: {
+                    latestDiff: typeof entry.latestDiff === "string" ? entry.latestDiff : undefined,
+                    latestChangeSet: latestChangeSetFiles
+                        ? { files: latestChangeSetFiles, raw: {} }
+                        : undefined,
+                },
+                updateTime: typeof entry.updateTime === "string" ? entry.updateTime : undefined,
+                savedAt,
+            },
+        ]);
+    }
+
+    validEntries.sort((a, b) => b[1].savedAt - a[1].savedAt);
+    const trimmedEntries = validEntries.slice(0, MAX_ARTIFACTS_CACHE_SIZE);
+    if (trimmedEntries.length < validEntries.length) {
+        didDropEntries = true;
+    }
+
+    artifactsCache.clear();
+    for (const [sessionId, entry] of trimmedEntries) {
+        artifactsCache.set(sessionId, entry);
+    }
+
+    return didDropEntries;
+}
+
+export function initializeSessionArtifactsCacheFromGlobalState(globalState: GlobalStateLike): void {
+    artifactsGlobalState = globalState;
+    const didDropEntries = restoreArtifactsCacheFromGlobalState(Date.now());
+    if (didDropEntries) {
+        persistArtifactsCache();
+    }
+}
+
+export function clearSessionArtifactsInMemoryCache(): void {
+    artifactsCache.clear();
+}
 
 export function getCachedSessionArtifacts(sessionId: string): SessionArtifacts | undefined {
     return artifactsCache.get(sessionId)?.artifacts;
@@ -233,6 +374,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     const previousEntry = artifactsCache.get(sessionId);
     const previousArtifacts = previousEntry?.artifacts;
     const nextUpdateTime = updateTime ?? previousEntry?.updateTime;
+    const nextSavedAt = Date.now();
 
     const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
     const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
@@ -241,8 +383,11 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
         artifactsCache.set(sessionId, {
             artifacts: latest,
-            updateTime: nextUpdateTime
+            updateTime: nextUpdateTime,
+            savedAt: nextSavedAt,
         });
+        evictOldestArtifactsEntryIfNeeded();
+        persistArtifactsCache();
     }
     return diffChanged || changeSetChanged || (!!updateTime && timeChanged);
 }
@@ -308,9 +453,9 @@ export async function fetchLatestSessionArtifacts(
                     }
                 }
             } else if (data.activities && Array.isArray(data.activities) && data.activities.length === 0) {
-                 // Empty list means no activities at all. No need to fallback.
-                 updateSessionArtifactsCache(sessionId, [], sessionUpdateTime);
-                 return {};
+                // Empty list means no activities at all. No need to fallback.
+                updateSessionArtifactsCache(sessionId, [], sessionUpdateTime);
+                return {};
             }
         }
     } catch (error) {

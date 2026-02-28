@@ -32,6 +32,7 @@ import {
   getCachedSessionArtifacts,
   updateSessionArtifactsCache,
   fetchLatestSessionArtifacts,
+  initializeSessionArtifactsCacheFromGlobalState,
 } from "./sessionArtifacts";
 import {
   JulesDiffDocumentProvider,
@@ -2216,6 +2217,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   loadPreviousSessionStates(context);
+  initializeSessionArtifactsCacheFromGlobalState(context.globalState);
 
   const sessionsProvider = new JulesSessionsProvider(context);
   const sessionsTreeView = vscode.window.createTreeView("julesSessionsView", {

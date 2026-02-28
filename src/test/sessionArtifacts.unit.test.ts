@@ -6,10 +6,31 @@ import {
     updateSessionArtifactsCache,
     fetchLatestSessionArtifacts,
     getCachedSessionArtifacts,
+    initializeSessionArtifactsCacheFromGlobalState,
+    clearSessionArtifactsInMemoryCache,
     SessionArtifacts,
     ChangeSetFile,
     ChangeSetSummary,
+    MAX_ARTIFACTS_CACHE_SIZE,
+    ARTIFACTS_CACHE_TTL_MS,
 } from '../sessionArtifacts';
+
+class InMemoryGlobalState {
+    private store = new Map<string, unknown>();
+
+    get<T>(key: string, defaultValue: T): T {
+        return (this.store.has(key) ? this.store.get(key) : defaultValue) as T;
+    }
+
+    update(key: string, value: unknown): Promise<void> {
+        this.store.set(key, value);
+        return Promise.resolve();
+    }
+
+    set(key: string, value: unknown): void {
+        this.store.set(key, value);
+    }
+}
 
 suite('SessionArtifacts ユニットテスト', () => {
     let sandbox: sinon.SinonSandbox;
@@ -18,9 +39,11 @@ suite('SessionArtifacts ユニットテスト', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
         fetchStub = sandbox.stub(global, 'fetch');
+        clearSessionArtifactsInMemoryCache();
     });
 
     teardown(() => {
+        clearSessionArtifactsInMemoryCache();
         sandbox.restore();
     });
 
@@ -689,6 +712,101 @@ index 2345678..bcdefgh 100644
 
             assert.ok(cached);
             assert.strictEqual(cached.latestDiff, 'cached diff');
+        });
+    });
+
+    suite('globalState 永続化', () => {
+        test('永続化データからキャッシュを復元できること', () => {
+            const state = new InMemoryGlobalState();
+            const sessionId = 'sessions/persisted-1';
+
+            state.set('jules.artifacts.cache', {
+                [sessionId]: {
+                    latestDiff: 'diff --git a/a.ts b/a.ts',
+                    latestChangeSetFiles: [{ path: 'src/a.ts', status: 'modified' }],
+                    updateTime: '2026-02-28T00:00:00Z',
+                    savedAt: Date.now(),
+                },
+            });
+
+            initializeSessionArtifactsCacheFromGlobalState(state);
+            const cached = getCachedSessionArtifacts(sessionId);
+
+            assert.ok(cached);
+            assert.strictEqual(cached?.latestDiff, 'diff --git a/a.ts b/a.ts');
+            assert.strictEqual(cached?.latestChangeSet?.files[0].path, 'src/a.ts');
+        });
+
+        test('TTL超過エントリは復元時に破棄されること', () => {
+            const state = new InMemoryGlobalState();
+            const expiredSavedAt = Date.now() - ARTIFACTS_CACHE_TTL_MS - 1000;
+
+            state.set('jules.artifacts.cache', {
+                'sessions/expired': {
+                    latestDiff: 'expired diff',
+                    latestChangeSetFiles: [{ path: 'src/expired.ts' }],
+                    savedAt: expiredSavedAt,
+                },
+            });
+
+            initializeSessionArtifactsCacheFromGlobalState(state);
+            const cached = getCachedSessionArtifacts('sessions/expired');
+
+            assert.strictEqual(cached, undefined);
+        });
+
+        test('復元時に上限件数を超えたら古いものから落とすこと', () => {
+            const state = new InMemoryGlobalState();
+            const persisted: Record<string, unknown> = {};
+            const base = Date.now();
+
+            for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE + 1; i += 1) {
+                persisted[`sessions/${i}`] = {
+                    latestDiff: `diff-${i}`,
+                    savedAt: base - i,
+                };
+            }
+
+            // 追加で最古を明示的に古くして、確実にevict対象にする
+            persisted['sessions/oldest'] = {
+                latestDiff: 'very-old',
+                savedAt: base - 999999,
+            };
+
+            state.set('jules.artifacts.cache', persisted);
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            assert.strictEqual(getCachedSessionArtifacts('sessions/oldest'), undefined);
+        });
+
+        test('大きすぎるdiffは永続化されないこと', () => {
+            const state = new InMemoryGlobalState();
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            const sessionId = 'sessions/huge-diff';
+            const hugeDiff = 'x'.repeat(70 * 1024);
+            const activities = [
+                {
+                    createTime: '2026-02-28T00:00:00Z',
+                    gitPatch: { diff: hugeDiff },
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'src/huge.ts', status: 'modified' }],
+                            },
+                        },
+                    ],
+                },
+            ];
+
+            updateSessionArtifactsCache(sessionId, activities as any);
+            clearSessionArtifactsInMemoryCache();
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            const restored = getCachedSessionArtifacts(sessionId);
+            assert.ok(restored);
+            assert.strictEqual(restored?.latestDiff, undefined);
+            assert.strictEqual(restored?.latestChangeSet?.files[0].path, 'src/huge.ts');
         });
     });
 
