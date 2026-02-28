@@ -20,30 +20,26 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v44
         with:
-          json: true
-
-      - name: Check if only non-source files changed
-        id: check-files
-        run: |
-          # Use grep to filter out ignored patterns.
-          # If there are any files left, then it's not ONLY non-source files.
-          NON_IGNORED_COUNT=$(echo '${{ steps.changed-files.outputs.all_changed_files }}' | jq -r '.[]' | grep -Ev '^(README\.md|TESTING_GUIDE\.md|AGENTS\.md|LICENSE|\.github/.*|docs-extension/.*|\.vscode/.*|\.gitignore|\.vscodeignore)$' | wc -l)
-
-          if [ "$NON_IGNORED_COUNT" -eq 0 ]; then
-            echo "only_non_source=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "only_non_source=false" >> "$GITHUB_OUTPUT"
-          fi
+          files: |
+            README.md
+            TESTING_GUIDE.md
+            AGENTS.md
+            LICENSE
+            .github/**
+            docs-extension/**
+            .vscode/**
+            .gitignore
+            .vscodeignore
 
       - name: Add label if only non-source files changed
-        if: steps.check-files.outputs.only_non_source == 'true'
+        if: steps.changed-files.outputs.only_changed == 'true'
         run: |
           gh pr edit ${{ github.event.pull_request.number }} --add-label "ignore-for-release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Remove label if source files changed
-        if: steps.check-files.outputs.only_non_source == 'false'
+        if: steps.changed-files.outputs.only_changed == 'false'
         run: |
           # Try to remove the label, ignore error if it doesn't exist
           gh pr edit ${{ github.event.pull_request.number }} --remove-label "ignore-for-release" || true
