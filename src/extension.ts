@@ -45,6 +45,21 @@ import {
 } from "./planDocumentProvider";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
+import {
+  getActivityCategory,
+  getActivityIcon,
+  getActivityTypeLabel,
+  pickFirstNonEmpty,
+  truncateForDisplay,
+  summarizeArtifacts,
+  getActivitySummaryText,
+  getActivityLabelPrefix,
+  getActiveActivityKeys,
+  ACTIVITY_UNION_KEYS,
+  type ActivityCategory,
+  type ActivityUnionKey,
+} from "./activityUtils";
+import { Activity, Artifact, ActivitiesResponse } from "./types";
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -1012,34 +1027,6 @@ interface SessionsResponse {
   nextPageToken?: string;
 }
 
-interface Activity {
-  name: string;
-  createTime: string;
-  description?: string;
-  originator?: "user" | "agent" | "system" | string;
-  id: string;
-  type?: string;
-  agentMessaged?: { agentMessage?: string };
-  userMessaged?: { userMessage?: string };
-  planGenerated?: { plan: Plan };
-  planApproved?: { planId: string };
-  progressUpdated?: { title?: string; description?: string };
-  sessionCompleted?: Record<string, never>;
-  sessionFailed?: { reason?: string };
-  artifacts?: Artifact[];
-}
-
-interface Artifact {
-  changeSet?: Record<string, unknown>;
-  bashOutput?: Record<string, unknown>;
-  media?: Record<string, unknown>;
-}
-
-interface ActivitiesResponse {
-  activities?: Activity[];
-  nextPageToken?: string;
-}
-
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
 
 function addToActivitiesCache(sessionId: string, activities: Activity[]): void {
@@ -1275,147 +1262,6 @@ async function fetchSessionActivitiesPaginated(
   );
 }
 
-const ACTIVITY_UNION_KEYS = [
-  "agentMessaged",
-  "userMessaged",
-  "planGenerated",
-  "planApproved",
-  "progressUpdated",
-  "sessionCompleted",
-  "sessionFailed",
-] as const;
-
-type ActivityUnionKey = (typeof ACTIVITY_UNION_KEYS)[number];
-
-function getActiveActivityKeys(activity: Activity): ActivityUnionKey[] {
-  return ACTIVITY_UNION_KEYS.filter((key) => {
-    const value = (activity as unknown as Record<string, unknown>)[key];
-    return value !== undefined && value !== null;
-  });
-}
-
-function getActivityIcon(activity: Activity): string {
-  const keys = getActiveActivityKeys(activity);
-  if (keys.length !== 1) {
-    return "ℹ️";
-  }
-  switch (keys[0]) {
-    case "planGenerated":
-      return "📝";
-    case "planApproved":
-      return "👍";
-    case "progressUpdated":
-      return "🔄";
-    case "sessionCompleted":
-      return "✅";
-    case "sessionFailed":
-      return "❌";
-    case "agentMessaged":
-      return "💬";
-    case "userMessaged":
-      return "🗨️";
-    default:
-      return "ℹ️";
-  }
-}
-
-function pickFirstNonEmpty(
-  ...values: Array<string | undefined | null>
-): string | null {
-  for (const value of values) {
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        return trimmed;
-      }
-    }
-  }
-  return null;
-}
-
-function truncateForDisplay(text: string, maxLength: number = 300): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, maxLength)}...`;
-}
-
-function getActivityTypeLabel(key: ActivityUnionKey): string {
-  switch (key) {
-    case "planGenerated":
-      return "Plan generated";
-    case "planApproved":
-      return "Plan approved";
-    case "agentMessaged":
-      return "Agent messaged";
-    case "userMessaged":
-      return "User messaged";
-    case "progressUpdated":
-      return "Progress updated";
-    case "sessionCompleted":
-      return "Session completed";
-    case "sessionFailed":
-      return "Session failed";
-    default:
-      return "Activity";
-  }
-}
-
-function summarizeArtifacts(artifacts?: Artifact[]): string | null {
-  if (!artifacts || artifacts.length === 0) {
-    return null;
-  }
-  const types = new Set<string>();
-  artifacts.forEach((artifact) => {
-    if (artifact.changeSet) {
-      types.add("changeSet");
-    }
-    if (artifact.bashOutput) {
-      types.add("bashOutput");
-    }
-    if (artifact.media) {
-      types.add("media");
-    }
-  });
-  if (types.size === 0) {
-    return null;
-  }
-  return `Artifacts: ${[...types].join(", ")}`;
-}
-
-function getActivitySummaryText(activity: Activity): string {
-  const progressText = pickFirstNonEmpty(
-    activity.progressUpdated?.title,
-    activity.progressUpdated?.description,
-  );
-  if (progressText) {
-    return progressText;
-  }
-
-  const failureReason = pickFirstNonEmpty(activity.sessionFailed?.reason);
-  if (failureReason) {
-    return `Session failed: ${failureReason}`;
-  }
-
-  const activityDescription = pickFirstNonEmpty(activity.description);
-  if (activityDescription) {
-    return activityDescription;
-  }
-
-  const artifactsSummary = summarizeArtifacts(activity.artifacts);
-  if (artifactsSummary) {
-    return artifactsSummary;
-  }
-
-  const activeKeys = getActiveActivityKeys(activity);
-  if (activeKeys.length === 1) {
-    return getActivityTypeLabel(activeKeys[0]);
-  }
-
-  const originator = activity.originator ?? "unknown";
-  const timePart = activity.createTime ? `, time=${activity.createTime}` : "";
-  return `Activity (originator=${originator}${timePart})`;
-}
 
 export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
@@ -1443,6 +1289,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   private readonly BRANCH_REFRESH_INTERVAL = 4 * 60 * 1000; // 4 minutes
   private lastArtifactsPrefetchTime: number = 0;
   private readonly ARTIFACTS_PREFETCH_INTERVAL = 3 * 60 * 1000; // 3 minutes
+
+  // Activity フィルタ関連のプロパティ
+  private activityCategoryFilter: Set<ActivityCategory> = new Set();
+  private lastSelectedSessionId: string | undefined;
+  private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
   constructor(private context: vscode.ExtensionContext) { }
 
