@@ -1,3 +1,7 @@
+// Activity-related types (imported from planUtils for Plan reference)
+import type { Plan } from "./planUtils";
+export type { Plan };
+
 export interface GitHubBranch {
     displayName: string;
 }
@@ -68,3 +72,32 @@ export interface Session {
 
 // Convenience type alias
 export type SourceType = Source;
+
+export interface Artifact {
+    changeSet?: Record<string, unknown>;
+    bashOutput?: Record<string, unknown>;
+    media?: Record<string, unknown>;
+}
+
+export interface Activity {
+    name: string;
+    createTime: string;
+    description?: string;
+    /** Originator identifier. Common values: "user", "agent", "system". */
+    originator?: string;
+    id: string;
+    type?: string;
+    agentMessaged?: { agentMessage?: string };
+    userMessaged?: { userMessage?: string };
+    planGenerated?: { plan: Plan };
+    planApproved?: { planId: string };
+    progressUpdated?: { title?: string; description?: string };
+    sessionCompleted?: Record<string, never>;
+    sessionFailed?: { reason?: string };
+    artifacts?: Artifact[];
+}
+
+export interface ActivitiesResponse {
+    activities?: Activity[];
+    nextPageToken?: string;
+}
