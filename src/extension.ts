@@ -9,6 +9,8 @@ import {
   Session,
   SessionOutput,
   PullRequestOutput,
+  Activity,
+  ActivitiesResponse,
 } from "./types";
 import { getBranchesForSession } from "./branchUtils";
 import { showMessageComposer } from "./composer";
@@ -48,18 +50,16 @@ import { buildSessionTooltip } from "./tooltipUtils";
 import {
   getActivityCategory,
   getActivityIcon,
-  getActivityTypeLabel,
   pickFirstNonEmpty,
   truncateForDisplay,
-  summarizeArtifacts,
   getActivitySummaryText,
   getActivityLabelPrefix,
+  getActivityThemeIcon,
   getActiveActivityKeys,
   ACTIVITY_UNION_KEYS,
   type ActivityCategory,
   type ActivityUnionKey,
 } from "./activityUtils";
-import { Activity, Artifact, ActivitiesResponse } from "./types";
 
 // Constants
 const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
@@ -141,6 +141,16 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
     default:
       return "RUNNING"; // default to RUNNING
   }
+}
+
+function isSessionActive(session: Session): boolean {
+  const activeStates = new Set([
+    "IN_PROGRESS",
+    "PLANNING",
+    "AWAITING_PLAN_APPROVAL",
+    "EXECUTING_PLAN",
+  ]);
+  return activeStates.has(session.rawState);
 }
 
 interface CachedSessionState {
@@ -1029,6 +1039,24 @@ interface SessionsResponse {
 
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
 
+class JulesActivitiesDocumentProvider
+  implements vscode.TextDocumentContentProvider {
+  private readonly contents = new Map<string, string>();
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return this.contents.get(uri.toString()) ?? "";
+  }
+
+  setContent(uri: vscode.Uri, content: string): void {
+    this.contents.set(uri.toString(), content);
+  }
+
+  buildUri(sessionId: string): vscode.Uri {
+    const normalized = sessionId.replace(/^sessions\//, "");
+    return vscode.Uri.parse(`jules-activities://sessions/${normalized}/activities.log`);
+  }
+}
+
 function addToActivitiesCache(sessionId: string, activities: Activity[]): void {
   // Keep cache bounded to avoid unbounded memory growth during long-lived sessions.
   if (
@@ -1098,6 +1126,35 @@ export function mergeActivitiesByIdentity(
     }
     return (a.name || a.id || "").localeCompare(b.name || b.id || "");
   });
+}
+
+function buildActivitySummaryHeader(
+  sessionState: string,
+  activities: Activity[],
+): string {
+  const categoryCounts: Record<ActivityCategory, number> = {
+    Plan: 0,
+    Progress: 0,
+    Artifacts: 0,
+    Messages: 0,
+    Errors: 0,
+  };
+
+  for (const activity of activities) {
+    categoryCounts[getActivityCategory(activity)] += 1;
+  }
+
+  const latestActivity = activities.length > 0 ? activities[activities.length - 1] : undefined;
+  const latestDesc = latestActivity ? getActivitySummaryText(latestActivity) : "N/A";
+
+  return [
+    "=== Session Summary ===",
+    `Status: ${sessionState}`,
+    `Activities: ${activities.length} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
+    `Latest: ${latestDesc}`,
+    "========================",
+    "",
+  ].join("\n");
 }
 
 export function buildSessionsListEndpoint(
@@ -1297,6 +1354,84 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
   constructor(private context: vscode.ExtensionContext) { }
 
+  getActivityCategoryFilter(): Set<ActivityCategory> {
+    return this.activityCategoryFilter;
+  }
+
+  setActivityCategoryFilter(filter: Set<ActivityCategory>): void {
+    this.activityCategoryFilter = filter;
+    this._onDidChangeTreeData.fire(undefined);
+  }
+
+  setLastSelectedSessionId(sessionId: string | undefined): void {
+    this.lastSelectedSessionId = sessionId;
+  }
+
+  setProgressStatusBarItem(item: vscode.StatusBarItem): void {
+    this.progressStatusBarItem = item;
+  }
+
+  private async updateProgressStatusBarForSelectedSession(
+    apiKey: string,
+    sessions: Session[],
+  ): Promise<void> {
+    if (!this.progressStatusBarItem || !this.lastSelectedSessionId) {
+      this.progressStatusBarItem?.hide();
+      return;
+    }
+
+    const selectedSession = sessions.find(
+      (session) => session.name === this.lastSelectedSessionId,
+    );
+    if (!selectedSession || !isSessionActive(selectedSession)) {
+      this.progressStatusBarItem.hide();
+      return;
+    }
+
+    try {
+      const sessionId = selectedSession.name;
+      const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
+      const previousLatestCreateTime = this.context.globalState.get<string>(
+        latestCreateTimeKey,
+      );
+      const cachedActivities = sessionActivitiesCache.get(sessionId) ?? [];
+
+      const newActivities = await fetchSessionActivitiesPaginated(apiKey, sessionId, {
+        createTime: previousLatestCreateTime,
+        showPaginationProgress: false,
+      });
+      const activities = mergeActivitiesByIdentity(cachedActivities, newActivities);
+      addToActivitiesCache(sessionId, activities);
+
+      const latestCreateTime = getLatestActivityCreateTime(activities);
+      if (latestCreateTime) {
+        await this.context.globalState.update(latestCreateTimeKey, latestCreateTime);
+      }
+
+      const latestProgress = activities
+        .filter((activity) => activity.progressUpdated)
+        .sort(
+          (a, b) =>
+            new Date(b.createTime).getTime() - new Date(a.createTime).getTime(),
+        )[0];
+
+      if (latestProgress?.progressUpdated) {
+        const title = latestProgress.progressUpdated.title || "Working...";
+        this.progressStatusBarItem.text = `$(sync~spin) Jules: ${title}`;
+        this.progressStatusBarItem.tooltip =
+          latestProgress.progressUpdated.description || "";
+        this.progressStatusBarItem.show();
+      } else {
+        this.progressStatusBarItem.hide();
+      }
+    } catch (error) {
+      logChannel.appendLine(
+        `Jules: Failed to update progress status bar: ${sanitizeError(error)}`,
+      );
+      this.progressStatusBarItem.hide();
+    }
+  }
+
   private sendNotifications(
     sessions: Session[],
     notificationType: string,
@@ -1336,6 +1471,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       const apiKey = await getStoredApiKey(this.context);
       if (!apiKey) {
         this.sessionsCache = [];
+        this.progressStatusBarItem?.hide();
         return;
       }
 
@@ -1468,6 +1604,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
+
+      await this.updateProgressStatusBarForSelectedSession(
+        apiKey,
+        allSessionsMapped,
+      );
 
       // Always try to prefetch artifacts for recent sessions to ensure context menus match user expectation.
       // Optimization: Do not await to allow immediate UI update.
@@ -2085,6 +2226,36 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.command = "jules-extension.listSources";
   context.subscriptions.push(statusBarItem);
 
+  const progressStatusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    50,
+  );
+  progressStatusBarItem.name = "Jules Progress";
+  progressStatusBarItem.hide();
+  context.subscriptions.push(progressStatusBarItem);
+  sessionsProvider.setProgressStatusBarItem(progressStatusBarItem);
+
+  const activitiesProvider = new JulesActivitiesDocumentProvider();
+  const activitiesProviderDisposable =
+    vscode.workspace.registerTextDocumentContentProvider(
+      "jules-activities",
+      activitiesProvider,
+    );
+
+  const treeSelectionDisposable = sessionsTreeView.onDidChangeSelection(
+    (event) => {
+      const selectedSessionItem = event.selection.find(
+        (item): item is SessionTreeItem => item instanceof SessionTreeItem,
+      );
+      sessionsProvider.setLastSelectedSessionId(
+        selectedSessionItem?.session.name,
+      );
+      if (!selectedSessionItem) {
+        progressStatusBarItem.hide();
+      }
+    },
+  );
+
   // 初期表示を更新
   updateStatusBar(context, statusBarItem);
 
@@ -2633,6 +2804,37 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
+  const filterActivitiesCommand = vscode.commands.registerCommand(
+    "jules.filterActivities",
+    async () => {
+      const categories: ActivityCategory[] = [
+        "Plan",
+        "Progress",
+        "Artifacts",
+        "Messages",
+        "Errors",
+      ];
+      const currentFilter = sessionsProvider.getActivityCategoryFilter();
+
+      const items = categories.map((category) => ({
+        label: category,
+        picked: currentFilter.size === 0 || currentFilter.has(category),
+      }));
+
+      const selected = await vscode.window.showQuickPick(items, {
+        canPickMany: true,
+        placeHolder: "フィルタするActivityカテゴリを選択（未選択＝全表示）",
+      });
+
+      if (selected !== undefined) {
+        const newFilter = new Set<ActivityCategory>(
+          selected.map((item) => item.label as ActivityCategory),
+        );
+        sessionsProvider.setActivityCategoryFilter(newFilter);
+      }
+    },
+  );
+
   const showActivitiesDisposable = vscode.commands.registerCommand(
     "jules-extension.showActivities",
     async (sessionId: string) => {
@@ -2663,7 +2865,9 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        await sessionResponse.json();
+        const sessionDetails = (await sessionResponse.json()) as {
+          state?: string;
+        };
 
         const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
         const previousLatestCreateTime = context.globalState.get<string>(
@@ -2686,6 +2890,14 @@ export function activate(context: vscode.ExtensionContext) {
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)
           : mergeActivitiesByIdentity([], newActivities);
 
+        let filteredActivities = mergedActivities;
+        const currentFilter = sessionsProvider.getActivityCategoryFilter();
+        if (currentFilter.size > 0) {
+          filteredActivities = mergedActivities.filter((activity) =>
+            currentFilter.has(getActivityCategory(activity)),
+          );
+        }
+
         addToActivitiesCache(sessionId, mergedActivities);
 
         const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
@@ -2706,12 +2918,15 @@ export function activate(context: vscode.ExtensionContext) {
         activitiesChannel.show();
         activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
         activitiesChannel.appendLine("---");
-        if (mergedActivities.length === 0) {
+        const detailLines: string[] = [];
+        if (filteredActivities.length === 0) {
           activitiesChannel.appendLine("No activities found for this session.");
+          detailLines.push("No activities found for this session.");
         } else {
           let planDetected = false;
-          mergedActivities.forEach((activity) => {
+          filteredActivities.forEach((activity) => {
             const icon = getActivityIcon(activity);
+            const codicon = getActivityThemeIcon(activity)?.id;
             const timestamp = new Date(activity.createTime).toLocaleString();
             const originator = activity.originator ?? "unknown";
             const activeKeys = getActiveActivityKeys(activity);
@@ -2742,11 +2957,11 @@ export function activate(context: vscode.ExtensionContext) {
                   break;
                 }
                 case "sessionCompleted": {
-                  message = summary;
+                  message = `Completed: ${summary}`;
                   break;
                 }
                 case "sessionFailed": {
-                  message = summary;
+                  message = `FAILED: ${summary}`;
                   break;
                 }
                 case "agentMessaged": {
@@ -2831,11 +3046,37 @@ export function activate(context: vscode.ExtensionContext) {
               message = `Unknown activity (keys: ${keySummary}). See output log for details.`;
             }
 
-            activitiesChannel.appendLine(
-              `${icon} ${timestamp} (${originator}): ${message}`,
-            );
+            const prefix = getActivityLabelPrefix(activity);
+            const iconPrefix = codicon ? `$(${codicon}) ` : "";
+            const line = `${iconPrefix}${icon} ${timestamp} (${originator}): ${prefix}${message}`;
+            activitiesChannel.appendLine(line);
+            detailLines.push(line);
           });
+
+          if (planDetected) {
+            logChannel.appendLine(
+              `Jules: Plan-related activities detected for ${sanitizeForLogging(sessionId)}`,
+            );
+          }
         }
+
+        const summaryHeader = buildActivitySummaryHeader(
+          sessionDetails.state ?? "UNKNOWN",
+          mergedActivities,
+        );
+        const activitiesUri = activitiesProvider.buildUri(sessionId);
+        activitiesProvider.setContent(
+          activitiesUri,
+          summaryHeader + detailLines.join("\n"),
+        );
+        const activitiesDocument = await vscode.workspace.openTextDocument(
+          activitiesUri,
+        );
+        await vscode.window.showTextDocument(activitiesDocument, {
+          preview: true,
+          viewColumn: vscode.ViewColumn.Active,
+        });
+
         await context.globalState.update("active-session-id", sessionId);
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -3164,6 +3405,7 @@ export function activate(context: vscode.ExtensionContext) {
     sessionsTreeView,
     refreshSessionsDisposable,
     showActivitiesDisposable,
+    filterActivitiesCommand,
     refreshActivitiesDisposable,
     sendMessageDisposable,
     approvePlanDisposable,
@@ -3173,6 +3415,8 @@ export function activate(context: vscode.ExtensionContext) {
     openInWebAppDisposable,
     openPRInBrowserDisposable,
     checkoutToBranchDisposable,
+    activitiesProviderDisposable,
+    treeSelectionDisposable,
     diffProviderDisposable,
     openLatestDiffDisposable,
     openChangesetDisposable,

@@ -1,5 +1,5 @@
 // Activity-related types (imported from planUtils for Plan reference)
-import { Plan } from "./planUtils";
+import type { Plan } from "./planUtils";
 export type { Plan };
 
 export interface GitHubBranch {
@@ -83,7 +83,8 @@ export interface Activity {
     name: string;
     createTime: string;
     description?: string;
-    originator?: "user" | "agent" | "system" | string;
+    /** Originator identifier. Common values: "user", "agent", "system". */
+    originator?: string;
     id: string;
     type?: string;
     agentMessaged?: { agentMessage?: string };

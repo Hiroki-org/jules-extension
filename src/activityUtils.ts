@@ -1,4 +1,5 @@
-import { Activity, Artifact, Plan } from "./types";
+import * as vscode from "vscode";
+import { Activity, Artifact } from "./types";
 
 /**
  * Activity をカテゴリ分類するための型定義
@@ -249,23 +250,57 @@ export function getActivitySummaryText(activity: Activity): string {
  */
 export function getActivityLabelPrefix(activity: Activity): string {
     if (activity.planGenerated) {
-        return "$(lightbulb) Plan: ";
+        return "Plan: ";
     }
     if (activity.planApproved) {
-        return "$(check) Approved: ";
+        return "Approved: ";
     }
     if (activity.sessionFailed) {
-        return "$(error) FAILED: ";
+        return "FAILED: ";
     }
     if (activity.sessionCompleted) {
-        return "$(pass) Completed: ";
+        return "Completed: ";
     }
     // artifacts に changeSet を含むかチェック
     if (
         activity.artifacts &&
         activity.artifacts.some((artifact) => artifact.changeSet)
     ) {
-        return "$(diff) ";
+        return "(diff) ";
     }
     return "";
+}
+
+/**
+ * Activity の重要イベントに応じた ThemeIcon を返す
+ */
+export function getActivityThemeIcon(activity: Activity): vscode.ThemeIcon | undefined {
+    if (activity.sessionFailed) {
+        return new vscode.ThemeIcon("error", new vscode.ThemeColor("errorForeground"));
+    }
+    if (activity.planGenerated) {
+        return new vscode.ThemeIcon("lightbulb");
+    }
+    if (activity.planApproved) {
+        return new vscode.ThemeIcon("check");
+    }
+    if (activity.sessionCompleted) {
+        return new vscode.ThemeIcon("pass");
+    }
+    if (activity.progressUpdated) {
+        return new vscode.ThemeIcon("pulse");
+    }
+    if (activity.agentMessaged) {
+        return new vscode.ThemeIcon("comment");
+    }
+    if (activity.userMessaged) {
+        return new vscode.ThemeIcon("account");
+    }
+    if (activity.artifacts?.some((artifact) => artifact.changeSet)) {
+        return new vscode.ThemeIcon("diff");
+    }
+    if (activity.artifacts?.some((artifact) => artifact.bashOutput)) {
+        return new vscode.ThemeIcon("terminal");
+    }
+    return undefined;
 }

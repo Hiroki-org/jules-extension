@@ -189,6 +189,10 @@
         "title": "Review Plan...",
         "category": "Jules",
         "icon": "$(preview)"
+      },
+      {
+        "command": "jules.filterActivities",
+        "title": "Jules: Filter Activities"
       }
     ],
     "viewsWelcome": [
@@ -239,6 +243,11 @@
           "command": "jules-extension.setApiKey",
           "when": "view == julesSessionsView",
           "group": "navigation@5"
+        },
+        {
+          "command": "jules.filterActivities",
+          "when": "view == julesSessionsView",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
