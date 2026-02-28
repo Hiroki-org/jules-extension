@@ -219,6 +219,12 @@
           "name": "Jules Sessions",
           "icon": "$(robot)",
           "contextualTitle": "Jules Sessions"
+        },
+        {
+          "id": "julesChatView",
+          "name": "Jules Chat",
+          "icon": "$(comment-discussion)",
+          "contextualTitle": "Jules Chat"
         }
       ]
     },
@@ -253,6 +259,11 @@
           "command": "jules.filterActivities",
           "when": "view == julesSessionsView",
           "group": "navigation@6"
+        },
+        {
+          "command": "jules-extension.refreshActivities",
+          "when": "view == julesChatView",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -321,6 +332,7 @@
     "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/sinon": "^17.0.0",
@@ -339,7 +351,9 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
+    "highlight.js": "^11.11.1",
     "is-glob": "^4.0.3",
+    "markdown-it": "^14.1.1",
     "socks-proxy-agent": "^8.0.5"
   }
 }
