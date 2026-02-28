@@ -211,9 +211,9 @@ export function getActivitySummaryText(activity: Activity): string {
         return progressText;
     }
 
-    const failureReason = pickFirstNonEmpty(activity.sessionFailed?.reason);
-    if (failureReason) {
-        return `Session failed: ${failureReason}`;
+    if (activity.sessionFailed) {
+        const reason = pickFirstNonEmpty(activity.sessionFailed.reason)?.trim();
+        return reason ? `Session failed: ${reason}` : "Session failed";
     }
 
     const activityDescription = pickFirstNonEmpty(activity.description);

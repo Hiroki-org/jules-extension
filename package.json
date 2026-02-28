@@ -193,6 +193,11 @@
       {
         "command": "jules.filterActivities",
         "title": "Jules: Filter Activities"
+      },
+      {
+        "command": "jules.showFailureReason",
+        "title": "Jules: Show Failure Reason",
+        "category": "Jules"
       }
     ],
     "viewsWelcome": [
@@ -290,6 +295,11 @@
           "command": "jules-extension.reviewPlan",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-awaiting-plan/",
           "group": "navigation"
+        },
+        {
+          "command": "jules.showFailureReason",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-failed/",
+          "group": "jules_info"
         }
       ]
     }

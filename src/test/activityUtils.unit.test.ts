@@ -118,4 +118,24 @@ suite("activityUtils getActivitySummaryText", () => {
         });
         assert.strictEqual(getActivitySummaryText(activity), "Build running");
     });
+
+    test("sessionFailed with reason", () => {
+        const activity = mockActivity({
+            sessionFailed: { reason: "Rate limit exceeded" },
+        });
+        assert.strictEqual(
+            getActivitySummaryText(activity),
+            "Session failed: Rate limit exceeded",
+        );
+    });
+
+    test("sessionFailed with empty reason", () => {
+        const activity = mockActivity({ sessionFailed: { reason: "" } });
+        assert.strictEqual(getActivitySummaryText(activity), "Session failed");
+    });
+
+    test("sessionFailed with whitespace-only reason", () => {
+        const activity = mockActivity({ sessionFailed: { reason: "   " } });
+        assert.strictEqual(getActivitySummaryText(activity), "Session failed");
+    });
 });

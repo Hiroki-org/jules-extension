@@ -23,6 +23,7 @@ export interface TooltipContext {
   hasDiff: boolean;
   hasChangeset: boolean;
   selectedSource?: SourceType;
+  failureReasonPreview?: string;
 }
 
 /**
@@ -53,7 +54,7 @@ export function getPrivacyStatusText(isPrivate?: boolean, format: 'short' | 'lon
  * Build a MarkdownString tooltip for a session
  */
 export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownString {
-  const { session, hasDiff, hasChangeset, selectedSource } = context;
+  const { session, hasDiff, hasChangeset, selectedSource, failureReasonPreview } = context;
 
   const tooltip = new vscode.MarkdownString(`**${session.title || session.name}**`, true);
   tooltip.appendMarkdown(`\n\nStatus: **${session.state}**`);
@@ -160,6 +161,12 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
       const updateDate = new Date(session.updateTime);
       tooltip.appendMarkdown(`\n\nUpdated: ${updateDate.toLocaleString()}`);
     }
+  }
+
+  if (failureReasonPreview) {
+    tooltip.appendMarkdown(`\n\n---`);
+    tooltip.appendMarkdown(`\n\n❌ **Failure Reason:**\n\n`);
+    tooltip.appendText(failureReasonPreview);
   }
 
   tooltip.appendMarkdown(`\n\n---`);
