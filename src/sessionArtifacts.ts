@@ -89,7 +89,8 @@ function evictOldestArtifactsEntryIfNeeded(): void {
 }
 
 function persistArtifactsCache(): void {
-    if (!artifactsGlobalState) {
+    const currentGlobalState = artifactsGlobalState;
+    if (!currentGlobalState) {
         return;
     }
 
@@ -110,7 +111,7 @@ function persistArtifactsCache(): void {
 
     persistInFlight = persistInFlight
         .catch(() => undefined)
-        .then(() => Promise.resolve(artifactsGlobalState!.update(ARTIFACTS_CACHE_STATE_KEY, persisted)))
+        .then(() => Promise.resolve(currentGlobalState.update(ARTIFACTS_CACHE_STATE_KEY, persisted)))
         .catch((error) => {
             console.error("[Jules] Failed to persist artifacts cache:", error);
         });

@@ -778,6 +778,15 @@ index 2345678..bcdefgh 100644
             state.set(ARTIFACTS_CACHE_STATE_KEY, persisted);
             initializeSessionArtifactsCacheFromGlobalState(state);
 
+            let restoredCount = 0;
+            for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE + 1; i += 1) {
+                if (getCachedSessionArtifacts(`sessions/${i}`)) {
+                    restoredCount += 1;
+                }
+            }
+
+            assert.strictEqual(restoredCount, MAX_ARTIFACTS_CACHE_SIZE);
+            assert.strictEqual(getCachedSessionArtifacts('sessions/50'), undefined);
             assert.strictEqual(getCachedSessionArtifacts('sessions/oldest'), undefined);
         });
 
