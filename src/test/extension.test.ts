@@ -10,6 +10,10 @@ import {
   areOutputsEqual,
   areSessionListsEqual,
   updatePreviousStates,
+  buildActivitiesListEndpoint,
+  buildSessionsListEndpoint,
+  mergeActivitiesByIdentity,
+  getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
   Session,
@@ -629,6 +633,79 @@ suite("Extension Test Suite", () => {
       const a: SessionOutput[] = [{ pullRequest: { url: "u", title: "t", description: "d" } }];
       const b: SessionOutput[] = [{ pullRequest: { url: "u", title: "t", description: "d" } }];
       assert.strictEqual(areOutputsEqual(a, b), true);
+    });
+  });
+
+  suite("Pagination Endpoint Builders", () => {
+    test("buildSessionsListEndpoint should include pageSize and pageToken", () => {
+      const url = buildSessionsListEndpoint(
+        "https://jules.googleapis.com/v1alpha",
+        "next-token-1",
+      );
+
+      assert.ok(url.includes("/sessions?"));
+      assert.ok(url.includes("pageSize=100"));
+      assert.ok(url.includes("pageToken=next-token-1"));
+    });
+
+    test("buildActivitiesListEndpoint should include pageSize, pageToken and createTime", () => {
+      const url = buildActivitiesListEndpoint(
+        "https://jules.googleapis.com/v1alpha",
+        "sessions/123",
+        {
+          pageToken: "p2",
+          createTime: "2026-02-28T01:02:03Z",
+        },
+      );
+
+      assert.ok(url.includes("/sessions/123/activities?"));
+      assert.ok(url.includes("pageSize=100"));
+      assert.ok(url.includes("pageToken=p2"));
+      assert.ok(url.includes("createTime=2026-02-28T01%3A02%3A03Z"));
+    });
+  });
+
+  suite("Activities Delta Helpers", () => {
+    test("mergeActivitiesByIdentity should merge unique activities and keep chronological order", () => {
+      const existing = [
+        {
+          name: "activities/1",
+          id: "1",
+          createTime: "2026-02-28T10:00:00Z",
+        },
+        {
+          name: "activities/2",
+          id: "2",
+          createTime: "2026-02-28T10:01:00Z",
+        },
+      ] as any;
+      const incoming = [
+        {
+          name: "activities/2",
+          id: "2",
+          createTime: "2026-02-28T10:01:00Z",
+        },
+        {
+          name: "activities/3",
+          id: "3",
+          createTime: "2026-02-28T10:02:00Z",
+        },
+      ] as any;
+
+      const merged = mergeActivitiesByIdentity(existing, incoming);
+      assert.strictEqual(merged.length, 3);
+      assert.strictEqual(merged[0].name, "activities/1");
+      assert.strictEqual(merged[2].name, "activities/3");
+    });
+
+    test("getLatestActivityCreateTime should return latest valid timestamp", () => {
+      const latest = getLatestActivityCreateTime([
+        { id: "1", name: "a1", createTime: "invalid" },
+        { id: "2", name: "a2", createTime: "2026-02-28T09:00:00Z" },
+        { id: "3", name: "a3", createTime: "2026-02-28T11:00:00Z" },
+      ] as any);
+
+      assert.strictEqual(latest, "2026-02-28T11:00:00Z");
     });
   });
 
