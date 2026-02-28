@@ -10,6 +10,8 @@ import {
   areOutputsEqual,
   areSessionListsEqual,
   updatePreviousStates,
+  getSourceDisplayName,
+  getSourceIsPrivate,
   Session,
   SessionOutput,
   handleOpenInWebApp
@@ -72,6 +74,31 @@ suite("Extension Test Suite", () => {
     test("Unknown states should default to RUNNING", () => {
       assert.strictEqual(mapApiStateToSessionState("UNKNOWN_STATE"), "RUNNING");
       assert.strictEqual(mapApiStateToSessionState(""), "RUNNING");
+    });
+  });
+
+  suite("Source Display Helpers", () => {
+    test("getSourceDisplayName should prefer githubRepo owner/repo", () => {
+      const source = {
+        name: "sources/github/my-org/legacy-name",
+        githubRepo: {
+          owner: "my-org",
+          repo: "my-repo",
+        },
+      } as any;
+
+      assert.strictEqual(getSourceDisplayName(source), "my-org/my-repo");
+    });
+
+    test("getSourceIsPrivate should prioritize githubRepo.isPrivate", () => {
+      const source = {
+        isPrivate: false,
+        githubRepo: {
+          isPrivate: true,
+        },
+      } as any;
+
+      assert.strictEqual(getSourceIsPrivate(source), true);
     });
   });
 
