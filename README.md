@@ -145,6 +145,8 @@ This extension contributes the following settings:
 This project is just getting started. We welcome all forms of contribution, including bug reports, feature suggestions, and pull requests!
 Please check the Issue Tracker and Pull Requests.
 
+コントリビューション、Issue、Pull Requestを歓迎します。英語、日本語、その他の言語でも構いません。(We welcome contributions, issues, and pull requests! English, Japanese, or any other languages are acceptable.)
+
 ## 📝 License
 
 [MIT](LICENSE)
