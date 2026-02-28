@@ -14,6 +14,8 @@ import {
   buildSessionsListEndpoint,
   mergeActivitiesByIdentity,
   getLatestActivityCreateTime,
+  getSourceDisplayName,
+  getSourceIsPrivate,
   Session,
   SessionOutput,
   handleOpenInWebApp
