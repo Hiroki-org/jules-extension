@@ -6,28 +6,38 @@ import {
   isGeneratingSessionState,
   renderChatMarkdown,
 } from "../chatView";
+import { Activity } from "../types";
+
+function createActivity(activity: Partial<Activity>): Activity {
+  return {
+    id: "id",
+    name: "activities/id",
+    createTime: "2025-01-01T00:00:00Z",
+    ...activity,
+  };
+}
 
 suite("Chat View Unit Test Suite", () => {
   test("buildChatMessagesFromActivities should include user/assistant messages only", () => {
     const messages = buildChatMessagesFromActivities([
-      {
+      createActivity({
         id: "3",
         name: "activities/3",
         createTime: "2025-01-01T00:00:03Z",
         progressUpdated: { title: "ignored" },
-      } as any,
-      {
+      }),
+      createActivity({
         id: "1",
         name: "activities/1",
         createTime: "2025-01-01T00:00:01Z",
         userMessaged: { userMessage: "hello" },
-      } as any,
-      {
+      }),
+      createActivity({
         id: "2",
         name: "activities/2",
         createTime: "2025-01-01T00:00:02Z",
         agentMessaged: { agentMessage: "world" },
-      } as any,
+      }),
     ]);
 
     assert.strictEqual(messages.length, 2);

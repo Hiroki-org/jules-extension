@@ -76,7 +76,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly onSendMessage: (sessionId: string, message: string) => Promise<void>,
-  ) { }
+  ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
@@ -104,7 +104,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      await this.onSendMessage(sessionId, text);
+      try {
+        await this.onSendMessage(sessionId, text);
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
     });
 
     this.postState();
@@ -319,7 +325,13 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     </div>
   </form>
   <script nonce="${nonce}">
-    const vscode = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : { postMessage: () => {} };
+    const vscode = typeof acquireVsCodeApi === "function"
+      ? acquireVsCodeApi()
+      : {
+        postMessage: () => {
+          console.warn("acquireVsCodeApi is not available in preview mode.");
+        },
+      };
     const chatEl = document.getElementById("chat");
     const typingEl = document.getElementById("typing");
     const formEl = document.getElementById("composer");
@@ -380,7 +392,8 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
         return;
       }
       const wrapper = button.closest(".code-block");
-      const code = wrapper ? (wrapper.getAttribute("data-code") || "") : "";
+      const codeElement = wrapper?.querySelector("code");
+      const code = codeElement ? codeElement.innerText : "";
       if (!code) {
         return;
       }
@@ -429,11 +442,10 @@ function createMarkdownRenderer(): MarkdownIt {
 
   const defaultFence = markdown.renderer.rules.fence?.bind(markdown.renderer.rules);
   markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
-    const rawCode = tokens[idx].content ?? "";
     const rendered = defaultFence
       ? defaultFence(tokens, idx, options, env, self)
       : self.renderToken(tokens, idx, options);
-    return `<div class="code-block" data-code="${escapeHtmlAttribute(rawCode)}"><button class="copy-code-button" type="button">Copy</button>${rendered}</div>`;
+    return `<div class="code-block"><button class="copy-code-button" type="button">Copy</button>${rendered}</div>`;
   };
 
   return markdown;
@@ -444,10 +456,6 @@ function escapeHtml(value: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-}
-
-function escapeHtmlAttribute(value: string): string {
-  return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
 function getNonce(): string {
