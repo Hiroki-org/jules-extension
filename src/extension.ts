@@ -52,6 +52,8 @@ const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
 const ALL_SOURCES_ID = "all_repos";
 const MAX_PAGE_SIZE = 100;
+const MAX_PAGINATION_PAGES = 100;
+const MAX_ACTIVITIES_CACHE_SIZE = 50;
 const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
   "jules.activities.latestCreateTime";
 
@@ -1017,6 +1019,22 @@ interface ActivitiesResponse {
 
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
 
+function addToActivitiesCache(sessionId: string, activities: Activity[]): void {
+  // Keep cache bounded to avoid unbounded memory growth during long-lived sessions.
+  if (
+    sessionActivitiesCache.size >= MAX_ACTIVITIES_CACHE_SIZE &&
+    !sessionActivitiesCache.has(sessionId)
+  ) {
+    const oldestKey = sessionActivitiesCache.keys().next().value as
+      | string
+      | undefined;
+    if (oldestKey) {
+      sessionActivitiesCache.delete(oldestKey);
+    }
+  }
+  sessionActivitiesCache.set(sessionId, activities);
+}
+
 function getActivitiesLatestCreateTimeKey(sessionId: string): string {
   return `${ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX}.${sessionId}`;
 }
@@ -1111,6 +1129,11 @@ async function fetchAllSessionsPaginated(
 
     do {
       page += 1;
+      if (page > MAX_PAGINATION_PAGES) {
+        throw new Error(
+          `Pagination limit exceeded while loading sessions (>${MAX_PAGINATION_PAGES} pages).`,
+        );
+      }
       if (page > 1) {
         progress?.report({
           message: `Loading more sessions (page ${page})...`,
@@ -1173,6 +1196,11 @@ async function fetchSessionActivitiesPaginated(
 
     do {
       page += 1;
+      if (page > MAX_PAGINATION_PAGES) {
+        throw new Error(
+          `Pagination limit exceeded while loading activities (>${MAX_PAGINATION_PAGES} pages).`,
+        );
+      }
       if (page > 1) {
         progress?.report({
           message: `Loading more activities (page ${page})...`,
@@ -2721,22 +2749,24 @@ export function activate(context: vscode.ExtensionContext) {
         const previousLatestCreateTime = context.globalState.get<string>(
           latestCreateTimeKey,
         );
+        const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
+        const useDeltaFetch =
+          !!previousLatestCreateTime && cachedActivities.length > 0;
 
         const newActivities = await fetchSessionActivitiesPaginated(
           apiKey,
           sessionId,
           {
-            createTime: previousLatestCreateTime,
+            createTime: useDeltaFetch ? previousLatestCreateTime : undefined,
             showPaginationProgress: true,
           },
         );
 
-        const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
-        const mergedActivities = previousLatestCreateTime
+        const mergedActivities = useDeltaFetch
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)
           : mergeActivitiesByIdentity([], newActivities);
 
-        sessionActivitiesCache.set(sessionId, mergedActivities);
+        addToActivitiesCache(sessionId, mergedActivities);
 
         const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
         if (latestCreateTime) {
