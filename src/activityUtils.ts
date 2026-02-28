@@ -212,7 +212,7 @@ export function getActivitySummaryText(activity: Activity): string {
     }
 
     if (activity.sessionFailed) {
-        const reason = activity.sessionFailed.reason;
+        const reason = pickFirstNonEmpty(activity.sessionFailed.reason)?.trim();
         return reason ? `Session failed: ${reason}` : "Session failed";
     }
 

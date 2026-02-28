@@ -1084,9 +1084,12 @@ function getLatestSessionFailedReason(sessionId: string): string | undefined {
     if (!failed) {
       continue;
     }
-    const reason = failed.reason;
-    if (typeof reason === "string" && reason.length > 0) {
-      return reason;
+    const rawReason = failed.reason;
+    if (typeof rawReason === "string") {
+      const trimmedReason = rawReason.trim();
+      if (trimmedReason.length > 0) {
+        return trimmedReason;
+      }
     }
     return undefined;
   }
@@ -2996,7 +2999,9 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 case "sessionFailed": {
                   message = "Session failed";
-                  const failureReason = activity.sessionFailed?.reason;
+                  const failureReason = pickFirstNonEmpty(
+                    activity.sessionFailed?.reason,
+                  );
                   if (failureReason && failureReason.length > 0) {
                     detailLinesForActivity.push(`  Reason: ${failureReason}`);
                   }
@@ -3157,7 +3162,8 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const reason = getLatestSessionFailedReason(item.session.name);
+      const reasonRaw = getLatestSessionFailedReason(item.session.name);
+      const reason = reasonRaw?.trim();
       if (!reason) {
         vscode.window.showInformationMessage("Failure reason is not available.");
         return;

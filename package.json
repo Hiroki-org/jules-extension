@@ -196,7 +196,8 @@
       },
       {
         "command": "jules.showFailureReason",
-        "title": "Show Failure Reason"
+        "title": "Jules: Show Failure Reason",
+        "category": "Jules"
       }
     ],
     "viewsWelcome": [
