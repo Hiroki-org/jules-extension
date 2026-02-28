@@ -79,6 +79,31 @@ suite("Extension Test Suite", () => {
     });
   });
 
+  suite("Source Display Helpers", () => {
+    test("getSourceDisplayName should prefer githubRepo owner/repo", () => {
+      const source = {
+        name: "sources/github/my-org/legacy-name",
+        githubRepo: {
+          owner: "my-org",
+          repo: "my-repo",
+        },
+      } as any;
+
+      assert.strictEqual(getSourceDisplayName(source), "my-org/my-repo");
+    });
+
+    test("getSourceIsPrivate should prioritize githubRepo.isPrivate", () => {
+      const source = {
+        isPrivate: false,
+        githubRepo: {
+          isPrivate: true,
+        },
+      } as any;
+
+      assert.strictEqual(getSourceIsPrivate(source), true);
+    });
+  });
+
   suite("Session Tree Item", () => {
     test("SessionTreeItem should display correct icons based on state", () => {
       const runningItem = new SessionTreeItem({

@@ -52,4 +52,52 @@ suite('JulesApiClient Test Suite', () => {
             );
         });
     });
+
+    suite('listAllSources', () => {
+        test('should paginate through all sources with pageSize=100', async () => {
+            fetchStub.onFirstCall().resolves({
+                ok: true,
+                json: async () => ({
+                    sources: [{ name: 'sources/github-org-repo1' }],
+                    nextPageToken: 'token-2'
+                })
+            });
+            fetchStub.onSecondCall().resolves({
+                ok: true,
+                json: async () => ({
+                    sources: [{ name: 'sources/github-org-repo2' }]
+                })
+            });
+
+            const result = await client.listAllSources();
+
+            assert.strictEqual(fetchStub.callCount, 2);
+            const firstUrl = String(fetchStub.firstCall.args[0]);
+            const secondUrl = String(fetchStub.secondCall.args[0]);
+
+            assert.ok(firstUrl.includes('/sources?'));
+            assert.ok(firstUrl.includes('pageSize=100'));
+            assert.ok(!firstUrl.includes('pageToken='));
+            assert.ok(secondUrl.includes('pageSize=100'));
+            assert.ok(secondUrl.includes('pageToken=token-2'));
+
+            assert.strictEqual(result.length, 2);
+            assert.strictEqual(result[0].name, 'sources/github-org-repo1');
+            assert.strictEqual(result[1].name, 'sources/github-org-repo2');
+        });
+
+        test('should pass filter parameter when provided', async () => {
+            fetchStub.resolves({
+                ok: true,
+                json: async () => ({ sources: [] })
+            });
+
+            await client.listAllSources({ filter: 'githubRepo.isPrivate = true' });
+
+            assert.strictEqual(fetchStub.callCount, 1);
+            const url = String(fetchStub.firstCall.args[0]);
+            assert.ok(url.includes('pageSize=100'));
+            assert.ok(url.includes('filter=githubRepo.isPrivate+%3D+true'));
+        });
+    });
 });
