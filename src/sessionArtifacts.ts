@@ -1,10 +1,11 @@
 import { fetchWithTimeout } from "./fetchUtils";
 
 const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
-const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
+export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
 export const ARTIFACTS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_ARTIFACTS_CACHE_SIZE = 50;
 const MAX_PERSISTED_DIFF_SIZE_BYTES = 64 * 1024;
+const MAX_PERSISTED_CHANGESET_FILES = 500;
 
 interface GlobalStateLike {
     get<T>(key: string, defaultValue: T): T;
@@ -59,6 +60,7 @@ type PersistedArtifactsCache = Record<string, PersistedArtifactsEntry>;
 
 const artifactsCache = new Map<string, CachedSessionArtifacts>();
 let artifactsGlobalState: GlobalStateLike | undefined;
+let persistInFlight: Promise<void> = Promise.resolve();
 
 function shouldPersistDiff(diff?: string): boolean {
     if (typeof diff !== "string") {
@@ -93,17 +95,25 @@ function persistArtifactsCache(): void {
 
     const persisted: PersistedArtifactsCache = {};
     for (const [sessionId, entry] of artifactsCache.entries()) {
+        const files = entry.artifacts.latestChangeSet?.files;
         persisted[sessionId] = {
             latestDiff: shouldPersistDiff(entry.artifacts.latestDiff)
                 ? entry.artifacts.latestDiff
                 : undefined,
-            latestChangeSetFiles: entry.artifacts.latestChangeSet?.files,
+            latestChangeSetFiles: Array.isArray(files)
+                ? files.slice(0, MAX_PERSISTED_CHANGESET_FILES)
+                : undefined,
             updateTime: entry.updateTime,
             savedAt: entry.savedAt,
         };
     }
 
-    void artifactsGlobalState.update(ARTIFACTS_CACHE_STATE_KEY, persisted);
+    persistInFlight = persistInFlight
+        .catch(() => undefined)
+        .then(() => Promise.resolve(artifactsGlobalState!.update(ARTIFACTS_CACHE_STATE_KEY, persisted)))
+        .catch((error) => {
+            console.error("[Jules] Failed to persist artifacts cache:", error);
+        });
 }
 
 function restoreArtifactsCacheFromGlobalState(now: number): boolean {
@@ -138,13 +148,19 @@ function restoreArtifactsCacheFromGlobalState(now: number): boolean {
                     path: file.path,
                     status: typeof file.status === "string" ? file.status : undefined,
                 }))
+                .slice(0, MAX_PERSISTED_CHANGESET_FILES)
             : undefined;
+
+        const restoredDiff =
+            typeof entry.latestDiff === "string" && shouldPersistDiff(entry.latestDiff)
+                ? entry.latestDiff
+                : undefined;
 
         validEntries.push([
             sessionId,
             {
                 artifacts: {
-                    latestDiff: typeof entry.latestDiff === "string" ? entry.latestDiff : undefined,
+                    latestDiff: restoredDiff,
                     latestChangeSet: latestChangeSetFiles
                         ? { files: latestChangeSetFiles, raw: {} }
                         : undefined,
@@ -179,6 +195,12 @@ export function initializeSessionArtifactsCacheFromGlobalState(globalState: Glob
 
 export function clearSessionArtifactsInMemoryCache(): void {
     artifactsCache.clear();
+    artifactsGlobalState = undefined;
+    persistInFlight = Promise.resolve();
+}
+
+export async function flushSessionArtifactsPersistenceQueueForTests(): Promise<void> {
+    await persistInFlight;
 }
 
 export function getCachedSessionArtifacts(sessionId: string): SessionArtifacts | undefined {

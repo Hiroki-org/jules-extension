@@ -8,11 +8,13 @@ import {
     getCachedSessionArtifacts,
     initializeSessionArtifactsCacheFromGlobalState,
     clearSessionArtifactsInMemoryCache,
+    flushSessionArtifactsPersistenceQueueForTests,
     SessionArtifacts,
     ChangeSetFile,
     ChangeSetSummary,
     MAX_ARTIFACTS_CACHE_SIZE,
     ARTIFACTS_CACHE_TTL_MS,
+    ARTIFACTS_CACHE_STATE_KEY,
 } from '../sessionArtifacts';
 
 class InMemoryGlobalState {
@@ -720,7 +722,7 @@ index 2345678..bcdefgh 100644
             const state = new InMemoryGlobalState();
             const sessionId = 'sessions/persisted-1';
 
-            state.set('jules.artifacts.cache', {
+            state.set(ARTIFACTS_CACHE_STATE_KEY, {
                 [sessionId]: {
                     latestDiff: 'diff --git a/a.ts b/a.ts',
                     latestChangeSetFiles: [{ path: 'src/a.ts', status: 'modified' }],
@@ -741,7 +743,7 @@ index 2345678..bcdefgh 100644
             const state = new InMemoryGlobalState();
             const expiredSavedAt = Date.now() - ARTIFACTS_CACHE_TTL_MS - 1000;
 
-            state.set('jules.artifacts.cache', {
+            state.set(ARTIFACTS_CACHE_STATE_KEY, {
                 'sessions/expired': {
                     latestDiff: 'expired diff',
                     latestChangeSetFiles: [{ path: 'src/expired.ts' }],
@@ -773,13 +775,13 @@ index 2345678..bcdefgh 100644
                 savedAt: base - 999999,
             };
 
-            state.set('jules.artifacts.cache', persisted);
+            state.set(ARTIFACTS_CACHE_STATE_KEY, persisted);
             initializeSessionArtifactsCacheFromGlobalState(state);
 
             assert.strictEqual(getCachedSessionArtifacts('sessions/oldest'), undefined);
         });
 
-        test('大きすぎるdiffは永続化されないこと', () => {
+        test('大きすぎるdiffは永続化されないこと', async () => {
             const state = new InMemoryGlobalState();
             initializeSessionArtifactsCacheFromGlobalState(state);
 
@@ -800,6 +802,7 @@ index 2345678..bcdefgh 100644
             ];
 
             updateSessionArtifactsCache(sessionId, activities as any);
+            await flushSessionArtifactsPersistenceQueueForTests();
             clearSessionArtifactsInMemoryCache();
             initializeSessionArtifactsCacheFromGlobalState(state);
 
