@@ -51,6 +51,9 @@ const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
 const ALL_SOURCES_ID = "all_repos";
+const MAX_PAGE_SIZE = 100;
+const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
+  "jules.activities.latestCreateTime";
 
 // Plan notification display constants
 const MAX_PLAN_STEPS_IN_NOTIFICATION = 5;
@@ -656,34 +659,15 @@ async function fetchPlanFromActivities(
   apiKey: string,
 ): Promise<Plan | null> {
   try {
-    const response = await fetchWithTimeout(
-      `${JULES_API_BASE_URL}/${sessionId}/activities`,
-      {
-        method: "GET",
-        headers: {
-          "X-Goog-Api-Key": apiKey,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      console.log(
-        `Jules: Failed to fetch activities for plan: ${response.status}`,
-      );
-      return null;
-    }
-
-    const data = (await response.json()) as ActivitiesResponse;
-    if (!data.activities || !Array.isArray(data.activities)) {
-      return null;
-    }
+    const activities = await fetchSessionActivitiesPaginated(apiKey, sessionId, {
+      showPaginationProgress: false,
+    });
 
     // Find the most recent planGenerated activity (reverse to get latest first)
     let planActivity: Activity | undefined;
-    for (let i = data.activities.length - 1; i >= 0; i--) {
-      if (data.activities[i].planGenerated) {
-        planActivity = data.activities[i];
+    for (let i = activities.length - 1; i >= 0; i--) {
+      if (activities[i].planGenerated) {
+        planActivity = activities[i];
         break;
       }
     }
@@ -999,7 +983,8 @@ function resetAutoRefresh(
 }
 
 interface SessionsResponse {
-  sessions: Session[];
+  sessions?: Session[];
+  nextPageToken?: string;
 }
 
 interface Activity {
@@ -1026,7 +1011,217 @@ interface Artifact {
 }
 
 interface ActivitiesResponse {
-  activities: Activity[];
+  activities?: Activity[];
+  nextPageToken?: string;
+}
+
+const sessionActivitiesCache: Map<string, Activity[]> = new Map();
+
+function getActivitiesLatestCreateTimeKey(sessionId: string): string {
+  return `${ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX}.${sessionId}`;
+}
+
+export function getLatestActivityCreateTime(
+  activities: Activity[],
+): string | undefined {
+  let latestTime: string | undefined;
+  let latestMs = Number.NEGATIVE_INFINITY;
+
+  for (const activity of activities) {
+    if (!activity.createTime) {
+      continue;
+    }
+    const parsed = Date.parse(activity.createTime);
+    if (Number.isNaN(parsed)) {
+      continue;
+    }
+    if (parsed > latestMs) {
+      latestMs = parsed;
+      latestTime = activity.createTime;
+    }
+  }
+
+  return latestTime;
+}
+
+export function mergeActivitiesByIdentity(
+  existing: Activity[],
+  incoming: Activity[],
+): Activity[] {
+  const mergedMap = new Map<string, Activity>();
+  for (const activity of existing) {
+    const key = activity.name || activity.id;
+    if (key) {
+      mergedMap.set(key, activity);
+    }
+  }
+  for (const activity of incoming) {
+    const key = activity.name || activity.id;
+    if (key) {
+      mergedMap.set(key, activity);
+    }
+  }
+
+  return [...mergedMap.values()].sort((a, b) => {
+    const at = Date.parse(a.createTime || "");
+    const bt = Date.parse(b.createTime || "");
+    if (!Number.isNaN(at) && !Number.isNaN(bt) && at !== bt) {
+      return at - bt;
+    }
+    return (a.name || a.id || "").localeCompare(b.name || b.id || "");
+  });
+}
+
+export function buildSessionsListEndpoint(
+  baseUrl: string,
+  pageToken?: string,
+): string {
+  const params = new URLSearchParams({ pageSize: String(MAX_PAGE_SIZE) });
+  if (pageToken) {
+    params.set("pageToken", pageToken);
+  }
+  return `${baseUrl}/sessions?${params.toString()}`;
+}
+
+export function buildActivitiesListEndpoint(
+  baseUrl: string,
+  sessionId: string,
+  options?: { pageToken?: string; createTime?: string },
+): string {
+  const params = new URLSearchParams({ pageSize: String(MAX_PAGE_SIZE) });
+  if (options?.pageToken) {
+    params.set("pageToken", options.pageToken);
+  }
+  if (options?.createTime) {
+    params.set("createTime", options.createTime);
+  }
+  return `${baseUrl}/${sessionId}/activities?${params.toString()}`;
+}
+
+async function fetchAllSessionsPaginated(
+  apiKey: string,
+  showPaginationProgress: boolean,
+): Promise<Session[]> {
+  const doFetch = async (
+    progress?: vscode.Progress<{ message?: string; increment?: number }>,
+  ): Promise<Session[]> => {
+    const allSessions: Session[] = [];
+    let pageToken: string | undefined;
+    let page = 0;
+
+    do {
+      page += 1;
+      if (page > 1) {
+        progress?.report({
+          message: `Loading more sessions (page ${page})...`,
+        });
+      }
+
+      const response = await fetchWithTimeout(
+        buildSessionsListEndpoint(JULES_API_BASE_URL, pageToken),
+        {
+          method: "GET",
+          headers: {
+            "X-Goog-Api-Key": apiKey,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch sessions: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const data = (await response.json()) as SessionsResponse;
+      if (!data.sessions || !Array.isArray(data.sessions)) {
+        throw new Error("No sessions found or invalid response format");
+      }
+
+      allSessions.push(...data.sessions);
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return allSessions;
+  };
+
+  if (!showPaginationProgress) {
+    return doFetch();
+  }
+
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Window,
+      title: "Jules: Loading sessions...",
+    },
+    async (progress) => doFetch(progress),
+  );
+}
+
+async function fetchSessionActivitiesPaginated(
+  apiKey: string,
+  sessionId: string,
+  options?: { createTime?: string; showPaginationProgress?: boolean },
+): Promise<Activity[]> {
+  const doFetch = async (
+    progress?: vscode.Progress<{ message?: string; increment?: number }>,
+  ): Promise<Activity[]> => {
+    const activities: Activity[] = [];
+    let pageToken: string | undefined;
+    let page = 0;
+
+    do {
+      page += 1;
+      if (page > 1) {
+        progress?.report({
+          message: `Loading more activities (page ${page})...`,
+        });
+      }
+
+      const response = await fetchWithTimeout(
+        buildActivitiesListEndpoint(JULES_API_BASE_URL, sessionId, {
+          pageToken,
+          createTime: options?.createTime,
+        }),
+        {
+          method: "GET",
+          headers: {
+            "X-Goog-Api-Key": apiKey,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch activities: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const data = (await response.json()) as ActivitiesResponse;
+      if (!data.activities || !Array.isArray(data.activities)) {
+        throw new Error("Invalid response format from API.");
+      }
+
+      activities.push(...data.activities);
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return activities;
+  };
+
+  if (!options?.showPaginationProgress) {
+    return doFetch();
+  }
+
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Window,
+      title: "Jules: Loading activities...",
+    },
+    async (progress) => doFetch(progress),
+  );
 }
 
 const ACTIVITY_UNION_KEYS = [
@@ -1242,45 +1437,18 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         return;
       }
 
-      const response = await fetchWithTimeout(
-        `${JULES_API_BASE_URL}/sessions`,
-        {
-          method: "GET",
-          headers: {
-            "X-Goog-Api-Key": apiKey,
-            "Content-Type": "application/json",
-          },
-        },
+      const fetchedSessions = await fetchAllSessionsPaginated(
+        apiKey,
+        !isBackground,
       );
 
-      if (!response.ok) {
-        const errorMsg = `Failed to fetch sessions: ${response.status} ${response.statusText}`;
-        logChannel.appendLine(`Jules: ${errorMsg}`);
-        if (!isBackground) {
-          vscode.window.showErrorMessage(errorMsg);
-        }
-        this.sessionsCache = [];
-        this._onDidChangeTreeData.fire();
-        return;
-      }
-
-      const data = (await response.json()) as SessionsResponse;
-      if (!data.sessions || !Array.isArray(data.sessions)) {
-        logChannel.appendLine(
-          "Jules: No sessions found or invalid response format",
-        );
-        this.sessionsCache = [];
-        this._onDidChangeTreeData.fire();
-        return;
-      }
-
       logChannel.appendLine(
-        `Jules: Found ${data.sessions.length} total sessions`,
+        `Jules: Found ${fetchedSessions.length} total sessions`,
       );
 
       // Filter out sessions that are currently being deleted to prevent race conditions
       // where a background refresh re-adds a session that was optimistically removed.
-      const validSessions = data.sessions.filter(
+      const validSessions = fetchedSessions.filter(
         (s) => !this.deletingSessions.has(s.name),
       );
 
@@ -1421,6 +1589,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         logChannel.appendLine("Jules: No view updates required.");
       }
     } catch (error) {
+      if (!isBackground) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(message);
+      }
       logChannel.appendLine(
         `Jules: Error during fetchAndProcessSessions: ${sanitizeError(error)}`,
       );
@@ -2543,33 +2715,37 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const session = (await sessionResponse.json()) as Session;
-        const response = await fetchWithTimeout(
-          `${JULES_API_BASE_URL}/${sessionId}/activities`,
+        await sessionResponse.json();
+
+        const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
+        const previousLatestCreateTime = context.globalState.get<string>(
+          latestCreateTimeKey,
+        );
+
+        const newActivities = await fetchSessionActivitiesPaginated(
+          apiKey,
+          sessionId,
           {
-            method: "GET",
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-              "Content-Type": "application/json",
-            },
+            createTime: previousLatestCreateTime,
+            showPaginationProgress: true,
           },
         );
-        if (!response.ok) {
-          const errorText = await response.text();
-          vscode.window.showErrorMessage(
-            `Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`,
-          );
-          return;
-        }
-        const data = (await response.json()) as ActivitiesResponse;
-        if (!data.activities || !Array.isArray(data.activities)) {
-          vscode.window.showErrorMessage("Invalid response format from API.");
-          return;
+
+        const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
+        const mergedActivities = previousLatestCreateTime
+          ? mergeActivitiesByIdentity(cachedActivities, newActivities)
+          : mergeActivitiesByIdentity([], newActivities);
+
+        sessionActivitiesCache.set(sessionId, mergedActivities);
+
+        const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
+        if (latestCreateTime) {
+          await context.globalState.update(latestCreateTimeKey, latestCreateTime);
         }
 
         const artifactsChanged = updateSessionArtifactsCache(
           sessionId,
-          data.activities,
+          mergedActivities,
         );
 
         if (artifactsChanged) {
@@ -2580,11 +2756,11 @@ export function activate(context: vscode.ExtensionContext) {
         activitiesChannel.show();
         activitiesChannel.appendLine(`Activities for session: ${sessionId}`);
         activitiesChannel.appendLine("---");
-        if (data.activities.length === 0) {
+        if (mergedActivities.length === 0) {
           activitiesChannel.appendLine("No activities found for this session.");
         } else {
           let planDetected = false;
-          data.activities.forEach((activity) => {
+          mergedActivities.forEach((activity) => {
             const icon = getActivityIcon(activity);
             const timestamp = new Date(activity.createTime).toLocaleString();
             const originator = activity.originator ?? "unknown";

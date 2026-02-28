@@ -75,7 +75,7 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
 
         fetchStub.callsFake(async (url: string | URL | Request) => {
             const urlString = url.toString();
-            if (urlString.endsWith('/sessions')) {
+            if (urlString.includes('/sessions')) {
                 // Simulate fast network for sessions list
                 await delay(10);
                 return sessionsResponse;
