@@ -1091,10 +1091,44 @@ function getLatestSessionFailedReason(sessionId: string): string | undefined {
         return trimmedReason;
       }
     }
-    return undefined;
+    continue;
   }
 
   return undefined;
+}
+
+async function refreshSessionActivitiesCacheFromApi(
+  context: vscode.ExtensionContext,
+  sessionId: string,
+): Promise<void> {
+  const apiKey = await getStoredApiKey(context);
+  if (!apiKey) {
+    return;
+  }
+
+  const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
+  const previousLatestCreateTime = context.globalState.get<string>(
+    latestCreateTimeKey,
+  );
+  const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
+  const useDeltaFetch =
+    !!previousLatestCreateTime && cachedActivities.length > 0;
+
+  const newActivities = await fetchSessionActivitiesPaginated(apiKey, sessionId, {
+    createTime: useDeltaFetch ? previousLatestCreateTime : undefined,
+    showPaginationProgress: false,
+  });
+
+  const mergedActivities = useDeltaFetch
+    ? mergeActivitiesByIdentity(cachedActivities, newActivities)
+    : mergeActivitiesByIdentity([], newActivities);
+
+  addToActivitiesCache(sessionId, mergedActivities);
+
+  const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
+  if (latestCreateTime) {
+    await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+  }
 }
 
 function getActivitiesLatestCreateTimeKey(sessionId: string): string {
@@ -3162,8 +3196,21 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const reasonRaw = getLatestSessionFailedReason(item.session.name);
-      const reason = reasonRaw?.trim();
+      let reasonRaw = getLatestSessionFailedReason(item.session.name);
+      let reason = reasonRaw?.trim();
+
+      if (!reason) {
+        try {
+          await refreshSessionActivitiesCacheFromApi(context, item.session.name);
+          reasonRaw = getLatestSessionFailedReason(item.session.name);
+          reason = reasonRaw?.trim();
+        } catch (error) {
+          logChannel.appendLine(
+            `Jules: Failed to refresh activities for failure reason: ${sanitizeError(error)}`,
+          );
+        }
+      }
+
       if (!reason) {
         vscode.window.showInformationMessage("Failure reason is not available.");
         return;

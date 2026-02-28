@@ -133,4 +133,9 @@ suite("activityUtils getActivitySummaryText", () => {
         const activity = mockActivity({ sessionFailed: { reason: "" } });
         assert.strictEqual(getActivitySummaryText(activity), "Session failed");
     });
+
+    test("sessionFailed with whitespace-only reason", () => {
+        const activity = mockActivity({ sessionFailed: { reason: "   " } });
+        assert.strictEqual(getActivitySummaryText(activity), "Session failed");
+    });
 });
