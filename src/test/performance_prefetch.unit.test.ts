@@ -48,7 +48,7 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
         sandbox.restore();
     });
 
-    test('refresh() resolves before prefetch completes (non-blocking)', async () => {
+    test('Benchmark: refresh() duration (non-blocking prefetch)', async () => {
         let prefetchResolved = false;
 
         // 1. Mock sessions response (Fast)
@@ -93,8 +93,13 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
         const provider = new JulesSessionsProvider(contextStub);
         await provider.refresh(false, false);
 
-        // refresh() should resolve before the slow prefetch completes
-        assert.strictEqual(prefetchResolved, false,
-            'prefetch should still be running asynchronously after refresh() resolves');
+        // Crucial Check:
+        // refresh() should have returned *before* the slow artifact fetch (200ms) completed.
+        // So prefetchResolved should still be false.
+        assert.strictEqual(prefetchResolved, false, 'refresh() should return before artifact prefetch completes');
+
+        // Wait for the background promise to eventually settle (cleanup)
+        await delay(250);
+        assert.strictEqual(prefetchResolved, true, 'Artifact prefetch should eventually complete in background');
     });
 });
