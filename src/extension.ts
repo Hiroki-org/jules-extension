@@ -45,6 +45,7 @@ import {
   JulesPlanDocumentProvider,
   reviewPlanForSession,
 } from "./planDocumentProvider";
+import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import {
@@ -2084,6 +2085,7 @@ async function approvePlan(
 async function sendMessageToSession(
   context: vscode.ExtensionContext,
   target?: SessionTreeItem | string,
+  prefilledPrompt?: string,
 ): Promise<void> {
   const apiKey = await getStoredApiKey(context);
   if (!apiKey) {
@@ -2104,17 +2106,19 @@ async function sendMessageToSession(
   }
 
   try {
-    const result = await showMessageComposer({
-      title: "Send Message to Jules",
-      placeholder: "What would you like Jules to do?",
-    });
-
-    if (result === undefined) {
+    const userPrompt =
+      typeof prefilledPrompt === "string"
+        ? prefilledPrompt.trim()
+        : (
+          await showMessageComposer({
+            title: "Send Message to Jules",
+            placeholder: "What would you like Jules to do?",
+          })
+        )?.prompt.trim();
+    if (userPrompt === undefined) {
       vscode.window.showWarningMessage("Message was cancelled and not sent.");
       return;
     }
-
-    const userPrompt = result.prompt.trim();
     if (!userPrompt) {
       vscode.window.showWarningMessage("Message was empty and not sent.");
       return;
@@ -2287,6 +2291,15 @@ export function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false,
   });
   console.log("Jules: TreeView created");
+
+  const chatViewProvider = new JulesChatViewProvider(async (sessionId, message) => {
+    await sendMessageToSession(context, sessionId, message);
+  });
+  const chatViewProviderDisposable = vscode.window.registerWebviewViewProvider(
+    "julesChatView",
+    chatViewProvider,
+    { webviewOptions: { retainContextWhenHidden: true } },
+  );
 
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
@@ -2969,6 +2982,11 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         addToActivitiesCache(sessionId, mergedActivities);
+        chatViewProvider.updateSession(
+          sessionId,
+          mergedActivities,
+          sessionDetails.state,
+        );
 
         const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
         if (latestCreateTime) {
@@ -3549,6 +3567,7 @@ export function activate(context: vscode.ExtensionContext) {
     openChangesetDisposable,
     planProviderDisposable,
     reviewPlanDisposable,
+    chatViewProviderDisposable,
   );
 }
 

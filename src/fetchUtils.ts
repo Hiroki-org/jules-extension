@@ -13,7 +13,11 @@ function normalizeHeaders(headers: RequestInit['headers']): Record<string, strin
         return {};
     }
     if (headers instanceof Headers) {
-        return Object.fromEntries(headers.entries());
+        const normalized: Record<string, string> = {};
+        headers.forEach((value, key) => {
+            normalized[key] = value;
+        });
+        return normalized;
     }
     if (Array.isArray(headers)) {
         return Object.fromEntries(headers);
