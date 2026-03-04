@@ -432,7 +432,7 @@ function createMarkdownRenderer(): MarkdownIt {
     html: false,
     linkify: true,
     breaks: true,
-    highlight: (source, language) => {
+    highlight: (source: string, language: string) => {
       if (language && hljs.getLanguage(language)) {
         return `<pre class="hljs"><code>${hljs.highlight(source, {
           language,
@@ -444,7 +444,7 @@ function createMarkdownRenderer(): MarkdownIt {
   });
 
   const defaultFence = markdown.renderer.rules.fence?.bind(markdown.renderer.rules);
-  markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  markdown.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
     const rendered = defaultFence
       ? defaultFence(tokens, idx, options, env, self)
       : self.renderToken(tokens, idx, options);

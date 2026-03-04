@@ -648,20 +648,19 @@ suite("Extension Test Suite", () => {
       assert.ok(url.includes("pageToken=next-token-1"));
     });
 
-    test("buildActivitiesListEndpoint should include pageSize, pageToken and createTime", () => {
+    test("buildActivitiesListEndpoint should include pageSize and pageToken", () => {
       const url = buildActivitiesListEndpoint(
         "https://jules.googleapis.com/v1alpha",
         "sessions/123",
         {
           pageToken: "p2",
-          createTime: "2026-02-28T01:02:03Z",
         },
       );
 
       assert.ok(url.includes("/sessions/123/activities?"));
       assert.ok(url.includes("pageSize=100"));
       assert.ok(url.includes("pageToken=p2"));
-      assert.ok(url.includes("createTime=2026-02-28T01%3A02%3A03Z"));
+      assert.ok(!url.includes("createTime"), "createTime is not a valid API parameter");
     });
   });
 
