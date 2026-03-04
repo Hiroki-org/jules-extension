@@ -229,57 +229,70 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    let pos = 0;
-    while (pos < diff.length) {
-        let nextLineBreak = diff.indexOf('\n', pos);
-        if (nextLineBreak === -1) {
-            nextLineBreak = diff.length;
+    const lines = diff.split('\n');
+    for (const line of lines) {
+        if (!line.startsWith('diff --git ')) {
+            continue;
         }
 
-        // Optimization: Use startsWith to avoid line substring if not a diff line
-        if (diff.startsWith('diff --git ', pos)) {
-            const line = diff.substring(pos, nextLineBreak);
-            // Match: diff --git a/path/to/file b/path/to/file
-            // Robustly handle both quoted and unquoted filenames for spaces.
-            const prefix = 'diff --git ';
-            const path1StartIndex = prefix.length;
+        const payload = line.substring(11); // everything after 'diff --git '
+        let i = 0;
 
-            if (path1StartIndex < line.length) {
-                let path2StartIndex = -1;
-                // Find the start of the second path.
-                if (line[path1StartIndex] === '"') {
-                    // First path is quoted, find its end quote.
-                    const path1EndQuoteIndex = line.indexOf('"', path1StartIndex + 1);
-                    if (path1EndQuoteIndex !== -1 && line[path1EndQuoteIndex + 1] === ' ') {
-                        path2StartIndex = path1EndQuoteIndex + 2;
-                    }
-                } else {
-                    // First path is not quoted.
-                    const path1EndSpaceIndex = line.indexOf(' ', path1StartIndex);
-                    if (path1EndSpaceIndex !== -1) {
-                        path2StartIndex = path1EndSpaceIndex + 1;
-                    }
-                }
-
-                if (path2StartIndex !== -1 && path2StartIndex < line.length) {
-                    let bPart: string;
-                    if (line[path2StartIndex] === '"') {
-                        // Second path is quoted.
-                        const path2EndQuoteIndex = line.indexOf('"', path2StartIndex + 1);
-                        bPart = line.substring(path2StartIndex + 1, path2EndQuoteIndex !== -1 ? path2EndQuoteIndex : undefined);
+        function readPath(): string | undefined {
+            if (i >= payload.length) {
+                return undefined;
+            }
+            if (payload[i] === '"') {
+                i++; // skip opening quote
+                let res = "";
+                while (i < payload.length && payload[i] !== '"') {
+                    if (payload[i] === '\\' && i + 1 < payload.length) {
+                        res += payload[i + 1];
+                        i += 2;
                     } else {
-                        // Second path is not quoted.
-                        const path2EndSpaceIndex = line.indexOf(' ', path2StartIndex);
-                        bPart = line.substring(path2StartIndex, path2EndSpaceIndex !== -1 ? path2EndSpaceIndex : undefined);
-                    }
-
-                    if (bPart.startsWith('b/')) {
-                        files.push({ path: bPart.slice(2) });
+                        res += payload[i];
+                        i++;
                     }
                 }
+                if (payload[i] === '"') {
+                    i++; // skip closing quote
+                }
+                return res;
+            } else {
+                const start = i;
+                while (i < payload.length && payload[i] !== ' ') {
+                    if (payload[i] === '\\' && i + 1 < payload.length) {
+                        i += 2;
+                    } else {
+                        i++;
+                    }
+                }
+                return payload.substring(start, i).replace(/\\(.)/g, '$1');
             }
         }
-        pos = nextLineBreak + 1;
+
+        let path1: string | undefined;
+        let path2: string | undefined;
+
+        // Try reading proper quoted/escaped paths
+        if (payload.startsWith('"a/') || payload.startsWith('a/')) {
+            path1 = readPath();
+            if (i < payload.length && payload[i] === ' ') {
+                i++; // skip space delimiter
+                path2 = readPath();
+            }
+        }
+
+        // Check if we parsed a valid b/ path
+        if (path2?.startsWith('b/')) {
+            files.push({ path: path2.slice(2) });
+        } else {
+            // Fallback for unquoted paths containing spaces (e.g. diff --git a/my file b/my file)
+            const match = payload.match(/^a\/(.+?) b\/(.+?)$/);
+            if (match) {
+                files.push({ path: match[2] });
+            }
+        }
     }
     return files;
 }

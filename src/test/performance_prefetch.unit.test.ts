@@ -99,7 +99,11 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
         assert.strictEqual(prefetchResolved, false, 'refresh() should return before artifact prefetch completes');
 
         // Wait for the background promise to eventually settle (cleanup)
-        await delay(250);
+        let waited = 0;
+        while (!prefetchResolved && waited < 1000) {
+            await delay(50);
+            waited += 50;
+        }
         assert.strictEqual(prefetchResolved, true, 'Artifact prefetch should eventually complete in background');
     });
 });

@@ -29,13 +29,13 @@ export type ActivityUnionKey = (typeof ACTIVITY_UNION_KEYS)[number];
 export function getActiveActivityKeys(activity: Activity): ActivityUnionKey[] {
     const keys: ActivityUnionKey[] = [];
 
-    if (activity.agentMessaged !== undefined && activity.agentMessaged !== null) keys.push("agentMessaged");
-    if (activity.userMessaged !== undefined && activity.userMessaged !== null) keys.push("userMessaged");
-    if (activity.planGenerated !== undefined && activity.planGenerated !== null) keys.push("planGenerated");
-    if (activity.planApproved !== undefined && activity.planApproved !== null) keys.push("planApproved");
-    if (activity.progressUpdated !== undefined && activity.progressUpdated !== null) keys.push("progressUpdated");
-    if (activity.sessionCompleted !== undefined && activity.sessionCompleted !== null) keys.push("sessionCompleted");
-    if (activity.sessionFailed !== undefined && activity.sessionFailed !== null) keys.push("sessionFailed");
+    if (activity.agentMessaged !== undefined && activity.agentMessaged !== null) { keys.push("agentMessaged"); }
+    if (activity.userMessaged !== undefined && activity.userMessaged !== null) { keys.push("userMessaged"); }
+    if (activity.planGenerated !== undefined && activity.planGenerated !== null) { keys.push("planGenerated"); }
+    if (activity.planApproved !== undefined && activity.planApproved !== null) { keys.push("planApproved"); }
+    if (activity.progressUpdated !== undefined && activity.progressUpdated !== null) { keys.push("progressUpdated"); }
+    if (activity.sessionCompleted !== undefined && activity.sessionCompleted !== null) { keys.push("sessionCompleted"); }
+    if (activity.sessionFailed !== undefined && activity.sessionFailed !== null) { keys.push("sessionFailed"); }
 
     return keys;
 }

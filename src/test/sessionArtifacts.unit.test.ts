@@ -441,6 +441,31 @@ index 2345678..bcdefgh 100644
             assert.strictEqual(result.latestChangeSet.files.length, 2);
         });
 
+        test('引用符で囲まれたスペースを含むパスやエスケープされた文字を抽出すること', () => {
+            const diff = `diff --git "a/path with spaces.ts" "b/path with spaces.ts"
+index 123..abc 100644
+diff --git "a/file with \\" quote.txt" "b/file with \\" quote.txt"
+index 456..def 100644`;
+
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    gitPatch: { diff },
+                    artifacts: [
+                        {
+                            changeSet: {},
+                        },
+                    ],
+                },
+            ];
+
+            const result = extractLatestArtifactsFromActivities(activities);
+            assert.ok(result.latestChangeSet);
+            assert.strictEqual(result.latestChangeSet.files.length, 2);
+            assert.strictEqual(result.latestChangeSet.files[0].path, 'path with spaces.ts');
+            assert.strictEqual(result.latestChangeSet.files[1].path, 'file with " quote.txt');
+        });
+
         test('無効な形式の diff を処理すること', () => {
             const diff = 'invalid diff format';
             const activities = [

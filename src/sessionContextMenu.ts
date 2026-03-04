@@ -8,7 +8,7 @@ import { getPullRequestBranchInfo, type PullRequestBranchInfo } from "./githubUt
  * Global regex to match GitHub PR paths: /owner/repo/pull/number
  * Avoids recompilation overhead and intermediate array allocations.
  */
-const PR_PATH_REGEX = /^\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/;
+const PR_PATH_REGEX = /^\/([^/]+)\/([^/]+)\/pull\/([1-9]\d*)(?:\/|$)/;
 
 
 /**
