@@ -52,9 +52,12 @@ async function fetchViaSocks(
             res.on('end', () => {
                 const responseBuffer = Buffer.concat(chunks);
                 const responseHeaders: Record<string, string> = {};
-                for (const [key, value] of Object.entries(res.headers)) {
+                const keys = Object.keys(res.headers);
+                for (let i = 0; i < keys.length; i += 1) {
+                    const key = keys[i];
+                    const value = res.headers[key];
                     if (value !== undefined) {
-                        responseHeaders[key] = Array.isArray(value) ? value.join(', ') : value;
+                        responseHeaders[key] = typeof value === 'string' ? value : (value as string[]).join(', ');
                     }
                 }
                 resolve(new Response(responseBuffer, {
