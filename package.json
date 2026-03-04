@@ -221,6 +221,7 @@
           "contextualTitle": "Jules Sessions"
         },
         {
+          "type": "webview",
           "id": "julesChatView",
           "name": "Jules Chat",
           "icon": "$(comment-discussion)",

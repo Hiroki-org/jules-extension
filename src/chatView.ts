@@ -2,7 +2,12 @@ import * as crypto from "crypto";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
-import { pickFirstNonEmpty } from "./activityUtils";
+import {
+  pickFirstNonEmpty,
+  getActivitySummaryText,
+  getActivityLabelPrefix,
+  getActivityIcon,
+} from "./activityUtils";
 import { escapeHtml } from "./composer";
 import { Activity } from "./types";
 
@@ -64,7 +69,18 @@ export function buildChatMessagesFromActivities(
         }];
       }
 
-      return [];
+      // その他(進捗、プラン、成功/エラーなど)をログ風の表示としてチャットに混ぜる
+      const icon = getActivityIcon(activity);
+      const prefix = getActivityLabelPrefix(activity);
+      const summary = getActivitySummaryText(activity);
+      const combinedText = `${icon} ${prefix}${summary}`;
+
+      return [{
+        id: activity.id ?? activity.name,
+        role: "assistant", // アシスタント側のバブルとして表示するため
+        createTime: activity.createTime,
+        html: `<div style="font-size: 0.9em; opacity: 0.8;"><em>${escapeHtml(combinedText)}</em></div>`,
+      }];
     });
 }
 
