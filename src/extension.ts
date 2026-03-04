@@ -2267,14 +2267,18 @@ export function activate(context: vscode.ExtensionContext) {
   );
   // Clean up expired entries
   const now = Date.now();
-  const expiredUrls = Object.keys(prStatusCache).filter(
-    (url) => now - prStatusCache[url].lastChecked > PR_CACHE_DURATION,
-  );
+  let expiredCount = 0;
 
-  if (expiredUrls.length > 0) {
-    expiredUrls.forEach((url) => delete prStatusCache[url]);
+  for (const url in prStatusCache) {
+    if (now - prStatusCache[url].lastChecked > PR_CACHE_DURATION) {
+      delete prStatusCache[url];
+      expiredCount++;
+    }
+  }
+
+  if (expiredCount > 0) {
     console.log(
-      `Jules: Cleaned up ${expiredUrls.length} expired PR status cache entries.`,
+      `Jules: Cleaned up ${expiredCount} expired PR status cache entries.`,
     );
   }
 
