@@ -1466,12 +1466,18 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         await this.context.globalState.update(latestCreateTimeKey, latestCreateTime);
       }
 
-      const latestProgress = activities
-        .filter((activity) => activity.progressUpdated)
-        .sort(
-          (a, b) =>
-            new Date(b.createTime).getTime() - new Date(a.createTime).getTime(),
-        )[0];
+      let latestProgress: Activity | undefined;
+      let maxTime = -Infinity;
+
+      for (const activity of activities) {
+        if (activity.progressUpdated && activity.createTime) {
+          const parsedTime = Date.parse(activity.createTime);
+          if (!Number.isNaN(parsedTime) && parsedTime > maxTime) {
+            maxTime = parsedTime;
+            latestProgress = activity;
+          }
+        }
+      }
 
       if (latestProgress?.progressUpdated) {
         const title = latestProgress.progressUpdated.title || "Working...";
