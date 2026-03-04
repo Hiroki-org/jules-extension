@@ -8,6 +8,7 @@ import {
   getActivityLabelPrefix,
   getActivityIcon,
 } from "./activityUtils";
+import { formatFullPlan } from "./planUtils";
 import { escapeHtml } from "./composer";
 import { Activity } from "./types";
 
@@ -84,13 +85,9 @@ export function buildChatMessagesFromActivities(
 
       // 2. Plan
       if (activity.planGenerated?.plan) {
-        let planStr = "";
-        try {
-          planStr = JSON.stringify(activity.planGenerated.plan, null, 2);
-        } catch {
-          planStr = String(activity.planGenerated.plan);
-        }
-        detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Plan</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(planStr)}</code></pre></div></details>`;
+        const planMarkdown = formatFullPlan(activity.planGenerated.plan);
+        const planHtml = renderChatMarkdown(planMarkdown);
+        detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Plan</summary><div style="margin-top: 4px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 4px; max-height: 400px; overflow-y: auto;">${planHtml}</div></details>`;
       }
 
       // 3. Artifacts / Changesets
@@ -98,7 +95,9 @@ export function buildChatMessagesFromActivities(
       if ((activity as any).gitPatch?.diff) {
         const diff = (activity as any).gitPatch.diff;
         if (typeof diff === "string" && diff.trim().length > 0) {
-          detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Diff</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(diff)}</code></pre></div></details>`;
+          let highlightedDiff = "";
+          try { highlightedDiff = hljs.highlight(diff, { language: "diff" }).value; } catch { highlightedDiff = escapeHtml(diff); }
+          detailsHtml += `<details class="activity-details"><summary>View Diff</summary><div class="details-content code-block"><pre><code>${highlightedDiff}</code></pre></div></details>`;
         }
       }
 
@@ -107,11 +106,13 @@ export function buildChatMessagesFromActivities(
           if (artifact.changeSet) {
             const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
             if (diffData && typeof diffData === "string") {
-              detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View ChangeSet (${i + 1})</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(diffData)}</code></pre></div></details>`;
+              let highlightedDiffData = "";
+              try { highlightedDiffData = hljs.highlight(diffData, { language: "diff" }).value; } catch { highlightedDiffData = escapeHtml(diffData); }
+              detailsHtml += `<details class="activity-details"><summary>View ChangeSet (${i + 1})</summary><div class="details-content code-block"><pre><code>${highlightedDiffData}</code></pre></div></details>`;
             } else {
               let raw = "";
               try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
-              detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View ChangeSet Details (${i + 1})</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(raw)}</code></pre></div></details>`;
+              detailsHtml += `<details class="activity-details"><summary>View ChangeSet Details (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(raw)}</code></pre></div></details>`;
             }
           }
 
@@ -120,7 +121,6 @@ export function buildChatMessagesFromActivities(
             const stdout = outRec.stdout;
             const stderr = outRec.stderr;
             let commandLine = outRec.commandLine;
-            // Also check 'commands' array if it exists
             const commands = outRec.commands;
             if (commands && Array.isArray(commands) && commands.length > 0) {
                commandLine = commands[0].commandLine;
@@ -128,7 +128,7 @@ export function buildChatMessagesFromActivities(
 
             if (commandLine || stdout || stderr) {
               const out = `> ${commandLine || "Command"}\n${stdout || ""}\n${stderr || ""}`.trim();
-              detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Bash Output (${i + 1})</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(out)}</code></pre></div></details>`;
+              detailsHtml += `<details class="activity-details"><summary>View Bash Output (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(out)}</code></pre></div></details>`;
             }
           }
         });
@@ -136,9 +136,9 @@ export function buildChatMessagesFromActivities(
 
       return [{
         id: activity.id ?? activity.name,
-        role: "assistant", // アシスタント側のバブルとして表示するため
+        role: "assistant", 
         createTime: activity.createTime,
-        html: `<div style="font-size: 0.9em; opacity: 0.8;"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
+        html: `<div class="activity-log"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
       }];
     });
 }
@@ -193,10 +193,22 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.postState();
   }
 
-  updateSession(sessionId: string, activities: Activity[], rawState?: string): void {
+  updateSession(sessionId: string, activities: Activity[], rawState?: string, sessionTitle?: string, sessionCreateTime?: string): void {
+    const messages = buildChatMessagesFromActivities(activities);
+
+    // 最初のメッセージ（ユーザーのセッション作成時のタスクプロンプト）が存在すれば最上部に追加
+    if (sessionTitle) {
+      messages.unshift({
+        id: "session-initial-prompt",
+        role: "user",
+        createTime: sessionCreateTime,
+        html: renderChatMarkdown(sessionTitle),
+      });
+    }
+
     this.state = {
       sessionId,
-      messages: buildChatMessagesFromActivities(activities),
+      messages,
       isTyping: isGeneratingSessionState(rawState),
     };
     this.postState();
@@ -378,10 +390,47 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     }
     #sendButton:hover { background: var(--vscode-button-hoverBackground); }
     #sendButton:disabled { opacity: .5; cursor: not-allowed; }
+    .activity-log {
+      font-size: 0.9em;
+      opacity: 0.75;
+      margin-bottom: 2px;
+    }
+    .activity-details {
+      margin-top: 4px;
+      font-size: 0.9em;
+    }
+    .activity-details summary {
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+      opacity: 0.8;
+      padding: 2px 0;
+      outline: none;
+    }
+    .activity-details summary:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .details-content {
+      margin-top: 6px;
+      padding: 10px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 6px;
+      max-height: 350px;
+      overflow-y: auto;
+    }
+    .details-content pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
     .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-title { color: var(--vscode-editorKeyword-foreground); }
     .hljs-string, .hljs-attr, .hljs-template-tag { color: var(--vscode-editor-stringForeground); }
     .hljs-number, .hljs-symbol, .hljs-variable { color: var(--vscode-editorInfo-foreground); }
     .hljs-comment, .hljs-quote { color: var(--vscode-editorLineNumber-foreground); }
+    .hljs-addition { color: var(--vscode-terminal-ansiBrightGreen, #81b88b); }
+    .hljs-deletion { color: var(--vscode-terminal-ansiBrightRed, #c74e39); }
     @keyframes pulse { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } }
     @keyframes slide-in { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   </style>

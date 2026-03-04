@@ -125,7 +125,8 @@
       },
       {
         "command": "jules-extension.sendMessage",
-        "title": "Send Message to Jules Session"
+        "title": "Open Chat View",
+        "icon": "$(comment-discussion)"
       },
       {
         "command": "jules-extension.approvePlan",

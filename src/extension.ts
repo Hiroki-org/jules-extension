@@ -2992,6 +2992,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
         const sessionDetails = (await sessionResponse.json()) as {
           state?: string;
+          title?: string;
+          createTime?: string;
         };
 
         const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
@@ -3026,6 +3028,8 @@ export function activate(context: vscode.ExtensionContext) {
           sessionId,
           mergedActivities,
           sessionDetails.state,
+          sessionDetails.title,
+          sessionDetails.createTime,
         );
 
         const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
