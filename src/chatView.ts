@@ -405,7 +405,8 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
         setTimeout(() => {
           button.textContent = "Copy";
         }, 1200);
-      } catch (_error) {
+      } catch (error) {
+        console.error('Failed to copy to clipboard:', error);
         button.textContent = "Failed";
       }
     });
