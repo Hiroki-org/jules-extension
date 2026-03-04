@@ -45,6 +45,7 @@ import {
   JulesPlanDocumentProvider,
   reviewPlanForSession,
 } from "./planDocumentProvider";
+import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import {
@@ -146,9 +147,10 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
 function isSessionActive(session: Session): boolean {
   const activeStates = new Set([
     "IN_PROGRESS",
+    "QUEUED",
     "PLANNING",
     "AWAITING_PLAN_APPROVAL",
-    "EXECUTING_PLAN",
+    "AWAITING_USER_FEEDBACK",
   ]);
   return activeStates.has(session.rawState);
 }
@@ -169,10 +171,10 @@ let logChannel: vscode.OutputChannel = {
   append: (val: string) => console.log(val),
   appendLine: (val: string) => console.log(val),
   replace: (val: string) => console.log(val),
-  clear: () => { },
-  show: () => { },
-  hide: () => { },
-  dispose: () => { },
+  clear: () => {},
+  show: () => {},
+  hide: () => {},
+  dispose: () => {},
 };
 
 function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
@@ -579,7 +581,7 @@ function extractPRs(
   const allPrs = sessionOrState.outputs
     .map((o) => o.pullRequest)
     .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
-  return Array.from(new Map(allPrs.map(pr => [pr.url, pr])).values());
+  return Array.from(new Map(allPrs.map((pr) => [pr.url, pr])).values());
 }
 
 async function checkPRStatus(
@@ -709,9 +711,13 @@ async function fetchPlanFromActivities(
   apiKey: string,
 ): Promise<Plan | null> {
   try {
-    const activities = await fetchSessionActivitiesPaginated(apiKey, sessionId, {
-      showPaginationProgress: false,
-    });
+    const activities = await fetchSessionActivitiesPaginated(
+      apiKey,
+      sessionId,
+      {
+        showPaginationProgress: false,
+      },
+    );
 
     // Find the most recent planGenerated activity (reverse to get latest first)
     let planActivity: Activity | undefined;
@@ -812,7 +818,7 @@ function areSessionsEqual(s1: Session, s2: Session): boolean {
     s1.rawState === s2.rawState &&
     s1.sourceContext?.source === s2.sourceContext?.source &&
     s1.sourceContext?.githubRepoContext?.startingBranch ===
-    s2.sourceContext?.githubRepoContext?.startingBranch &&
+      s2.sourceContext?.githubRepoContext?.startingBranch &&
     s1.requirePlanApproval === s2.requirePlanApproval &&
     JSON.stringify(s1.sourceContext) === JSON.stringify(s2.sourceContext) &&
     areOutputsEqual(s1.outputs, s2.outputs)
@@ -900,7 +906,13 @@ export async function updatePreviousStates(
       const prs = extractPRs(session);
       // The check is redundant because `sessionsToCheck` is already filtered.
       // At least one PR is guaranteed here.
-      const isClosed = prs.length > 0 && (await Promise.all(prs.map((pr) => checkPRStatus(pr.url, context, token)))).every((closed) => closed);
+      const isClosed =
+        prs.length > 0 &&
+        (
+          await Promise.all(
+            prs.map((pr) => checkPRStatus(pr.url, context, token)),
+          )
+        ).every((closed) => closed);
       prStatusMap.set(session.name, isClosed);
     });
   }
@@ -1040,7 +1052,8 @@ interface SessionsResponse {
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
 
 class JulesActivitiesDocumentProvider
-  implements vscode.TextDocumentContentProvider {
+  implements vscode.TextDocumentContentProvider
+{
   private readonly contents = new Map<string, string>();
 
   provideTextDocumentContent(uri: vscode.Uri): string {
@@ -1053,7 +1066,9 @@ class JulesActivitiesDocumentProvider
 
   buildUri(sessionId: string): vscode.Uri {
     const normalized = sessionId.replace(/^sessions\//, "");
-    return vscode.Uri.parse(`jules-activities://sessions/${normalized}/activities.log`);
+    return vscode.Uri.parse(
+      `jules-activities://sessions/${normalized}/activities.log`,
+    );
   }
 }
 
@@ -1107,17 +1122,19 @@ async function refreshSessionActivitiesCacheFromApi(
   }
 
   const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
-  const previousLatestCreateTime = context.globalState.get<string>(
-    latestCreateTimeKey,
-  );
+  const previousLatestCreateTime =
+    context.globalState.get<string>(latestCreateTimeKey);
   const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
   const useDeltaFetch =
     !!previousLatestCreateTime && cachedActivities.length > 0;
 
-  const newActivities = await fetchSessionActivitiesPaginated(apiKey, sessionId, {
-    createTime: useDeltaFetch ? previousLatestCreateTime : undefined,
-    showPaginationProgress: false,
-  });
+  const newActivities = await fetchSessionActivitiesPaginated(
+    apiKey,
+    sessionId,
+    {
+      showPaginationProgress: false,
+    },
+  );
 
   const mergedActivities = useDeltaFetch
     ? mergeActivitiesByIdentity(cachedActivities, newActivities)
@@ -1202,8 +1219,11 @@ function buildActivitySummaryHeader(
     categoryCounts[getActivityCategory(activity)] += 1;
   }
 
-  const latestActivity = activities.length > 0 ? activities[activities.length - 1] : undefined;
-  const latestDesc = latestActivity ? getActivitySummaryText(latestActivity) : "N/A";
+  const latestActivity =
+    activities.length > 0 ? activities[activities.length - 1] : undefined;
+  const latestDesc = latestActivity
+    ? getActivitySummaryText(latestActivity)
+    : "N/A";
 
   return [
     "=== Session Summary ===",
@@ -1229,15 +1249,13 @@ export function buildSessionsListEndpoint(
 export function buildActivitiesListEndpoint(
   baseUrl: string,
   sessionId: string,
-  options?: { pageToken?: string; createTime?: string },
+  options?: { pageToken?: string },
 ): string {
   const params = new URLSearchParams({ pageSize: String(MAX_PAGE_SIZE) });
   if (options?.pageToken) {
     params.set("pageToken", options.pageToken);
   }
-  if (options?.createTime) {
-    params.set("createTime", options.createTime);
-  }
+  // Note: Jules API only supports pageSize and pageToken query parameters.
   return `${baseUrl}/${sessionId}/activities?${params.toString()}`;
 }
 
@@ -1310,7 +1328,7 @@ async function fetchAllSessionsPaginated(
 async function fetchSessionActivitiesPaginated(
   apiKey: string,
   sessionId: string,
-  options?: { createTime?: string; showPaginationProgress?: boolean },
+  options?: { showPaginationProgress?: boolean },
 ): Promise<Activity[]> {
   const doFetch = async (
     progress?: vscode.Progress<{ message?: string; increment?: number }>,
@@ -1335,7 +1353,6 @@ async function fetchSessionActivitiesPaginated(
       const response = await fetchWithTimeout(
         buildActivitiesListEndpoint(JULES_API_BASE_URL, sessionId, {
           pageToken,
-          createTime: options?.createTime,
         }),
         {
           method: "GET",
@@ -1377,17 +1394,16 @@ async function fetchSessionActivitiesPaginated(
   );
 }
 
-
 export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
     name: "silent-channel",
-    append: () => { },
-    appendLine: () => { },
-    replace: () => { },
-    clear: () => { },
-    show: () => { },
-    hide: () => { },
-    dispose: () => { },
+    append: () => {},
+    appendLine: () => {},
+    replace: () => {},
+    clear: () => {},
+    show: () => {},
+    hide: () => {},
+    dispose: () => {},
   };
 
   private _onDidChangeTreeData: vscode.EventEmitter<
@@ -1410,7 +1426,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   private lastSelectedSessionId: string | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
-  constructor(private context: vscode.ExtensionContext) { }
+  constructor(private context: vscode.ExtensionContext) {}
 
   getActivityCategoryFilter(): Set<ActivityCategory> {
     return this.activityCategoryFilter;
@@ -1449,21 +1465,27 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     try {
       const sessionId = selectedSession.name;
       const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
-      const previousLatestCreateTime = this.context.globalState.get<string>(
-        latestCreateTimeKey,
-      );
       const cachedActivities = sessionActivitiesCache.get(sessionId) ?? [];
 
-      const newActivities = await fetchSessionActivitiesPaginated(apiKey, sessionId, {
-        createTime: previousLatestCreateTime,
-        showPaginationProgress: false,
-      });
-      const activities = mergeActivitiesByIdentity(cachedActivities, newActivities);
+      const newActivities = await fetchSessionActivitiesPaginated(
+        apiKey,
+        sessionId,
+        {
+          showPaginationProgress: false,
+        },
+      );
+      const activities = mergeActivitiesByIdentity(
+        cachedActivities,
+        newActivities,
+      );
       addToActivitiesCache(sessionId, activities);
 
       const latestCreateTime = getLatestActivityCreateTime(activities);
       if (latestCreateTime) {
-        await this.context.globalState.update(latestCreateTimeKey, latestCreateTime);
+        await this.context.globalState.update(
+          latestCreateTimeKey,
+          latestCreateTime,
+        );
       }
 
       const latestProgress = activities
@@ -1670,8 +1692,13 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // Always try to prefetch artifacts for recent sessions to ensure context menus match user expectation.
       // Optimization: Do not await to allow immediate UI update.
-      void this._prefetchArtifactsForRecentSessions(apiKey, allSessionsMapped).catch(error => {
-        logChannel.appendLine(`Jules: Error during background artifact prefetch: ${sanitizeError(error)}`);
+      void this._prefetchArtifactsForRecentSessions(
+        apiKey,
+        allSessionsMapped,
+      ).catch((error) => {
+        logChannel.appendLine(
+          `Jules: Error during background artifact prefetch: ${sanitizeError(error)}`,
+        );
       });
 
       if (isBackground) {
@@ -1969,7 +1996,10 @@ export class SessionTreeItem extends vscode.TreeItem {
     // Build tooltip using extracted utility function
     const failureReasonPreview =
       session.state === "FAILED"
-        ? truncateForDisplay(getLatestSessionFailedReason(session.name) ?? "", 200)
+        ? truncateForDisplay(
+            getLatestSessionFailedReason(session.name) ?? "",
+            200,
+          )
         : undefined;
 
     this.tooltip = buildSessionTooltip({
@@ -2084,6 +2114,7 @@ async function approvePlan(
 async function sendMessageToSession(
   context: vscode.ExtensionContext,
   target?: SessionTreeItem | string,
+  prefilledPrompt?: string,
 ): Promise<void> {
   const apiKey = await getStoredApiKey(context);
   if (!apiKey) {
@@ -2104,17 +2135,19 @@ async function sendMessageToSession(
   }
 
   try {
-    const result = await showMessageComposer({
-      title: "Send Message to Jules",
-      placeholder: "What would you like Jules to do?",
-    });
-
-    if (result === undefined) {
+    const userPrompt =
+      typeof prefilledPrompt === "string"
+        ? prefilledPrompt.trim()
+        : (
+            await showMessageComposer({
+              title: "Send Message to Jules",
+              placeholder: "What would you like Jules to do?",
+            })
+          )?.prompt?.trim();
+    if (userPrompt === undefined) {
       vscode.window.showWarningMessage("Message was cancelled and not sent.");
       return;
     }
-
-    const userPrompt = result.prompt.trim();
     if (!userPrompt) {
       vscode.window.showWarningMessage("Message was empty and not sent.");
       return;
@@ -2174,10 +2207,7 @@ function updateStatusBar(
       const repoName = getSourceDisplayName(selectedSource);
       const isPrivate = getSourceIsPrivate(selectedSource);
       const lockIcon = getPrivacyIcon(isPrivate);
-      const privacyStatus = getPrivacyStatusText(
-        isPrivate,
-        "short",
-      );
+      const privacyStatus = getPrivacyStatusText(isPrivate, "short");
 
       statusBarItem.text = `$(repo) Jules: ${lockIcon}${repoName}`;
       statusBarItem.tooltip = `Current Source: ${repoName}${privacyStatus}\nClick to change source`;
@@ -2232,13 +2262,19 @@ function detectSocksProxy(): string | null {
     process.env.all_proxy,
   ];
   // VS Code の http.proxy 設定も検出対象に含める
-  const vsCodeProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
+  const vsCodeProxy = vscode.workspace
+    .getConfiguration("http")
+    .get<string>("proxy");
   if (vsCodeProxy) {
     proxyEnvVars.push(vsCodeProxy);
   }
-  const socksSchemes = ['socks://', 'socks4://', 'socks5://'];
+  const socksSchemes = ["socks://", "socks4://", "socks5://"];
   // 大文字小文字を無視してスキームをマッチング
-  return proxyEnvVars.find(v => v && socksSchemes.some(s => v.toLowerCase().startsWith(s))) ?? null;
+  return (
+    proxyEnvVars.find(
+      (v) => v && socksSchemes.some((s) => v.toLowerCase().startsWith(s)),
+    ) ?? null
+  );
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -2250,13 +2286,15 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       new URL(socksProxy);
     } catch {
-      console.error(`Jules: Invalid SOCKS proxy URL: ${stripUrlCredentials(socksProxy)}`);
+      console.error(
+        `Jules: Invalid SOCKS proxy URL: ${stripUrlCredentials(socksProxy)}`,
+      );
       return;
     }
     setSocksProxy(socksProxy);
     const safeProxy = stripUrlCredentials(socksProxy);
     vscode.window.showInformationMessage(
-      `SOCKSプロキシ（${safeProxy}）経由で接続します。`
+      `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
     );
   }
 
@@ -2287,6 +2325,17 @@ export function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false,
   });
   console.log("Jules: TreeView created");
+
+  const chatViewProvider = new JulesChatViewProvider(
+    async (sessionId, message) => {
+      await sendMessageToSession(context, sessionId, message);
+    },
+  );
+  const chatViewProviderDisposable = vscode.window.registerWebviewViewProvider(
+    "julesChatView",
+    chatViewProvider,
+    { webviewOptions: { retainContextWhenHidden: true } },
+  );
 
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
@@ -2512,16 +2561,18 @@ export function activate(context: vscode.ExtensionContext) {
           );
 
           if (useCached === "Use Cached Sources") {
-            const items: SourceQuickPickItem[] = cached.sources.map((source) => {
-              const repoName = getSourceDisplayName(source);
-              const isPrivate = getSourceIsPrivate(source);
-              return {
-                label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
-                description: getSourceDescription(source),
-                detail: source.description || "",
-                source,
-              };
-            });
+            const items: SourceQuickPickItem[] = cached.sources.map(
+              (source) => {
+                const repoName = getSourceDisplayName(source);
+                const isPrivate = getSourceIsPrivate(source);
+                return {
+                  label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
+                  description: getSourceDescription(source),
+                  detail: source.description || "",
+                  source,
+                };
+              },
+            );
 
             const allRepoItem: SourceQuickPickItem = {
               label: "All repositories",
@@ -2538,7 +2589,10 @@ export function activate(context: vscode.ExtensionContext) {
                 placeHolder: "Select a Jules Source (cached)",
               });
             if (selected) {
-              await context.globalState.update("selected-source", selected.source);
+              await context.globalState.update(
+                "selected-source",
+                selected.source,
+              );
               vscode.commands.executeCommand(
                 "setContext",
                 "jules-extension.hasSelectedSource",
@@ -2833,7 +2887,8 @@ export function activate(context: vscode.ExtensionContext) {
         );
       } catch (error) {
         vscode.window.showErrorMessage(
-          `Failed to create session: ${error instanceof Error ? error.message : "Unknown error"
+          `Failed to create session: ${
+            error instanceof Error ? error.message : "Unknown error"
           }`,
         );
       } finally {
@@ -2937,12 +2992,13 @@ export function activate(context: vscode.ExtensionContext) {
         }
         const sessionDetails = (await sessionResponse.json()) as {
           state?: string;
+          title?: string;
+          createTime?: string;
         };
 
         const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
-        const previousLatestCreateTime = context.globalState.get<string>(
-          latestCreateTimeKey,
-        );
+        const previousLatestCreateTime =
+          context.globalState.get<string>(latestCreateTimeKey);
         const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
         const useDeltaFetch =
           !!previousLatestCreateTime && cachedActivities.length > 0;
@@ -2951,7 +3007,6 @@ export function activate(context: vscode.ExtensionContext) {
           apiKey,
           sessionId,
           {
-            createTime: useDeltaFetch ? previousLatestCreateTime : undefined,
             showPaginationProgress: true,
           },
         );
@@ -2969,10 +3024,20 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         addToActivitiesCache(sessionId, mergedActivities);
+        chatViewProvider.updateSession(
+          sessionId,
+          mergedActivities,
+          sessionDetails.state,
+          sessionDetails.title,
+          sessionDetails.createTime,
+        );
 
         const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
         if (latestCreateTime) {
-          await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+          await context.globalState.update(
+            latestCreateTimeKey,
+            latestCreateTime,
+          );
         }
 
         const artifactsChanged = updateSessionArtifactsCache(
@@ -3094,19 +3159,19 @@ export function activate(context: vscode.ExtensionContext) {
                   ...activity,
                   agentMessaged: activity.agentMessaged
                     ? {
-                      ...activity.agentMessaged,
-                      agentMessage: activity.agentMessaged.agentMessage
-                        ? "[REDACTED]"
-                        : activity.agentMessaged.agentMessage,
-                    }
+                        ...activity.agentMessaged,
+                        agentMessage: activity.agentMessaged.agentMessage
+                          ? "[REDACTED]"
+                          : activity.agentMessaged.agentMessage,
+                      }
                     : activity.agentMessaged,
                   userMessaged: activity.userMessaged
                     ? {
-                      ...activity.userMessaged,
-                      userMessage: activity.userMessaged.userMessage
-                        ? "[REDACTED]"
-                        : activity.userMessaged.userMessage,
-                    }
+                        ...activity.userMessaged,
+                        userMessage: activity.userMessaged.userMessage
+                          ? "[REDACTED]"
+                          : activity.userMessaged.userMessage,
+                      }
                     : activity.userMessaged,
                 };
                 rawForLog = JSON.stringify(safeActivity);
@@ -3152,9 +3217,8 @@ export function activate(context: vscode.ExtensionContext) {
           activitiesUri,
           summaryHeader + detailLines.join("\n"),
         );
-        const activitiesDocument = await vscode.workspace.openTextDocument(
-          activitiesUri,
-        );
+        const activitiesDocument =
+          await vscode.workspace.openTextDocument(activitiesUri);
         await vscode.window.showTextDocument(activitiesDocument, {
           preview: true,
           viewColumn: vscode.ViewColumn.Active,
@@ -3201,7 +3265,10 @@ export function activate(context: vscode.ExtensionContext) {
 
       if (!reason) {
         try {
-          await refreshSessionActivitiesCacheFromApi(context, item.session.name);
+          await refreshSessionActivitiesCacheFromApi(
+            context,
+            item.session.name,
+          );
           reasonRaw = getLatestSessionFailedReason(item.session.name);
           reason = reasonRaw?.trim();
         } catch (error) {
@@ -3212,7 +3279,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       if (!reason) {
-        vscode.window.showInformationMessage("Failure reason is not available.");
+        vscode.window.showInformationMessage(
+          "Failure reason is not available.",
+        );
         return;
       }
 
@@ -3234,7 +3303,11 @@ export function activate(context: vscode.ExtensionContext) {
   const sendMessageDisposable = vscode.commands.registerCommand(
     "jules-extension.sendMessage",
     async (item?: SessionTreeItem | string) => {
-      await sendMessageToSession(context, item);
+      const sessionId = resolveSessionId(context, item);
+      if (sessionId) {
+        await vscode.commands.executeCommand("jules-extension.showActivities", sessionId);
+      }
+      vscode.commands.executeCommand("julesChatView.focus");
     },
   );
 
@@ -3354,7 +3427,6 @@ export function activate(context: vscode.ExtensionContext) {
       }
     },
   );
-
 
   const clearCacheDisposable = vscode.commands.registerCommand(
     "jules-extension.clearCache",
@@ -3549,6 +3621,7 @@ export function activate(context: vscode.ExtensionContext) {
     openChangesetDisposable,
     planProviderDisposable,
     reviewPlanDisposable,
+    chatViewProviderDisposable,
   );
 }
 

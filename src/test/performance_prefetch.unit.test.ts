@@ -56,11 +56,11 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
             ok: true,
             json: async () => ({
                 sessions: [
-                    { name: 'session1', title: 'Session 1', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session2', title: 'Session 2', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session3', title: 'Session 3', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session4', title: 'Session 4', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' },
-                    { name: 'session5', title: 'Session 5', state: 'RUNNING', updateTime: '2023-01-01T00:00:00Z' }
+                    { name: 'session1', title: 'Session 1', state: 'IN_PROGRESS', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session2', title: 'Session 2', state: 'IN_PROGRESS', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session3', title: 'Session 3', state: 'IN_PROGRESS', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session4', title: 'Session 4', state: 'IN_PROGRESS', updateTime: '2023-01-01T00:00:00Z' },
+                    { name: 'session5', title: 'Session 5', state: 'IN_PROGRESS', updateTime: '2023-01-01T00:00:00Z' }
                 ]
             })
         };
