@@ -1544,15 +1544,17 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // Filter out sessions that are currently being deleted to prevent race conditions
       // where a background refresh re-adds a session that was optimistically removed.
-      const validSessions = fetchedSessions.filter(
-        (s) => !this.deletingSessions.has(s.name),
-      );
-
-      const allSessionsMapped = validSessions.map((session) => ({
-        ...session,
-        rawState: session.state,
-        state: mapApiStateToSessionState(session.state),
-      }));
+      const allSessionsMapped: Session[] = [];
+      for (let i = 0; i < fetchedSessions.length; i++) {
+        const session = fetchedSessions[i];
+        if (!this.deletingSessions.has(session.name)) {
+          allSessionsMapped.push({
+            ...session,
+            rawState: session.state,
+            state: mapApiStateToSessionState(session.state),
+          });
+        }
+      }
 
       // デバッグ: 全セッションのrawStateをログ出力
       logChannel.appendLine(
