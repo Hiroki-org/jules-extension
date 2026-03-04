@@ -47,100 +47,133 @@ export function isGeneratingSessionState(rawState: string | undefined): boolean 
 export function buildChatMessagesFromActivities(
   activities: Activity[],
 ): ChatMessageItem[] {
-  return [...activities]
-    .sort((a, b) => (a.createTime ?? "").localeCompare(b.createTime ?? ""))
-    .flatMap((activity): ChatMessageItem[] => {
-      const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
-      if (userMessage) {
-        return [{
-          id: activity.id ?? activity.name,
-          role: "user",
-          createTime: activity.createTime,
-          html: renderChatMarkdown(userMessage),
-        }];
+  const customPrompt = vscode.workspace
+    .getConfiguration("jules-extension")
+    .get<string>("customPrompt", "");
+
+  const sortedActivities = [...activities].sort((a, b) => 
+    (a.createTime ?? "").localeCompare(b.createTime ?? "")
+  );
+
+  let firstUserMessageIndex = -1;
+  const messages: ChatMessageItem[] = [];
+
+  sortedActivities.forEach((activity) => {
+    const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
+    if (userMessage) {
+      let displayMessage = userMessage;
+
+      // 初回のユーザーメッセージ（セッション開始時のタスク）を特定
+      const isFirst = firstUserMessageIndex === -1;
+      if (isFirst) {
+        firstUserMessageIndex = messages.length;
       }
 
-      const agentMessage = pickFirstNonEmpty(activity.agentMessaged?.agentMessage);
-      if (agentMessage) {
-        return [{
-          id: activity.id ?? activity.name,
-          role: "assistant",
-          createTime: activity.createTime,
-          html: renderChatMarkdown(agentMessage),
-        }];
-      }
-
-      // その他(進捗、プラン、成功/エラーなど)をログ風の表示としてチャットに混ぜる
-      const icon = getActivityIcon(activity);
-      const prefix = getActivityLabelPrefix(activity);
-      const summary = getActivitySummaryText(activity);
-      const combinedText = `${icon} ${prefix}${summary}`;
-
-      let detailsHtml = "";
-
-      // 1. Errors
-      if (activity.sessionFailed?.reason) {
-        detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Error Details</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(activity.sessionFailed.reason)}</code></pre></div></details>`;
-      }
-
-      // 2. Plan
-      if (activity.planGenerated?.plan) {
-        const planMarkdown = formatFullPlan(activity.planGenerated.plan);
-        const planHtml = renderChatMarkdown(planMarkdown);
-        detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Plan</summary><div style="margin-top: 4px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 4px; max-height: 400px; overflow-y: auto;">${planHtml}</div></details>`;
-      }
-
-      // 3. Artifacts / Changesets
-      // gitPatch.diff
-      if ((activity as any).gitPatch?.diff) {
-        const diff = (activity as any).gitPatch.diff;
-        if (typeof diff === "string" && diff.trim().length > 0) {
-          let highlightedDiff = "";
-          try { highlightedDiff = hljs.highlight(diff, { language: "diff" }).value; } catch { highlightedDiff = escapeHtml(diff); }
-          detailsHtml += `<details class="activity-details"><summary>View Diff</summary><div class="details-content code-block"><pre><code>${highlightedDiff}</code></pre></div></details>`;
+      // カスタムプロンプトが含まれているかチェック
+      if (customPrompt && userMessage.includes(customPrompt)) {
+        const baseMessage = userMessage.replace(`\n\n${customPrompt}`, "").trim();
+        if (isFirst) {
+          // 初回はラベルをつけて表示
+          displayMessage = `${baseMessage}\n\n**[custom prompt]**\n${customPrompt}`;
+        } else {
+          // 以降は（変更がなければ）表示しない
+          displayMessage = baseMessage;
         }
       }
 
-      if (activity.artifacts && activity.artifacts.length > 0) {
-        activity.artifacts.forEach((artifact, i) => {
-          if (artifact.changeSet) {
-            const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
-            if (diffData && typeof diffData === "string") {
-              let highlightedDiffData = "";
-              try { highlightedDiffData = hljs.highlight(diffData, { language: "diff" }).value; } catch { highlightedDiffData = escapeHtml(diffData); }
-              detailsHtml += `<details class="activity-details"><summary>View ChangeSet (${i + 1})</summary><div class="details-content code-block"><pre><code>${highlightedDiffData}</code></pre></div></details>`;
-            } else {
-              let raw = "";
-              try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
-              detailsHtml += `<details class="activity-details"><summary>View ChangeSet Details (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(raw)}</code></pre></div></details>`;
-            }
-          }
-
-          if (artifact.bashOutput) {
-            const outRec = artifact.bashOutput as Record<string, any>;
-            const stdout = outRec.stdout;
-            const stderr = outRec.stderr;
-            let commandLine = outRec.commandLine;
-            const commands = outRec.commands;
-            if (commands && Array.isArray(commands) && commands.length > 0) {
-               commandLine = commands[0].commandLine;
-            }
-
-            if (commandLine || stdout || stderr) {
-              const out = `> ${commandLine || "Command"}\n${stdout || ""}\n${stderr || ""}`.trim();
-              detailsHtml += `<details class="activity-details"><summary>View Bash Output (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(out)}</code></pre></div></details>`;
-            }
-          }
-        });
-      }
-
-      return [{
+      messages.push({
         id: activity.id ?? activity.name,
-        role: "assistant", 
+        role: "user",
         createTime: activity.createTime,
-        html: `<div class="activity-log"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
-      }];
+        html: renderChatMarkdown(displayMessage),
+      });
+      return;
+    }
+
+    const agentMessage = pickFirstNonEmpty(activity.agentMessaged?.agentMessage);
+    if (agentMessage) {
+      messages.push({
+        id: activity.id ?? activity.name,
+        role: "assistant",
+        createTime: activity.createTime,
+        html: renderChatMarkdown(agentMessage),
+      });
+      return;
+    }
+
+    // その他(進捗、プラン、成功/エラーなど)をログ風の表示としてチャットに混ぜる
+    const icon = getActivityIcon(activity);
+    const prefix = getActivityLabelPrefix(activity);
+    const summary = getActivitySummaryText(activity);
+    const combinedText = `${icon} ${prefix}${summary}`;
+
+    let detailsHtml = "";
+
+    // 1. Errors
+    if (activity.sessionFailed?.reason) {
+      detailsHtml += `<details class="activity-details"><summary>View Error Details</summary><div class="details-content code-block"><pre><code>${escapeHtml(activity.sessionFailed.reason)}</code></pre></div></details>`;
+    }
+
+    // 2. Plan
+    if (activity.planGenerated?.plan) {
+      const planMarkdown = formatFullPlan(activity.planGenerated.plan);
+      const planHtml = renderChatMarkdown(planMarkdown);
+      detailsHtml += `<details class="activity-details"><summary>View Plan</summary><div class="details-content code-block">${planHtml}</div></details>`;
+    }
+
+    // 3. Artifacts / Changesets
+    // gitPatch.diff
+    if ((activity as any).gitPatch?.diff) {
+      const diff = (activity as any).gitPatch.diff;
+      if (typeof diff === "string" && diff.trim().length > 0) {
+        let highlightedDiff = "";
+        try { highlightedDiff = hljs.highlight(diff, { language: "diff" }).value; } catch { highlightedDiff = escapeHtml(diff); }
+        detailsHtml += `<details class="activity-details"><summary>View Diff</summary><div class="details-content code-block"><pre><code>${highlightedDiff}</code></pre></div></details>`;
+      }
+    }
+
+    if (activity.artifacts && activity.artifacts.length > 0) {
+      activity.artifacts.forEach((artifact, i) => {
+        if (artifact.changeSet) {
+          const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
+          if (diffData && typeof diffData === "string") {
+            let highlightedDiffData = "";
+            try { highlightedDiffData = hljs.highlight(diffData, { language: "diff" }).value; } catch { highlightedDiffData = escapeHtml(diffData); }
+            detailsHtml += `<details class="activity-details"><summary>View ChangeSet (${i + 1})</summary><div class="details-content code-block"><pre><code>${highlightedDiffData}</code></pre></div></details>`;
+          } else {
+            let raw = "";
+            try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
+            detailsHtml += `<details class="activity-details"><summary>View ChangeSet Details (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(raw)}</code></pre></div></details>`;
+          }
+        }
+
+        if (artifact.bashOutput) {
+          const outRec = artifact.bashOutput as Record<string, any>;
+          const stdout = outRec.stdout;
+          const stderr = outRec.stderr;
+          let commandLine = outRec.commandLine;
+          const commands = outRec.commands;
+          if (commands && Array.isArray(commands) && commands.length > 0) {
+             commandLine = commands[0].commandLine;
+          }
+
+          if (commandLine || stdout || stderr) {
+            const out = `> ${commandLine || "Command"}\n${stdout || ""}\n${stderr || ""}`.trim();
+            detailsHtml += `<details class="activity-details"><summary>View Bash Output (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(out)}</code></pre></div></details>`;
+          }
+        }
+      });
+    }
+
+    messages.push({
+      id: activity.id ?? activity.name,
+      role: "assistant", 
+      createTime: activity.createTime,
+      html: `<div class="activity-log"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
     });
+  });
+
+  return messages;
 }
 
 export class JulesChatViewProvider implements vscode.WebviewViewProvider {
@@ -193,22 +226,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.postState();
   }
 
-  updateSession(sessionId: string, activities: Activity[], rawState?: string, sessionTitle?: string, sessionCreateTime?: string): void {
-    const messages = buildChatMessagesFromActivities(activities);
-
-    // 最初のメッセージ（ユーザーのセッション作成時のタスクプロンプト）が存在すれば最上部に追加
-    if (sessionTitle) {
-      messages.unshift({
-        id: "session-initial-prompt",
-        role: "user",
-        createTime: sessionCreateTime,
-        html: renderChatMarkdown(sessionTitle),
-      });
-    }
-
+  updateSession(sessionId: string, activities: Activity[], rawState?: string, _sessionTitle?: string, _sessionCreateTime?: string): void {
     this.state = {
       sessionId,
-      messages,
+      messages: buildChatMessagesFromActivities(activities),
       isTyping: isGeneratingSessionState(rawState),
     };
     this.postState();
