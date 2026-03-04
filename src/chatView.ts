@@ -44,8 +44,24 @@ export function isGeneratingSessionState(rawState: string | undefined): boolean 
   return GENERATING_SESSION_STATES.has(rawState);
 }
 
+function formatUserMessage(message: string, isFirst: boolean, customPrompt: string): string {
+  if (customPrompt && message.includes(customPrompt)) {
+    const baseMessage = message.replace(`\n\n${customPrompt}`, "").trim();
+    if (isFirst) {
+      // 初回はラベルをつけて表示
+      return `${baseMessage}\n\n**[custom prompt]**\n${customPrompt}`;
+    } else {
+      // 2回目以降は変更がなければ表示しない
+      return baseMessage;
+    }
+  }
+  return message;
+}
+
 export function buildChatMessagesFromActivities(
   activities: Activity[],
+  initialPrompt?: string,
+  initialTime?: string
 ): ChatMessageItem[] {
   const customPrompt = vscode.workspace
     .getConfiguration("jules-extension")
@@ -55,31 +71,26 @@ export function buildChatMessagesFromActivities(
     (a.createTime ?? "").localeCompare(b.createTime ?? "")
   );
 
-  let firstUserMessageIndex = -1;
   const messages: ChatMessageItem[] = [];
+  let isFirstUserMessage = true;
+
+  // 1. セッション全体の初期プロンプトがあれば先頭に追加 (Activitiesに含まれない場合が多いため)
+  if (initialPrompt) {
+    messages.push({
+      id: "session-initial-prompt",
+      role: "user",
+      createTime: initialTime,
+      html: renderChatMarkdown(formatUserMessage(initialPrompt, true, customPrompt)),
+    });
+    isFirstUserMessage = false;
+  }
 
   sortedActivities.forEach((activity) => {
     const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
     if (userMessage) {
-      let displayMessage = userMessage;
-
-      // 初回のユーザーメッセージ（セッション開始時のタスク）を特定
-      const isFirst = firstUserMessageIndex === -1;
-      if (isFirst) {
-        firstUserMessageIndex = messages.length;
-      }
-
-      // カスタムプロンプトが含まれているかチェック
-      if (customPrompt && userMessage.includes(customPrompt)) {
-        const baseMessage = userMessage.replace(`\n\n${customPrompt}`, "").trim();
-        if (isFirst) {
-          // 初回はラベルをつけて表示
-          displayMessage = `${baseMessage}\n\n**[custom prompt]**\n${customPrompt}`;
-        } else {
-          // 以降は（変更がなければ）表示しない
-          displayMessage = baseMessage;
-        }
-      }
+      // Activityに含まれるユーザーメッセージ。初期プロンプトがすでに追加されていれば false
+      const displayMessage = formatUserMessage(userMessage, isFirstUserMessage, customPrompt);
+      isFirstUserMessage = false;
 
       messages.push({
         id: activity.id ?? activity.name,
@@ -226,10 +237,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.postState();
   }
 
-  updateSession(sessionId: string, activities: Activity[], rawState?: string, _sessionTitle?: string, _sessionCreateTime?: string): void {
+  updateSession(sessionId: string, activities: Activity[], rawState?: string, sessionTitle?: string, sessionCreateTime?: string): void {
     this.state = {
       sessionId,
-      messages: buildChatMessagesFromActivities(activities),
+      messages: buildChatMessagesFromActivities(activities, sessionTitle, sessionCreateTime),
       isTyping: isGeneratingSessionState(rawState),
     };
     this.postState();
