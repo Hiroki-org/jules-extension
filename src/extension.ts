@@ -2115,7 +2115,7 @@ async function sendMessageToSession(
             title: "Send Message to Jules",
             placeholder: "What would you like Jules to do?",
           })
-        )?.prompt.trim();
+        )?.prompt?.trim();
     if (userPrompt === undefined) {
       vscode.window.showWarningMessage("Message was cancelled and not sent.");
       return;

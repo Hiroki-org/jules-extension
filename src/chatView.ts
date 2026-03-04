@@ -41,34 +41,31 @@ export function isGeneratingSessionState(rawState: string | undefined): boolean 
 export function buildChatMessagesFromActivities(
   activities: Activity[],
 ): ChatMessageItem[] {
-  const sortedActivities = [...activities].sort((a, b) =>
-    (a.createTime ?? "").localeCompare(b.createTime ?? ""),
-  );
+  return [...activities]
+    .sort((a, b) => (a.createTime ?? "").localeCompare(b.createTime ?? ""))
+    .flatMap((activity): ChatMessageItem[] => {
+      const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
+      if (userMessage) {
+        return [{
+          id: activity.id ?? activity.name,
+          role: "user",
+          createTime: activity.createTime,
+          html: renderChatMarkdown(userMessage),
+        }];
+      }
 
-  const messages: ChatMessageItem[] = [];
-  sortedActivities.forEach((activity) => {
-    const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
-    if (userMessage) {
-      messages.push({
-        id: activity.id ?? activity.name,
-        role: "user",
-        createTime: activity.createTime,
-        html: renderChatMarkdown(userMessage),
-      });
-      return;
-    }
+      const agentMessage = pickFirstNonEmpty(activity.agentMessaged?.agentMessage);
+      if (agentMessage) {
+        return [{
+          id: activity.id ?? activity.name,
+          role: "assistant",
+          createTime: activity.createTime,
+          html: renderChatMarkdown(agentMessage),
+        }];
+      }
 
-    const agentMessage = pickFirstNonEmpty(activity.agentMessaged?.agentMessage);
-    if (agentMessage) {
-      messages.push({
-        id: activity.id ?? activity.name,
-        role: "assistant",
-        createTime: activity.createTime,
-        html: renderChatMarkdown(agentMessage),
-      });
-    }
-  });
-  return messages;
+      return [];
+    });
 }
 
 export class JulesChatViewProvider implements vscode.WebviewViewProvider {
@@ -134,10 +131,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     if (!this.view) {
       return;
     }
-    void this.view.webview.postMessage({
+    void Promise.resolve(this.view.webview.postMessage({
       type: "chatState",
       payload: this.state,
-    });
+    })).catch((err: unknown) => console.error("Jules: Failed to post state to chat view:", err));
   }
 }
 
