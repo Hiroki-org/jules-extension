@@ -189,6 +189,15 @@
         "title": "Review Plan...",
         "category": "Jules",
         "icon": "$(preview)"
+      },
+      {
+        "command": "jules.filterActivities",
+        "title": "Jules: Filter Activities"
+      },
+      {
+        "command": "jules.showFailureReason",
+        "title": "Jules: Show Failure Reason",
+        "category": "Jules"
       }
     ],
     "viewsWelcome": [
@@ -239,6 +248,11 @@
           "command": "jules-extension.setApiKey",
           "when": "view == julesSessionsView",
           "group": "navigation@5"
+        },
+        {
+          "command": "jules.filterActivities",
+          "when": "view == julesSessionsView",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
@@ -281,6 +295,11 @@
           "command": "jules-extension.reviewPlan",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-awaiting-plan/",
           "group": "navigation"
+        },
+        {
+          "command": "jules.showFailureReason",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-failed/",
+          "group": "jules_info"
         }
       ]
     }
