@@ -18,13 +18,13 @@ function createActivity(activity: Partial<Activity>): Activity {
 }
 
 suite("Chat View Unit Test Suite", () => {
-  test("buildChatMessagesFromActivities should include user/assistant messages only", () => {
+  test("buildChatMessagesFromActivities should include user/assistant messages and logs", () => {
     const messages = buildChatMessagesFromActivities([
       createActivity({
         id: "3",
         name: "activities/3",
         createTime: "2025-01-01T00:00:03Z",
-        progressUpdated: { title: "ignored" },
+        progressUpdated: { title: "working..." },
       }),
       createActivity({
         id: "1",
@@ -40,9 +40,11 @@ suite("Chat View Unit Test Suite", () => {
       }),
     ]);
 
-    assert.strictEqual(messages.length, 2);
+    assert.strictEqual(messages.length, 3);
     assert.strictEqual(messages[0].role, "user");
     assert.strictEqual(messages[1].role, "assistant");
+    assert.strictEqual(messages[2].role, "assistant");
+    assert.ok(messages[2].html.includes("working..."));
   });
 
   test("renderChatMarkdown should render quote/list/code with copy button wrapper", () => {
