@@ -75,11 +75,70 @@ export function buildChatMessagesFromActivities(
       const summary = getActivitySummaryText(activity);
       const combinedText = `${icon} ${prefix}${summary}`;
 
+      let detailsHtml = "";
+
+      // 1. Errors
+      if (activity.sessionFailed?.reason) {
+        detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Error Details</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(activity.sessionFailed.reason)}</code></pre></div></details>`;
+      }
+
+      // 2. Plan
+      if (activity.planGenerated?.plan) {
+        let planStr = "";
+        try {
+          planStr = JSON.stringify(activity.planGenerated.plan, null, 2);
+        } catch {
+          planStr = String(activity.planGenerated.plan);
+        }
+        detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Plan</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(planStr)}</code></pre></div></details>`;
+      }
+
+      // 3. Artifacts / Changesets
+      // gitPatch.diff
+      if ((activity as any).gitPatch?.diff) {
+        const diff = (activity as any).gitPatch.diff;
+        if (typeof diff === "string" && diff.trim().length > 0) {
+          detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Diff</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(diff)}</code></pre></div></details>`;
+        }
+      }
+
+      if (activity.artifacts && activity.artifacts.length > 0) {
+        activity.artifacts.forEach((artifact, i) => {
+          if (artifact.changeSet) {
+            const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
+            if (diffData && typeof diffData === "string") {
+              detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View ChangeSet (${i + 1})</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(diffData)}</code></pre></div></details>`;
+            } else {
+              let raw = "";
+              try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
+              detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View ChangeSet Details (${i + 1})</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(raw)}</code></pre></div></details>`;
+            }
+          }
+
+          if (artifact.bashOutput) {
+            const outRec = artifact.bashOutput as Record<string, any>;
+            const stdout = outRec.stdout;
+            const stderr = outRec.stderr;
+            let commandLine = outRec.commandLine;
+            // Also check 'commands' array if it exists
+            const commands = outRec.commands;
+            if (commands && Array.isArray(commands) && commands.length > 0) {
+               commandLine = commands[0].commandLine;
+            }
+
+            if (commandLine || stdout || stderr) {
+              const out = `> ${commandLine || "Command"}\n${stdout || ""}\n${stderr || ""}`.trim();
+              detailsHtml += `<details style="margin-top: 4px; font-size: 0.95em; opacity: 0.9;"><summary style="cursor: pointer; user-select: none; font-weight: bold; padding: 2px 0;">View Bash Output (${i + 1})</summary><div class="code-block"><pre style="white-space: pre-wrap; word-break: break-all; margin-top: 4px; padding: 8px;"><code>${escapeHtml(out)}</code></pre></div></details>`;
+            }
+          }
+        });
+      }
+
       return [{
         id: activity.id ?? activity.name,
         role: "assistant", // アシスタント側のバブルとして表示するため
         createTime: activity.createTime,
-        html: `<div style="font-size: 0.9em; opacity: 0.8;"><em>${escapeHtml(combinedText)}</em></div>`,
+        html: `<div style="font-size: 0.9em; opacity: 0.8;"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
       }];
     });
 }
