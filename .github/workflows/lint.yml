@@ -16,12 +16,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 18
+          node-version: 20
           cache: "pnpm"
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Type Check
+        run: pnpm run check-types
+
+      - name: Lint
+        run: pnpm run lint
 
       - name: Security Audit (pnpm)
         continue-on-error: true

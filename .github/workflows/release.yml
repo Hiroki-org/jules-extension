@@ -14,21 +14,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
-          node-version: "20.x"
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run compile
+      - run: pnpm run compile
 
       - name: Install xvfb
         run: sudo apt-get install -y xvfb
 
-      - run: xvfb-run -a npm test
+      - run: xvfb-run -a pnpm test
 
       - name: Install vsce
-        run: npm install -g @vscode/vsce
+        run: pnpm install -g @vscode/vsce
 
       - name: Package extension
         run: vsce package
