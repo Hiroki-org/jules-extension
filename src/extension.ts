@@ -1465,8 +1465,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     try {
       const sessionId = selectedSession.name;
       const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
-      const previousLatestCreateTime =
-        this.context.globalState.get<string>(latestCreateTimeKey);
       const cachedActivities = sessionActivitiesCache.get(sessionId) ?? [];
 
       const newActivities = await fetchSessionActivitiesPaginated(
