@@ -5,6 +5,13 @@ import { GitHubAuth } from "./githubAuth";
 import { getPullRequestBranchInfo, type PullRequestBranchInfo } from "./githubUtils";
 
 /**
+ * Global regex to match GitHub PR paths: /owner/repo/pull/number
+ * Avoids recompilation overhead and intermediate array allocations.
+ */
+const PR_PATH_REGEX = /^\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/;
+
+
+/**
  * Extracts the source branch name (PR head branch) from a session.
  * This is the branch that was used to create the PR.
  * Returns null if no branch information is available.
@@ -383,32 +390,20 @@ export function getPullRequestUrlForSession(session: Session): string | null {
         }
 
         // Parse pathname: should be /owner/repo/pull/number
-        const segments = u.pathname
-            .split("/")
-            .filter((seg) => seg.length > 0);
-
-        if (segments.length < 4) {
-            console.warn(`[Jules] PR URL pathname validation failed: expected at least 4 segments, got ${segments.length}`);
+        const match = PR_PATH_REGEX.exec(u.pathname);
+        if (!match) {
+            console.warn(`[Jules] PR URL pathname validation failed: path ${u.pathname} does not match expected format /owner/repo/pull/number`);
             return null;
         }
 
-        const [owner, repo, pullKeyword, numberStr] = segments;
+        const owner = match[1];
+        const repo = match[2];
+        const numberStr = match[3];
 
-        // Validate owner and repo are not empty
-        if (!owner || !repo) {
-            console.warn(`[Jules] PR URL owner/repo validation failed: owner or repo is empty`);
-            return null;
-        }
-
-        // Validate pull keyword
-        if (pullKeyword !== "pull") {
-            console.warn(`[Jules] PR URL keyword validation failed: expected 'pull', got '${pullKeyword}'`);
-            return null;
-        }
-
-        // Validate number is a positive integer
-        if (!/^\d+$/.test(numberStr)) {
-            console.warn(`[Jules] PR URL number validation failed: expected numeric PR number, got '${numberStr}'`);
+        // Ensure PR number is positive (regex already guarantees it is numeric)
+        const prNumber = parseInt(numberStr, 10);
+        if (isNaN(prNumber) || prNumber <= 0) {
+            console.warn(`[Jules] PR URL number validation failed: expected positive PR number, got '${numberStr}'`);
             return null;
         }
 
@@ -453,17 +448,19 @@ export function parsePullRequestUrl(prUrl: string): { owner: string; repo: strin
         if (u.hostname !== "github.com") {
             return null;
         }
-        const segments = u.pathname.split("/").filter((s) => s.length > 0);
-        if (segments.length < 4 || segments[2] !== "pull") {
+        const match = PR_PATH_REGEX.exec(u.pathname);
+        if (!match) {
             return null;
         }
-        const prNumber = parseInt(segments[3], 10);
+
+        const prNumber = parseInt(match[3], 10);
         if (isNaN(prNumber) || prNumber <= 0) {
             return null;
         }
+
         return {
-            owner: segments[0],
-            repo: segments[1],
+            owner: match[1],
+            repo: match[2],
             prNumber
         };
     } catch {
