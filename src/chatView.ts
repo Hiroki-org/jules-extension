@@ -476,10 +476,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <span class="typing-dot"></span>
   </div>
   <form id="composer">
-    <textarea id="messageInput" placeholder="メッセージを入力 (Ctrl/Cmd+Enter で送信)"></textarea>
+    <textarea id="messageInput" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
-      <div id="sessionLabel" class="session-label">Session: 未選択</div>
-      <button id="sendButton" type="submit" disabled>送信</button>
+      <div id="sessionLabel" class="session-label">Session: None selected</div>
+      <button id="sendButton" type="submit" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
@@ -501,7 +501,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     const updateComposerState = () => {
       const hasSession = typeof state.sessionId === "string" && state.sessionId.length > 0;
       sendButtonEl.disabled = !hasSession || inputEl.value.trim().length === 0;
-      sessionLabelEl.textContent = hasSession ? "Session: " + state.sessionId : "Session: 未選択";
+      sessionLabelEl.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
     };
 
     const formatTime = (time) => {
