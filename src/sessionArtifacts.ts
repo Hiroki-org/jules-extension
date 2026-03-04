@@ -271,12 +271,11 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
             }
         }
 
-        let path1: string | undefined;
         let path2: string | undefined;
 
         // Try reading proper quoted/escaped paths
         if (payload.startsWith('"a/') || payload.startsWith('a/')) {
-            path1 = readPath();
+            readPath(); // Skip path1
             if (i < payload.length && payload[i] === ' ') {
                 i++; // skip space delimiter
                 path2 = readPath();
