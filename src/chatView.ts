@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
 import { pickFirstNonEmpty } from "./activityUtils";
+import { escapeHtml } from "./composer";
 import { Activity } from "./types";
 
 export interface ChatMessageItem {
@@ -24,13 +25,17 @@ export function renderChatMarkdown(markdown: string): string {
   return markdownRenderer.render(markdown);
 }
 
+const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
+  "IN_PROGRESS",
+  "QUEUED",
+  "PLANNING",
+]);
+
 export function isGeneratingSessionState(rawState: string | undefined): boolean {
   if (!rawState) {
     return false;
   }
-  return new Set(["IN_PROGRESS", "QUEUED", "PLANNING", "EXECUTING_PLAN"]).has(
-    rawState,
-  );
+  return GENERATING_SESSION_STATES.has(rawState);
 }
 
 export function buildChatMessagesFromActivities(
@@ -451,12 +456,7 @@ function createMarkdownRenderer(): MarkdownIt {
   return markdown;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+// escapeHtml is imported from ./composer
 
 function getNonce(): string {
   return crypto.randomBytes(16).toString("hex");

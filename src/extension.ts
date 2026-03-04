@@ -147,9 +147,10 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
 function isSessionActive(session: Session): boolean {
   const activeStates = new Set([
     "IN_PROGRESS",
+    "QUEUED",
     "PLANNING",
     "AWAITING_PLAN_APPROVAL",
-    "EXECUTING_PLAN",
+    "AWAITING_USER_FEEDBACK",
   ]);
   return activeStates.has(session.rawState);
 }
