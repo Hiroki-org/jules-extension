@@ -49,6 +49,13 @@ import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import {
+  getActiveFileContext,
+  getWorkspaceFolders,
+  buildContextPrefix,
+  formatContextForPrompt,
+  SessionContext,
+} from "./contextUtils";
+import {
   getActivityCategory,
   getActivityIcon,
   pickFirstNonEmpty,
@@ -2815,11 +2822,71 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
+        // コンテキスト自動付与ステップ
+        let contextPrefix = "";
+        let contextPreviewText: string | undefined;
+        const autoAttachContext = vscode.workspace
+          .getConfiguration("jules")
+          .get<boolean>("autoAttachContext", true);
+
+        if (autoAttachContext) {
+          const fileContext = getActiveFileContext();
+          const workspaceFolders = getWorkspaceFolders();
+
+          type ContextPickItem = vscode.QuickPickItem & { contextKey: string };
+          const items: ContextPickItem[] = [];
+
+          if (fileContext) {
+            const lineLabel =
+              fileContext.startLine === fileContext.endLine
+                ? `line ${fileContext.startLine}`
+                : `lines ${fileContext.startLine}-${fileContext.endLine}`;
+            items.push({
+              label: `$(file) ${fileContext.filePath}`,
+              description: lineLabel,
+              picked: true,
+              contextKey: "file",
+            });
+          }
+
+          for (const folder of workspaceFolders) {
+            items.push({
+              label: `$(folder) ${folder}`,
+              description: "workspace folder",
+              picked: false,
+              contextKey: `folder:${folder}`,
+            });
+          }
+
+          if (items.length > 0) {
+            const selected = await vscode.window.showQuickPick(items, {
+              placeHolder: "Select context to attach to this session",
+              title: "Attach Context",
+              canPickMany: true,
+            });
+
+            if (selected && selected.length > 0) {
+              const sessionContext: SessionContext = {
+                fileContext: selected.some((i) => i.contextKey === "file")
+                  ? fileContext
+                  : undefined,
+                folders: selected
+                  .filter((i) => i.contextKey.startsWith("folder:"))
+                  .map((i) => i.contextKey.slice("folder:".length)),
+              };
+              contextPrefix = buildContextPrefix(sessionContext);
+              const formatted = formatContextForPrompt(sessionContext);
+              contextPreviewText = formatted ? formatted : undefined;
+            }
+          }
+        }
+
         const result = await showMessageComposer({
           title: "Create Jules Session",
           placeholder: "Describe the task you want Jules to tackle...",
           showCreatePrCheckbox: true,
           showRequireApprovalCheckbox: true,
+          contextPreview: contextPreviewText,
         });
 
         if (result === undefined) {
@@ -2834,7 +2901,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const finalPrompt = buildFinalPrompt(userPrompt);
+        const finalPrompt = buildFinalPrompt(contextPrefix + userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 

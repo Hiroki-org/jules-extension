@@ -85,6 +85,11 @@
             "Use 'main' branch, or the repository's default if 'main' does not exist"
           ],
           "scope": "resource"
+        },
+        "jules.autoAttachContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically attach the active file path and selected line range as context when creating a Jules session"
         }
       }
     },

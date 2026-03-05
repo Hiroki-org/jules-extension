@@ -7,6 +7,7 @@ export interface ComposerOptions {
   value?: string;
   showCreatePrCheckbox?: boolean;
   showRequireApprovalCheckbox?: boolean;
+  contextPreview?: string;
 }
 
 export interface ComposerResult {
@@ -68,6 +69,14 @@ export function getComposerHtml(
   const placeholder = escapeAttribute(options.placeholder ?? "");
   const value = escapeHtml(options.value ?? "");
   const title = escapeHtml(options.title);
+  const contextPreviewHtml = options.contextPreview
+    ? `
+    <div class="context-preview">
+      <div class="context-preview-label">Attached context:</div>
+      <pre class="context-preview-content">${escapeHtml(options.contextPreview)}</pre>
+    </div>
+  `
+    : "";
   const createPrCheckbox = options.showCreatePrCheckbox
     ? `
     <div class="create-pr-container">
@@ -122,6 +131,29 @@ export function getComposerHtml(
 
   textarea:focus {
     outline: 1px solid var(--vscode-focusBorder);
+  }
+
+  .context-preview {
+    margin-bottom: 12px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    background: var(--vscode-textBlockQuote-background);
+  }
+
+  .context-preview-label {
+    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 4px;
+  }
+
+  .context-preview-content {
+    margin: 0;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    color: var(--vscode-editor-foreground);
   }
 
   .actions {
@@ -193,6 +225,7 @@ export function getComposerHtml(
 </style>
 </head>
 <body>
+  ${contextPreviewHtml}
   <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
