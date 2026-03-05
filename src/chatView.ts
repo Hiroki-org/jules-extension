@@ -44,20 +44,6 @@ export function isGeneratingSessionState(rawState: string | undefined): boolean 
   return GENERATING_SESSION_STATES.has(rawState);
 }
 
-function formatUserMessage(message: string, isFirst: boolean, customPrompt: string): string {
-  if (customPrompt && message.includes(customPrompt)) {
-    const baseMessage = message.replace(`\n\n${customPrompt}`, "").trim();
-    if (isFirst) {
-      // 初回はラベルをつけて表示
-      return `${baseMessage}\n\n**[custom prompt]**\n${customPrompt}`;
-    } else {
-      // 2回目以降は変更がなければ表示しない
-      return baseMessage;
-    }
-  }
-  return message;
-}
-
 export function buildChatMessagesFromActivities(
   activities: Activity[],
   initialPrompt?: string,
@@ -71,32 +57,48 @@ export function buildChatMessagesFromActivities(
     (a.createTime ?? "").localeCompare(b.createTime ?? "")
   );
 
-  const messages: ChatMessageItem[] = [];
-  let isFirstUserMessage = true;
+  let hasLabeledCustomPrompt = false;
 
-  // 1. セッション全体の初期プロンプトがあれば先頭に追加 (Activitiesに含まれない場合が多いため)
-  if (initialPrompt) {
+  function formatMessage(message: string): string {
+    if (customPrompt && message.includes(customPrompt)) {
+      const baseMessage = message.replace(`\n\n${customPrompt}`, "").trim();
+      if (!hasLabeledCustomPrompt) {
+        hasLabeledCustomPrompt = true;
+        // 初回はラベルをつけて表示
+        return `${baseMessage}\n\n**[custom prompt]**\n${customPrompt}`;
+      } else {
+        // 2回目以降は変更がなければ表示しない
+        return baseMessage;
+      }
+    }
+    return message;
+  }
+
+  const messages: ChatMessageItem[] = [];
+
+  // 重複チェック: 最初のユーザーアクティビティがセッションタイトルを含んでいるか
+  const firstUserActivity = sortedActivities.find(a => !!pickFirstNonEmpty(a.userMessaged?.userMessage));
+  const firstUserMsgText = firstUserActivity ? pickFirstNonEmpty(firstUserActivity.userMessaged?.userMessage) : null;
+  const isInitialPromptRedundant = initialPrompt && firstUserMsgText && (firstUserMsgText === initialPrompt || firstUserMsgText.startsWith(initialPrompt));
+
+  // 1. セッション全体の初期プロンプトがあれば追加 (Activityに含まれない場合や重複しない場合のみ)
+  if (initialPrompt && !isInitialPromptRedundant) {
     messages.push({
       id: "session-initial-prompt",
       role: "user",
       createTime: initialTime,
-      html: renderChatMarkdown(formatUserMessage(initialPrompt, true, customPrompt)),
+      html: renderChatMarkdown(formatMessage(initialPrompt)),
     });
-    isFirstUserMessage = false;
   }
 
   sortedActivities.forEach((activity) => {
     const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
     if (userMessage) {
-      // Activityに含まれるユーザーメッセージ。初期プロンプトがすでに追加されていれば false
-      const displayMessage = formatUserMessage(userMessage, isFirstUserMessage, customPrompt);
-      isFirstUserMessage = false;
-
       messages.push({
         id: activity.id ?? activity.name,
         role: "user",
         createTime: activity.createTime,
-        html: renderChatMarkdown(displayMessage),
+        html: renderChatMarkdown(formatMessage(userMessage)),
       });
       return;
     }
