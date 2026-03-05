@@ -3231,12 +3231,6 @@ export function activate(context: vscode.ExtensionContext) {
           activitiesUri,
           summaryHeader + detailLines.join("\n"),
         );
-        const activitiesDocument =
-          await vscode.workspace.openTextDocument(activitiesUri);
-        await vscode.window.showTextDocument(activitiesDocument, {
-          preview: true,
-          viewColumn: vscode.ViewColumn.Active,
-        });
 
         await context.globalState.update("active-session-id", sessionId);
       } catch (error) {
