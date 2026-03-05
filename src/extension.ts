@@ -1408,6 +1408,15 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     dispose: () => {},
   };
 
+  private _onDidFetchActivities = new vscode.EventEmitter<{
+    sessionId: string;
+    activities: Activity[];
+    rawState?: string;
+    title?: string;
+    createTime?: string;
+  }>();
+  readonly onDidFetchActivities = this._onDidFetchActivities.event;
+
   private _onDidChangeTreeData: vscode.EventEmitter<
     vscode.TreeItem | undefined | null | void
   > = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
@@ -1427,6 +1436,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   private activityCategoryFilter: Set<ActivityCategory> = new Set();
   private lastSelectedSessionId: string | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
+  private lastSessionUpdateTime = new Map<string, string>();
 
   constructor(private context: vscode.ExtensionContext) {}
 
@@ -1447,11 +1457,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     this.progressStatusBarItem = item;
   }
 
-  private async updateProgressStatusBarForSelectedSession(
+  private async syncSelectedSessionActivitiesAndProgress(
     apiKey: string,
     sessions: Session[],
   ): Promise<void> {
-    if (!this.progressStatusBarItem || !this.lastSelectedSessionId) {
+    if (!this.lastSelectedSessionId) {
       this.progressStatusBarItem?.hide();
       return;
     }
@@ -1460,7 +1470,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       (session) => session.name === this.lastSelectedSessionId,
     );
     if (!selectedSession || !isSessionActive(selectedSession)) {
-      this.progressStatusBarItem.hide();
+      this.progressStatusBarItem?.hide();
       return;
     }
 
@@ -1468,55 +1478,75 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       const sessionId = selectedSession.name;
       const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(sessionId);
       const cachedActivities = sessionActivitiesCache.get(sessionId) ?? [];
+      const updateTime = selectedSession.updateTime;
+      const lastUpdateTime = this.lastSessionUpdateTime.get(sessionId);
 
-      const newActivities = await fetchSessionActivitiesPaginated(
-        apiKey,
-        sessionId,
-        {
-          showPaginationProgress: false,
-        },
-      );
-      const activities = mergeActivitiesByIdentity(
-        cachedActivities,
-        newActivities,
-      );
-      addToActivitiesCache(sessionId, activities);
+      let activities = cachedActivities;
 
-      const latestCreateTime = getLatestActivityCreateTime(activities);
-      if (latestCreateTime) {
-        await this.context.globalState.update(
-          latestCreateTimeKey,
-          latestCreateTime,
+      if (updateTime !== lastUpdateTime || activities.length === 0) {
+        const newActivities = await fetchSessionActivitiesPaginated(
+          apiKey,
+          sessionId,
+          {
+            showPaginationProgress: false,
+          },
         );
-      }
+        activities = mergeActivitiesByIdentity(
+          cachedActivities,
+          newActivities,
+        );
+        addToActivitiesCache(sessionId, activities);
 
-      let latestProgress: Activity | undefined;
-      let maxTime = -Infinity;
+        const latestCreateTime = getLatestActivityCreateTime(activities);
+        if (latestCreateTime) {
+          await this.context.globalState.update(
+            latestCreateTimeKey,
+            latestCreateTime,
+          );
+        }
 
-      for (const activity of activities) {
-        if (activity.progressUpdated && activity.createTime) {
-          const parsedTime = Date.parse(activity.createTime);
-          if (!Number.isNaN(parsedTime) && parsedTime > maxTime) {
-            maxTime = parsedTime;
-            latestProgress = activity;
-          }
+        if (updateTime) {
+          this.lastSessionUpdateTime.set(sessionId, updateTime);
         }
       }
 
-      if (latestProgress?.progressUpdated) {
-        const title = latestProgress.progressUpdated.title || "Working...";
-        this.progressStatusBarItem.text = `$(sync~spin) Jules: ${title}`;
-        this.progressStatusBarItem.tooltip =
-          latestProgress.progressUpdated.description || "";
-        this.progressStatusBarItem.show();
-      } else {
-        this.progressStatusBarItem.hide();
+      this._onDidFetchActivities.fire({
+        sessionId,
+        activities,
+        rawState: selectedSession.rawState,
+        title: selectedSession.title,
+        createTime: selectedSession.createTime,
+      });
+
+      if (this.progressStatusBarItem) {
+        let latestProgress: Activity | undefined;
+        let maxTime = -Infinity;
+
+        for (const activity of activities) {
+          if (activity.progressUpdated && activity.createTime) {
+            const parsedTime = Date.parse(activity.createTime);
+            if (!Number.isNaN(parsedTime) && parsedTime > maxTime) {
+              maxTime = parsedTime;
+              latestProgress = activity;
+            }
+          }
+        }
+
+        if (latestProgress?.progressUpdated) {
+          const title = latestProgress.progressUpdated.title || "Working...";
+          this.progressStatusBarItem.text = `$(sync~spin) Jules: ${title}`;
+          this.progressStatusBarItem.tooltip =
+            latestProgress.progressUpdated.description || "";
+          this.progressStatusBarItem.show();
+        } else {
+          this.progressStatusBarItem.hide();
+        }
       }
     } catch (error) {
       logChannel.appendLine(
         `Jules: Failed to update progress status bar: ${sanitizeError(error)}`,
       );
-      this.progressStatusBarItem.hide();
+      this.progressStatusBarItem?.hide();
     }
   }
 
@@ -1695,7 +1725,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
 
-      await this.updateProgressStatusBarForSelectedSession(
+      await this.syncSelectedSessionActivitiesAndProgress(
         apiKey,
         allSessionsMapped,
       );
@@ -2367,6 +2397,18 @@ export function activate(context: vscode.ExtensionContext) {
   progressStatusBarItem.hide();
   context.subscriptions.push(progressStatusBarItem);
   sessionsProvider.setProgressStatusBarItem(progressStatusBarItem);
+
+  context.subscriptions.push(
+    sessionsProvider.onDidFetchActivities((e) => {
+      chatViewProvider.updateSession(
+        e.sessionId,
+        e.activities,
+        e.rawState,
+        e.title,
+        e.createTime
+      );
+    })
+  );
 
   const activitiesProvider = new JulesActivitiesDocumentProvider();
   const activitiesProviderDisposable =
