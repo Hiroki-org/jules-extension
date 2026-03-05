@@ -894,22 +894,6 @@ index 456..def 100644`;
             );
         });
 
-        test('API が不正なレスポンスを返した場合、エラーをスローすること', async () => {
-            const sessionId = 'session-202';
-            const apiKey = 'test-api-key';
-
-            fetchStub.resolves({
-                ok: true,
-                status: 200,
-                json: async () => ({}),
-            } as Response);
-
-            await assert.rejects(
-                async () => await fetchLatestSessionArtifacts(apiKey, sessionId),
-                /Invalid response format from API/
-            );
-        });
-
         test('API が activities 配列以外を返した場合、エラーをスローすること', async () => {
             const sessionId = 'session-203';
             const apiKey = 'test-api-key';

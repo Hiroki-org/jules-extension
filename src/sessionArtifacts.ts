@@ -554,10 +554,12 @@ export async function fetchLatestSessionArtifacts(
     }
 
     const data = (await response.json()) as ActivitiesResponse;
-    if (!data.activities || !Array.isArray(data.activities)) {
+    if (data.activities !== undefined && !Array.isArray(data.activities)) {
         throw new Error("Invalid response format from API.");
     }
 
-    updateSessionArtifactsCache(sessionId, data.activities, sessionUpdateTime);
+    if (data.activities) {
+        updateSessionArtifactsCache(sessionId, data.activities, sessionUpdateTime);
+    }
     return artifactsCache.get(sessionId)?.artifacts ?? {};
 }
