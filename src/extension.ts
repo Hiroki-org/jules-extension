@@ -48,6 +48,7 @@ import {
 import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
+import { getActiveEditorContext, selectFolderContext } from "./contextUtils";
 import {
   getActivityCategory,
   getActivityIcon,
@@ -171,10 +172,10 @@ let logChannel: vscode.OutputChannel = {
   append: (val: string) => console.log(val),
   appendLine: (val: string) => console.log(val),
   replace: (val: string) => console.log(val),
-  clear: () => {},
-  show: () => {},
-  hide: () => {},
-  dispose: () => {},
+  clear: () => { },
+  show: () => { },
+  hide: () => { },
+  dispose: () => { },
 };
 
 function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
@@ -818,7 +819,7 @@ function areSessionsEqual(s1: Session, s2: Session): boolean {
     s1.rawState === s2.rawState &&
     s1.sourceContext?.source === s2.sourceContext?.source &&
     s1.sourceContext?.githubRepoContext?.startingBranch ===
-      s2.sourceContext?.githubRepoContext?.startingBranch &&
+    s2.sourceContext?.githubRepoContext?.startingBranch &&
     s1.requirePlanApproval === s2.requirePlanApproval &&
     JSON.stringify(s1.sourceContext) === JSON.stringify(s2.sourceContext) &&
     areOutputsEqual(s1.outputs, s2.outputs)
@@ -1052,8 +1053,7 @@ interface SessionsResponse {
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
 
 class JulesActivitiesDocumentProvider
-  implements vscode.TextDocumentContentProvider
-{
+  implements vscode.TextDocumentContentProvider {
   private readonly contents = new Map<string, string>();
 
   provideTextDocumentContent(uri: vscode.Uri): string {
@@ -1399,13 +1399,13 @@ async function fetchSessionActivitiesPaginated(
 export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
   private static silentOutputChannel: vscode.OutputChannel = {
     name: "silent-channel",
-    append: () => {},
-    appendLine: () => {},
-    replace: () => {},
-    clear: () => {},
-    show: () => {},
-    hide: () => {},
-    dispose: () => {},
+    append: () => { },
+    appendLine: () => { },
+    replace: () => { },
+    clear: () => { },
+    show: () => { },
+    hide: () => { },
+    dispose: () => { },
   };
 
   private _onDidChangeTreeData: vscode.EventEmitter<
@@ -1428,7 +1428,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   private lastSelectedSessionId: string | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
-  constructor(private context: vscode.ExtensionContext) {}
+  constructor(private context: vscode.ExtensionContext) { }
 
   getActivityCategoryFilter(): Set<ActivityCategory> {
     return this.activityCategoryFilter;
@@ -2007,9 +2007,9 @@ export class SessionTreeItem extends vscode.TreeItem {
     const failureReasonPreview =
       session.state === "FAILED"
         ? truncateForDisplay(
-            getLatestSessionFailedReason(session.name) ?? "",
-            200,
-          )
+          getLatestSessionFailedReason(session.name) ?? "",
+          200,
+        )
         : undefined;
 
     this.tooltip = buildSessionTooltip({
@@ -2149,11 +2149,11 @@ async function sendMessageToSession(
       typeof prefilledPrompt === "string"
         ? prefilledPrompt.trim()
         : (
-            await showMessageComposer({
-              title: "Send Message to Jules",
-              placeholder: "What would you like Jules to do?",
-            })
-          )?.prompt?.trim();
+          await showMessageComposer({
+            title: "Send Message to Jules",
+            placeholder: "What would you like Jules to do?",
+          })
+        )?.prompt?.trim();
     if (userPrompt === undefined) {
       vscode.window.showWarningMessage("Message was cancelled and not sent.");
       return;
@@ -2815,25 +2815,100 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        const result = await showMessageComposer({
-          title: "Create Jules Session",
-          placeholder: "Describe the task you want Jules to tackle...",
-          showCreatePrCheckbox: true,
-          showRequireApprovalCheckbox: true,
-        });
+        let contextAttachment: string | null = null;
+        const autoAttachEnabled = vscode.workspace
+          .getConfiguration("jules")
+          .get<boolean>("autoAttachContext", true);
+
+        if (autoAttachEnabled) {
+          contextAttachment = getActiveEditorContext();
+        }
+
+        const COMPOSER_OPTIONS = {
+          ADD_FOLDER: "$(folder) Add Folder as Context",
+          REMOVE_CONTEXT: "$(trash) Remove Context",
+        };
+
+        let result:
+          | { prompt: string; createPR: boolean; requireApproval: boolean }
+          | undefined;
+
+        while (true) {
+          const quickPickItems: vscode.QuickPickItem[] = [];
+
+          if (contextAttachment) {
+            quickPickItems.push({
+              label: `Attached: ${contextAttachment}`,
+              description: "Current context",
+              alwaysShow: true,
+            });
+            quickPickItems.push({
+              label: COMPOSER_OPTIONS.REMOVE_CONTEXT,
+              description: "Clear current file/folder context",
+            });
+          }
+
+          quickPickItems.push({
+            label: COMPOSER_OPTIONS.ADD_FOLDER,
+            description: "Manually select a folder to include as context",
+          });
+
+          quickPickItems.push({
+            label: "$(comment-discussion) Enter Task Description",
+            description: "Proceed to describe the task for Jules",
+          });
+
+          const selection = await vscode.window.showQuickPick(quickPickItems, {
+            placeHolder: contextAttachment
+              ? "Modify context or proceed to describe task"
+              : "Add context or proceed to describe task",
+            title: "Session Context (TSK-265)",
+          });
+
+          if (!selection) {
+            logChannel.appendLine("[Jules] Session creation cancelled by user");
+            return;
+          }
+
+          if (selection.label === COMPOSER_OPTIONS.ADD_FOLDER) {
+            const folderContext = await selectFolderContext();
+            if (folderContext) {
+              contextAttachment = folderContext;
+            }
+            continue;
+          } else if (selection.label === COMPOSER_OPTIONS.REMOVE_CONTEXT) {
+            contextAttachment = null;
+            continue;
+          }
+
+          // User selected "Enter Task Description" or clicked outside
+          result = await showMessageComposer({
+            title: "Create Jules Session",
+            placeholder: "Describe the task you want Jules to tackle...",
+            showCreatePrCheckbox: true,
+            showRequireApprovalCheckbox: true,
+            contextPreview: contextAttachment || undefined,
+          });
+          break;
+        }
 
         if (result === undefined) {
           vscode.window.showWarningMessage("Session creation was cancelled.");
           return;
         }
 
-        const userPrompt = result.prompt.trim();
+        let userPrompt = result.prompt.trim();
         if (!userPrompt) {
           vscode.window.showWarningMessage(
             "Task description was empty. Session not created.",
           );
           return;
         }
+
+        if (contextAttachment) {
+          userPrompt = `対象: ${contextAttachment}\n\nタスク: ${userPrompt}`;
+        }
+
         const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
@@ -2901,8 +2976,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
       } catch (error) {
         vscode.window.showErrorMessage(
-          `Failed to create session: ${
-            error instanceof Error ? error.message : "Unknown error"
+          `Failed to create session: ${error instanceof Error ? error.message : "Unknown error"
           }`,
         );
       } finally {
@@ -3173,19 +3247,19 @@ export function activate(context: vscode.ExtensionContext) {
                   ...activity,
                   agentMessaged: activity.agentMessaged
                     ? {
-                        ...activity.agentMessaged,
-                        agentMessage: activity.agentMessaged.agentMessage
-                          ? "[REDACTED]"
-                          : activity.agentMessaged.agentMessage,
-                      }
+                      ...activity.agentMessaged,
+                      agentMessage: activity.agentMessaged.agentMessage
+                        ? "[REDACTED]"
+                        : activity.agentMessaged.agentMessage,
+                    }
                     : activity.agentMessaged,
                   userMessaged: activity.userMessaged
                     ? {
-                        ...activity.userMessaged,
-                        userMessage: activity.userMessaged.userMessage
-                          ? "[REDACTED]"
-                          : activity.userMessaged.userMessage,
-                      }
+                      ...activity.userMessaged,
+                      userMessage: activity.userMessaged.userMessage
+                        ? "[REDACTED]"
+                        : activity.userMessaged.userMessage,
+                    }
                     : activity.userMessaged,
                 };
                 rawForLog = JSON.stringify(safeActivity);

@@ -7,6 +7,7 @@ export interface ComposerOptions {
   value?: string;
   showCreatePrCheckbox?: boolean;
   showRequireApprovalCheckbox?: boolean;
+  contextPreview?: string;
 }
 
 export interface ComposerResult {
@@ -190,9 +191,38 @@ export function getComposerHtml(
   label {
     cursor: pointer;
   }
+
+  .context-preview {
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border-radius: 4px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .context-preview code {
+    font-family: var(--vscode-editor-font-family);
+    background: var(--vscode-textCodeBlock-background);
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .context-preview-label {
+    font-weight: bold;
+    color: var(--vscode-descriptionForeground);
+  }
 </style>
 </head>
 <body>
+  ${options.contextPreview ? `
+  <div class="context-preview">
+    <span class="context-preview-label">Attached:</span>
+    <code>${escapeHtml(options.contextPreview)}</code>
+  </div>
+  ` : ""}
   <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
