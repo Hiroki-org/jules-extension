@@ -37,9 +37,6 @@
     "Other"
   ],
   "packageManager": "pnpm@10.28.0",
-  "activationEvents": [
-    "onView:julesChatView"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
