@@ -1,0 +1,176 @@
+--- src/extension.ts
++++ src/extension.ts
+@@ -2791,165 +2791,3 @@
+
+-  const julesCodeLensProvider = new JulesCodeLensProvider();
+-  const codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
+-    "*",
+-    julesCodeLensProvider
+-  );
+-  context.subscriptions.push(codeLensProviderDisposable);
+-
+-  const julesCodeActionProvider = new JulesCodeActionProvider();
+-  const codeActionProviderDisposable = vscode.languages.registerCodeActionsProvider(
+-    "*",
+-    julesCodeActionProvider,
+-    { providedCodeActionKinds: [vscode.CodeActionKind.Refactor] }
+-  );
+-  context.subscriptions.push(codeActionProviderDisposable);
+-
+-  // Common handler for inline tasks (Refactor, Generate Tests, etc.)
+-  async function handleInlineTask(uri: vscode.Uri, range: vscode.Range | vscode.Selection, defaultTask: string) {
+-    const editor = vscode.window.activeTextEditor;
+-    if (!editor) {
+-      vscode.window.showErrorMessage("No active text editor found.");
+-      return;
+-    }
+-
+-    const document = editor.document;
+-    const selectionRange = range instanceof vscode.Selection ? range : new vscode.Range(range.start, range.end);
+-    let codeSnippet = document.getText(selectionRange);
+-
+-    // If no selection or range is empty and we triggered via context menu, maybe use the whole file or warn
+-    if (!codeSnippet.trim()) {
+-      if (editor.selection && !editor.selection.isEmpty) {
+-        codeSnippet = document.getText(editor.selection);
+-      } else {
+-        vscode.window.showErrorMessage("Please select some code to perform this action.");
+-        return;
+-      }
+-    }
+-
+-    const selectedSource = context.globalState.get("selected-source") as SourceType;
+-    if (!selectedSource || selectedSource.id === ALL_SOURCES_ID) {
+-      vscode.window.showErrorMessage("Please select a specific repository source first.");
+-      return;
+-    }
+-
+-    const apiKey = await context.secrets.get("jules-api-key");
+-    if (!apiKey) {
+-      vscode.window.showErrorMessage('API Key not found. Please set it first using "Set Jules API Key" command.');
+-      return;
+-    }
+-
+-    const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+-
+-    // ブランチ選択ロジック
+-    const {
+-      branches,
+-      defaultBranch: selectedDefaultBranch,
+-      currentBranch,
+-      remoteBranches,
+-    } = await getBranchesForSession(
+-      selectedSource,
+-      apiClient,
+-      logChannel,
+-      context,
+-      { showProgress: true },
+-    );
+-
+-    const selectedBranch = await vscode.window.showQuickPick(
+-      branches.map((branch) => ({
+-        label: branch,
+-        picked: branch === selectedDefaultBranch,
+-        description:
+-          (branch === selectedDefaultBranch ? "(default)" : undefined) ||
+-          (branch === currentBranch ? "(current)" : undefined),
+-      })),
+-      {
+-        placeHolder: "Select a branch for this session",
+-        title: "Branch Selection",
+-      },
+-    );
+-
+-    if (!selectedBranch) {
+-      vscode.window.showWarningMessage("Branch selection was cancelled.");
+-      return;
+-    }
+-
+-    let startingBranch = selectedBranch.label;
+-
+-    if (!new Set(remoteBranches).has(startingBranch)) {
+-      logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
+-      const freshBranchInfo = await getBranchesForSession(
+-        selectedSource,
+-        apiClient,
+-        logChannel,
+-        context,
+-        { forceRefresh: true, showProgress: true },
+-      );
+-      if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
+-        vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
+-        return;
+-      }
+-    }
+-
+-    const result = await showMessageComposer({
+-      title: `Jules: ${defaultTask}`,
+-      placeholder: `Provide additional instructions for Jules...`,
+-      showCreatePrCheckbox: true,
+-      showRequireApprovalCheckbox: true,
+-      value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n\`\`\`${document.languageId}\n${codeSnippet}\n\`\`\`\n`
+-    });
+-
+-    if (result === undefined) {
+-      return;
+-    }
+-
+-    const userPrompt = result.prompt.trim();
+-    if (!userPrompt) {
+-      vscode.window.showWarningMessage("Task description was empty. Session not created.");
+-      return;
+-    }
+-
+-    const title = `${defaultTask} in ${path.basename(document.uri.fsPath)}`;
+-    const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
+-
+-    try {
+-      await createJulesSession(
+-        context,
+-        selectedSource,
+-        apiKey,
+-        startingBranch,
+-        userPrompt,
+-        title,
+-        automationMode,
+-        result.requireApproval
+-      );
+-    } catch (error) {
+-      vscode.window.showErrorMessage(`Failed to create session: ${error instanceof Error ? error.message : "Unknown error"}`);
+-    }
+-  }
+-
+-  const inlineRefactorDisposable = vscode.commands.registerCommand(
+-    "jules-extension.inlineRefactor",
+-    async (uri?: vscode.Uri, range?: vscode.Range | vscode.Selection) => {
+-       const activeEditor = vscode.window.activeTextEditor;
+-       const targetUri = uri || activeEditor?.document.uri;
+-       const targetRange = range || activeEditor?.selection;
+-       if (targetUri && targetRange) {
+-         await handleInlineTask(targetUri, targetRange, "Refactor");
+-       } else {
+-         vscode.window.showErrorMessage("No code selected to refactor.");
+-       }
+-    }
+-  );
+-
+-  const inlineGenerateTestsDisposable = vscode.commands.registerCommand(
+-    "jules-extension.inlineGenerateTests",
+-    async (uri?: vscode.Uri, range?: vscode.Range | vscode.Selection) => {
+-       const activeEditor = vscode.window.activeTextEditor;
+-       const targetUri = uri || activeEditor?.document.uri;
+-       const targetRange = range || activeEditor?.selection;
+-       if (targetUri && targetRange) {
+-         await handleInlineTask(targetUri, targetRange, "Generate Tests");
+-       } else {
+-         vscode.window.showErrorMessage("No code selected to generate tests for.");
+-       }
+-    }
+-  );
++  registerInlineCommands(context, logChannel);
+
+@@ -3752,4 +3590,2 @@
+     chatViewProviderDisposable,
+-    inlineRefactorDisposable,
+-    inlineGenerateTestsDisposable,
+   );
