@@ -231,60 +231,113 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
     const lines = diff.split('\n');
     for (const line of lines) {
-        // Match: diff --git a/path/to/file b/path/to/file
-        if (line.startsWith('diff --git ')) {
-            const parts = line.split(' ');
-            if (parts.length >= 4) {
-                const bPart = parts[3]; // b/path/to/file
-                if (bPart.startsWith('b/')) {
-                    files.push({ path: bPart.slice(2) });
+        if (!line.startsWith('diff --git ')) {
+            continue;
+        }
+
+        const payload = line.substring(11); // everything after 'diff --git '
+        let i = 0;
+
+        function readPath(): string | undefined {
+            if (i >= payload.length) {
+                return undefined;
+            }
+            if (payload[i] === '"') {
+                i++; // skip opening quote
+                let res = "";
+                while (i < payload.length && payload[i] !== '"') {
+                    if (payload[i] === '\\' && i + 1 < payload.length) {
+                        res += payload[i + 1];
+                        i += 2;
+                    } else {
+                        res += payload[i];
+                        i++;
+                    }
                 }
+                if (payload[i] === '"') {
+                    i++; // skip closing quote
+                }
+                return res;
+            } else {
+                const start = i;
+                while (i < payload.length && payload[i] !== ' ') {
+                    if (payload[i] === '\\' && i + 1 < payload.length) {
+                        i += 2;
+                    } else {
+                        i++;
+                    }
+                }
+                return payload.substring(start, i).replace(/\\(.)/g, '$1');
+            }
+        }
+
+        let path2: string | undefined;
+
+        // Try reading proper quoted/escaped paths
+        if (payload.startsWith('"a/') || payload.startsWith('a/')) {
+            readPath(); // Skip path1
+            if (i < payload.length && payload[i] === ' ') {
+                i++; // skip space delimiter
+                path2 = readPath();
+            }
+        }
+
+        // Check if we parsed a valid b/ path
+        if (path2?.startsWith('b/')) {
+            files.push({ path: path2.slice(2) });
+        } else {
+            // Fallback for unquoted paths containing spaces (e.g. diff --git a/my file b/my file)
+            const match = payload.match(/^a\/(.+?) b\/(.+?)$/);
+            if (match) {
+                files.push({ path: match[2] });
             }
         }
     }
     return files;
 }
 
-function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
-    const candidates = [
-        changeSet.files,
-        changeSet.changes,
-        changeSet.entries,
-        changeSet.changedFiles,
-        changeSet.paths,
-    ];
+function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
+    if (!Array.isArray(candidate) || candidate.length === 0) {
+        return null;
+    }
 
     const files: ChangeSetFile[] = [];
     const seenPaths = new Set<string>();
 
-    for (const candidate of candidates) {
-        if (!Array.isArray(candidate)) {
-            continue;
+    for (const entry of candidate) {
+        let extractedPath: string | null = null;
+        let extractedStatus: string | undefined = undefined;
+
+        if (typeof entry === 'string') {
+            extractedPath = normalizePath(entry);
+        } else if (entry && typeof entry === 'object') {
+            const record = entry as Record<string, unknown>;
+            extractedPath = [record.path, record.filePath, record.file, record.name, record.filename]
+                .map(normalizePath)
+                .find(path => path !== null) ?? null;
+            extractedStatus = [record.status, record.action, record.type]
+                .map(normalizeStatus)
+                .find(status => status !== undefined);
         }
 
-        for (const entry of candidate) {
-            let extractedPath: string | null = null;
-            let extractedStatus: string | undefined = undefined;
-
-            if (typeof entry === 'string') {
-                extractedPath = normalizePath(entry);
-            } else if (entry && typeof entry === 'object') {
-                const record = entry as Record<string, unknown>;
-                extractedPath = normalizePath(record.path ?? record.filePath ?? record.file ?? record.name ?? record.filename);
-                extractedStatus = normalizeStatus(record.status ?? record.action ?? record.type);
-            }
-
-            if (extractedPath && !seenPaths.has(extractedPath)) {
-                files.push({ path: extractedPath, status: extractedStatus });
-                seenPaths.add(extractedPath);
-            }
+        if (extractedPath && !seenPaths.has(extractedPath)) {
+            files.push({ path: extractedPath, status: extractedStatus });
+            seenPaths.add(extractedPath);
         }
+    }
 
-        // If we successfully extracted files from this candidate type, we stop.
-        // This assumes that one changeSet object uses only one consistent property name.
-        if (files.length > 0) {
-            return files;
-        }
+    return files.length > 0 ? files : null;
+}
+
+function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
+    const files = tryExtractFromCandidate(changeSet.files) ??
+                  tryExtractFromCandidate(changeSet.changes) ??
+                  tryExtractFromCandidate(changeSet.entries) ??
+                  tryExtractFromCandidate(changeSet.changedFiles) ??
+                  tryExtractFromCandidate(changeSet.paths);
+
+    if (files) {
+        return files;
     }
 
     // Fallback: Try to extract from diff if available

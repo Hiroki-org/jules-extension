@@ -1488,12 +1488,18 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         );
       }
 
-      const latestProgress = activities
-        .filter((activity) => activity.progressUpdated)
-        .sort(
-          (a, b) =>
-            new Date(b.createTime).getTime() - new Date(a.createTime).getTime(),
-        )[0];
+      let latestProgress: Activity | undefined;
+      let maxTime = -Infinity;
+
+      for (const activity of activities) {
+        if (activity.progressUpdated && activity.createTime) {
+          const parsedTime = Date.parse(activity.createTime);
+          if (!Number.isNaN(parsedTime) && parsedTime > maxTime) {
+            maxTime = parsedTime;
+            latestProgress = activity;
+          }
+        }
+      }
 
       if (latestProgress?.progressUpdated) {
         const title = latestProgress.progressUpdated.title || "Working...";
@@ -1566,15 +1572,17 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // Filter out sessions that are currently being deleted to prevent race conditions
       // where a background refresh re-adds a session that was optimistically removed.
-      const validSessions = fetchedSessions.filter(
-        (s) => !this.deletingSessions.has(s.name),
-      );
-
-      const allSessionsMapped = validSessions.map((session) => ({
-        ...session,
-        rawState: session.state,
-        state: mapApiStateToSessionState(session.state),
-      }));
+      const allSessionsMapped: Session[] = [];
+      for (let i = 0; i < fetchedSessions.length; i++) {
+        const session = fetchedSessions[i];
+        if (!this.deletingSessions.has(session.name)) {
+          allSessionsMapped.push({
+            ...session,
+            rawState: session.state,
+            state: mapApiStateToSessionState(session.state),
+          });
+        }
+      }
 
       // デバッグ: 全セッションのrawStateをログ出力
       logChannel.appendLine(
@@ -2305,14 +2313,18 @@ export function activate(context: vscode.ExtensionContext) {
   );
   // Clean up expired entries
   const now = Date.now();
-  const expiredUrls = Object.keys(prStatusCache).filter(
-    (url) => now - prStatusCache[url].lastChecked > PR_CACHE_DURATION,
-  );
+  let expiredCount = 0;
 
-  if (expiredUrls.length > 0) {
-    expiredUrls.forEach((url) => delete prStatusCache[url]);
+  for (const url in prStatusCache) {
+    if (now - prStatusCache[url].lastChecked > PR_CACHE_DURATION) {
+      delete prStatusCache[url];
+      expiredCount++;
+    }
+  }
+
+  if (expiredCount > 0) {
     console.log(
-      `Jules: Cleaned up ${expiredUrls.length} expired PR status cache entries.`,
+      `Jules: Cleaned up ${expiredCount} expired PR status cache entries.`,
     );
   }
 
