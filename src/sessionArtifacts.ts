@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "./fetchUtils";
+import { ActivitiesResponse } from "./types";
 
 const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
@@ -22,10 +23,6 @@ interface Activity {
 
 interface Artifact {
     changeSet?: Record<string, unknown>;
-}
-
-interface ActivitiesResponse {
-    activities: Activity[];
 }
 
 export interface ChangeSetFile {
@@ -558,8 +555,6 @@ export async function fetchLatestSessionArtifacts(
         throw new Error("Invalid response format from API.");
     }
 
-    if (data.activities) {
-        updateSessionArtifactsCache(sessionId, data.activities, sessionUpdateTime);
-    }
+    updateSessionArtifactsCache(sessionId, data.activities || [], sessionUpdateTime);
     return artifactsCache.get(sessionId)?.artifacts ?? {};
 }

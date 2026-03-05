@@ -910,8 +910,22 @@ index 456..def 100644`;
             );
         });
 
+        test('API が空のオブジェクトを返した場合、正常に処理されること', async () => {
+            const sessionId = 'session-205';
+            const apiKey = 'test-api-key';
+
+            fetchStub.resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({}),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            assert.deepStrictEqual(result, {});
+        });
+
         test('カスタム API ベース URL を使用できること', async () => {
-            const sessionId = 'session-204';
+            const sessionId = 'session-206';
             const apiKey = 'test-api-key';
             const customBaseUrl = 'https://custom.api.example.com/v1';
             const mockActivities = [
@@ -935,7 +949,7 @@ index 456..def 100644`;
         });
 
         test('API キーがヘッダーに正しく設定されること', async () => {
-            const sessionId = 'session-205';
+            const sessionId = 'session-207';
             const apiKey = 'test-api-key-12345';
             const mockActivities = [
                 {
