@@ -1370,11 +1370,13 @@ async function fetchSessionActivitiesPaginated(
       }
 
       const data = (await response.json()) as ActivitiesResponse;
-      if (!data.activities || !Array.isArray(data.activities)) {
+      if (data.activities !== undefined && !Array.isArray(data.activities)) {
         throw new Error("Invalid response format from API.");
       }
 
-      activities.push(...data.activities);
+      if (data.activities) {
+        activities.push(...data.activities);
+      }
       pageToken = data.nextPageToken;
     } while (pageToken);
 
