@@ -495,10 +495,21 @@ async function getCurrentBranchSha(
 }
 
 export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
+  const customPromptConfig = vscode.workspace
     .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
-  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
+    .inspect<string>("customPrompt");
+  
+  // Use globalValue to prevent malicious workspace settings from injecting prompts
+  const customPrompt = customPromptConfig?.globalValue || "";
+  
+  let finalPrompt = userPrompt;
+  if (customPrompt) {
+    finalPrompt = `${finalPrompt}\n\n${customPrompt}`;
+  }
+  
+  const languageEnforcement = "Please use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, review replies, etc). 常に日本語で返答し、GitHub上の操作もすべて日本語で行ってください。";
+  
+  return `${finalPrompt}\n\n${languageEnforcement}`;
 }
 
 /**
