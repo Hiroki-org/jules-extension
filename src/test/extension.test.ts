@@ -383,7 +383,7 @@ suite("Extension Test Suite", () => {
 
     test("should append custom prompt to user prompt", () => {
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
+        inspect: sinon.stub().withArgs("customPrompt").returns({ globalValue: "My custom prompt" }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -394,7 +394,7 @@ suite("Extension Test Suite", () => {
 
     test("should return only user prompt if custom prompt is empty", () => {
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns(""),
+        inspect: sinon.stub().withArgs("customPrompt").returns({ globalValue: "" }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -405,7 +405,7 @@ suite("Extension Test Suite", () => {
 
     test("should return only user prompt if custom prompt is not set", () => {
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns(undefined),
+        inspect: sinon.stub().withArgs("customPrompt").returns(undefined),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
