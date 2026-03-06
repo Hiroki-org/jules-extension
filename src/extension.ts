@@ -3151,18 +3151,21 @@ export function activate(context: vscode.ExtensionContext) {
                   "artifacts",
                 ]);
                 const unionKeys = new Set(ACTIVITY_UNION_KEYS);
-                const inferredKeys = Object.keys(activity).filter((key) => {
+                const inferredKeys: string[] = [];
+                for (const key in activity) {
                   if (
-                    baseKeys.has(key) ||
-                    unionKeys.has(key as ActivityUnionKey)
+                    Object.prototype.hasOwnProperty.call(activity, key) &&
+                    !baseKeys.has(key) &&
+                    !unionKeys.has(key as ActivityUnionKey)
                   ) {
-                    return false;
+                    const value = (
+                      activity as unknown as Record<string, unknown>
+                    )[key];
+                    if (value !== undefined && value !== null) {
+                      inferredKeys.push(key);
+                    }
                   }
-                  const value = (
-                    activity as unknown as Record<string, unknown>
-                  )[key];
-                  return value !== undefined && value !== null;
-                });
+                }
                 keySummary =
                   inferredKeys.length === 0 ? "none" : inferredKeys.join(", ");
               }
