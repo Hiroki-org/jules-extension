@@ -480,9 +480,12 @@ async function getCurrentBranchSha(
 }
 
 export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
+  const customPromptConfig = vscode.workspace
     .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
+    .inspect<string>("customPrompt");
+  
+  // Use globalValue to prevent malicious workspace settings from injecting prompts
+  const customPrompt = customPromptConfig?.globalValue || "";
   return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
 }
 
