@@ -2362,7 +2362,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     sessionsProvider.onDidFetchActivities(({ sessionId, activities }) => {
-      const currentSessionId = context.globalState.get("active-session-id") as string;
+      const currentSessionId = context.globalState.get<string>("active-session-id");
       if (sessionId === currentSessionId) {
         // Find session from cache
         const session = sessionsProvider.getSession(sessionId);
