@@ -471,7 +471,7 @@ suite("Extension Test Suite", () => {
       const localSandbox = sinon.createSandbox();
 
       const getStub = localSandbox.stub().callsFake((key: string, def?: any) => {
-        if (key === 'jules.prStatusCache') return prCache;
+        if (key === 'jules.prStatusCache') { return prCache; }
         return def;
       });
 
