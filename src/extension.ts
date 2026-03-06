@@ -2905,12 +2905,13 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         }
 
+        const title = userPrompt.split("\n")[0];
+
         if (contextAttachment) {
           userPrompt = `対象: ${contextAttachment}\n\nタスク: ${userPrompt}`;
         }
 
         const finalPrompt = buildFinalPrompt(userPrompt);
-        const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 
         if (!selectedSource.name) {

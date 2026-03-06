@@ -10,8 +10,9 @@ export function getActiveEditorContext(): string | null {
         return null;
     }
 
-    const relativePath = vscode.workspace.asRelativePath(editor.document.uri);
-    if (!relativePath || relativePath === editor.document.uri.fsPath) {
+    const normalizedFsPath = editor.document.uri.fsPath.replace(/\\/g, '/');
+    const relativePath = vscode.workspace.asRelativePath(editor.document.uri).replace(/\\/g, '/');
+    if (!relativePath || relativePath === normalizedFsPath) {
         // ワークスペース外のファイルや相対パスが取得できない場合
         return null;
     }
@@ -24,7 +25,7 @@ export function getActiveEditorContext(): string | null {
     } else {
         // 選択範囲がある場合
         const startLine = selection.start.line + 1;
-        const endLine = selection.end.line + 1;
+        const endLine = selection.end.character === 0 ? selection.end.line : selection.end.line + 1;
         if (startLine === endLine) {
             return `/${relativePath} line ${startLine}`;
         }
@@ -45,7 +46,11 @@ export async function selectFolderContext(): Promise<string | null> {
 
     const folderUri = await vscode.window.showOpenDialog(options);
     if (folderUri && folderUri[0]) {
-        const relativePath = vscode.workspace.asRelativePath(folderUri[0]);
+        const normalizedFsPath = folderUri[0].fsPath.replace(/\\/g, '/');
+        const relativePath = vscode.workspace.asRelativePath(folderUri[0]).replace(/\\/g, '/');
+        if (!relativePath || relativePath === normalizedFsPath) {
+            return null;
+        }
         // フォルダの場合は末尾に / を付与
         return `/${relativePath}${relativePath.endsWith("/") ? "" : "/"}`;
     }
