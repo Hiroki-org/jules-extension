@@ -85,6 +85,11 @@
             "Use 'main' branch, or the repository's default if 'main' does not exist"
           ],
           "scope": "resource"
+        },
+        "jules-extension.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CodeLens for inline Jules actions (e.g., Refactor, Generate Tests)"
         }
       }
     },
@@ -198,6 +203,18 @@
         "command": "jules.showFailureReason",
         "title": "Jules: Show Failure Reason",
         "category": "Jules"
+      },
+      {
+        "command": "jules-extension.inlineRefactor",
+        "title": "Refactor with Jules",
+        "category": "Jules",
+        "icon": "$(robot)"
+      },
+      {
+        "command": "jules-extension.inlineGenerateTests",
+        "title": "Generate Tests with Jules",
+        "category": "Jules",
+        "icon": "$(robot)"
       }
     ],
     "viewsWelcome": [
@@ -312,6 +329,18 @@
           "command": "jules.showFailureReason",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-failed/",
           "group": "jules_info"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "jules-extension.inlineRefactor",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.inlineGenerateTests",
+          "when": "editorHasSelection",
+          "group": "navigation"
         }
       ]
     }
