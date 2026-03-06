@@ -18,6 +18,7 @@ const mockVscode = {
         workspaceFolders: undefined as any,
         getConfiguration: () => ({
             get: () => undefined,
+            inspect: () => undefined,
         }),
         openTextDocument: async () => ({}) as any,
         onDidChangeConfiguration: () => ({ dispose: () => { } }),
