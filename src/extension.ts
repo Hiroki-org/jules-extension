@@ -1469,10 +1469,12 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     const selectedSession = sessions.find(
       (session) => session.name === this.lastSelectedSessionId,
     );
-    if (!selectedSession || !isSessionActive(selectedSession)) {
+    if (!selectedSession) {
       this.progressStatusBarItem?.hide();
       return;
     }
+
+    const isActive = isSessionActive(selectedSession);
 
     try {
       const sessionId = selectedSession.name;
@@ -1482,13 +1484,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       const lastUpdateTime = this.lastSessionUpdateTime.get(sessionId);
 
       let activities = cachedActivities;
+      let didFetch = false;
 
-      if (updateTime !== lastUpdateTime || activities.length === 0) {
+      if (updateTime !== lastUpdateTime || updateTime === undefined || activities.length === 0) {
         const newActivities = await fetchSessionActivitiesPaginated(
           apiKey,
           sessionId,
           {
-            showPaginationProgress: false,
+            showPaginationProgress: isActive,
           },
         );
         activities = mergeActivitiesByIdentity(
@@ -1496,6 +1499,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
           newActivities,
         );
         addToActivitiesCache(sessionId, activities);
+        didFetch = true;
 
         const latestCreateTime = getLatestActivityCreateTime(activities);
         if (latestCreateTime) {
@@ -1510,13 +1514,20 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         }
       }
 
-      this._onDidFetchActivities.fire({
-        sessionId,
-        activities,
-        rawState: selectedSession.rawState,
-        title: selectedSession.title,
-        createTime: selectedSession.createTime,
-      });
+      if (didFetch) {
+        this._onDidFetchActivities.fire({
+          sessionId,
+          activities,
+          rawState: selectedSession.rawState,
+          title: selectedSession.title,
+          createTime: selectedSession.createTime,
+        });
+      }
+
+      if (!isActive) {
+        this.progressStatusBarItem?.hide();
+        return;
+      }
 
       if (this.progressStatusBarItem) {
         let latestProgress: Activity | undefined;
@@ -1898,6 +1909,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
   public removeSession(sessionId: string): void {
     this.sessionsCache = this.sessionsCache.filter((s) => s.name !== sessionId);
+    this.lastSessionUpdateTime.delete(sessionId);
     this._onDidChangeTreeData.fire();
   }
 
@@ -2405,9 +2417,9 @@ export function activate(context: vscode.ExtensionContext) {
         e.activities,
         e.rawState,
         e.title,
-        e.createTime
+        e.createTime,
       );
-    })
+    }),
   );
 
   const activitiesProvider = new JulesActivitiesDocumentProvider();
