@@ -389,7 +389,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt");
+      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt\n\nImportant Instruction: Always use Japanese for all GitHub interactions, including Pull Request titles, Pull Request descriptions, commit messages, and review replies.");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
@@ -400,7 +400,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message");
+      assert.strictEqual(finalPrompt, "User message\n\nImportant Instruction: Always use Japanese for all GitHub interactions, including Pull Request titles, Pull Request descriptions, commit messages, and review replies.");
     });
 
     test("should return only user prompt if custom prompt is not set", () => {
@@ -411,7 +411,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message");
+      assert.strictEqual(finalPrompt, "User message\n\nImportant Instruction: Always use Japanese for all GitHub interactions, including Pull Request titles, Pull Request descriptions, commit messages, and review replies.");
     });
   });
 
@@ -471,7 +471,7 @@ suite("Extension Test Suite", () => {
       const localSandbox = sinon.createSandbox();
 
       const getStub = localSandbox.stub().callsFake((key: string, def?: any) => {
-        if (key === 'jules.prStatusCache') { return prCache; }
+        if (key === 'jules.prStatusCache') return prCache;
         return def;
       });
 

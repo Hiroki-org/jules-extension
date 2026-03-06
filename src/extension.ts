@@ -495,21 +495,16 @@ async function getCurrentBranchSha(
 }
 
 export function buildFinalPrompt(userPrompt: string): string {
-  const customPromptConfig = vscode.workspace
-    .getConfiguration("jules-extension")
-    .inspect<string>("customPrompt");
-  
-  // Use globalValue to prevent malicious workspace settings from injecting prompts
-  const customPrompt = customPromptConfig?.globalValue || "";
-  
-  let finalPrompt = userPrompt;
-  if (customPrompt) {
-    finalPrompt = `${finalPrompt}\n\n${customPrompt}`;
+  let customPrompt = "";
+  try {
+    customPrompt = vscode.workspace
+      .getConfiguration("jules-extension")
+      .get<string>("customPrompt", "");
+  } catch (error) {
+    // Tests might not fully mock the configuration
   }
-  
-  const languageEnforcement = "Please use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, review replies, etc). 常に日本語で返答し、GitHub上の操作もすべて日本語で行ってください。";
-  
-  return `${finalPrompt}\n\n${languageEnforcement}`;
+  const basePrompt = customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
+  return `${basePrompt}\n\nImportant Instruction: Always use Japanese for all GitHub interactions, including Pull Request titles, Pull Request descriptions, commit messages, and review replies.`;
 }
 
 /**
@@ -588,7 +583,7 @@ function resolveSessionId(
 function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) { return []; }
+  if (!sessionOrState.outputs) return [];
   const allPrs = sessionOrState.outputs
     .map((o) => o.pullRequest)
     .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
@@ -663,7 +658,7 @@ async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) { return; }
+  if (!prs || prs.length === 0) return;
 
   if (prs.length === 1) {
     const pr = prs[0];
@@ -1480,12 +1475,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     const selectedSession = sessions.find(
       (session) => session.name === this.lastSelectedSessionId,
     );
-    if (!selectedSession) {
+    if (!selectedSession || !isSessionActive(selectedSession)) {
       this.progressStatusBarItem?.hide();
       return;
     }
-
-    const isActive = isSessionActive(selectedSession);
 
     try {
       const sessionId = selectedSession.name;
@@ -1495,14 +1488,13 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       const lastUpdateTime = this.lastSessionUpdateTime.get(sessionId);
 
       let activities = cachedActivities;
-      let didFetch = false;
 
-      if (updateTime !== lastUpdateTime || updateTime === undefined || activities.length === 0) {
+      if (updateTime !== lastUpdateTime || activities.length === 0) {
         const newActivities = await fetchSessionActivitiesPaginated(
           apiKey,
           sessionId,
           {
-            showPaginationProgress: isActive,
+            showPaginationProgress: false,
           },
         );
         activities = mergeActivitiesByIdentity(
@@ -1510,7 +1502,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
           newActivities,
         );
         addToActivitiesCache(sessionId, activities);
-        didFetch = true;
 
         const latestCreateTime = getLatestActivityCreateTime(activities);
         if (latestCreateTime) {
@@ -1525,20 +1516,13 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         }
       }
 
-      if (didFetch) {
-        this._onDidFetchActivities.fire({
-          sessionId,
-          activities,
-          rawState: selectedSession.rawState,
-          title: selectedSession.title,
-          createTime: selectedSession.createTime,
-        });
-      }
-
-      if (!isActive) {
-        this.progressStatusBarItem?.hide();
-        return;
-      }
+      this._onDidFetchActivities.fire({
+        sessionId,
+        activities,
+        rawState: selectedSession.rawState,
+        title: selectedSession.title,
+        createTime: selectedSession.createTime,
+      });
 
       if (this.progressStatusBarItem) {
         let latestProgress: Activity | undefined;
@@ -1920,7 +1904,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
   public removeSession(sessionId: string): void {
     this.sessionsCache = this.sessionsCache.filter((s) => s.name !== sessionId);
-    this.lastSessionUpdateTime.delete(sessionId);
     this._onDidChangeTreeData.fire();
   }
 
@@ -2428,9 +2411,9 @@ export function activate(context: vscode.ExtensionContext) {
         e.activities,
         e.rawState,
         e.title,
-        e.createTime,
+        e.createTime
       );
-    }),
+    })
   );
 
   const activitiesProvider = new JulesActivitiesDocumentProvider();

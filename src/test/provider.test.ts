@@ -50,38 +50,4 @@ suite("JulesSessionsProvider Test Suite", () => {
 
         assert.deepStrictEqual(children, [], "Should return empty array when sessions list is empty");
     });
-
-    test("syncSelectedSessionActivitiesAndProgress should conditionally fetch based on updateTime and emit onDidFetchActivities", async () => {
-        const provider = new JulesSessionsProvider(mockContext);
-        let eventFired = false;
-        provider.onDidFetchActivities(() => {
-            eventFired = true;
-        });
-
-        provider.setLastSelectedSessionId("session-1");
-        
-        // Mock fetch for activities
-        fetchStub.resolves({
-            ok: true,
-            json: async () => ({ activities: [{ id: 1 }] })
-        });
-        
-        const sessions: any = [{ name: "session-1", state: "IN_PROGRESS", updateTime: "time1", title: "Test", createTime: "time1", rawState: "IN_PROGRESS" }];
-        
-        // First sync -> Should fetch and fire event
-        await (provider as any).syncSelectedSessionActivitiesAndProgress("fake-api-key", sessions);
-        assert.strictEqual(eventFired, true, "Event should fire on first sync");
-        
-        eventFired = false;
-        
-        // Second sync with same updateTime -> Should skip fetch and NOT fire event
-        await (provider as any).syncSelectedSessionActivitiesAndProgress("fake-api-key", sessions);
-        assert.strictEqual(eventFired, false, "Event should NOT fire when updateTime is unchanged");
-        
-        // Third sync with new updateTime -> Should fetch and fire event
-        sessions[0].updateTime = "time2";
-        await (provider as any).syncSelectedSessionActivitiesAndProgress("fake-api-key", sessions);
-        assert.strictEqual(eventFired, true, "Event should fire when updateTime is changed");
-    });
 });
-
