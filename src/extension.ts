@@ -1408,6 +1408,9 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     dispose: () => {},
   };
 
+    private _onDidFetchActivities = new vscode.EventEmitter<{ sessionId: string, activities: Activity[] }>();
+  public readonly onDidFetchActivities = this._onDidFetchActivities.event;
+
   private _onDidChangeTreeData: vscode.EventEmitter<
     vscode.TreeItem | undefined | null | void
   > = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
@@ -1447,6 +1450,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     this.progressStatusBarItem = item;
   }
 
+  getSession(sessionId: string): Session | undefined {
+    return this.sessionsCache.find(s => s.name === sessionId);
+  }
+
   private async updateProgressStatusBarForSelectedSession(
     apiKey: string,
     sessions: Session[],
@@ -1481,6 +1488,8 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         newActivities,
       );
       addToActivitiesCache(sessionId, activities);
+
+      this._onDidFetchActivities.fire({ sessionId, activities });
 
       const latestCreateTime = getLatestActivityCreateTime(activities);
       if (latestCreateTime) {
@@ -1811,9 +1820,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
     let hasChanges = false;
 
-    // Run fetches in parallel
-    const results = await Promise.allSettled(
-      targetSessions.map(async (session) => {
+    // Run fetches with a concurrency limit to avoid flooding the event loop
+    // Since this is a background task, bounded concurrency is preferred over speed.
+    const CONCURRENCY_LIMIT = 2;
+    const results = await mapLimit<
+      Session,
+      PromiseSettledResult<boolean>
+    >(targetSessions, CONCURRENCY_LIMIT, async (session) => {
+      try {
         const before = getCachedSessionArtifacts(session.name);
         await fetchLatestSessionArtifacts(
           apiKey,
@@ -1829,9 +1843,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         const hadChangeset = !!before?.latestChangeSet;
         const hasChangeset = !!after?.latestChangeSet;
 
-        return hadDiff !== hasDiff || hadChangeset !== hasChangeset;
-      }),
-    );
+        return {
+          status: "fulfilled",
+          value: hadDiff !== hasDiff || hadChangeset !== hasChangeset,
+        };
+      } catch (error) {
+        return { status: "rejected", reason: error };
+      }
+    });
 
     // Log rejected promises for debugging and monitoring
     results.forEach((result, index) => {
@@ -2349,6 +2368,23 @@ export function activate(context: vscode.ExtensionContext) {
     "julesChatView",
     chatViewProvider,
     { webviewOptions: { retainContextWhenHidden: true } },
+  );
+
+  context.subscriptions.push(
+    sessionsProvider.onDidFetchActivities(({ sessionId, activities }) => {
+      const currentSessionId = context.globalState.get<string>("active-session-id");
+      if (sessionId === currentSessionId) {
+        // Find session from cache
+        const session = sessionsProvider.getSession(sessionId);
+        chatViewProvider.updateSession(
+          sessionId,
+          activities,
+          session?.rawState,
+          session?.title,
+          session?.createTime
+        );
+      }
+    })
   );
 
   // ステータスバーアイテム作成
