@@ -577,7 +577,7 @@ function resolveSessionId(
 function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) return [];
+  if (!sessionOrState.outputs) {return [];}
   const allPrs = sessionOrState.outputs
     .map((o) => o.pullRequest)
     .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
@@ -652,7 +652,7 @@ async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) return;
+  if (!prs || prs.length === 0) {return;}
 
   if (prs.length === 1) {
     const pr = prs[0];
@@ -906,13 +906,21 @@ export async function updatePreviousStates(
       const prs = extractPRs(session);
       // The check is redundant because `sessionsToCheck` is already filtered.
       // At least one PR is guaranteed here.
-      const isClosed =
-        prs.length > 0 &&
-        (
+      let isClosed = false;
+      if (prs.length > 0) {
+        try {
+          // Short-circuit: if any PR is open (checkPRStatus returns false), throw to abort Promise.all early
           await Promise.all(
-            prs.map((pr) => checkPRStatus(pr.url, context, token)),
-          )
-        ).every((closed) => closed);
+            prs.map(async (pr) => {
+              const closed = await checkPRStatus(pr.url, context, token);
+              if (!closed) {throw new Error("open");}
+            }),
+          );
+          isClosed = true;
+        } catch {
+          isClosed = false;
+        }
+      }
       prStatusMap.set(session.name, isClosed);
     });
   }
@@ -1408,7 +1416,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     dispose: () => {},
   };
 
-    private _onDidFetchActivities = new vscode.EventEmitter<{ sessionId: string, activities: Activity[] }>();
+  private _onDidFetchActivities = new vscode.EventEmitter<{
+    sessionId: string;
+    activities: Activity[];
+  }>();
   public readonly onDidFetchActivities = this._onDidFetchActivities.event;
 
   private _onDidChangeTreeData: vscode.EventEmitter<
@@ -1451,7 +1462,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   }
 
   getSession(sessionId: string): Session | undefined {
-    return this.sessionsCache.find(s => s.name === sessionId);
+    return this.sessionsCache.find((s) => s.name === sessionId);
   }
 
   private async updateProgressStatusBarForSelectedSession(
@@ -2362,7 +2373,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     sessionsProvider.onDidFetchActivities(({ sessionId, activities }) => {
-      const currentSessionId = context.globalState.get<string>("active-session-id");
+      const currentSessionId =
+        context.globalState.get<string>("active-session-id");
       if (sessionId === currentSessionId) {
         // Find session from cache
         const session = sessionsProvider.getSession(sessionId);
@@ -2371,10 +2383,10 @@ export function activate(context: vscode.ExtensionContext) {
           activities,
           session?.rawState,
           session?.title,
-          session?.createTime
+          session?.createTime,
         );
       }
-    })
+    }),
   );
 
   // ステータスバーアイテム作成
@@ -3339,7 +3351,10 @@ export function activate(context: vscode.ExtensionContext) {
     async (item?: SessionTreeItem | string) => {
       const sessionId = resolveSessionId(context, item);
       if (sessionId) {
-        await vscode.commands.executeCommand("jules-extension.showActivities", sessionId);
+        await vscode.commands.executeCommand(
+          "jules-extension.showActivities",
+          sessionId,
+        );
       }
       vscode.commands.executeCommand("julesChatView.focus");
     },
