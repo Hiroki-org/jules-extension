@@ -2260,6 +2260,165 @@ function updateStatusBar(
   }
 }
 
+export async function handleListSources(
+  context: vscode.ExtensionContext,
+  sessionsProvider: JulesSessionsProvider,
+  statusBarItem: vscode.StatusBarItem,
+  filter?: string,
+) {
+  const apiKey = await getStoredApiKey(context);
+  if (!apiKey) {
+    return;
+  }
+
+  isFetchingSensitiveData = true;
+  resetAutoRefresh(context, sessionsProvider);
+
+  try {
+    const cacheKey = "jules.sources";
+    const cached = context.globalState.get<SourcesCache>(cacheKey);
+    let sources: SourceType[];
+
+    if (cached && isCacheValid(cached.timestamp)) {
+      logChannel.appendLine("Using cached sources");
+      sources = cached.sources;
+    } else {
+      const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+      sources = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Fetching sources...",
+          cancellable: false,
+        },
+        async () => {
+          const data = await apiClient.listAllSources({ filter });
+          await context.globalState.update(cacheKey, {
+            sources: data,
+            timestamp: Date.now(),
+          });
+          logChannel.appendLine(`Fetched ${data.length} sources`);
+          return data;
+        },
+      );
+    }
+
+    if (!sources || sources.length === 0) {
+      vscode.window.showWarningMessage(
+        "No Jules-connected repositories were found.",
+      );
+      return;
+    }
+
+    const items: SourceQuickPickItem[] = sources.map((source) => {
+      const repoName = getSourceDisplayName(source);
+      const isPrivate = getSourceIsPrivate(source);
+
+      return {
+        label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
+        description: getSourceDescription(source),
+        detail: source.description || "",
+        source: source,
+      };
+    });
+
+    // Add "All repositories" option
+    const allRepoItem: SourceQuickPickItem = {
+      label: "All repositories",
+      description: "Show sessions from all sources",
+      source: {
+        id: ALL_SOURCES_ID,
+        name: "All repositories",
+      } as SourceType,
+    };
+    items.unshift(allRepoItem);
+
+    const selected: SourceQuickPickItem | undefined =
+      await vscode.window.showQuickPick(items, {
+        placeHolder: "Select a Jules Source",
+      });
+    if (selected) {
+      await context.globalState.update("selected-source", selected.source);
+      vscode.commands.executeCommand(
+        "setContext",
+        "jules-extension.hasSelectedSource",
+        true,
+      );
+      vscode.window.showInformationMessage(
+        `Selected source: ${selected.label}`,
+      );
+      updateStatusBar(context, statusBarItem);
+      sessionsProvider.refresh();
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error occurred.";
+    logChannel.appendLine(`Failed to list sources: ${message}`);
+
+    const cacheKey = "jules.sources";
+    const cached = context.globalState.get<SourcesCache>(cacheKey);
+    if (cached?.sources?.length) {
+      const useCached = await vscode.window.showWarningMessage(
+        `Failed to fetch latest sources: ${message}`,
+        "Use Cached Sources",
+        "Cancel",
+      );
+
+      if (useCached === "Use Cached Sources") {
+        const items: SourceQuickPickItem[] = cached.sources.map(
+          (source) => {
+            const repoName = getSourceDisplayName(source);
+            const isPrivate = getSourceIsPrivate(source);
+            return {
+              label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
+              description: getSourceDescription(source),
+              detail: source.description || "",
+              source,
+            };
+          },
+        );
+
+        const allRepoItem: SourceQuickPickItem = {
+          label: "All repositories",
+          description: "Show sessions from all sources",
+          source: {
+            id: ALL_SOURCES_ID,
+            name: "All repositories",
+          } as SourceType,
+        };
+        items.unshift(allRepoItem);
+
+        const selected: SourceQuickPickItem | undefined =
+          await vscode.window.showQuickPick(items, {
+            placeHolder: "Select a Jules Source (cached)",
+          });
+        if (selected) {
+          await context.globalState.update(
+            "selected-source",
+            selected.source,
+          );
+          vscode.commands.executeCommand(
+            "setContext",
+            "jules-extension.hasSelectedSource",
+            true,
+          );
+          vscode.window.showInformationMessage(
+            `Selected source (cached): ${selected.label}`,
+          );
+          updateStatusBar(context, statusBarItem);
+          sessionsProvider.refresh();
+        }
+        return;
+      }
+    }
+
+    vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
+  } finally {
+    isFetchingSensitiveData = false;
+    resetAutoRefresh(context, sessionsProvider);
+  }
+}
+
+
 export async function handleOpenInWebApp(
   item: SessionTreeItem | undefined,
   logChannel: vscode.OutputChannel,
@@ -2525,156 +2684,7 @@ export function activate(context: vscode.ExtensionContext) {
   const listSourcesDisposable = vscode.commands.registerCommand(
     "jules-extension.listSources",
     async (filter?: string) => {
-      const apiKey = await getStoredApiKey(context);
-      if (!apiKey) {
-        return;
-      }
-
-      isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
-
-      try {
-        const cacheKey = "jules.sources";
-        const cached = context.globalState.get<SourcesCache>(cacheKey);
-        let sources: SourceType[];
-
-        if (cached && isCacheValid(cached.timestamp)) {
-          logChannel.appendLine("Using cached sources");
-          sources = cached.sources;
-        } else {
-          const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
-          sources = await vscode.window.withProgress(
-            {
-              location: vscode.ProgressLocation.Notification,
-              title: "Fetching sources...",
-              cancellable: false,
-            },
-            async () => {
-              const data = await apiClient.listAllSources({ filter });
-              await context.globalState.update(cacheKey, {
-                sources: data,
-                timestamp: Date.now(),
-              });
-              logChannel.appendLine(`Fetched ${data.length} sources`);
-              return data;
-            },
-          );
-        }
-
-        if (!sources || sources.length === 0) {
-          vscode.window.showWarningMessage(
-            "No Jules-connected repositories were found.",
-          );
-          return;
-        }
-
-        const items: SourceQuickPickItem[] = sources.map((source) => {
-          const repoName = getSourceDisplayName(source);
-          const isPrivate = getSourceIsPrivate(source);
-
-          return {
-            label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
-            description: getSourceDescription(source),
-            detail: source.description || "",
-            source: source,
-          };
-        });
-
-        // Add "All repositories" option
-        const allRepoItem: SourceQuickPickItem = {
-          label: "All repositories",
-          description: "Show sessions from all sources",
-          source: {
-            id: ALL_SOURCES_ID,
-            name: "All repositories",
-          } as SourceType,
-        };
-        items.unshift(allRepoItem);
-
-        const selected: SourceQuickPickItem | undefined =
-          await vscode.window.showQuickPick(items, {
-            placeHolder: "Select a Jules Source",
-          });
-        if (selected) {
-          await context.globalState.update("selected-source", selected.source);
-          vscode.commands.executeCommand(
-            "setContext",
-            "jules-extension.hasSelectedSource",
-            true,
-          );
-          vscode.window.showInformationMessage(
-            `Selected source: ${selected.label}`,
-          );
-          updateStatusBar(context, statusBarItem);
-          sessionsProvider.refresh();
-        }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error occurred.";
-        logChannel.appendLine(`Failed to list sources: ${message}`);
-
-        const cacheKey = "jules.sources";
-        const cached = context.globalState.get<SourcesCache>(cacheKey);
-        if (cached?.sources?.length) {
-          const useCached = await vscode.window.showWarningMessage(
-            `Failed to fetch latest sources: ${message}`,
-            "Use Cached Sources",
-            "Cancel",
-          );
-
-          if (useCached === "Use Cached Sources") {
-            const items: SourceQuickPickItem[] = cached.sources.map(
-              (source) => {
-                const repoName = getSourceDisplayName(source);
-                const isPrivate = getSourceIsPrivate(source);
-                return {
-                  label: isPrivate === true ? `$(lock) ${repoName}` : repoName,
-                  description: getSourceDescription(source),
-                  detail: source.description || "",
-                  source,
-                };
-              },
-            );
-
-            const allRepoItem: SourceQuickPickItem = {
-              label: "All repositories",
-              description: "Show sessions from all sources",
-              source: {
-                id: ALL_SOURCES_ID,
-                name: "All repositories",
-              } as SourceType,
-            };
-            items.unshift(allRepoItem);
-
-            const selected: SourceQuickPickItem | undefined =
-              await vscode.window.showQuickPick(items, {
-                placeHolder: "Select a Jules Source (cached)",
-              });
-            if (selected) {
-              await context.globalState.update(
-                "selected-source",
-                selected.source,
-              );
-              vscode.commands.executeCommand(
-                "setContext",
-                "jules-extension.hasSelectedSource",
-                true,
-              );
-              vscode.window.showInformationMessage(
-                `Selected source (cached): ${selected.label}`,
-              );
-              updateStatusBar(context, statusBarItem);
-              sessionsProvider.refresh();
-            }
-            return;
-          }
-        }
-
-        vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
-      } finally {
-        isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
-      }
+      await handleListSources(context, sessionsProvider, statusBarItem, filter);
     },
   );
 

@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 import type { Session } from "./types";
 import { GitHubAuth } from "./githubAuth";
 import { getPullRequestBranchInfo, type PullRequestBranchInfo } from "./githubUtils";
@@ -29,6 +33,29 @@ export function getBranchNameForSession(session: Session): string | null {
     }
 }
 
+async function getValidRepository(log: (msg: string) => void): Promise<any | null> {
+    const gitExtension = vscode.extensions.getExtension("vscode.git");
+    if (!gitExtension) {
+        vscode.window.showErrorMessage("Git extension is not available. Please ensure Git is installed.");
+        return null;
+    }
+
+    await gitExtension.activate();
+    const git = gitExtension.exports.getAPI(1);
+    if (!git) {
+        vscode.window.showErrorMessage("Failed to access Git API.");
+        return null;
+    }
+
+    const repositories = git.repositories;
+    if (!repositories || repositories.length === 0) {
+        vscode.window.showErrorMessage("No Git repository found in the workspace.");
+        return null;
+    }
+
+    return await selectRepository(repositories, log);
+}
+
 /**
  * Checkout to a specified branch using VS Code's Git extension.
  * Handles various error cases including missing Git extension, uncommitted changes, etc.
@@ -47,36 +74,7 @@ export async function checkoutToBranch(
     };
 
     try {
-        // Get Git extension
-        const gitExtension = vscode.extensions.getExtension("vscode.git");
-        if (!gitExtension) {
-            vscode.window.showErrorMessage(
-                "Git extension is not available. Please ensure Git is installed."
-            );
-            return false;
-        }
-
-        // Ensure Git extension is activated before accessing API
-        await gitExtension.activate();
-        const git = gitExtension.exports.getAPI(1);
-        if (!git) {
-            vscode.window.showErrorMessage(
-                "Failed to access Git API."
-            );
-            return false;
-        }
-
-        // Get repository
-        const repositories = git.repositories;
-        if (!repositories || repositories.length === 0) {
-            vscode.window.showErrorMessage(
-                "No Git repository found in the workspace."
-            );
-            return false;
-        }
-
-        // Select repository helper
-        const repository = await selectRepository(repositories, log);
+        const repository = await getValidRepository(log);
         if (!repository) {
             return false;
         }
@@ -121,34 +119,7 @@ export async function checkoutToBranchForSession(
     };
 
     try {
-        // Get Git extension
-        const gitExtension = vscode.extensions.getExtension("vscode.git");
-        if (!gitExtension) {
-            vscode.window.showErrorMessage(
-                "Git extension is not available. Please ensure Git is installed."
-            );
-            return false;
-        }
-
-        await gitExtension.activate();
-        const git = gitExtension.exports.getAPI(1);
-        if (!git) {
-            vscode.window.showErrorMessage(
-                "Failed to access Git API."
-            );
-            return false;
-        }
-
-        const repositories = git.repositories;
-        if (!repositories || repositories.length === 0) {
-            vscode.window.showErrorMessage(
-                "No Git repository found in the workspace."
-            );
-            return false;
-        }
-
-        // Select repository
-        const repository = await selectRepository(repositories, log);
+        const repository = await getValidRepository(log);
         if (!repository) {
             return false;
         }
@@ -287,6 +258,52 @@ async function performCheckout(
     branchName: string,
     log: (msg: string) => void
 ): Promise<boolean> {
+    let branchExistsLocally = false;
+    try {
+        const repoPath = repository.rootUri.fsPath;
+        // Use plumbing command to check if the branch exists locally without relying on fragile string matching
+        await execFileAsync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], { cwd: repoPath });
+        branchExistsLocally = true;
+    } catch {
+        branchExistsLocally = false;
+    }
+
+    if (!branchExistsLocally) {
+        log(`Branch "${branchName}" not found locally, attempting to fetch from remote...`);
+
+        const fetchAndCheckout = await vscode.window.showInformationMessage(
+            `Branch "${branchName}" not found locally. Fetch from remote?`,
+            "Fetch & Checkout",
+            "Cancel"
+        );
+
+        if (fetchAndCheckout !== "Fetch & Checkout") {
+            return false;
+        }
+
+        try {
+            // Fetch all remotes
+            await repository.fetch();
+            log("Fetched from remotes successfully");
+
+            // Try checkout again (Git should now see the remote branch)
+            await repository.checkout(branchName);
+            log(`Successfully checked out to branch: ${branchName}`);
+            vscode.window.showInformationMessage(
+                `Checked out to branch: ${branchName}`
+            );
+            return true;
+        } catch (fetchError: any) {
+            const fetchMsg = fetchError?.message || String(fetchError);
+            log(`Failed to fetch and checkout: ${fetchMsg}`);
+            vscode.window.showErrorMessage(
+                `Failed to checkout branch "${branchName}": ${fetchMsg}`
+            );
+            return false;
+        }
+    }
+
+    // Branch exists locally, proceed with checkout
     try {
         await repository.checkout(branchName);
         log(`Successfully checked out to branch: ${branchName}`);
@@ -296,46 +313,6 @@ async function performCheckout(
         return true;
     } catch (checkoutError: any) {
         const errorMsg = checkoutError?.message || String(checkoutError);
-
-        // If branch not found locally, try to fetch and checkout from remote
-        // Note: These error message checks depend on Git CLI's output strings,
-        // which may change in future Git versions or vary by locale.
-        if (errorMsg.includes("did not match") || errorMsg.includes("not found") || errorMsg.includes("pathspec")) {
-            log(`Branch "${branchName}" not found locally, attempting to fetch from remote...`);
-
-            const fetchAndCheckout = await vscode.window.showInformationMessage(
-                `Branch "${branchName}" not found locally. Fetch from remote?`,
-                "Fetch & Checkout",
-                "Cancel"
-            );
-
-            if (fetchAndCheckout !== "Fetch & Checkout") {
-                return false;
-            }
-
-            try {
-                // Fetch all remotes
-                await repository.fetch();
-                log("Fetched from remotes successfully");
-
-                // Try checkout again (Git should now see the remote branch)
-                await repository.checkout(branchName);
-                log(`Successfully checked out to branch: ${branchName}`);
-                vscode.window.showInformationMessage(
-                    `Checked out to branch: ${branchName}`
-                );
-                return true;
-            } catch (fetchError: any) {
-                const fetchMsg = fetchError?.message || String(fetchError);
-                log(`Failed to fetch and checkout: ${fetchMsg}`);
-                vscode.window.showErrorMessage(
-                    `Failed to checkout branch "${branchName}": ${fetchMsg}`
-                );
-                return false;
-            }
-        }
-
-        // Other checkout errors
         log(`Checkout failed: ${errorMsg}`);
         vscode.window.showErrorMessage(
             `Failed to checkout branch "${branchName}": ${errorMsg}`

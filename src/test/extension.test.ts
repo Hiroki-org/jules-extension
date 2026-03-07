@@ -19,7 +19,7 @@ import {
   Session,
   SessionOutput,
   handleOpenInWebApp
-} from "../extension";
+, handleListSources} from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
@@ -417,7 +417,7 @@ suite("Extension Test Suite", () => {
 
   suite("PR Status Check Feature", () => {
     test("PR URL extraction works correctly", () => {
-      const session = {
+      const session: Session = {
         name: "sessions/123",
         title: "Test Session",
         state: "COMPLETED" as const,
@@ -433,8 +433,6 @@ suite("Extension Test Suite", () => {
         ],
       };
 
-      // This would need to be exported from extension.ts for proper testing
-      // For now, we're just verifying the structure is correct
       assert.ok(session.outputs);
       assert.ok(session.outputs[0].pullRequest);
       assert.strictEqual(
@@ -444,7 +442,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("Session without PR has no PR URL", () => {
-      const session = {
+      const session: Session = {
         name: "sessions/456",
         title: "Test Session",
         state: "RUNNING" as const,
@@ -471,7 +469,7 @@ suite("Extension Test Suite", () => {
       const localSandbox = sinon.createSandbox();
 
       const getStub = localSandbox.stub().callsFake((key: string, def?: any) => {
-        if (key === 'jules.prStatusCache') return prCache;
+        if (key === 'jules.prStatusCache') {return prCache;}
         return def;
       });
 
@@ -557,11 +555,38 @@ suite("Extension Test Suite", () => {
       const cacheData = { sources: cachedSources, timestamp: Date.now() };
       (mockContext.globalState.get as sinon.SinonStub).returns(cacheData);
 
-      // キャッシュが有効な場合、fetchが呼ばれないことを確認
-      // 注：この部分は実際のlistSourcesコマンドの呼び出しが必要
-      // 現在はキャッシュデータ構造の検証のみ
-      assert.deepStrictEqual(cacheData.sources, cachedSources);
-      assert.ok(Date.now() - cacheData.timestamp < 5 * 60 * 1000); // 5分以内
+      (mockContext as any).secrets = {
+        get: sandbox.stub().resolves("fake-api-key"),
+        store: sandbox.stub().resolves(),
+        delete: sandbox.stub().resolves(),
+        onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
+      };
+
+      const mockSessionsProvider = {
+        refresh: sandbox.stub()
+      } as any;
+
+      const mockStatusBarItem = {
+        text: '',
+        tooltip: '',
+        show: sandbox.stub(),
+        hide: sandbox.stub()
+      } as any;
+
+      const showQuickPickStub = sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
+
+      await handleListSources(mockContext, mockSessionsProvider, mockStatusBarItem);
+
+      // Verify that fetch was NOT called since cache is valid
+      assert.strictEqual(fetchStub.callCount, 0, "Fetch should not be called when valid cache exists");
+
+      // Verify showQuickPick was called with the cached items
+      assert.strictEqual(showQuickPickStub.callCount, 1);
+      const items = showQuickPickStub.getCall(0).args[0] as vscode.QuickPickItem[];
+
+      // Quick pick items include the "All repositories" option + cached sources
+      assert.strictEqual(items.length, 2);
+      assert.strictEqual(items[1].label, "Source 1");
     });
 
     test("clearCache should clear all branch caches", async () => {
@@ -837,7 +862,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should open URL if session has one", async () => {
-      const session = { url: "http://example.com" } as any;
+      const session: Session = { url: "http://example.com" } as any;
       const item = new SessionTreeItem(session);
       openExternalStub.resolves(true);
 
@@ -851,7 +876,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should show warning if session has no URL", async () => {
-      const session = {} as any;
+      const session: Session = {} as any;
       const item = new SessionTreeItem(session);
 
       await handleOpenInWebApp(item, logChannel);
@@ -868,7 +893,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should show warning and log if opening URL fails", async () => {
-      const session = { url: "http://fail-url.com" } as any;
+      const session: Session = { url: "http://fail-url.com" } as any;
       const item = new SessionTreeItem(session);
       openExternalStub.resolves(false);
 
