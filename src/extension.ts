@@ -3206,12 +3206,7 @@ export function activate(context: vscode.ExtensionContext) {
                     !baseKeys.has(key) &&
                     !unionKeys.has(key as ActivityUnionKey)
                   ) {
-                    const value = (
-                      activity as unknown as Record<string, unknown>
-                    )[key];
-                    if (value !== undefined && value !== null) {
-                      inferredKeys.push(key);
-                    }
+                    inferredKeys.push(key);
                   }
                 }
                 keySummary =
