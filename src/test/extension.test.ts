@@ -25,6 +25,16 @@ import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { activate } from "../extension";
 
+function createTestSession(overrides: Partial<Session> = {}): Session {
+  return {
+    name: "sessions/test",
+    title: "Test Session",
+    state: "RUNNING",
+    rawState: "RUNNING",
+    ...overrides
+  };
+}
+
 suite("Extension Test Suite", () => {
   vscode.window.showInformationMessage("Start all tests.");
 
@@ -862,7 +872,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should open URL if session has one", async () => {
-      const session: Session = { url: "http://example.com" } as any;
+      const session = createTestSession({ url: "http://example.com" });
       const item = new SessionTreeItem(session);
       openExternalStub.resolves(true);
 
@@ -876,7 +886,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should show warning if session has no URL", async () => {
-      const session: Session = {} as any;
+      const session = createTestSession();
       const item = new SessionTreeItem(session);
 
       await handleOpenInWebApp(item, logChannel);
@@ -893,7 +903,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should show warning and log if opening URL fails", async () => {
-      const session: Session = { url: "http://fail-url.com" } as any;
+      const session = createTestSession({ url: "http://fail-url.com" });
       const item = new SessionTreeItem(session);
       openExternalStub.resolves(false);
 
