@@ -19,7 +19,7 @@ import {
   Session,
   SessionOutput,
   handleOpenInWebApp
-} from "../extension";
+, handleListSources} from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
@@ -557,11 +557,38 @@ suite("Extension Test Suite", () => {
       const cacheData = { sources: cachedSources, timestamp: Date.now() };
       (mockContext.globalState.get as sinon.SinonStub).returns(cacheData);
 
-      // キャッシュが有効な場合、fetchが呼ばれないことを確認
-      // 注：この部分は実際のlistSourcesコマンドの呼び出しが必要
-      // 現在はキャッシュデータ構造の検証のみ
-      assert.deepStrictEqual(cacheData.sources, cachedSources);
-      assert.ok(Date.now() - cacheData.timestamp < 5 * 60 * 1000); // 5分以内
+      (mockContext as any).secrets = {
+        get: sandbox.stub().resolves("fake-api-key"),
+        store: sandbox.stub().resolves(),
+        delete: sandbox.stub().resolves(),
+        onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
+      };
+
+      const mockSessionsProvider = {
+        refresh: sandbox.stub()
+      } as any;
+
+      const mockStatusBarItem = {
+        text: '',
+        tooltip: '',
+        show: sandbox.stub(),
+        hide: sandbox.stub()
+      } as any;
+
+      const showQuickPickStub = sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
+
+      await handleListSources(mockContext, mockSessionsProvider, mockStatusBarItem);
+
+      // Verify that fetch was NOT called since cache is valid
+      assert.strictEqual(fetchStub.callCount, 0, "Fetch should not be called when valid cache exists");
+
+      // Verify showQuickPick was called with the cached items
+      assert.strictEqual(showQuickPickStub.callCount, 1);
+      const items = showQuickPickStub.getCall(0).args[0] as vscode.QuickPickItem[];
+
+      // Quick pick items include the "All repositories" option + cached sources
+      assert.strictEqual(items.length, 2);
+      assert.strictEqual(items[1].label, "Source 1");
     });
 
     test("clearCache should clear all branch caches", async () => {
