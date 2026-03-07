@@ -417,7 +417,7 @@ suite("Extension Test Suite", () => {
 
   suite("PR Status Check Feature", () => {
     test("PR URL extraction works correctly", () => {
-      const session = {
+      const session: Session = {
         name: "sessions/123",
         title: "Test Session",
         state: "COMPLETED" as const,
@@ -433,8 +433,6 @@ suite("Extension Test Suite", () => {
         ],
       };
 
-      // This would need to be exported from extension.ts for proper testing
-      // For now, we're just verifying the structure is correct
       assert.ok(session.outputs);
       assert.ok(session.outputs[0].pullRequest);
       assert.strictEqual(
@@ -444,7 +442,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("Session without PR has no PR URL", () => {
-      const session = {
+      const session: Session = {
         name: "sessions/456",
         title: "Test Session",
         state: "RUNNING" as const,
@@ -837,7 +835,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should open URL if session has one", async () => {
-      const session = { url: "http://example.com" } as any;
+      const session: Session = { url: "http://example.com" } as any;
       const item = new SessionTreeItem(session);
       openExternalStub.resolves(true);
 
@@ -851,7 +849,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should show warning if session has no URL", async () => {
-      const session = {} as any;
+      const session: Session = {} as any;
       const item = new SessionTreeItem(session);
 
       await handleOpenInWebApp(item, logChannel);
@@ -868,7 +866,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should show warning and log if opening URL fails", async () => {
-      const session = { url: "http://fail-url.com" } as any;
+      const session: Session = { url: "http://fail-url.com" } as any;
       const item = new SessionTreeItem(session);
       openExternalStub.resolves(false);
 
