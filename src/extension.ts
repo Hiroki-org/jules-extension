@@ -908,22 +908,18 @@ export async function updatePreviousStates(
     // This prevents rate limiting issues when checking many sessions at once.
     await mapLimit(sessionsToCheck, 5, async (session) => {
       const prs = extractPRs(session);
-      // The check is redundant because `sessionsToCheck` is already filtered.
-      // At least one PR is guaranteed here.
       let isClosed = false;
-      if (prs.length > 0) {
-        try {
-          // Short-circuit: if any PR is open (checkPRStatus returns false), throw to abort Promise.all early
-          await Promise.all(
-            prs.map(async (pr) => {
-              const closed = await checkPRStatus(pr.url, context, token);
-              if (!closed) {throw new Error("open");}
-            }),
-          );
-          isClosed = true;
-        } catch {
-          isClosed = false;
-        }
+      try {
+        // Short-circuit: if any PR is open (checkPRStatus returns false), throw to abort Promise.all early
+        await Promise.all(
+          prs.map(async (pr) => {
+            const closed = await checkPRStatus(pr.url, context, token);
+            if (!closed) {throw new Error("open");}
+          }),
+        );
+        isClosed = true;
+      } catch {
+        isClosed = false;
       }
       prStatusMap.set(session.name, isClosed);
     });
