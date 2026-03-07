@@ -1820,9 +1820,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
     let hasChanges = false;
 
-    // Run fetches in parallel
-    const results = await Promise.allSettled(
-      targetSessions.map(async (session) => {
+    // Run fetches with a concurrency limit to avoid flooding the event loop
+    // Since this is a background task, bounded concurrency is preferred over speed.
+    const CONCURRENCY_LIMIT = 2;
+    const results = await mapLimit<
+      Session,
+      PromiseSettledResult<boolean>
+    >(targetSessions, CONCURRENCY_LIMIT, async (session) => {
+      try {
         const before = getCachedSessionArtifacts(session.name);
         await fetchLatestSessionArtifacts(
           apiKey,
@@ -1838,9 +1843,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         const hadChangeset = !!before?.latestChangeSet;
         const hasChangeset = !!after?.latestChangeSet;
 
-        return hadDiff !== hasDiff || hadChangeset !== hasChangeset;
-      }),
-    );
+        return {
+          status: "fulfilled",
+          value: hadDiff !== hasDiff || hadChangeset !== hasChangeset,
+        };
+      } catch (error) {
+        return { status: "rejected", reason: error };
+      }
+    });
 
     // Log rejected promises for debugging and monitoring
     results.forEach((result, index) => {
