@@ -33,6 +33,29 @@ export function getBranchNameForSession(session: Session): string | null {
     }
 }
 
+async function getValidRepository(log: (msg: string) => void): Promise<any | null> {
+    const gitExtension = vscode.extensions.getExtension("vscode.git");
+    if (!gitExtension) {
+        vscode.window.showErrorMessage("Git extension is not available. Please ensure Git is installed.");
+        return null;
+    }
+
+    await gitExtension.activate();
+    const git = gitExtension.exports.getAPI(1);
+    if (!git) {
+        vscode.window.showErrorMessage("Failed to access Git API.");
+        return null;
+    }
+
+    const repositories = git.repositories;
+    if (!repositories || repositories.length === 0) {
+        vscode.window.showErrorMessage("No Git repository found in the workspace.");
+        return null;
+    }
+
+    return await selectRepository(repositories, log);
+}
+
 /**
  * Checkout to a specified branch using VS Code's Git extension.
  * Handles various error cases including missing Git extension, uncommitted changes, etc.
@@ -51,36 +74,7 @@ export async function checkoutToBranch(
     };
 
     try {
-        // Get Git extension
-        const gitExtension = vscode.extensions.getExtension("vscode.git");
-        if (!gitExtension) {
-            vscode.window.showErrorMessage(
-                "Git extension is not available. Please ensure Git is installed."
-            );
-            return false;
-        }
-
-        // Ensure Git extension is activated before accessing API
-        await gitExtension.activate();
-        const git = gitExtension.exports.getAPI(1);
-        if (!git) {
-            vscode.window.showErrorMessage(
-                "Failed to access Git API."
-            );
-            return false;
-        }
-
-        // Get repository
-        const repositories = git.repositories;
-        if (!repositories || repositories.length === 0) {
-            vscode.window.showErrorMessage(
-                "No Git repository found in the workspace."
-            );
-            return false;
-        }
-
-        // Select repository helper
-        const repository = await selectRepository(repositories, log);
+        const repository = await getValidRepository(log);
         if (!repository) {
             return false;
         }
@@ -125,34 +119,7 @@ export async function checkoutToBranchForSession(
     };
 
     try {
-        // Get Git extension
-        const gitExtension = vscode.extensions.getExtension("vscode.git");
-        if (!gitExtension) {
-            vscode.window.showErrorMessage(
-                "Git extension is not available. Please ensure Git is installed."
-            );
-            return false;
-        }
-
-        await gitExtension.activate();
-        const git = gitExtension.exports.getAPI(1);
-        if (!git) {
-            vscode.window.showErrorMessage(
-                "Failed to access Git API."
-            );
-            return false;
-        }
-
-        const repositories = git.repositories;
-        if (!repositories || repositories.length === 0) {
-            vscode.window.showErrorMessage(
-                "No Git repository found in the workspace."
-            );
-            return false;
-        }
-
-        // Select repository
-        const repository = await selectRepository(repositories, log);
+        const repository = await getValidRepository(log);
         if (!repository) {
             return false;
         }
