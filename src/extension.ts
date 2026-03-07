@@ -861,7 +861,11 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   }
 
   // Slow path: Check set equality ignoring order
-  const mapA = new Map(a.map((s) => [s.name, s]));
+  const mapA = new Map<string, Session>();
+  for (let i = 0; i < a.length; i += 1) {
+    const s = a[i];
+    mapA.set(s.name, s);
+  }
 
   for (const s2 of b) {
     const s1 = mapA.get(s2.name);
