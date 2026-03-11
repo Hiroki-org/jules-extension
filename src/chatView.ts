@@ -441,6 +441,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       padding: 2px 0;
       outline: none;
     }
+    .activity-details summary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
     .activity-details summary:hover {
       opacity: 1;
       text-decoration: underline;
@@ -478,10 +482,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <span class="typing-dot"></span>
   </div>
   <form id="composer">
-    <textarea id="messageInput" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
+    <textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" disabled>Send</button>
+      <button id="sendButton" type="submit" title="Send message" aria-label="Send message" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
@@ -606,7 +610,7 @@ function createMarkdownRenderer(): MarkdownIt {
     const rendered = defaultFence
       ? defaultFence(tokens, idx, options, env, self)
       : self.renderToken(tokens, idx, options);
-    return `<div class="code-block"><button class="copy-code-button" type="button">Copy</button>${rendered}</div>`;
+    return `<div class="code-block"><button class="copy-code-button" type="button" aria-label="Copy code" title="Copy code">Copy</button>${rendered}</div>`;
   };
 
   return markdown;
