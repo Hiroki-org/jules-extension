@@ -53,7 +53,7 @@ export function buildChatMessagesFromActivities(
     .getConfiguration("jules-extension")
     .get<string>("customPrompt", "");
 
-  const sortedActivities = [...activities].sort((a, b) => 
+  const sortedActivities = [...activities].sort((a, b) =>
     (a.createTime ?? "").localeCompare(b.createTime ?? "")
   );
 
@@ -167,7 +167,7 @@ export function buildChatMessagesFromActivities(
           let commandLine = outRec.commandLine;
           const commands = outRec.commands;
           if (commands && Array.isArray(commands) && commands.length > 0) {
-             commandLine = commands[0].commandLine;
+            commandLine = commands[0].commandLine;
           }
 
           if (commandLine || stdout || stderr) {
@@ -180,7 +180,7 @@ export function buildChatMessagesFromActivities(
 
     messages.push({
       id: activity.id ?? activity.name,
-      role: "assistant", 
+      role: "assistant",
       createTime: activity.createTime,
       html: `<div class="activity-log"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
     });
@@ -199,7 +199,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly onSendMessage: (sessionId: string, message: string) => Promise<void>,
-  ) {}
+  ) { }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
@@ -471,7 +471,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
 </head>
 <body>
   <div id="chat"></div>
-  <div id="typing" class="typing" aria-live="polite" aria-label="Jules is typing">
+  <div id="typing" class="typing" aria-live="polite" aria-label="Jules is working">
     <span>Jules is typing</span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
