@@ -1811,26 +1811,38 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
     let hasChanges = false;
 
-    // Run fetches in parallel
-    const results = await Promise.allSettled(
-      targetSessions.map(async (session) => {
-        const before = getCachedSessionArtifacts(session.name);
-        await fetchLatestSessionArtifacts(
-          apiKey,
-          session.name,
-          JULES_API_BASE_URL,
-          session.updateTime,
-        );
-        const after = getCachedSessionArtifacts(session.name);
+    // Run fetches in parallel with a concurrency limit to prevent rate limiting
+    const results = await mapLimit(
+      targetSessions,
+      3,
+      async (session): Promise<PromiseSettledResult<boolean>> => {
+        try {
+          const before = getCachedSessionArtifacts(session.name);
+          await fetchLatestSessionArtifacts(
+            apiKey,
+            session.name,
+            JULES_API_BASE_URL,
+            session.updateTime,
+          );
+          const after = getCachedSessionArtifacts(session.name);
 
-        // Check if availability of diff/changeset flipped
-        const hadDiff = !!before?.latestDiff;
-        const hasDiff = !!after?.latestDiff;
-        const hadChangeset = !!before?.latestChangeSet;
-        const hasChangeset = !!after?.latestChangeSet;
+          // Check if availability of diff/changeset flipped
+          const hadDiff = !!before?.latestDiff;
+          const hasDiff = !!after?.latestDiff;
+          const hadChangeset = !!before?.latestChangeSet;
+          const hasChangeset = !!after?.latestChangeSet;
 
-        return hadDiff !== hasDiff || hadChangeset !== hasChangeset;
-      }),
+          return {
+            status: "fulfilled",
+            value: hadDiff !== hasDiff || hadChangeset !== hasChangeset,
+          };
+        } catch (error) {
+          return {
+            status: "rejected",
+            reason: error,
+          };
+        }
+      },
     );
 
     // Log rejected promises for debugging and monitoring
