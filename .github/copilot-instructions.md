@@ -6,6 +6,7 @@
 
 ## レビュー対応 (ghコマンドを使用する場合)
 GitHub上のPull Requestのレビューコメント（Conversation）に対応する際は、`gh`コマンドを使用して以下の手順で対応し、必ずResolveしてください。
+> **ヒント**: ConversationのResolveには、`gh api` を使用してGraphQLの `resolveReviewThread` mutationを呼び出す必要がある場合があります。
 - **指摘を受け入れて対応した場合**: 「このcommitでこういうふうに対応しました」と返信して、ConversationをResolveしてください。
 - **指摘を無視（対応しない）場合**: 「こういう理由で今回は見送ります（無視します）」と理由を明記して返信し、ConversationをResolveしてください。
 - **確認事項**: 最終的に、未解決（`isResolved`が`false`）のConversationが0件であることを確認してください。
