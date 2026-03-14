@@ -1408,9 +1408,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     dispose: () => {},
   };
 
-    private _onDidFetchActivities = new vscode.EventEmitter<{ sessionId: string, activities: Activity[] }>();
-  public readonly onDidFetchActivities = this._onDidFetchActivities.event;
-
   private _onDidChangeTreeData: vscode.EventEmitter<
     vscode.TreeItem | undefined | null | void
   > = new vscode.EventEmitter<vscode.TreeItem | undefined | null | void>();
@@ -1450,10 +1447,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     this.progressStatusBarItem = item;
   }
 
-  getSession(sessionId: string): Session | undefined {
-    return this.sessionsCache.find(s => s.name === sessionId);
-  }
-
   private async updateProgressStatusBarForSelectedSession(
     apiKey: string,
     sessions: Session[],
@@ -1488,8 +1481,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         newActivities,
       );
       addToActivitiesCache(sessionId, activities);
-
-      this._onDidFetchActivities.fire({ sessionId, activities });
 
       const latestCreateTime = getLatestActivityCreateTime(activities);
       if (latestCreateTime) {
@@ -2360,23 +2351,6 @@ export function activate(context: vscode.ExtensionContext) {
     { webviewOptions: { retainContextWhenHidden: true } },
   );
 
-  context.subscriptions.push(
-    sessionsProvider.onDidFetchActivities(({ sessionId, activities }) => {
-      const currentSessionId = context.globalState.get<string>("active-session-id");
-      if (sessionId === currentSessionId) {
-        // Find session from cache
-        const session = sessionsProvider.getSession(sessionId);
-        chatViewProvider.updateSession(
-          sessionId,
-          activities,
-          session?.rawState,
-          session?.title,
-          session?.createTime
-        );
-      }
-    })
-  );
-
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
@@ -3177,18 +3151,21 @@ export function activate(context: vscode.ExtensionContext) {
                   "artifacts",
                 ]);
                 const unionKeys = new Set(ACTIVITY_UNION_KEYS);
-                const inferredKeys = Object.keys(activity).filter((key) => {
+                const inferredKeys: string[] = [];
+                for (const key in activity) {
                   if (
-                    baseKeys.has(key) ||
-                    unionKeys.has(key as ActivityUnionKey)
+                    Object.prototype.hasOwnProperty.call(activity, key) &&
+                    !baseKeys.has(key) &&
+                    !unionKeys.has(key as ActivityUnionKey)
                   ) {
-                    return false;
+                    const value = (
+                      activity as unknown as Record<string, unknown>
+                    )[key];
+                    if (value !== undefined && value !== null) {
+                      inferredKeys.push(key);
+                    }
                   }
-                  const value = (
-                    activity as unknown as Record<string, unknown>
-                  )[key];
-                  return value !== undefined && value !== null;
-                });
+                }
                 keySummary =
                   inferredKeys.length === 0 ? "none" : inferredKeys.join(", ");
               }
