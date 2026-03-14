@@ -139,25 +139,26 @@ This extension contributes the following settings:
 If you want to develop or verify this extension locally:
 
 1. Install dependencies:
+
    ```bash
    pnpm install
    ```
-2. Run type checks:
-   ```bash
-   pnpm run check-types
-   ```
-3. Run lint:
-   ```bash
-   pnpm run lint
-   ```
-4. Build extension bundle:
+
+2. Build extension bundle (includes type checks and lint):
+
    ```bash
    pnpm run compile
    ```
-5. Run unit tests:
+
+3. Run unit tests:
+
    ```bash
    pnpm run test:unit
    ```
+
+4. Run the extension in VS Code for debugging:
+   - Press `F5` to open an Extension Development Host window.
+   - Verify commands and session flows in the new window.
 
 For iterative development, you can run:
 
