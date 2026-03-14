@@ -187,7 +187,7 @@ For follow-up work on an existing PR, first check out the correct branch and onl
 ### Example When Accepting and Fixing
 
 ```bash
-git add .
+git add <changed-files>
 git commit -m "Address review: <subject>"
 git push
 gh pr comment <PR#> --body "Applied in commit $(git rev-parse --short HEAD): <brief description>"
@@ -215,30 +215,60 @@ In this repository, checking `gh pr checks` once after push is not enough. You m
 gh pr checks <PR#> --watch
 ```
 
-2. After the watch completes, verify again:
+1. After the watch completes, verify again:
 
 ```bash
-sleep 300 && gh pr checks <PR#>
+OWNER="<owner>"
+REPO="<repo>"
+PR_NUMBER="<PR#>"
+
+echo "Polling until all conversations are resolved and CI is fully green..."
+while true; do
+  unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+  pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
+  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')"
+
+  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ]; then
+    gh pr checks "$PR_NUMBER"
+    break
+  fi
+
+  echo "Unresolved conversations: $unresolved_threads"
+  echo "Pending checks: $pending_checks"
+  echo "Failing or cancelled checks: $failing_checks"
+  sleep 300
+done
 ```
 
-3. If checks are still running, incomplete, or inconsistent, repeat the same verification:
-
-```bash
-sleep 300 && gh pr checks <PR#>
-sleep 300 && gh pr checks <PR#>
-```
-
-4. Do not stop until all required checks are complete and green.
-5. If anything fails, inspect the failing logs immediately and fix the issue.
-6. After pushing a fix, start over from `gh pr checks <PR#> --watch`.
+1. If checks are still running, conversations are still open, or any required check fails, keep polling until the loop exits cleanly.
+1. If anything fails, inspect the failing logs immediately and fix the issue.
+1. After pushing a fix, start over from `gh pr checks <PR#> --watch`.
 
 ### Standard Sequence to Copy
 
 ```bash
-gh pr view <PR#>
-gh pr checks <PR#> --watch
-sleep 300 && gh pr checks <PR#>
-sleep 300 && gh pr checks <PR#>
+OWNER="<owner>"
+REPO="<repo>"
+PR_NUMBER="<PR#>"
+
+gh pr view "$PR_NUMBER"
+gh pr checks "$PR_NUMBER" --watch
+echo "Polling until unresolved conversations reach zero and CI is fully green..."
+while true; do
+  unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+  pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
+  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')"
+
+  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ]; then
+    gh pr checks "$PR_NUMBER"
+    break
+  fi
+
+  echo "Unresolved conversations: $unresolved_threads"
+  echo "Pending checks: $pending_checks"
+  echo "Failing or cancelled checks: $failing_checks"
+  sleep 300
+done
 ```
 
 ### Final Check Before Merge
@@ -246,7 +276,12 @@ sleep 300 && gh pr checks <PR#>
 Do not do a one-shot merge decision. Right before merge, run at least:
 
 ```bash
-sleep 300 && gh pr checks <PR#>
+OWNER="<owner>"
+REPO="<repo>"
+PR_NUMBER="<PR#>"
+
+gh pr checks "$PR_NUMBER"
+gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length'
 ```
 
 Only merge after all checks are green, all review conversations are resolved, and approvals are in place.
