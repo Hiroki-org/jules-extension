@@ -207,6 +207,8 @@ If the thread must be resolved explicitly, use the appropriate GitHub conversati
 
 In this repository, checking `gh pr checks` once after push is not enough. You must actively follow CI until it finishes. The `gh` commands and the repeated `sleep 300 && gh pr checks <PR#>` loop are part of the required workflow.
 
+When you push additional commits to an existing PR, do not treat `git push` and CI follow-up as separate tasks. Push and the follow-up `gh` checks must be executed as one continuous operation.
+
 ### Required Sequence
 
 1. Watch immediately after push:
@@ -251,12 +253,13 @@ OWNER="<owner>"
 REPO="<repo>"
 PR_NUMBER="<PR#>"
 
-gh pr view "$PR_NUMBER"
-gh pr checks "$PR_NUMBER" --watch
-echo "Polling until unresolved conversations reach zero and CI is fully green..."
+gh pr view "$PR_NUMBER" &&
+git push &&
+gh pr checks "$PR_NUMBER" --watch &&
+echo "Polling until unresolved conversations reach zero and CI is fully green..." &&
 while true; do
-  unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
-  pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
+  unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')" &&
+  pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')" &&
   failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')"
 
   if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ]; then
