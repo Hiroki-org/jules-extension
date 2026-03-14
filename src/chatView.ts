@@ -476,7 +476,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
 <body>
   <div id="chat"></div>
   <div id="typing" class="typing" aria-live="polite" aria-label="Jules is working">
-    <span>Jules is typing</span>
+    <span>Jules is working</span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
@@ -485,7 +485,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" title="Send message" aria-label="Send message" disabled>Send</button>
+      <button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
@@ -610,7 +610,7 @@ function createMarkdownRenderer(): MarkdownIt {
     const rendered = defaultFence
       ? defaultFence(tokens, idx, options, env, self)
       : self.renderToken(tokens, idx, options);
-    return `<div class="code-block"><button class="copy-code-button" type="button" aria-label="Copy code" title="Copy code">Copy</button>${rendered}</div>`;
+    return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
   };
 
   return markdown;

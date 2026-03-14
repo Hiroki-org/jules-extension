@@ -1,3 +1,4 @@
-## 2024-03-10 - Activity details summary accessibility
+# 2024-03-10 - Activity details summary accessibility
+
 **Learning:** `outline: none;` on interactive `<summary>` tags inside `<details>` breaks keyboard navigation and makes it impossible for keyboard users to know which item has focus. It is better to rely on `:focus-visible` to hide outline from mouse users but preserve it for keyboard users.
 **Action:** When removing default outline from interactive elements, ensure `:focus-visible` is implemented (typically with `outline: 1px solid var(--vscode-focusBorder)`) to preserve keyboard accessibility.
