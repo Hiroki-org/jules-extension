@@ -48,6 +48,9 @@ import {
 import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
+import { registerInlineCommands } from "./inlineCommands";
+import * as path from "path";
+import { createJulesSession } from "./sessionUtils";
 import {
   getActivityCategory,
   getActivityIcon,
@@ -95,24 +98,6 @@ const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 interface SourceQuickPickItem extends vscode.QuickPickItem {
   source: SourceType;
-}
-
-interface CreateSessionRequest {
-  prompt: string;
-  sourceContext: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch: string;
-    };
-  };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
-  title: string;
-  requirePlanApproval?: boolean;
-}
-
-interface SessionResponse {
-  name: string;
-  // Add other fields if needed
 }
 
 // Re-export Session, SessionOutput, and SessionState from types for backward compatibility
@@ -577,7 +562,7 @@ function resolveSessionId(
 function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) return [];
+  if (!sessionOrState.outputs) {return [];}
   const allPrs = sessionOrState.outputs
     .map((o) => o.pullRequest)
     .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
@@ -652,7 +637,7 @@ async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) return;
+  if (!prs || prs.length === 0) {return;}
 
   if (prs.length === 1) {
     const pr = prs[0];
@@ -2352,6 +2337,8 @@ export function activate(context: vscode.ExtensionContext) {
     { webviewOptions: { retainContextWhenHidden: true } },
   );
 
+  registerInlineCommands(context, logChannel);
+
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
@@ -2835,70 +2822,18 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 
-        if (!selectedSource.name) {
-          throw new Error(
-            "Selected source is missing resource name required by Sources API.",
-          );
-        }
-
-        const requestBody: CreateSessionRequest = {
-          prompt: finalPrompt,
-          sourceContext: {
-            source: selectedSource.name,
-            githubRepoContext: {
-              startingBranch,
-            },
-          },
-          automationMode,
+        await createJulesSession(
+          context,
+          selectedSource,
+          apiKey,
+          startingBranch,
+          userPrompt,
           title,
-          requirePlanApproval: result.requireApproval,
-        };
-
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Creating Jules Session...",
-            cancellable: false,
-          },
-          async (progress) => {
-            progress.report({
-              increment: 0,
-              message: "Sending request...",
-            });
-            const response = await fetchWithTimeout(
-              `${JULES_API_BASE_URL}/sessions`,
-              {
-                method: "POST",
-                headers: {
-                  "X-Goog-Api-Key": apiKey,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-              },
-            );
-            progress.report({
-              increment: 50,
-              message: "Processing response...",
-            });
-            if (!response.ok) {
-              throw new Error(
-                `Failed to create session: ${response.status} ${response.statusText}`,
-              );
-            }
-            const session = (await response.json()) as SessionResponse;
-            await context.globalState.update("active-session-id", session.name);
-            progress.report({
-              increment: 100,
-              message: "Session created!",
-            });
-            vscode.window.showInformationMessage(
-              `Session created: ${session.name}`,
-            );
-          },
+          automationMode,
+          result.requireApproval
         );
       } catch (error) {
         vscode.window.showErrorMessage(
