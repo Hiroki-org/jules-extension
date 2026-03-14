@@ -134,6 +134,37 @@ This extension contributes the following settings:
 4. Run `> Jules: List Sources` to select a data source.
 5. Run `> Jules: Create Jules Session` to start your first coding session!
 
+## 🛠️ Development
+
+If you want to develop or verify this extension locally:
+
+1. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+2. Run type checks:
+   ```bash
+   pnpm run check-types
+   ```
+3. Run lint:
+   ```bash
+   pnpm run lint
+   ```
+4. Build extension bundle:
+   ```bash
+   pnpm run compile
+   ```
+5. Run unit tests:
+   ```bash
+   pnpm run test:unit
+   ```
+
+For iterative development, you can run:
+
+```bash
+pnpm run watch
+```
+
 ## ⚠️ Important Notes
 
 - **Card Block Rendering:** When using features that are displayed as card blocks, please be mindful of the content's structure to ensure it renders correctly.
