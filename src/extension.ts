@@ -743,7 +743,7 @@ async function notifyPlanAwaitingApproval(
 ): Promise<void> {
   // Fetch plan details from activities
   let planDetails = "";
-  const finalApiKey = apiKey || await context.secrets.get("jules-api-key");
+  const finalApiKey = apiKey ?? await context.secrets.get("jules-api-key");
 
   if (finalApiKey) {
     const plan = await fetchPlanFromActivities(session.name, finalApiKey);
