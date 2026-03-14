@@ -53,7 +53,7 @@ export function buildChatMessagesFromActivities(
     .getConfiguration("jules-extension")
     .get<string>("customPrompt", "");
 
-  const sortedActivities = [...activities].sort((a, b) => 
+  const sortedActivities = [...activities].sort((a, b) =>
     (a.createTime ?? "").localeCompare(b.createTime ?? "")
   );
 
@@ -167,7 +167,7 @@ export function buildChatMessagesFromActivities(
           let commandLine = outRec.commandLine;
           const commands = outRec.commands;
           if (commands && Array.isArray(commands) && commands.length > 0) {
-             commandLine = commands[0].commandLine;
+            commandLine = commands[0].commandLine;
           }
 
           if (commandLine || stdout || stderr) {
@@ -180,7 +180,7 @@ export function buildChatMessagesFromActivities(
 
     messages.push({
       id: activity.id ?? activity.name,
-      role: "assistant", 
+      role: "assistant",
       createTime: activity.createTime,
       html: `<div class="activity-log"><em>${escapeHtml(combinedText)}</em></div>${detailsHtml}`,
     });
@@ -199,7 +199,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly onSendMessage: (sessionId: string, message: string) => Promise<void>,
-  ) {}
+  ) { }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
@@ -441,6 +441,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       padding: 2px 0;
       outline: none;
     }
+    .activity-details summary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
     .activity-details summary:hover {
       opacity: 1;
       text-decoration: underline;
@@ -471,17 +475,17 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
 </head>
 <body>
   <div id="chat"></div>
-  <div id="typing" class="typing" aria-live="polite" aria-label="Jules is typing">
-    <span>Jules is typing</span>
+  <div id="typing" class="typing" aria-live="polite" aria-label="Jules is working">
+    <span>Jules is working</span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
   </div>
   <form id="composer">
-    <textarea id="messageInput" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
+    <textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" disabled>Send</button>
+      <button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
@@ -606,7 +610,7 @@ function createMarkdownRenderer(): MarkdownIt {
     const rendered = defaultFence
       ? defaultFence(tokens, idx, options, env, self)
       : self.renderToken(tokens, idx, options);
-    return `<div class="code-block"><button class="copy-code-button" type="button">Copy</button>${rendered}</div>`;
+    return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
   };
 
   return markdown;
