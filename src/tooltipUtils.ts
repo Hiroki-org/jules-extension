@@ -83,14 +83,14 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   const allPrs = session.outputs
     ?.map(o => o.pullRequest)
     .filter((pr): pr is NonNullable<PullRequestOutput> => !!pr && !!pr.url) || [];
-  
+
   // De-duplicate PRs by URL to avoid redundant entries in the tooltip
   const prs = Array.from(new Map(allPrs.map(pr => [pr.url, pr])).values());
 
   if (prs.length > 0) {
     tooltip.appendMarkdown(`\n\n---`);
     tooltip.appendMarkdown(`\n\n🔗 **Pull Request${prs.length > 1 ? 's' : ''}**`);
-    
+
     prs.forEach((pr, index) => {
       if (index > 0) {
         tooltip.appendMarkdown(`\n\n---`);
@@ -101,11 +101,11 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
         tooltip.appendText(pr.title);
         tooltip.appendMarkdown(`**`);
       }
-      
+
       const url = pr.url;
       const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
       const repoInfoStr = match ? ` (${match[2]}#${match[3]})` : '';
-      
+
       if (pr.description) {
         // Normalize line endings to \n
         const normalizedDesc = pr.description.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -116,12 +116,12 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
         if (descPreview.length > 100) {
           descPreview = descPreview.substring(0, 100) + '...';
         }
-        
+
         // Use appendText to avoid executing random user markdown
         tooltip.appendMarkdown(`\n\n> `);
         tooltip.appendText(descPreview.replace(/\n/g, ' '));
       }
-      
+
       tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
     });
   }
