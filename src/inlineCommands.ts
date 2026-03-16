@@ -4,10 +4,8 @@ import { createJulesSession } from "./sessionUtils";
 import { showMessageComposer } from "./composer";
 import { getBranchesForSession } from "./branchUtils";
 import { JulesApiClient } from "./julesApiClient";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 import { SourceType } from "./types";
-
-const ALL_SOURCES_ID = "all_repos";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.

@@ -66,10 +66,9 @@ import {
 } from "./activityUtils";
 
 // Constants
-import { JULES_API_BASE_URL } from "./julesApiConstants";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
-const ALL_SOURCES_ID = "all_repos";
 const MAX_PAGE_SIZE = 100;
 const MAX_PAGINATION_PAGES = 100;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
