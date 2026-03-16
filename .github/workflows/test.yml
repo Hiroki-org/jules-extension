@@ -56,11 +56,13 @@ jobs:
       - name: Run build/package
         run: pnpm run package
 
-  test-linux:
-    runs-on: ubuntu-latest
+  integration:
+    needs: [test-unit, build-check]
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         node-version: [20, 22]
     steps:
       - name: Checkout code
@@ -87,6 +89,7 @@ jobs:
             ${{ runner.os }}-vscode-test-
 
       - name: Ensure display available
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: Install dependencies
@@ -95,86 +98,11 @@ jobs:
       - name: Compile
         run: pnpm run compile
 
-      - name: Run tests
-        run: |
-          xvfb-run -a pnpm test
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm test
 
-  test-macos:
-    runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [20, 22]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Cache VS Code Test Downloads (.vscode-test)
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.vscode-test
-            ~/.vscode
-          key: ${{ runner.os }}-vscode-test
-          restore-keys: |
-            ${{ runner.os }}-vscode-test-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Compile
-        run: pnpm run compile
-
-      - name: Run tests
-        shell: bash
-        run: pnpm test
-
-  test-windows:
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [20, 22]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Cache VS Code Test Downloads (.vscode-test)
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.vscode-test
-            ~/.vscode
-          key: ${{ runner.os }}-vscode-test
-          restore-keys: |
-            ${{ runner.os }}-vscode-test-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Compile
-        run: pnpm run compile
-
-      - name: Run tests
+      - name: Run tests (macOS/Windows)
+        if: runner.os != 'Linux'
         shell: bash
         run: pnpm test
