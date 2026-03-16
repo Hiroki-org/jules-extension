@@ -184,19 +184,35 @@ export async function handleInlineTask(
 
     const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
+    const fetchBranches = async (options: { forceRefresh?: boolean; showProgress?: boolean }) => {
+      try {
+        return await getBranchesForSession(
+          selectedSource,
+          apiClient,
+          logChannel,
+          context,
+          options,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logChannel.appendLine(`[Jules] Failed to fetch branches: ${message}`);
+        vscode.window.showErrorMessage(`Failed to fetch branches: ${message}`);
+        return null;
+      }
+    };
+
     // ブランチ選択ロジック
+    const initialBranchInfo = await fetchBranches({ showProgress: true });
+    if (!initialBranchInfo) {
+      return;
+    }
+
     const {
       branches,
       defaultBranch: selectedDefaultBranch,
       currentBranch,
       remoteBranches,
-    } = await getBranchesForSession(
-      selectedSource,
-      apiClient,
-      logChannel,
-      context,
-      { showProgress: true },
-    );
+    } = initialBranchInfo;
 
     const selectedBranch = await vscode.window.showQuickPick(
       branches.map((branch) => ({
@@ -221,13 +237,13 @@ export async function handleInlineTask(
 
     if (!new Set(remoteBranches).has(startingBranch)) {
       logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
-      const freshBranchInfo = await getBranchesForSession(
-        selectedSource,
-        apiClient,
-        logChannel,
-        context,
-        { forceRefresh: true, showProgress: true },
-      );
+      const freshBranchInfo = await fetchBranches({
+        forceRefresh: true,
+        showProgress: true,
+      });
+      if (!freshBranchInfo) {
+        return;
+      }
       if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
         vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
         return;
