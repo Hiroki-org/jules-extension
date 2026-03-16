@@ -1,5 +1,11 @@
 import Module from "module";
 
+const makeCodeActionKind = (value: string): any => ({
+    value,
+    append: (segment: string) =>
+        makeCodeActionKind(value.length > 0 ? `${value}.${segment}` : segment),
+});
+
 const mockVscode = {
     workspace: {
         fs: {
@@ -133,6 +139,42 @@ const mockVscode = {
         constructor(id: string, color?: any) {
             this.id = id;
             this.color = color;
+        }
+    },
+    Position: class Position {
+        line: number;
+        character: number;
+        constructor(line: number, character: number) {
+            this.line = line;
+            this.character = character;
+        }
+    },
+    Range: class Range {
+        start: any;
+        end: any;
+        constructor(startLineOrStart: any, startCharacterOrEnd: any, endLine?: number, endCharacter?: number) {
+            if (typeof startLineOrStart === "number") {
+                this.start = { line: startLineOrStart, character: startCharacterOrEnd };
+                this.end = { line: endLine ?? startLineOrStart, character: endCharacter ?? startCharacterOrEnd };
+            } else {
+                this.start = startLineOrStart;
+                this.end = startCharacterOrEnd;
+            }
+        }
+        get isEmpty() {
+            return this.start.line === this.end.line && this.start.character === this.end.character;
+        }
+    },
+    CodeActionKind: {
+        Refactor: makeCodeActionKind("refactor"),
+    },
+    CodeAction: class CodeAction {
+        title: string;
+        kind: any;
+        command: any;
+        constructor(title: string, kind?: any) {
+            this.title = title;
+            this.kind = kind;
         }
     },
     StatusBarAlignment: {
