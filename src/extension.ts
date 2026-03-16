@@ -49,8 +49,6 @@ import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import { registerInlineCommands } from "./inlineCommands";
-import { buildFinalPrompt } from "./promptUtils";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
 import { createJulesSession } from "./sessionUtils";
 import {
   getActivityCategory,
@@ -67,6 +65,7 @@ import {
 } from "./activityUtils";
 
 // Constants
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
 const ALL_SOURCES_ID = "all_repos";
@@ -102,7 +101,6 @@ interface SourceQuickPickItem extends vscode.QuickPickItem {
 
 // Re-export Session, SessionOutput, and SessionState from types for backward compatibility
 export { Session, SessionOutput, SessionState } from "./types";
-export { buildFinalPrompt };
 import type { SessionState } from "./types";
 
 export function mapApiStateToSessionState(apiState: string): SessionState {
@@ -2330,6 +2328,8 @@ export function activate(context: vscode.ExtensionContext) {
     { webviewOptions: { retainContextWhenHidden: true } },
   );
 
+  registerInlineCommands(context, logChannel);
+
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
@@ -2387,7 +2387,6 @@ export function activate(context: vscode.ExtensionContext) {
   // Create OutputChannel for Logs
   logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
   context.subscriptions.push(logChannel);
-  registerInlineCommands(context, logChannel);
 
   // Sign in to GitHub via VS Code authentication
   const signInDisposable = vscode.commands.registerCommand(

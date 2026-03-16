@@ -4,41 +4,29 @@ import { createJulesSession } from "./sessionUtils";
 import { showMessageComposer } from "./composer";
 import { getBranchesForSession } from "./branchUtils";
 import { JulesApiClient } from "./julesApiClient";
-import { sanitizeForLogging } from "./securityUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 const ALL_SOURCES_ID = "all_repos";
-
-function getGenerateTestsCodeActionKind(): vscode.CodeActionKind {
-    return vscode.CodeActionKind.Empty.append("jules").append("generateTests");
-}
-
-function toMarkdownCodeBlock(languageId: string, codeSnippet: string): string {
-    const fenceRuns = codeSnippet.match(/`+/g) ?? [];
-    const maxFenceInCode = fenceRuns.reduce((max, run) => Math.max(max, run.length), 0);
-    const fence = "`".repeat(Math.max(3, maxFenceInCode + 1));
-    return `${fence}${languageId}\n${codeSnippet}\n${fence}`;
-}
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
  */
 export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
     private onDidChangeCodeLensesEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
-    private readonly configChangeDisposable: vscode.Disposable;
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this.onDidChangeCodeLensesEmitter.event;
+    private configListener: vscode.Disposable;
 
     constructor() {
-        this.configChangeDisposable = vscode.workspace.onDidChangeConfiguration((e) => {
+        this.configListener = vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration("jules-extension.enableCodeLens")) {
                 this.onDidChangeCodeLensesEmitter.fire();
             }
         });
     }
 
-    public dispose(): void {
-        this.configChangeDisposable.dispose();
+    public dispose() {
+        this.configListener.dispose();
         this.onDidChangeCodeLensesEmitter.dispose();
     }
 
@@ -54,10 +42,6 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
         const lenses: vscode.CodeLens[] = [];
 
         try {
-            if (token.isCancellationRequested) {
-                return [];
-            }
-
             // Get document symbols to accurately find functions and classes and their full ranges
             // This can return either DocumentSymbol[] or SymbolInformation[]
             const symbols = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>(
@@ -65,20 +49,12 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
                 document.uri
             );
 
-            if (token.isCancellationRequested) {
-                return [];
-            }
-
             if (!symbols) {
                 return [];
             }
 
             const processSymbols = (syms: (vscode.DocumentSymbol | vscode.SymbolInformation)[]) => {
                 for (const symbol of syms) {
-                    if (token.isCancellationRequested) {
-                        return;
-                    }
-
                     if (
                         symbol.kind === vscode.SymbolKind.Function ||
                         symbol.kind === vscode.SymbolKind.Class ||
@@ -150,10 +126,7 @@ export class JulesCodeActionProvider implements vscode.CodeActionProvider {
         };
         actions.push(refactorAction);
 
-        const testAction = new vscode.CodeAction(
-            "Jules: Generate Tests for Selection",
-            getGenerateTestsCodeActionKind()
-        );
+        const testAction = new vscode.CodeAction("Jules: Generate Tests for Selection", vscode.CodeActionKind.Refactor.append("jules.generateTests"));
         testAction.command = {
             title: "Jules: Generate Tests",
             command: "jules-extension.inlineGenerateTests",
@@ -166,7 +139,7 @@ export class JulesCodeActionProvider implements vscode.CodeActionProvider {
 }
 
 // Common handler for inline tasks (Refactor, Generate Tests, etc.)
-async function handleInlineTask(
+export async function handleInlineTask(
     context: vscode.ExtensionContext,
     logChannel: vscode.OutputChannel,
     uri: vscode.Uri,
@@ -175,34 +148,28 @@ async function handleInlineTask(
 ) {
     let document: vscode.TextDocument;
     try {
-      document = await vscode.workspace.openTextDocument(uri);
-    } catch (error) {
-      const safeError = sanitizeForLogging(error instanceof Error ? error.message : String(error));
-      logChannel.appendLine(`[Jules] Failed to open target document: ${safeError}`);
-      vscode.window.showErrorMessage("Failed to open the selected document.");
-      return;
+        document = await vscode.workspace.openTextDocument(uri);
+    } catch (e) {
+        vscode.window.showErrorMessage("Could not open the target document.");
+        return;
     }
 
-    const selectionRange = range instanceof vscode.Selection ? range : new vscode.Range(range.start, range.end);
-    let codeSnippet = document.getText(selectionRange);
-    const activeEditor = vscode.window.activeTextEditor;
+    let codeSnippet = "";
 
-    // If no selection or range is empty and we triggered via context menu, maybe use the whole file or warn
+    if (range && !range.isEmpty) {
+        const selectionRange = range instanceof vscode.Selection ? range : new vscode.Range(range.start, range.end);
+        codeSnippet = document.getText(selectionRange);
+    } else {
+        // Fallback: Check if there's an active editor for this document that has a selection
+        const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uri.toString());
+        if (editor && !editor.selection.isEmpty) {
+            codeSnippet = document.getText(editor.selection);
+        }
+    }
+
     if (!codeSnippet.trim()) {
-      if (!selectionRange.isEmpty) {
-        vscode.window.showErrorMessage("Selected code block is empty. Please choose a non-empty block.");
-        return;
-      }
-
-      const activeSelection = activeEditor?.selection;
-      const isSameDocument =
-        activeEditor?.document.uri.toString() === uri.toString();
-      if (isSameDocument && activeSelection && !activeSelection.isEmpty) {
-        codeSnippet = document.getText(activeSelection);
-      } else {
         vscode.window.showErrorMessage("Please select some code to perform this action.");
         return;
-      }
     }
 
     const selectedSource = context.globalState.get("selected-source") as SourceType;
@@ -255,8 +222,7 @@ async function handleInlineTask(
     let startingBranch = selectedBranch.label;
 
     if (!new Set(remoteBranches).has(startingBranch)) {
-      const safeStartingBranch = sanitizeForLogging(startingBranch);
-      logChannel.appendLine(`[Jules] Branch "${safeStartingBranch}" not found in cached remote branches, re-fetching...`);
+      logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
       const freshBranchInfo = await getBranchesForSession(
         selectedSource,
         apiClient,
@@ -264,21 +230,18 @@ async function handleInlineTask(
         context,
         { forceRefresh: true, showProgress: true },
       );
-    if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
-        const safeStartingBranch = sanitizeForLogging(startingBranch);
-        vscode.window.showErrorMessage(`Branch "${safeStartingBranch}" must exist on remote to create a session.`);
+      if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
+        vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
         return;
       }
     }
-
-    const markdownCodeBlock = toMarkdownCodeBlock(document.languageId, codeSnippet);
 
     const result = await showMessageComposer({
       title: `Jules: ${defaultTask}`,
       placeholder: `Provide additional instructions for Jules...`,
       showCreatePrCheckbox: true,
       showRequireApprovalCheckbox: true,
-      value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n${markdownCodeBlock}\n`
+      value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n\`\`\`${document.languageId}\n${codeSnippet}\n\`\`\`\n`
     });
 
     if (result === undefined) {
@@ -306,9 +269,7 @@ async function handleInlineTask(
         result.requireApproval
       );
     } catch (error) {
-      const safeError = sanitizeForLogging(error instanceof Error ? error.message : String(error));
-      logChannel.appendLine(`[Jules] Failed to create session from inline task: ${safeError}`);
-      vscode.window.showErrorMessage("Failed to create session. Check Jules Extension Logs for details.");
+      vscode.window.showErrorMessage(`Failed to create session: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 }
 
@@ -318,13 +279,13 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
     "*",
     julesCodeLensProvider
   );
-  context.subscriptions.push(julesCodeLensProvider, codeLensProviderDisposable);
+  context.subscriptions.push(codeLensProviderDisposable, julesCodeLensProvider);
 
   const julesCodeActionProvider = new JulesCodeActionProvider();
   const codeActionProviderDisposable = vscode.languages.registerCodeActionsProvider(
     "*",
     julesCodeActionProvider,
-    { providedCodeActionKinds: [vscode.CodeActionKind.Refactor, getGenerateTestsCodeActionKind()] }
+    { providedCodeActionKinds: [vscode.CodeActionKind.Refactor] }
   );
   context.subscriptions.push(codeActionProviderDisposable);
 
