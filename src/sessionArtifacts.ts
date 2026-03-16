@@ -226,32 +226,13 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    let start = 0;
-    const len = diff.length;
-    const searchString = 'diff --git ';
-    const searchLen = searchString.length;
-
-    // Instead of allocating an array for all lines via .split('\n'),
-    // we search for 'diff --git ' using indexOf to scan directly.
-    while (start < len) {
-        const found = diff.indexOf(searchString, start);
-        if (found === -1) {
-            break;
-        }
-        start = found;
-
-        // Verify it is actually at the beginning of a line or the start of the file
-        if (start !== 0 && diff[start - 1] !== '\n') {
-            start += searchLen;
+    const lines = diff.split('\n');
+    for (const line of lines) {
+        if (!line.startsWith('diff --git ')) {
             continue;
         }
 
-        let end = diff.indexOf('\n', start);
-        if (end === -1) {
-            end = len;
-        }
-
-        const payload = diff.substring(start + searchLen, end); // everything after 'diff --git '
+        const payload = line.substring(11); // everything after 'diff --git '
         let i = 0;
 
         function readPath(): string | undefined {
@@ -259,7 +240,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                 return undefined;
             }
             if (payload[i] === '"') {
-                i += 1; // skip opening quote
+                i++; // skip opening quote
                 let res = "";
                 while (i < payload.length && payload[i] !== '"') {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
@@ -267,23 +248,23 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                         i += 2;
                     } else {
                         res += payload[i];
-                        i += 1;
+                        i++;
                     }
                 }
                 if (payload[i] === '"') {
-                    i += 1; // skip closing quote
+                    i++; // skip closing quote
                 }
                 return res;
             } else {
-                const startPos = i;
+                const start = i;
                 while (i < payload.length && payload[i] !== ' ') {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
                         i += 2;
                     } else {
-                        i += 1;
+                        i++;
                     }
                 }
-                return payload.substring(startPos, i).replace(/\\(.)/g, '$1');
+                return payload.substring(start, i).replace(/\\(.)/g, '$1');
             }
         }
 
@@ -293,7 +274,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
         if (payload.startsWith('"a/') || payload.startsWith('a/')) {
             readPath(); // Skip path1
             if (i < payload.length && payload[i] === ' ') {
-                i += 1; // skip space delimiter
+                i++; // skip space delimiter
                 path2 = readPath();
             }
         }
@@ -308,8 +289,6 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                 files.push({ path: match[2] });
             }
         }
-
-        start = end + 1;
     }
     return files;
 }

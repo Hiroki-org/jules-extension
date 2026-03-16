@@ -1,11 +1,5 @@
 import Module from "module";
 
-const makeCodeActionKind = (value: string): any => ({
-    value,
-    append: (segment: string) =>
-        makeCodeActionKind(value.length > 0 ? `${value}.${segment}` : segment),
-});
-
 const mockVscode = {
     workspace: {
         fs: {
@@ -141,40 +135,31 @@ const mockVscode = {
             this.color = color;
         }
     },
-    Position: class Position {
-        line: number;
-        character: number;
-        constructor(line: number, character: number) {
-            this.line = line;
-            this.character = character;
+    CodeActionKind: {
+        Refactor: {
+            value: 'refactor',
+            append: (suffix: string) => ({ value: `refactor.${suffix}` })
         }
+    },
+    CodeAction: class CodeAction {
+        constructor(public title: string, public kind: any) {}
+    },
+    Position: class Position {
+        constructor(public line: number, public character: number) {}
     },
     Range: class Range {
         start: any;
         end: any;
-        constructor(startLineOrStart: any, startCharacterOrEnd: any, endLine?: number, endCharacter?: number) {
-            if (typeof startLineOrStart === "number") {
-                this.start = { line: startLineOrStart, character: startCharacterOrEnd };
-                this.end = { line: endLine ?? startLineOrStart, character: endCharacter ?? startCharacterOrEnd };
+        isEmpty: boolean;
+        constructor(startLineOrPos: number | any, startCharOrEndPos?: number | any, endLine?: number, endChar?: number) {
+            if (typeof startLineOrPos === "number" && typeof startCharOrEndPos === "number" && typeof endLine === "number" && typeof endChar === "number") {
+                this.start = new mockVscode.Position(startLineOrPos, startCharOrEndPos);
+                this.end = new mockVscode.Position(endLine, endChar);
             } else {
-                this.start = startLineOrStart;
-                this.end = startCharacterOrEnd;
+                this.start = startLineOrPos;
+                this.end = startCharOrEndPos;
             }
-        }
-        get isEmpty() {
-            return this.start.line === this.end.line && this.start.character === this.end.character;
-        }
-    },
-    CodeActionKind: {
-        Refactor: makeCodeActionKind("refactor"),
-    },
-    CodeAction: class CodeAction {
-        title: string;
-        kind: any;
-        command: any;
-        constructor(title: string, kind?: any) {
-            this.title = title;
-            this.kind = kind;
+            this.isEmpty = this.start.line === this.end.line && this.start.character === this.end.character;
         }
     },
     StatusBarAlignment: {
