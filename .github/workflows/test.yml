@@ -80,14 +80,18 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ~/.vscode-test
-            ~/.vscode
+            .vscode-test
           key: ${{ runner.os }}-vscode-test
           restore-keys: |
             ${{ runner.os }}-vscode-test-
 
       - name: Ensure display available
         run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install VS Code
+        run: |
+          curl -fsSL https://update.code.visualstudio.com/latest/linux-deb-x64/stable -o /tmp/vscode.deb
+          sudo apt-get install -y /tmp/vscode.deb
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -123,11 +127,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ~/.vscode-test
-            ~/.vscode
+            .vscode-test
           key: ${{ runner.os }}-vscode-test
           restore-keys: |
             ${{ runner.os }}-vscode-test-
+
+      - name: Install VS Code
+        run: brew install --cask visual-studio-code
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -163,11 +169,14 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ~/.vscode-test
-            ~/.vscode
+            .vscode-test
           key: ${{ runner.os }}-vscode-test
           restore-keys: |
             ${{ runner.os }}-vscode-test-
+
+      - name: Install VS Code
+        shell: powershell
+        run: choco install vscode -y --no-progress
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
