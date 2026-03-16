@@ -149,23 +149,25 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
         const activity = activities[i];
 
         // 1. Try to find Diff if not already found
+        // 1. Try to find Diff if not already found
         if (latestDiff === undefined) {
-             const diff = activity?.gitPatch?.diff;
-             if (typeof diff === "string" && diff.trim().length > 0) {
-                 latestDiff = diff;
-             } else {
-                 // Check artifacts.changeSet.gitPatch.unidiffPatch
-                 const artifacts = activity?.artifacts;
-                 if (Array.isArray(artifacts)) {
-                     for (const artifact of artifacts) {
-                         const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
-                         if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
-                             latestDiff = uniDiff;
-                             break;
-                         }
-                     }
-                 }
-             }
+            const diff = activity?.gitPatch?.diff;
+            if (typeof diff === "string" && diff.trim().length > 0) {
+                latestDiff = diff;
+            } else {
+                // Check artifacts.changeSet.gitPatch.unidiffPatch
+                const artifacts = activity?.artifacts;
+                if (Array.isArray(artifacts)) {
+                    for (const artifact of artifacts) {
+                        const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                        if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
+                            latestDiff = uniDiff;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         }
 
         // 2. Try to find ChangeSet if not already found
