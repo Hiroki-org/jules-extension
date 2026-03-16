@@ -1,5 +1,11 @@
 import Module from "module";
 
+const makeCodeActionKind = (value: string): any => ({
+    value,
+    append: (segment: string) =>
+        makeCodeActionKind(value.length > 0 ? `${value}.${segment}` : segment),
+});
+
 const mockVscode = {
     workspace: {
         fs: {
@@ -138,6 +144,19 @@ const mockVscode = {
     StatusBarAlignment: {
         Left: 1,
         Right: 2,
+    },
+    CodeActionKind: {
+        Refactor: makeCodeActionKind("refactor"),
+        Empty: makeCodeActionKind(""),
+    },
+    CodeAction: class CodeAction {
+        title: string;
+        kind: any;
+        command: any;
+        constructor(title: string, kind?: any) {
+            this.title = title;
+            this.kind = kind;
+        }
     }
 };
 
