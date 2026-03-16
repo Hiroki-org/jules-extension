@@ -100,6 +100,7 @@ jobs:
 
       - name: Run tests (Linux)
         if: runner.os == 'Linux'
+        shell: bash
         run: xvfb-run -a pnpm test
 
       - name: Run tests (macOS/Windows)
