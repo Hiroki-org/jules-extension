@@ -51,6 +51,7 @@ import { buildSessionTooltip } from "./tooltipUtils";
 import { registerInlineCommands } from "./inlineCommands";
 import { buildFinalPrompt } from "./promptUtils";
 import { createJulesSession } from "./sessionUtils";
+import { buildFinalPrompt } from "./promptUtils";
 import {
   getActivityCategory,
   getActivityIcon,
