@@ -51,7 +51,6 @@ import { buildSessionTooltip } from "./tooltipUtils";
 import { registerInlineCommands } from "./inlineCommands";
 import { buildFinalPrompt } from "./promptUtils";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
-import * as path from "path";
 import { createJulesSession } from "./sessionUtils";
 import {
   getActivityCategory,
