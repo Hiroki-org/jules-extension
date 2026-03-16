@@ -14,6 +14,13 @@ function getGenerateTestsCodeActionKind(): vscode.CodeActionKind {
     return vscode.CodeActionKind.Empty.append("jules").append("generateTests");
 }
 
+function toMarkdownCodeBlock(languageId: string, codeSnippet: string): string {
+    const fenceRuns = codeSnippet.match(/`+/g) ?? [];
+    const maxFenceInCode = fenceRuns.reduce((max, run) => Math.max(max, run.length), 0);
+    const fence = "`".repeat(Math.max(3, maxFenceInCode + 1));
+    return `${fence}${languageId}\n${codeSnippet}\n${fence}`;
+}
+
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
  */
@@ -182,6 +189,11 @@ async function handleInlineTask(
 
     // If no selection or range is empty and we triggered via context menu, maybe use the whole file or warn
     if (!codeSnippet.trim()) {
+      if (!selectionRange.isEmpty) {
+        vscode.window.showErrorMessage("Selected code block is empty. Please choose a non-empty block.");
+        return;
+      }
+
       const activeSelection = activeEditor?.selection;
       const isSameDocument =
         activeEditor?.document.uri.toString() === uri.toString();
@@ -252,19 +264,21 @@ async function handleInlineTask(
         context,
         { forceRefresh: true, showProgress: true },
       );
-      if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
+    if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
         const safeStartingBranch = sanitizeForLogging(startingBranch);
         vscode.window.showErrorMessage(`Branch "${safeStartingBranch}" must exist on remote to create a session.`);
         return;
       }
     }
 
+    const markdownCodeBlock = toMarkdownCodeBlock(document.languageId, codeSnippet);
+
     const result = await showMessageComposer({
       title: `Jules: ${defaultTask}`,
       placeholder: `Provide additional instructions for Jules...`,
       showCreatePrCheckbox: true,
       showRequireApprovalCheckbox: true,
-      value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n\`\`\`${document.languageId}\n${codeSnippet}\n\`\`\`\n`
+      value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n${markdownCodeBlock}\n`
     });
 
     if (result === undefined) {
