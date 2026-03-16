@@ -23,19 +23,6 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
         repo: match[2],
     };
 }
-/**
- * @deprecated Use GitHubAuth.getToken() instead. PAT support will be removed in a future version
- */
-export async function getGitHubPAT(context: vscode.ExtensionContext): Promise<string | undefined> {
-    return await context.secrets.get('github-pat');
-}
-
-/**
- * @deprecated Use GitHubAuth.signIn() instead. PAT support will be removed in a future version
- */
-export async function setGitHubPAT(context: vscode.ExtensionContext, pat: string): Promise<void> {
-    await context.secrets.store('github-pat', pat);
-}
 export async function createRemoteBranch(
     pat: string,
     owner: string,

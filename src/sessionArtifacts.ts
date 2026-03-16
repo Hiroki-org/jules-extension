@@ -1,6 +1,17 @@
 import { fetchWithTimeout } from "./fetchUtils";
+import { ActivitiesResponse } from "./types";
 
 const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
+export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
+export const ARTIFACTS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const MAX_ARTIFACTS_CACHE_SIZE = 50;
+const MAX_PERSISTED_DIFF_SIZE_BYTES = 64 * 1024;
+const MAX_PERSISTED_CHANGESET_FILES = 500;
+
+interface GlobalStateLike {
+    get<T>(key: string, defaultValue: T): T;
+    update(key: string, value: unknown): PromiseLike<void>;
+}
 
 interface Activity {
     createTime?: string;
@@ -12,10 +23,6 @@ interface Activity {
 
 interface Artifact {
     changeSet?: Record<string, unknown>;
-}
-
-interface ActivitiesResponse {
-    activities: Activity[];
 }
 
 export interface ChangeSetFile {
@@ -36,9 +43,163 @@ export interface SessionArtifacts {
 interface CachedSessionArtifacts {
     artifacts: SessionArtifacts;
     updateTime?: string;
+    savedAt: number;
 }
 
+interface PersistedArtifactsEntry {
+    latestDiff?: string;
+    latestChangeSetFiles?: ChangeSetFile[];
+    updateTime?: string;
+    savedAt: number;
+}
+
+type PersistedArtifactsCache = Record<string, PersistedArtifactsEntry>;
+
 const artifactsCache = new Map<string, CachedSessionArtifacts>();
+let artifactsGlobalState: GlobalStateLike | undefined;
+let persistInFlight: Promise<void> = Promise.resolve();
+
+function shouldPersistDiff(diff?: string): boolean {
+    if (typeof diff !== "string") {
+        return false;
+    }
+    return Buffer.byteLength(diff, "utf8") <= MAX_PERSISTED_DIFF_SIZE_BYTES;
+}
+
+function evictOldestArtifactsEntryIfNeeded(): void {
+    if (artifactsCache.size <= MAX_ARTIFACTS_CACHE_SIZE) {
+        return;
+    }
+
+    let oldestSessionId: string | undefined;
+    let oldestSavedAt = Number.POSITIVE_INFINITY;
+    for (const [sessionId, entry] of artifactsCache.entries()) {
+        if (entry.savedAt < oldestSavedAt) {
+            oldestSavedAt = entry.savedAt;
+            oldestSessionId = sessionId;
+        }
+    }
+
+    if (oldestSessionId) {
+        artifactsCache.delete(oldestSessionId);
+    }
+}
+
+function persistArtifactsCache(): void {
+    const currentGlobalState = artifactsGlobalState;
+    if (!currentGlobalState) {
+        return;
+    }
+
+    const persisted: PersistedArtifactsCache = {};
+    for (const [sessionId, entry] of artifactsCache.entries()) {
+        const files = entry.artifacts.latestChangeSet?.files;
+        persisted[sessionId] = {
+            latestDiff: shouldPersistDiff(entry.artifacts.latestDiff)
+                ? entry.artifacts.latestDiff
+                : undefined,
+            latestChangeSetFiles: Array.isArray(files)
+                ? files.slice(0, MAX_PERSISTED_CHANGESET_FILES)
+                : undefined,
+            updateTime: entry.updateTime,
+            savedAt: entry.savedAt,
+        };
+    }
+
+    persistInFlight = persistInFlight
+        .catch(() => undefined)
+        .then(() => Promise.resolve(currentGlobalState.update(ARTIFACTS_CACHE_STATE_KEY, persisted)))
+        .catch((error) => {
+            console.error("[Jules] Failed to persist artifacts cache:", error);
+        });
+}
+
+function restoreArtifactsCacheFromGlobalState(now: number): boolean {
+    if (!artifactsGlobalState) {
+        return false;
+    }
+
+    const stored = artifactsGlobalState.get<PersistedArtifactsCache>(
+        ARTIFACTS_CACHE_STATE_KEY,
+        {},
+    );
+
+    const validEntries: Array<[string, CachedSessionArtifacts]> = [];
+    let didDropEntries = false;
+
+    for (const [sessionId, entry] of Object.entries(stored)) {
+        if (!entry || typeof entry !== "object") {
+            didDropEntries = true;
+            continue;
+        }
+
+        const savedAt = typeof entry.savedAt === "number" ? entry.savedAt : Number.NaN;
+        if (!Number.isFinite(savedAt) || now - savedAt > ARTIFACTS_CACHE_TTL_MS) {
+            didDropEntries = true;
+            continue;
+        }
+
+        const latestChangeSetFiles = Array.isArray(entry.latestChangeSetFiles)
+            ? entry.latestChangeSetFiles
+                .filter((file) => file && typeof file.path === "string")
+                .map((file) => ({
+                    path: file.path,
+                    status: typeof file.status === "string" ? file.status : undefined,
+                }))
+                .slice(0, MAX_PERSISTED_CHANGESET_FILES)
+            : undefined;
+
+        const restoredDiff =
+            typeof entry.latestDiff === "string" && shouldPersistDiff(entry.latestDiff)
+                ? entry.latestDiff
+                : undefined;
+
+        validEntries.push([
+            sessionId,
+            {
+                artifacts: {
+                    latestDiff: restoredDiff,
+                    latestChangeSet: latestChangeSetFiles
+                        ? { files: latestChangeSetFiles, raw: {} }
+                        : undefined,
+                },
+                updateTime: typeof entry.updateTime === "string" ? entry.updateTime : undefined,
+                savedAt,
+            },
+        ]);
+    }
+
+    validEntries.sort((a, b) => b[1].savedAt - a[1].savedAt);
+    const trimmedEntries = validEntries.slice(0, MAX_ARTIFACTS_CACHE_SIZE);
+    if (trimmedEntries.length < validEntries.length) {
+        didDropEntries = true;
+    }
+
+    artifactsCache.clear();
+    for (const [sessionId, entry] of trimmedEntries) {
+        artifactsCache.set(sessionId, entry);
+    }
+
+    return didDropEntries;
+}
+
+export function initializeSessionArtifactsCacheFromGlobalState(globalState: GlobalStateLike): void {
+    artifactsGlobalState = globalState;
+    const didDropEntries = restoreArtifactsCacheFromGlobalState(Date.now());
+    if (didDropEntries) {
+        persistArtifactsCache();
+    }
+}
+
+export function clearSessionArtifactsInMemoryCache(): void {
+    artifactsCache.clear();
+    artifactsGlobalState = undefined;
+    persistInFlight = Promise.resolve();
+}
+
+export async function flushSessionArtifactsPersistenceQueueForTests(): Promise<void> {
+    await persistInFlight;
+}
 
 export function getCachedSessionArtifacts(sessionId: string): SessionArtifacts | undefined {
     return artifactsCache.get(sessionId)?.artifacts;
@@ -67,60 +228,113 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
     const lines = diff.split('\n');
     for (const line of lines) {
-        // Match: diff --git a/path/to/file b/path/to/file
-        if (line.startsWith('diff --git ')) {
-            const parts = line.split(' ');
-            if (parts.length >= 4) {
-                const bPart = parts[3]; // b/path/to/file
-                if (bPart.startsWith('b/')) {
-                    files.push({ path: bPart.slice(2) });
+        if (!line.startsWith('diff --git ')) {
+            continue;
+        }
+
+        const payload = line.substring(11); // everything after 'diff --git '
+        let i = 0;
+
+        function readPath(): string | undefined {
+            if (i >= payload.length) {
+                return undefined;
+            }
+            if (payload[i] === '"') {
+                i++; // skip opening quote
+                let res = "";
+                while (i < payload.length && payload[i] !== '"') {
+                    if (payload[i] === '\\' && i + 1 < payload.length) {
+                        res += payload[i + 1];
+                        i += 2;
+                    } else {
+                        res += payload[i];
+                        i++;
+                    }
                 }
+                if (payload[i] === '"') {
+                    i++; // skip closing quote
+                }
+                return res;
+            } else {
+                const start = i;
+                while (i < payload.length && payload[i] !== ' ') {
+                    if (payload[i] === '\\' && i + 1 < payload.length) {
+                        i += 2;
+                    } else {
+                        i++;
+                    }
+                }
+                return payload.substring(start, i).replace(/\\(.)/g, '$1');
+            }
+        }
+
+        let path2: string | undefined;
+
+        // Try reading proper quoted/escaped paths
+        if (payload.startsWith('"a/') || payload.startsWith('a/')) {
+            readPath(); // Skip path1
+            if (i < payload.length && payload[i] === ' ') {
+                i++; // skip space delimiter
+                path2 = readPath();
+            }
+        }
+
+        // Check if we parsed a valid b/ path
+        if (path2?.startsWith('b/')) {
+            files.push({ path: path2.slice(2) });
+        } else {
+            // Fallback for unquoted paths containing spaces (e.g. diff --git a/my file b/my file)
+            const match = payload.match(/^a\/(.+?) b\/(.+?)$/);
+            if (match) {
+                files.push({ path: match[2] });
             }
         }
     }
     return files;
 }
 
-function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
-    const candidates = [
-        changeSet.files,
-        changeSet.changes,
-        changeSet.entries,
-        changeSet.changedFiles,
-        changeSet.paths,
-    ];
+function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
+    if (!Array.isArray(candidate) || candidate.length === 0) {
+        return null;
+    }
 
     const files: ChangeSetFile[] = [];
     const seenPaths = new Set<string>();
 
-    for (const candidate of candidates) {
-        if (!Array.isArray(candidate)) {
-            continue;
+    for (const entry of candidate) {
+        let extractedPath: string | null = null;
+        let extractedStatus: string | undefined = undefined;
+
+        if (typeof entry === 'string') {
+            extractedPath = normalizePath(entry);
+        } else if (entry && typeof entry === 'object') {
+            const record = entry as Record<string, unknown>;
+            extractedPath = [record.path, record.filePath, record.file, record.name, record.filename]
+                .map(normalizePath)
+                .find(path => path !== null) ?? null;
+            extractedStatus = [record.status, record.action, record.type]
+                .map(normalizeStatus)
+                .find(status => status !== undefined);
         }
 
-        for (const entry of candidate) {
-            let extractedPath: string | null = null;
-            let extractedStatus: string | undefined = undefined;
-
-            if (typeof entry === 'string') {
-                extractedPath = normalizePath(entry);
-            } else if (entry && typeof entry === 'object') {
-                const record = entry as Record<string, unknown>;
-                extractedPath = normalizePath(record.path ?? record.filePath ?? record.file ?? record.name ?? record.filename);
-                extractedStatus = normalizeStatus(record.status ?? record.action ?? record.type);
-            }
-
-            if (extractedPath && !seenPaths.has(extractedPath)) {
-                files.push({ path: extractedPath, status: extractedStatus });
-                seenPaths.add(extractedPath);
-            }
+        if (extractedPath && !seenPaths.has(extractedPath)) {
+            files.push({ path: extractedPath, status: extractedStatus });
+            seenPaths.add(extractedPath);
         }
+    }
 
-        // If we successfully extracted files from this candidate type, we stop.
-        // This assumes that one changeSet object uses only one consistent property name.
-        if (files.length > 0) {
-            return files;
-        }
+    return files.length > 0 ? files : null;
+}
+
+function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
+    const files = tryExtractFromCandidate(changeSet.files) ??
+                  tryExtractFromCandidate(changeSet.changes) ??
+                  tryExtractFromCandidate(changeSet.entries) ??
+                  tryExtractFromCandidate(changeSet.changedFiles) ??
+                  tryExtractFromCandidate(changeSet.paths);
+
+    if (files) {
+        return files;
     }
 
     // Fallback: Try to extract from diff if available
@@ -143,49 +357,56 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
 
     let latestDiff: string | undefined;
     let latestChangeSetRaw: Record<string, unknown> | undefined;
+    let latestChangeSetFallbackDiff: string | undefined;
 
     // Single pass backwards to find the latest Diff and the latest ChangeSet
     for (let i = activities.length - 1; i >= 0; i -= 1) {
         const activity = activities[i];
+        if (!activity) {
+            continue;
+        }
 
-        // 1. Try to find Diff if not already found
-        // 1. Try to find Diff if not already found
-        if (latestDiff === undefined) {
-            const diff = activity?.gitPatch?.diff;
+        const artifacts = activity.artifacts;
+
+        // Check direct gitPatch for diff (Priority 1)
+        if (!latestDiff) {
+            const diff = activity.gitPatch?.diff;
             if (typeof diff === "string" && diff.trim().length > 0) {
                 latestDiff = diff;
-            } else {
-                // Check artifacts.changeSet.gitPatch.unidiffPatch
-                const artifacts = activity?.artifacts;
-                if (Array.isArray(artifacts)) {
-                    for (const artifact of artifacts) {
-                        const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
-                        if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
-                            latestDiff = uniDiff;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        }
-
-        // 2. Try to find ChangeSet if not already found
-        if (latestChangeSetRaw === undefined) {
-            const artifacts = activity?.artifacts;
-            if (Array.isArray(artifacts)) {
+            } else if (Array.isArray(artifacts)) {
+                // Check artifacts.changeSet.gitPatch.unidiffPatch (Priority 2)
                 for (const artifact of artifacts) {
-                    const changeSet = artifact?.changeSet;
-                    if (changeSet && typeof changeSet === "object") {
-                        latestChangeSetRaw = changeSet as Record<string, unknown>;
+                    const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                    if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
+                        latestDiff = uniDiff;
                         break;
                     }
                 }
             }
         }
 
-        // Optimization: If both found, we can stop early.
-        if (latestDiff !== undefined && latestChangeSetRaw !== undefined) {
+        if (!latestChangeSetRaw && Array.isArray(artifacts)) {
+            for (const artifact of artifacts) {
+                const changeSet = artifact?.changeSet;
+                if (changeSet && typeof changeSet === "object") {
+                    latestChangeSetRaw = changeSet as Record<string, unknown>;
+
+                    const activityDiff = activity.gitPatch?.diff;
+                    if (typeof activityDiff === "string" && activityDiff.trim().length > 0) {
+                        latestChangeSetFallbackDiff = activityDiff;
+                    } else {
+                        const artifactDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                        if (typeof artifactDiff === "string" && artifactDiff.trim().length > 0) {
+                            latestChangeSetFallbackDiff = artifactDiff;
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        if (latestDiff && latestChangeSetRaw) {
             break;
         }
     }
@@ -193,7 +414,10 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
     let latestChangeSet: ChangeSetSummary | undefined;
     if (latestChangeSetRaw) {
         latestChangeSet = {
-            files: extractChangeSetFiles(latestChangeSetRaw, latestDiff),
+            files: extractChangeSetFiles(
+                latestChangeSetRaw,
+                latestChangeSetFallbackDiff ?? latestDiff,
+            ),
             raw: latestChangeSetRaw,
         };
     }
@@ -234,6 +458,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     const previousEntry = artifactsCache.get(sessionId);
     const previousArtifacts = previousEntry?.artifacts;
     const nextUpdateTime = updateTime ?? previousEntry?.updateTime;
+    const nextSavedAt = Date.now();
 
     const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
     const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
@@ -242,8 +467,11 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
         artifactsCache.set(sessionId, {
             artifacts: latest,
-            updateTime: nextUpdateTime
+            updateTime: nextUpdateTime,
+            savedAt: nextSavedAt,
         });
+        evictOldestArtifactsEntryIfNeeded();
+        persistArtifactsCache();
     }
     return diffChanged || changeSetChanged || (!!updateTime && timeChanged);
 }
@@ -309,9 +537,9 @@ export async function fetchLatestSessionArtifacts(
                     }
                 }
             } else if (data.activities && Array.isArray(data.activities) && data.activities.length === 0) {
-                 // Empty list means no activities at all. No need to fallback.
-                 updateSessionArtifactsCache(sessionId, [], sessionUpdateTime);
-                 return {};
+                // Empty list means no activities at all. No need to fallback.
+                updateSessionArtifactsCache(sessionId, [], sessionUpdateTime);
+                return {};
             }
         }
     } catch (error) {
@@ -334,10 +562,10 @@ export async function fetchLatestSessionArtifacts(
     }
 
     const data = (await response.json()) as ActivitiesResponse;
-    if (!data.activities || !Array.isArray(data.activities)) {
+    if (data.activities !== undefined && !Array.isArray(data.activities)) {
         throw new Error("Invalid response format from API.");
     }
 
-    updateSessionArtifactsCache(sessionId, data.activities, sessionUpdateTime);
+    updateSessionArtifactsCache(sessionId, data.activities || [], sessionUpdateTime);
     return artifactsCache.get(sessionId)?.artifacts ?? {};
 }

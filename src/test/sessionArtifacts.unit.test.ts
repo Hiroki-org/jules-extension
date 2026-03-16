@@ -6,10 +6,33 @@ import {
     updateSessionArtifactsCache,
     fetchLatestSessionArtifacts,
     getCachedSessionArtifacts,
+    initializeSessionArtifactsCacheFromGlobalState,
+    clearSessionArtifactsInMemoryCache,
+    flushSessionArtifactsPersistenceQueueForTests,
     SessionArtifacts,
     ChangeSetFile,
     ChangeSetSummary,
+    MAX_ARTIFACTS_CACHE_SIZE,
+    ARTIFACTS_CACHE_TTL_MS,
+    ARTIFACTS_CACHE_STATE_KEY,
 } from '../sessionArtifacts';
+
+class InMemoryGlobalState {
+    private store = new Map<string, unknown>();
+
+    get<T>(key: string, defaultValue: T): T {
+        return (this.store.has(key) ? this.store.get(key) : defaultValue) as T;
+    }
+
+    update(key: string, value: unknown): Promise<void> {
+        this.store.set(key, value);
+        return Promise.resolve();
+    }
+
+    set(key: string, value: unknown): void {
+        this.store.set(key, value);
+    }
+}
 
 suite('SessionArtifacts ユニットテスト', () => {
     let sandbox: sinon.SinonSandbox;
@@ -18,9 +41,11 @@ suite('SessionArtifacts ユニットテスト', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
         fetchStub = sandbox.stub(global, 'fetch');
+        clearSessionArtifactsInMemoryCache();
     });
 
     teardown(() => {
+        clearSessionArtifactsInMemoryCache();
         sandbox.restore();
     });
 
@@ -416,6 +441,31 @@ index 2345678..bcdefgh 100644
             assert.strictEqual(result.latestChangeSet.files.length, 2);
         });
 
+        test('引用符で囲まれたスペースを含むパスやエスケープされた文字を抽出すること', () => {
+            const diff = `diff --git "a/path with spaces.ts" "b/path with spaces.ts"
+index 123..abc 100644
+diff --git "a/file with \\" quote.txt" "b/file with \\" quote.txt"
+index 456..def 100644`;
+
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    gitPatch: { diff },
+                    artifacts: [
+                        {
+                            changeSet: {},
+                        },
+                    ],
+                },
+            ];
+
+            const result = extractLatestArtifactsFromActivities(activities);
+            assert.ok(result.latestChangeSet);
+            assert.strictEqual(result.latestChangeSet.files.length, 2);
+            assert.strictEqual(result.latestChangeSet.files[0].path, 'path with spaces.ts');
+            assert.strictEqual(result.latestChangeSet.files[1].path, 'file with " quote.txt');
+        });
+
         test('無効な形式の diff を処理すること', () => {
             const diff = 'invalid diff format';
             const activities = [
@@ -462,6 +512,42 @@ index 2345678..bcdefgh 100644
             const result = extractLatestArtifactsFromActivities(activities);
             assert.ok(result.latestChangeSet);
             assert.strictEqual(result.latestChangeSet.files[0].path, 'new/file.ts');
+        });
+
+        test('changeSet の fallback diff には同じ artifact 由来の diff を使うこと', () => {
+            const olderArtifactDiff = `diff --git a/src/correct.ts b/src/correct.ts
+index 1234567..89abcde 100644
+--- a/src/correct.ts
++++ b/src/correct.ts`;
+            const newerUnrelatedDiff = `diff --git a/src/unrelated.ts b/src/unrelated.ts
+index 7654321..edcba98 100644
+--- a/src/unrelated.ts
++++ b/src/unrelated.ts`;
+
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                gitPatch: {
+                                    unidiffPatch: olderArtifactDiff,
+                                },
+                            },
+                        },
+                    ],
+                },
+                {
+                    createTime: '2024-01-02T00:00:00Z',
+                    gitPatch: { diff: newerUnrelatedDiff },
+                },
+            ];
+
+            const result = extractLatestArtifactsFromActivities(activities);
+            assert.strictEqual(result.latestDiff, newerUnrelatedDiff);
+            assert.ok(result.latestChangeSet);
+            assert.strictEqual(result.latestChangeSet.files.length, 1);
+            assert.strictEqual(result.latestChangeSet.files[0].path, 'src/correct.ts');
         });
     });
 
@@ -692,6 +778,111 @@ index 2345678..bcdefgh 100644
         });
     });
 
+    suite('globalState 永続化', () => {
+        test('永続化データからキャッシュを復元できること', () => {
+            const state = new InMemoryGlobalState();
+            const sessionId = 'sessions/persisted-1';
+
+            state.set(ARTIFACTS_CACHE_STATE_KEY, {
+                [sessionId]: {
+                    latestDiff: 'diff --git a/a.ts b/a.ts',
+                    latestChangeSetFiles: [{ path: 'src/a.ts', status: 'modified' }],
+                    updateTime: '2026-02-28T00:00:00Z',
+                    savedAt: Date.now(),
+                },
+            });
+
+            initializeSessionArtifactsCacheFromGlobalState(state);
+            const cached = getCachedSessionArtifacts(sessionId);
+
+            assert.ok(cached);
+            assert.strictEqual(cached?.latestDiff, 'diff --git a/a.ts b/a.ts');
+            assert.strictEqual(cached?.latestChangeSet?.files[0].path, 'src/a.ts');
+        });
+
+        test('TTL超過エントリは復元時に破棄されること', () => {
+            const state = new InMemoryGlobalState();
+            const expiredSavedAt = Date.now() - ARTIFACTS_CACHE_TTL_MS - 1000;
+
+            state.set(ARTIFACTS_CACHE_STATE_KEY, {
+                'sessions/expired': {
+                    latestDiff: 'expired diff',
+                    latestChangeSetFiles: [{ path: 'src/expired.ts' }],
+                    savedAt: expiredSavedAt,
+                },
+            });
+
+            initializeSessionArtifactsCacheFromGlobalState(state);
+            const cached = getCachedSessionArtifacts('sessions/expired');
+
+            assert.strictEqual(cached, undefined);
+        });
+
+        test('復元時に上限件数を超えたら古いものから落とすこと', () => {
+            const state = new InMemoryGlobalState();
+            const persisted: Record<string, unknown> = {};
+            const base = Date.now();
+
+            for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE + 1; i += 1) {
+                persisted[`sessions/${i}`] = {
+                    latestDiff: `diff-${i}`,
+                    savedAt: base - i,
+                };
+            }
+
+            // 追加で最古を明示的に古くして、確実にevict対象にする
+            persisted['sessions/oldest'] = {
+                latestDiff: 'very-old',
+                savedAt: base - 999999,
+            };
+
+            state.set(ARTIFACTS_CACHE_STATE_KEY, persisted);
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            let restoredCount = 0;
+            for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE + 1; i += 1) {
+                if (getCachedSessionArtifacts(`sessions/${i}`)) {
+                    restoredCount += 1;
+                }
+            }
+
+            assert.strictEqual(restoredCount, MAX_ARTIFACTS_CACHE_SIZE);
+            assert.strictEqual(getCachedSessionArtifacts('sessions/50'), undefined);
+            assert.strictEqual(getCachedSessionArtifacts('sessions/oldest'), undefined);
+        });
+
+        test('大きすぎるdiffは永続化されないこと', async () => {
+            const state = new InMemoryGlobalState();
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            const sessionId = 'sessions/huge-diff';
+            const hugeDiff = 'x'.repeat(70 * 1024);
+            const activities = [
+                {
+                    createTime: '2026-02-28T00:00:00Z',
+                    gitPatch: { diff: hugeDiff },
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'src/huge.ts', status: 'modified' }],
+                            },
+                        },
+                    ],
+                },
+            ];
+
+            updateSessionArtifactsCache(sessionId, activities as any);
+            await flushSessionArtifactsPersistenceQueueForTests();
+            clearSessionArtifactsInMemoryCache();
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            const restored = getCachedSessionArtifacts(sessionId);
+            assert.ok(restored);
+            assert.strictEqual(restored?.latestDiff, undefined);
+            assert.strictEqual(restored?.latestChangeSet?.files[0].path, 'src/huge.ts');
+        });
+    });
+
     // =========================================================================
     // fetchLatestSessionArtifacts のテスト
     // =========================================================================
@@ -739,22 +930,6 @@ index 2345678..bcdefgh 100644
             );
         });
 
-        test('API が不正なレスポンスを返した場合、エラーをスローすること', async () => {
-            const sessionId = 'session-202';
-            const apiKey = 'test-api-key';
-
-            fetchStub.resolves({
-                ok: true,
-                status: 200,
-                json: async () => ({}),
-            } as Response);
-
-            await assert.rejects(
-                async () => await fetchLatestSessionArtifacts(apiKey, sessionId),
-                /Invalid response format from API/
-            );
-        });
-
         test('API が activities 配列以外を返した場合、エラーをスローすること', async () => {
             const sessionId = 'session-203';
             const apiKey = 'test-api-key';
@@ -771,8 +946,22 @@ index 2345678..bcdefgh 100644
             );
         });
 
+        test('API が空のオブジェクトを返した場合、正常に処理されること', async () => {
+            const sessionId = 'session-205';
+            const apiKey = 'test-api-key';
+
+            fetchStub.resolves({
+                ok: true,
+                status: 200,
+                json: async () => ({}),
+            } as Response);
+
+            const result = await fetchLatestSessionArtifacts(apiKey, sessionId);
+            assert.deepStrictEqual(result, {});
+        });
+
         test('カスタム API ベース URL を使用できること', async () => {
-            const sessionId = 'session-204';
+            const sessionId = 'session-206';
             const apiKey = 'test-api-key';
             const customBaseUrl = 'https://custom.api.example.com/v1';
             const mockActivities = [
@@ -796,7 +985,7 @@ index 2345678..bcdefgh 100644
         });
 
         test('API キーがヘッダーに正しく設定されること', async () => {
-            const sessionId = 'session-205';
+            const sessionId = 'session-207';
             const apiKey = 'test-api-key-12345';
             const mockActivities = [
                 {

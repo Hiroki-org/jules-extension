@@ -231,7 +231,7 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
             }) as any);
         });
 
-        test('uses current branch as default when workspace repo matches source repo', async () => {
+        test('uses source default branch even when workspace repo matches source repo', async () => {
             const gitApi = createGitApi('https://github.com/owner/repo.git', 'feature/match');
             getExtensionStub = sandbox.stub(vscode.extensions, 'getExtension');
             getExtensionStub.returns({ exports: { getAPI: () => gitApi } } as any);
@@ -241,7 +241,7 @@ You can push this branch first, or use the default branch "${'main'}" instead.`,
 
             const result = await getBranchesForSession(selectedSource, apiClient, outputChannel, contextStub, { showProgress: false });
 
-            assert.strictEqual(result.defaultBranch, 'feature/match');
+            assert.strictEqual(result.defaultBranch, 'main');
         });
 
         test('falls back to source default when workspace repo differs from source repo', async () => {

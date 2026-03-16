@@ -2,7 +2,7 @@
   "name": "jules-extension",
   "displayName": "Jules Extension",
   "description": "Control Google Jules AI coding agent directly from VS Code",
-  "version": "1.2.6",
+  "version": "1.3.4",
   "publisher": "HirokiMukai",
   "license": "MIT",
   "icon": "icon.png",
@@ -37,7 +37,6 @@
     "Other"
   ],
   "packageManager": "pnpm@10.28.0",
-  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
@@ -70,18 +69,6 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically hide sessions with closed or merged pull requests from the session list"
-        },
-        "jules-extension.githubToken": {
-          "type": "string",
-          "default": "",
-          "deprecationMessage": "This setting is deprecated. Use the 'Jules: Set GitHub Token' command instead for secure storage.",
-          "description": "[DEPRECATED] Use command 'Jules: Set GitHub Token' instead. GitHub Personal Access Token for checking PR status (optional, uses public API if not set)",
-          "markdownDescription": "⚠️ **DEPRECATED:** Please use the command `Jules: Set GitHub Token` instead to store your token securely.\n\nThis setting is only for display purposes. Tokens should be stored using VS Code's secure secrets storage via the command palette."
-        },
-        "jules.githubPat": {
-          "type": "string",
-          "description": "[DEPRECATED] GitHub Personal Access Token (use OAuth sign-in instead)",
-          "deprecationMessage": "GitHub PAT is deprecated. Use 'Jules: Sign in to GitHub' command instead. PAT support will be removed in a future version"
         },
         "jules.defaultBranch": {
           "type": "string",
@@ -137,7 +124,8 @@
       },
       {
         "command": "jules-extension.sendMessage",
-        "title": "Send Message to Jules Session"
+        "title": "Open Chat View",
+        "icon": "$(comment-discussion)"
       },
       {
         "command": "jules-extension.approvePlan",
@@ -156,18 +144,6 @@
         "title": "Delete Session",
         "category": "Jules",
         "icon": "$(trash)"
-      },
-      {
-        "command": "jules-extension.setGithubToken",
-        "title": "Set GitHub Token (for PR Status)",
-        "category": "Jules",
-        "icon": "$(github)"
-      },
-      {
-        "command": "jules-extension.setGitHubPat",
-        "title": "[DEPRECATED] Set GitHub PAT",
-        "category": "Jules",
-        "icon": "$(github)"
       },
       {
         "command": "jules-extension.clearCache",
@@ -213,6 +189,15 @@
         "title": "Review Plan...",
         "category": "Jules",
         "icon": "$(preview)"
+      },
+      {
+        "command": "jules.filterActivities",
+        "title": "Jules: Filter Activities"
+      },
+      {
+        "command": "jules.showFailureReason",
+        "title": "Jules: Show Failure Reason",
+        "category": "Jules"
       }
     ],
     "viewsWelcome": [
@@ -234,6 +219,13 @@
           "name": "Jules Sessions",
           "icon": "$(robot)",
           "contextualTitle": "Jules Sessions"
+        },
+        {
+          "type": "webview",
+          "id": "julesChatView",
+          "name": "Jules Chat",
+          "icon": "$(comment-discussion)",
+          "contextualTitle": "Jules Chat"
         }
       ]
     },
@@ -263,6 +255,16 @@
           "command": "jules-extension.setApiKey",
           "when": "view == julesSessionsView",
           "group": "navigation@5"
+        },
+        {
+          "command": "jules.filterActivities",
+          "when": "view == julesSessionsView",
+          "group": "navigation@6"
+        },
+        {
+          "command": "jules-extension.refreshActivities",
+          "when": "view == julesChatView",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -305,6 +307,11 @@
           "command": "jules-extension.reviewPlan",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-awaiting-plan/",
           "group": "navigation"
+        },
+        {
+          "command": "jules.showFailureReason",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-failed/",
+          "group": "jules_info"
         }
       ]
     }
@@ -326,6 +333,7 @@
     "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/sinon": "^17.0.0",
@@ -344,6 +352,9 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "is-glob": "^4.0.3"
+    "highlight.js": "^11.11.1",
+    "is-glob": "^4.0.3",
+    "markdown-it": "^14.1.1",
+    "socks-proxy-agent": "^8.0.5"
   }
 }

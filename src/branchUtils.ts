@@ -3,7 +3,6 @@ import * as path from 'path';
 import { JulesApiClient } from './julesApiClient';
 import { Source as SourceType } from './types';
 import { BranchesCache, isCacheValid } from './cache';
-import { parseGitHubUrl } from './githubUtils';
 import { sanitizeForLogging } from './securityUtils';
 
 const DEFAULT_FALLBACK_BRANCH = 'main';
@@ -75,9 +74,9 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
  * @param options オプション
  * @returns 現在のブランチ名、またはnull（Git拡張が利用できない場合など）
  */
-export async function getCurrentBranch(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<string | null> {
+export async function getCurrentBranch(outputChannel: vscode.OutputChannel, options: { silent?: boolean, repository?: any } = {}): Promise<string | null> {
     try {
-        const repository = await getActiveRepository(outputChannel, options);
+        const repository = options.repository !== undefined ? options.repository : await getActiveRepository(outputChannel, options);
         if (!repository) {
             return null;
         }
@@ -91,38 +90,6 @@ export async function getCurrentBranch(outputChannel: vscode.OutputChannel, opti
         return head.name || null;
     } catch (error) {
         outputChannel.appendLine(`Error getting current branch: ${error}`);
-        return null;
-    }
-}
-
-async function getWorkspaceGitHubRepo(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<{ owner: string; repo: string } | null> {
-    try {
-        const repository = await getActiveRepository(outputChannel, options);
-        if (!repository) {
-            return null;
-        }
-
-        const remote = repository.state.remotes.find((r: any) => r.name === 'origin');
-        if (!remote) {
-            outputChannel.appendLine('No origin remote found');
-            return null;
-        }
-
-        const remoteUrl = remote.fetchUrl || remote.pushUrl;
-        if (!remoteUrl) {
-            outputChannel.appendLine('No remote URL found for origin');
-            return null;
-        }
-
-        const parsed = parseGitHubUrl(remoteUrl);
-        if (!parsed) {
-            outputChannel.appendLine('Failed to parse GitHub remote URL');
-            return null;
-        }
-
-        return { owner: parsed.owner.toLowerCase(), repo: parsed.repo.toLowerCase() };
-    } catch (error) {
-        outputChannel.appendLine(`Error getting workspace GitHub repo: ${error}`);
         return null;
     }
 }
@@ -222,7 +189,8 @@ export async function getBranchesForSession(
             branches = [defaultBranch];
         }
 
-        const currentBranch = await getCurrentBranch(outputChannel, { silent });
+        let repository = null; try { repository = await getActiveRepository(outputChannel, { silent }); } catch (e) { }
+        const currentBranch = await getCurrentBranch(outputChannel, { silent, repository });
 
         // 警告は1回だけ
         if (currentBranch && !remoteBranches.includes(currentBranch)) {
@@ -230,23 +198,8 @@ export async function getBranchesForSession(
             branches.unshift(currentBranch);
         }
 
-        const config = vscode.workspace.getConfiguration('jules');
-        const defaultBranchConfig = config.get<string>('defaultBranch', 'current');
-
-        let selectedDefaultBranch = defaultBranch;
-        if (defaultBranchConfig === 'current' && currentBranch) {
-            const workspaceRepo = await getWorkspaceGitHubRepo(outputChannel, { silent });
-            const sourceRepo = selectedSource.githubRepo;
-            const isRepoMatched = workspaceRepo && sourceRepo &&
-                workspaceRepo.owner === sourceRepo.owner.toLowerCase() &&
-                workspaceRepo.repo === sourceRepo.repo.toLowerCase();
-
-            if (isRepoMatched) {
-                selectedDefaultBranch = currentBranch;
-            }
-        } else if (defaultBranchConfig === 'main') {
-            selectedDefaultBranch = branches.includes('main') ? 'main' : defaultBranch;
-        }
+        // Use Sources API default branch for session creation UI default selection.
+        const selectedDefaultBranch = defaultBranch;
 
         const cache: BranchesCache = {
             branches,

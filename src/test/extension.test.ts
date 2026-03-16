@@ -10,6 +10,12 @@ import {
   areOutputsEqual,
   areSessionListsEqual,
   updatePreviousStates,
+  buildActivitiesListEndpoint,
+  buildSessionsListEndpoint,
+  mergeActivitiesByIdentity,
+  getLatestActivityCreateTime,
+  getSourceDisplayName,
+  getSourceIsPrivate,
   Session,
   SessionOutput,
   handleOpenInWebApp
@@ -72,6 +78,31 @@ suite("Extension Test Suite", () => {
     test("Unknown states should default to RUNNING", () => {
       assert.strictEqual(mapApiStateToSessionState("UNKNOWN_STATE"), "RUNNING");
       assert.strictEqual(mapApiStateToSessionState(""), "RUNNING");
+    });
+  });
+
+  suite("Source Display Helpers", () => {
+    test("getSourceDisplayName should prefer githubRepo owner/repo", () => {
+      const source = {
+        name: "sources/github/my-org/legacy-name",
+        githubRepo: {
+          owner: "my-org",
+          repo: "my-repo",
+        },
+      } as any;
+
+      assert.strictEqual(getSourceDisplayName(source), "my-org/my-repo");
+    });
+
+    test("getSourceIsPrivate should prioritize githubRepo.isPrivate", () => {
+      const source = {
+        isPrivate: false,
+        githubRepo: {
+          isPrivate: true,
+        },
+      } as any;
+
+      assert.strictEqual(getSourceIsPrivate(source), true);
     });
   });
 
@@ -205,8 +236,8 @@ suite("Extension Test Suite", () => {
 
       const tooltip = (sessionWithPR.tooltip as vscode.MarkdownString).value;
       assert.ok(tooltip.includes("🔗 **Pull Request**"));
-      assert.ok(tooltip.includes("Fix bug in parser"));
-      assert.ok(tooltip.includes("[Open PR](https://github.com/owner/repo/pull/42)"));
+      assert.ok(tooltip.includes("Fix") && tooltip.includes("bug") && tooltip.includes("parser"));
+      assert.ok(tooltip.includes("[Open PR (repo#42)](https://github.com/owner/repo/pull/42)"));
     });
 
     test("SessionTreeItem tooltip should display creation and update timestamps", () => {
@@ -326,8 +357,9 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltip.includes("Status: **COMPLETED**"), "Status should be present");
       assert.ok(tooltip.includes("🤖 Auto Create PR"), "Automation mode should be present");
       assert.ok(tooltip.includes("🔗 **Pull Request**"), "PR section should be present");
-      assert.ok(tooltip.includes("Complete Feature"), "PR title should be present");
-      assert.ok(tooltip.includes("[Open PR](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
+      // appendText replaces spaces with &nbsp;, so check word unique to PR title (not session title)
+      assert.ok(tooltip.includes("Feature"), "PR title word should be present");
+      assert.ok(tooltip.includes("[Open PR (myrepo#100)](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
       assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
       assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");
       assert.ok(tooltip.includes("Branch: `main`"), "Branch should be present");
@@ -601,6 +633,78 @@ suite("Extension Test Suite", () => {
       const a: SessionOutput[] = [{ pullRequest: { url: "u", title: "t", description: "d" } }];
       const b: SessionOutput[] = [{ pullRequest: { url: "u", title: "t", description: "d" } }];
       assert.strictEqual(areOutputsEqual(a, b), true);
+    });
+  });
+
+  suite("Pagination Endpoint Builders", () => {
+    test("buildSessionsListEndpoint should include pageSize and pageToken", () => {
+      const url = buildSessionsListEndpoint(
+        "https://jules.googleapis.com/v1alpha",
+        "next-token-1",
+      );
+
+      assert.ok(url.includes("/sessions?"));
+      assert.ok(url.includes("pageSize=100"));
+      assert.ok(url.includes("pageToken=next-token-1"));
+    });
+
+    test("buildActivitiesListEndpoint should include pageSize and pageToken", () => {
+      const url = buildActivitiesListEndpoint(
+        "https://jules.googleapis.com/v1alpha",
+        "sessions/123",
+        {
+          pageToken: "p2",
+        },
+      );
+
+      assert.ok(url.includes("/sessions/123/activities?"));
+      assert.ok(url.includes("pageSize=100"));
+      assert.ok(url.includes("pageToken=p2"));
+      assert.ok(!url.includes("createTime"), "createTime is not a valid API parameter");
+    });
+  });
+
+  suite("Activities Delta Helpers", () => {
+    test("mergeActivitiesByIdentity should merge unique activities and keep chronological order", () => {
+      const existing = [
+        {
+          name: "activities/1",
+          id: "1",
+          createTime: "2026-02-28T10:00:00Z",
+        },
+        {
+          name: "activities/2",
+          id: "2",
+          createTime: "2026-02-28T10:01:00Z",
+        },
+      ] as any;
+      const incoming = [
+        {
+          name: "activities/2",
+          id: "2",
+          createTime: "2026-02-28T10:01:00Z",
+        },
+        {
+          name: "activities/3",
+          id: "3",
+          createTime: "2026-02-28T10:02:00Z",
+        },
+      ] as any;
+
+      const merged = mergeActivitiesByIdentity(existing, incoming);
+      assert.strictEqual(merged.length, 3);
+      assert.strictEqual(merged[0].name, "activities/1");
+      assert.strictEqual(merged[2].name, "activities/3");
+    });
+
+    test("getLatestActivityCreateTime should return latest valid timestamp", () => {
+      const latest = getLatestActivityCreateTime([
+        { id: "1", name: "a1", createTime: "invalid" },
+        { id: "2", name: "a2", createTime: "2026-02-28T09:00:00Z" },
+        { id: "3", name: "a3", createTime: "2026-02-28T11:00:00Z" },
+      ] as any);
+
+      assert.strictEqual(latest, "2026-02-28T11:00:00Z");
     });
   });
 
