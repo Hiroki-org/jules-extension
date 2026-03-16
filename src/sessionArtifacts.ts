@@ -234,10 +234,11 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     // Instead of allocating an array for all lines via .split('\n'),
     // we search for 'diff --git ' using indexOf to scan directly.
     while (start < len) {
-        start = diff.indexOf(searchString, start);
-        if (start === -1) {
+        const found = diff.indexOf(searchString, start);
+        if (found === -1) {
             break;
         }
+        start = found;
 
         // Verify it is actually at the beginning of a line or the start of the file
         if (start !== 0 && diff[start - 1] !== '\n') {
