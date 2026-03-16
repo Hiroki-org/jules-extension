@@ -37,7 +37,8 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider {
 
         try {
             // Get document symbols to accurately find functions and classes and their full ranges
-            const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            // This can return either DocumentSymbol[] or SymbolInformation[]
+            const symbols = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>(
                 "vscode.executeDocumentSymbolProvider",
                 document.uri
             );
@@ -46,15 +47,15 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider {
                 return [];
             }
 
-            const processSymbols = (syms: vscode.DocumentSymbol[]) => {
+            const processSymbols = (syms: (vscode.DocumentSymbol | vscode.SymbolInformation)[]) => {
                 for (const symbol of syms) {
                     if (
                         symbol.kind === vscode.SymbolKind.Function ||
                         symbol.kind === vscode.SymbolKind.Class ||
                         symbol.kind === vscode.SymbolKind.Method
                     ) {
-                        // The range here represents the whole block of code for the symbol
-                        const range = symbol.range;
+                        // Normalize the range whether it's a DocumentSymbol or SymbolInformation
+                        const range = 'range' in symbol ? symbol.range : symbol.location.range;
 
                         // We place the CodeLens at the top of the symbol
                         const lensRange = new vscode.Range(range.start.line, 0, range.start.line, 0);
@@ -77,8 +78,8 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider {
                         );
                     }
 
-                    // Recursively process children
-                    if (symbol.children && symbol.children.length > 0) {
+                    // Recursively process children if they exist (only DocumentSymbol has children)
+                    if ('children' in symbol && symbol.children && symbol.children.length > 0) {
                         processSymbols(symbol.children);
                     }
                 }
