@@ -50,6 +50,7 @@ import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import { registerInlineCommands } from "./inlineCommands";
 import { createJulesSession } from "./sessionUtils";
+import { buildFinalPrompt } from "./promptUtils";
 import {
   getActivityCategory,
   getActivityIcon,
