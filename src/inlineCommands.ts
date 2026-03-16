@@ -4,8 +4,11 @@ import { createJulesSession } from "./sessionUtils";
 import { showMessageComposer } from "./composer";
 import { getBranchesForSession } from "./branchUtils";
 import { JulesApiClient } from "./julesApiClient";
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { sanitizeForLogging } from "./securityUtils";
 import { SourceType } from "./types";
+
+const ALL_SOURCES_ID = "all_repos";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
@@ -157,6 +160,10 @@ export async function handleInlineTask(
     if (range && !range.isEmpty) {
         const selectionRange = range instanceof vscode.Selection ? range : new vscode.Range(range.start, range.end);
         codeSnippet = document.getText(selectionRange);
+        if (!codeSnippet.trim()) {
+            vscode.window.showErrorMessage("Selected range contains only whitespace.");
+            return;
+        }
     } else {
         // Fallback: Check if there's an active editor for this document that has a selection
         const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uri.toString());
@@ -166,7 +173,7 @@ export async function handleInlineTask(
     }
 
     if (!codeSnippet.trim()) {
-        vscode.window.showErrorMessage("Please select some code to perform this action.");
+        vscode.window.showErrorMessage("Please select valid, non-empty code to perform this action.");
         return;
     }
 
@@ -184,27 +191,23 @@ export async function handleInlineTask(
 
     const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
-    const fetchBranches = async (options: { forceRefresh?: boolean; showProgress?: boolean }) => {
-      try {
-        return await getBranchesForSession(
-          selectedSource,
-          apiClient,
-          logChannel,
-          context,
-          options,
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        logChannel.appendLine(`[Jules] Failed to fetch branches: ${message}`);
-        vscode.window.showErrorMessage(`Failed to fetch branches: ${message}`);
-        return null;
-      }
-    };
-
     // ブランチ選択ロジック
-    const initialBranchInfo = await fetchBranches({ showProgress: true });
-    if (!initialBranchInfo) {
-      return;
+    async function fetchBranches(options: { forceRefresh?: boolean; showProgress?: boolean }) {
+        try {
+            return await getBranchesForSession(selectedSource, apiClient, logChannel, context, options);
+        } catch (error) {
+            const errSafe = sanitizeForLogging(error instanceof Error ? error.message : String(error));
+            logChannel.appendLine(`[Jules] Error fetching branches: ${errSafe}`);
+            vscode.window.showErrorMessage(`Failed to fetch branches: ${errSafe}`);
+            throw error;
+        }
+    }
+
+    let branchInfo;
+    try {
+        branchInfo = await fetchBranches({ showProgress: true });
+    } catch {
+        return;
     }
 
     const {
@@ -212,7 +215,7 @@ export async function handleInlineTask(
       defaultBranch: selectedDefaultBranch,
       currentBranch,
       remoteBranches,
-    } = initialBranchInfo;
+    } = branchInfo;
 
     const selectedBranch = await vscode.window.showQuickPick(
       branches.map((branch) => ({
@@ -237,16 +240,14 @@ export async function handleInlineTask(
 
     if (!new Set(remoteBranches).has(startingBranch)) {
       logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
-      const freshBranchInfo = await fetchBranches({
-        forceRefresh: true,
-        showProgress: true,
-      });
-      if (!freshBranchInfo) {
-        return;
-      }
-      if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
-        vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
-        return;
+      try {
+          const freshBranchInfo = await fetchBranches({ forceRefresh: true, showProgress: true });
+          if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
+            vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
+            return;
+          }
+      } catch {
+          return;
       }
     }
 

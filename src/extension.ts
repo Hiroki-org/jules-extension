@@ -49,8 +49,8 @@ import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import { registerInlineCommands } from "./inlineCommands";
-import { buildFinalPrompt } from "./promptUtils";
 import { createJulesSession } from "./sessionUtils";
+import { buildFinalPrompt } from "./promptUtils";
 import {
   getActivityCategory,
   getActivityIcon,
@@ -66,9 +66,10 @@ import {
 } from "./activityUtils";
 
 // Constants
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
+const ALL_SOURCES_ID = "all_repos";
 const MAX_PAGE_SIZE = 100;
 const MAX_PAGINATION_PAGES = 100;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
@@ -716,14 +717,13 @@ async function fetchPlanFromActivities(
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext,
-  apiKey?: string,
 ): Promise<void> {
   // Fetch plan details from activities
+  const apiKey = await context.secrets.get("jules-api-key");
   let planDetails = "";
-  const finalApiKey = apiKey ?? await context.secrets.get("jules-api-key");
 
-  if (finalApiKey) {
-    const plan = await fetchPlanFromActivities(session.name, finalApiKey);
+  if (apiKey) {
+    const plan = await fetchPlanFromActivities(session.name, apiKey);
     if (plan) {
       planDetails = formatPlanForNotification(
         plan,
@@ -1635,7 +1635,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         await this.sendNotifications(
           sessionsToNotifyPlan,
           "plan approval",
-          (session) => notifyPlanAwaitingApproval(session, this.context, apiKey),
+          (session) => notifyPlanAwaitingApproval(session, this.context),
         );
 
         // Notify User Feedback
@@ -3079,21 +3079,18 @@ export function activate(context: vscode.ExtensionContext) {
                   "artifacts",
                 ]);
                 const unionKeys = new Set(ACTIVITY_UNION_KEYS);
-                const inferredKeys: string[] = [];
-                for (const key in activity) {
+                const inferredKeys = Object.keys(activity).filter((key) => {
                   if (
-                    Object.prototype.hasOwnProperty.call(activity, key) &&
-                    !baseKeys.has(key) &&
-                    !unionKeys.has(key as ActivityUnionKey)
+                    baseKeys.has(key) ||
+                    unionKeys.has(key as ActivityUnionKey)
                   ) {
-                    const value = (
-                      activity as unknown as Record<string, unknown>
-                    )[key];
-                    if (value !== undefined && value !== null) {
-                      inferredKeys.push(key);
-                    }
+                    return false;
                   }
-                }
+                  const value = (
+                    activity as unknown as Record<string, unknown>
+                  )[key];
+                  return value !== undefined && value !== null;
+                });
                 keySummary =
                   inferredKeys.length === 0 ? "none" : inferredKeys.join(", ");
               }
@@ -3162,6 +3159,12 @@ export function activate(context: vscode.ExtensionContext) {
           activitiesUri,
           summaryHeader + detailLines.join("\n"),
         );
+        const activitiesDocument =
+          await vscode.workspace.openTextDocument(activitiesUri);
+        await vscode.window.showTextDocument(activitiesDocument, {
+          preview: true,
+          viewColumn: vscode.ViewColumn.Active,
+        });
 
         await context.globalState.update("active-session-id", sessionId);
       } catch (error) {
