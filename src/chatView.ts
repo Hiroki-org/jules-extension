@@ -1,7 +1,6 @@
 import * as crypto from "crypto";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
-import hljs from "highlight.js";
 import {
   pickFirstNonEmpty,
   getActivitySummaryText,
@@ -10,6 +9,7 @@ import {
 } from "./activityUtils";
 import { formatFullPlan } from "./planUtils";
 import { escapeHtml } from "./composer";
+import { buildFencedCodeBlock } from "./markdownFencing";
 import { Activity } from "./types";
 
 export interface ChatMessageItem {
@@ -17,17 +17,100 @@ export interface ChatMessageItem {
   role: "user" | "assistant";
   createTime?: string;
   html: string;
+  markdown?: string;
 }
 
-interface ChatStatePayload {
+export interface ChatStatePayload {
   sessionId: string | null;
   messages: ChatMessageItem[];
   isTyping: boolean;
 }
 
-const markdownRenderer = createMarkdownRenderer();
+let markdownRenderer: MarkdownIt | null = null;
+let markdownRendererInit: Promise<void> | null = null;
+
+export async function initMarkdownRenderer(): Promise<void> {
+  if (markdownRenderer) {
+    return;
+  }
+  if (markdownRendererInit) {
+    return markdownRendererInit;
+  }
+
+  markdownRendererInit = (async () => {
+    try {
+      const md = new MarkdownIt({
+        html: false,
+        linkify: true,
+        breaks: true,
+      });
+
+      // Always apply the copy button override
+      const defaultFence = md.renderer.rules.fence?.bind(md.renderer.rules);
+      md.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
+        const rendered = defaultFence
+          ? defaultFence(tokens, idx, options, env, self)
+          : self.renderToken(tokens, idx, options);
+        return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
+      };
+
+      try {
+        const { default: Shiki } = await import("@shikijs/markdown-it");
+        const { createCssVariablesTheme } = await import("shiki");
+
+        const cssVariablesTheme = createCssVariablesTheme({
+          name: "css-variables",
+          variablePrefix: "--shiki-",
+          variableDefaults: {},
+          fontStyle: true,
+        });
+
+        const shikiPlugin = await Shiki({
+          themes: {
+            light: cssVariablesTheme,
+            dark: cssVariablesTheme,
+          },
+          langs: [
+            "typescript",
+            "javascript",
+            "tsx",
+            "jsx",
+            "python",
+            "java",
+            "go",
+            "csharp",
+            "cpp",
+            "c",
+            "diff",
+            "json",
+            "yaml",
+            "markdown",
+            "bash",
+            "shell",
+            "html",
+            "css",
+          ],
+          fallbackLanguage: "markdown",
+        });
+        md.use(shikiPlugin);
+      } catch (error) {
+        console.error("Jules: Failed to initialize Shiki, falling back to basic MarkdownIt:", error);
+      }
+
+      markdownRenderer = md;
+    } catch (error) {
+      markdownRendererInit = null; // Allow retry on fatal error
+      throw error;
+    }
+  })();
+
+  return markdownRendererInit;
+}
 
 export function renderChatMarkdown(markdown: string): string {
+  if (!markdownRenderer) {
+    return escapeHtml(markdown);
+  }
   return markdownRenderer.render(markdown);
 }
 
@@ -83,22 +166,26 @@ export function buildChatMessagesFromActivities(
 
   // 1. セッション全体の初期プロンプトがあれば追加 (Activityに含まれない場合や重複しない場合のみ)
   if (initialPrompt && !isInitialPromptRedundant) {
+    const formatted = formatMessage(initialPrompt);
     messages.push({
       id: "session-initial-prompt",
       role: "user",
       createTime: initialTime,
-      html: renderChatMarkdown(formatMessage(initialPrompt)),
+      html: renderChatMarkdown(formatted),
+      markdown: formatted,
     });
   }
 
   sortedActivities.forEach((activity) => {
     const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
     if (userMessage) {
+      const formatted = formatMessage(userMessage);
       messages.push({
         id: activity.id ?? activity.name,
         role: "user",
         createTime: activity.createTime,
-        html: renderChatMarkdown(formatMessage(userMessage)),
+        html: renderChatMarkdown(formatted),
+        markdown: formatted,
       });
       return;
     }
@@ -110,6 +197,7 @@ export function buildChatMessagesFromActivities(
         role: "assistant",
         createTime: activity.createTime,
         html: renderChatMarkdown(agentMessage),
+        markdown: agentMessage,
       });
       return;
     }
@@ -131,7 +219,7 @@ export function buildChatMessagesFromActivities(
     if (activity.planGenerated?.plan) {
       const planMarkdown = formatFullPlan(activity.planGenerated.plan);
       const planHtml = renderChatMarkdown(planMarkdown);
-      detailsHtml += `<details class="activity-details"><summary>View Plan</summary><div class="details-content code-block">${planHtml}</div></details>`;
+      detailsHtml += `<details class="activity-details"><summary>View Plan</summary><div class="details-content">${planHtml}</div></details>`;
     }
 
     // 3. Artifacts / Changesets
@@ -139,9 +227,8 @@ export function buildChatMessagesFromActivities(
     if ((activity as any).gitPatch?.diff) {
       const diff = (activity as any).gitPatch.diff;
       if (typeof diff === "string" && diff.trim().length > 0) {
-        let highlightedDiff = "";
-        try { highlightedDiff = hljs.highlight(diff, { language: "diff" }).value; } catch { highlightedDiff = escapeHtml(diff); }
-        detailsHtml += `<details class="activity-details"><summary>View Diff</summary><div class="details-content code-block"><pre><code>${highlightedDiff}</code></pre></div></details>`;
+        const diffHtml = renderChatMarkdown(buildFencedCodeBlock(diff, "diff"));
+        detailsHtml += `<details class="activity-details"><summary>View Diff</summary><div class="details-content">${diffHtml}</div></details>`;
       }
     }
 
@@ -150,13 +237,13 @@ export function buildChatMessagesFromActivities(
         if (artifact.changeSet) {
           const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
           if (diffData && typeof diffData === "string") {
-            let highlightedDiffData = "";
-            try { highlightedDiffData = hljs.highlight(diffData, { language: "diff" }).value; } catch { highlightedDiffData = escapeHtml(diffData); }
-            detailsHtml += `<details class="activity-details"><summary>View ChangeSet (${i + 1})</summary><div class="details-content code-block"><pre><code>${highlightedDiffData}</code></pre></div></details>`;
+            const diffHtml = renderChatMarkdown(buildFencedCodeBlock(diffData, "diff"));
+            detailsHtml += `<details class="activity-details"><summary>View ChangeSet (${i + 1})</summary><div class="details-content">${diffHtml}</div></details>`;
           } else {
             let raw = "";
             try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
-            detailsHtml += `<details class="activity-details"><summary>View ChangeSet Details (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(raw)}</code></pre></div></details>`;
+            const rawHtml = renderChatMarkdown(buildFencedCodeBlock(raw, "json"));
+            detailsHtml += `<details class="activity-details"><summary>View ChangeSet Details (${i + 1})</summary><div class="details-content">${rawHtml}</div></details>`;
           }
         }
 
@@ -167,17 +254,17 @@ export function buildChatMessagesFromActivities(
           let commandLine = outRec.commandLine;
           const commands = outRec.commands;
           if (commands && Array.isArray(commands) && commands.length > 0) {
-             commandLine = commands[0].commandLine;
+            commandLine = commands[0].commandLine;
           }
 
           if (commandLine || stdout || stderr) {
             const out = `> ${commandLine || "Command"}\n${stdout || ""}\n${stderr || ""}`.trim();
-            detailsHtml += `<details class="activity-details"><summary>View Bash Output (${i + 1})</summary><div class="details-content code-block"><pre><code>${escapeHtml(out)}</code></pre></div></details>`;
+            const bashHtml = renderChatMarkdown(buildFencedCodeBlock(out, "bash"));
+            detailsHtml += `<details class="activity-details"><summary>View Bash Output (${i + 1})</summary><div class="details-content">${bashHtml}</div></details>`;
           }
         }
       });
     }
-
     messages.push({
       id: activity.id ?? activity.name,
       role: "assistant",
@@ -191,6 +278,9 @@ export function buildChatMessagesFromActivities(
 
 export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
+  private activities: Activity[] = [];
+  private sessionTitle?: string;
+  private sessionCreateTime?: string;
   private state: ChatStatePayload = {
     sessionId: null,
     messages: [],
@@ -201,8 +291,19 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     private readonly onSendMessage: (sessionId: string, message: string) => Promise<void>,
   ) {}
 
-  resolveWebviewView(webviewView: vscode.WebviewView): void {
+  async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
+    await initMarkdownRenderer();
     this.view = webviewView;
+
+    // If there were messages already, re-render them with the new renderer
+    if (this.state.sessionId) {
+      this.state.messages = buildChatMessagesFromActivities(
+        this.activities,
+        this.sessionTitle,
+        this.sessionCreateTime
+      );
+    }
+
     webviewView.webview.options = {
       enableScripts: true,
     };
@@ -240,6 +341,9 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   updateSession(sessionId: string, activities: Activity[], rawState?: string, sessionTitle?: string, sessionCreateTime?: string): void {
+    this.activities = activities;
+    this.sessionTitle = sessionTitle;
+    this.sessionCreateTime = sessionCreateTime;
     this.state = {
       sessionId,
       messages: buildChatMessagesFromActivities(activities, sessionTitle, sessionCreateTime),
@@ -268,6 +372,23 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jules Chat</title>
   <style nonce="${nonce}">
+    :root {
+      --shiki-foreground: var(--vscode-editor-foreground);
+      --shiki-background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+      --shiki-token-constant: var(--vscode-debugTokenExpression-number, #b5cea8);
+      --shiki-token-string: var(--vscode-debugTokenExpression-string, #ce9178);
+      --shiki-token-comment: var(--vscode-descriptionForeground, #6a9955);
+      --shiki-token-keyword: var(--vscode-symbolIcon-keywordForeground, #569cd6);
+      --shiki-token-parameter: var(--vscode-editor-foreground);
+      --shiki-token-function: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
+      --shiki-token-string-expression: var(--vscode-debugTokenExpression-string, #ce9178);
+      --shiki-token-punctuation: var(--vscode-editor-foreground);
+      --shiki-token-link: var(--vscode-textLink-foreground);
+      --shiki-token-inserted: var(--vscode-terminal-ansiBrightGreen, #81b88b);
+      --shiki-token-deleted: var(--vscode-terminal-ansiBrightRed, #c74e39);
+      --shiki-token-markup-inserted: var(--vscode-terminal-ansiBrightGreen, #81b88b);
+      --shiki-token-markup-deleted: var(--vscode-terminal-ansiBrightRed, #c74e39);
+    }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -439,6 +560,8 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       font-weight: 600;
       opacity: 0.8;
       padding: 2px 0;
+    }
+    .activity-details summary:focus:not(:focus-visible) {
       outline: none;
     }
     .activity-details summary:hover {
@@ -463,12 +586,6 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       white-space: pre-wrap;
       word-break: break-all;
     }
-    .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-title { color: var(--vscode-editorKeyword-foreground); }
-    .hljs-string, .hljs-attr, .hljs-template-tag { color: var(--vscode-editor-stringForeground); }
-    .hljs-number, .hljs-symbol, .hljs-variable { color: var(--vscode-editorInfo-foreground); }
-    .hljs-comment, .hljs-quote { color: var(--vscode-editorLineNumber-foreground); }
-    .hljs-addition { color: var(--vscode-terminal-ansiBrightGreen, #81b88b); }
-    .hljs-deletion { color: var(--vscode-terminal-ansiBrightRed, #c74e39); }
     @keyframes pulse { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } }
     @keyframes slide-in { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   </style>
@@ -482,10 +599,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <span class="typing-dot"></span>
   </div>
   <form id="composer">
-    <textarea id="messageInput" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
+    <textarea id="messageInput" aria-label="Enter message (Ctrl/Cmd+Enter to send)" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" disabled>Send</button>
+      <button id="sendButton" type="submit" aria-label="Send message (Cmd/Ctrl+Enter)" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
@@ -586,37 +703,8 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     render();
   </script>
 </body>
-</html>`;
+</html>\`;
 }
-
-function createMarkdownRenderer(): MarkdownIt {
-  const markdown = new MarkdownIt({
-    html: false,
-    linkify: true,
-    breaks: true,
-    highlight: (source: string, language: string) => {
-      if (language && hljs.getLanguage(language)) {
-        return `<pre class="hljs"><code>${hljs.highlight(source, {
-          language,
-          ignoreIllegals: true,
-        }).value}</code></pre>`;
-      }
-      return `<pre class="hljs"><code>${escapeHtml(source)}</code></pre>`;
-    },
-  });
-
-  const defaultFence = markdown.renderer.rules.fence?.bind(markdown.renderer.rules);
-  markdown.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
-    const rendered = defaultFence
-      ? defaultFence(tokens, idx, options, env, self)
-      : self.renderToken(tokens, idx, options);
-    return `<div class="code-block"><button class="copy-code-button" type="button">Copy</button>${rendered}</div>`;
-  };
-
-  return markdown;
-}
-
-// escapeHtml is imported from ./composer
 
 function getNonce(): string {
   return crypto.randomBytes(16).toString("hex");

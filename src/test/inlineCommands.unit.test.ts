@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { JulesCodeActionProvider } from "../inlineCommands";
+import { JulesCodeActionProvider, buildInlineTaskPrompt } from "../inlineCommands";
 
 suite("inlineCommands Test Suite", () => {
     test("JulesCodeActionProvider returns actions for non-empty range", () => {
@@ -26,5 +26,18 @@ suite("inlineCommands Test Suite", () => {
         const actions = provider.provideCodeActions(doc, range, {} as any, {} as any);
 
         assert.strictEqual(actions, undefined);
+    });
+
+    test("buildInlineTaskPrompt should use a safe fence length for snippets with backticks", () => {
+        const codeSnippet = "const section = \"intro\";\n```\n# nested";
+        const prompt = buildInlineTaskPrompt("Refactor", "README.md", "markdown", codeSnippet);
+
+        const openingFenceMatch = prompt.match(/\n(`{3,})markdown\n/);
+        assert.ok(openingFenceMatch);
+        const openingFence = openingFenceMatch?.[1] || "";
+
+        assert.ok(openingFence.length > 3);
+        assert.ok(prompt.includes(codeSnippet));
+        assert.ok(prompt.includes(`\n${openingFence}\n`));
     });
 });

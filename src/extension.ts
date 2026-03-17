@@ -49,8 +49,7 @@ import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
 import { registerInlineCommands } from "./inlineCommands";
-import { createJulesSession } from "./sessionUtils";
-import { buildFinalPrompt } from "./promptUtils";
+import { createJulesSession, sendMessage as sendMessageToApi } from "./sessionUtils";
 import {
   getActivityCategory,
   getActivityIcon,
@@ -713,12 +712,18 @@ async function fetchPlanFromActivities(
   }
 }
 
+/**
+ * Notifies the user that a plan is awaiting approval for a session.
+ * @param session - The session that is awaiting plan approval.
+ * @param context - The extension context.
+ * @param apiKey - The API key to use for fetching the plan.
+ */
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext,
+  apiKey: string,
 ): Promise<void> {
   // Fetch plan details from activities
-  const apiKey = await context.secrets.get("jules-api-key");
   let planDetails = "";
 
   if (apiKey) {
@@ -1631,11 +1636,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         }
 
         // Notify Plan Approval
-        await this.sendNotifications(
-          sessionsToNotifyPlan,
-          "plan approval",
-          (session) => notifyPlanAwaitingApproval(session, this.context),
-        );
+        if (sessionsToNotifyPlan.length > 0) {
+          const apiKey = (await this.context.secrets.get("jules-api-key")) || "";
+          await this.sendNotifications(
+            sessionsToNotifyPlan,
+            "plan approval",
+            (session) => notifyPlanAwaitingApproval(session, this.context, apiKey),
+          );
+        }
 
         // Notify User Feedback
         await this.sendNotifications(
@@ -2139,7 +2147,6 @@ async function sendMessageToSession(
       vscode.window.showWarningMessage("Message was empty and not sent.");
       return;
     }
-    const finalPrompt = buildFinalPrompt(userPrompt);
 
     await vscode.window.withProgress(
       {
@@ -2147,25 +2154,7 @@ async function sendMessageToSession(
         title: "Sending message to Jules...",
       },
       async () => {
-        const response = await fetchWithTimeout(
-          `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Goog-Api-Key": apiKey,
-            },
-            body: JSON.stringify({ prompt: finalPrompt }),
-          },
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const message =
-            errorText || `${response.status} ${response.statusText}`;
-          throw new Error(message);
-        }
-
+        await sendMessageToApi(apiKey, sessionId, userPrompt);
         vscode.window.showInformationMessage("Message sent successfully!");
       },
     );

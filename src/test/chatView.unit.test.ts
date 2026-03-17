@@ -5,6 +5,7 @@ import {
   getChatWebviewHtml,
   isGeneratingSessionState,
   renderChatMarkdown,
+  initMarkdownRenderer,
 } from "../chatView";
 import { Activity } from "../types";
 
@@ -17,7 +18,13 @@ function createActivity(activity: Partial<Activity>): Activity {
   };
 }
 
-suite("Chat View Unit Test Suite", () => {
+suite("Chat View Unit Test Suite", function () {
+  this.timeout(10000); // Shiki initialization can take longer than default 2s
+
+  suiteSetup(async () => {
+    await initMarkdownRenderer();
+  });
+
   test("buildChatMessagesFromActivities should include user/assistant messages and logs", () => {
     const messages = buildChatMessagesFromActivities([
       createActivity({
@@ -55,7 +62,55 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes("<ul>"));
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
-    assert.ok(rendered.includes('class="hljs"'));
+    assert.ok(rendered.includes('class="shiki'));
+  });
+
+  test("renderChatMarkdown should render diff and unknown languages without throwing", () => {
+    const diffRendered = renderChatMarkdown("```diff\n+ added\n```");
+    assert.ok(diffRendered.includes('class="shiki'));
+
+    const unknownRendered = renderChatMarkdown("```rust\nlet x = 1;\n```");
+    assert.ok(unknownRendered.includes('class="shiki'));
+  });
+
+  test("buildChatMessagesFromActivities should render artifact diff with shiki", () => {
+    const messages = buildChatMessagesFromActivities([
+      createActivity({
+        id: "4",
+        name: "activities/4",
+        createTime: "2025-01-01T00:00:04Z",
+        artifacts: [
+          {
+            changeSet: {
+              gitPatch: {
+                unidiffPatch: "diff --git a/a.ts b/a.ts\n+const x = 1;",
+              },
+            },
+          },
+        ],
+      }),
+    ]);
+
+    assert.strictEqual(messages.length, 1);
+    assert.ok(messages[0].html.includes("View ChangeSet (1)"));
+    assert.ok(messages[0].html.includes('class="shiki'));
+  });
+
+  test("buildChatMessagesFromActivities should keep backtick fences inside diff content", () => {
+    const messages = buildChatMessagesFromActivities([
+      createActivity({
+        id: "5",
+        name: "activities/5",
+        createTime: "2025-01-01T00:00:05Z",
+        gitPatch: {
+          diff: "diff --git a/a.md b/a.md\n@@\n- old\n+ ```\n+ # injected-heading",
+        } as any,
+      } as any),
+    ]);
+
+    assert.strictEqual(messages.length, 1);
+    assert.ok(messages[0].html.includes("View Diff"));
+    assert.ok(!messages[0].html.includes("<h1>injected-heading</h1>"));
   });
 
   test("isGeneratingSessionState should detect active generation states", () => {
@@ -74,5 +129,9 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes('type: "sendMessage"'));
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
+    assert.ok(html.includes('--shiki-token-inserted: var(--vscode-terminal-ansiBrightGreen, #81b88b);'));
+    assert.ok(html.includes('--shiki-token-deleted: var(--vscode-terminal-ansiBrightRed, #c74e39);'));
+    assert.ok(html.includes('aria-label="Enter message (Ctrl/Cmd+Enter to send)"'));
+    assert.ok(html.includes('aria-label="Send message (Cmd/Ctrl+Enter)"'));
   });
 });

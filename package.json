@@ -2,7 +2,7 @@
   "name": "jules-extension",
   "displayName": "Jules Extension",
   "description": "Control Google Jules AI coding agent directly from VS Code",
-  "version": "1.3.2",
+  "version": "1.3.4",
   "publisher": "HirokiMukai",
   "license": "MIT",
   "icon": "icon.png",
@@ -334,13 +334,13 @@
       "editor/context": [
         {
           "command": "jules-extension.inlineRefactor",
-          "when": "editorHasSelection",
-          "group": "navigation"
+          "when": "editorHasSelection && (editorLangId == typescript || editorLangId == javascript || editorLangId == typescriptreact || editorLangId == javascriptreact || editorLangId == python || editorLangId == java || editorLangId == go || editorLangId == csharp || editorLangId == cpp || editorLangId == c)",
+          "group": "jules@1"
         },
         {
           "command": "jules-extension.inlineGenerateTests",
-          "when": "editorHasSelection",
-          "group": "navigation"
+          "when": "editorHasSelection && (editorLangId == typescript || editorLangId == javascript || editorLangId == typescriptreact || editorLangId == javascriptreact || editorLangId == python || editorLangId == java || editorLangId == go || editorLangId == csharp || editorLangId == cpp || editorLangId == c)",
+          "group": "jules@1"
         }
       ]
     }
@@ -381,9 +381,10 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "highlight.js": "^11.11.1",
+    "@shikijs/markdown-it": "^4.0.2",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
+    "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
   }
 }

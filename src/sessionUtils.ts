@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 
 export interface CreateSessionRequest {
   prompt: string;
@@ -12,7 +12,7 @@ export interface CreateSessionRequest {
       startingBranch: string;
     };
   };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
+  automationMode: "AUTO_CREATE_PR" | "MANUAL";
   title: string;
   requirePlanApproval?: boolean;
 }
@@ -33,6 +33,10 @@ export async function createJulesSession(
 ): Promise<string> {
   const finalPrompt = buildFinalPrompt(prompt);
 
+  if (selectedSource.id === ALL_SOURCES_ID) {
+    throw new Error("Please select a specific repository source first.");
+  }
+
   if (!selectedSource.name) {
     throw new Error(
       "Selected source is missing resource name required by Sources API.",
@@ -49,7 +53,7 @@ export async function createJulesSession(
     },
     automationMode,
     title,
-    requirePlanApproval,
+    ...(requirePlanApproval !== undefined ? { requirePlanApproval } : {}),
   };
 
   return await vscode.window.withProgress(
@@ -79,8 +83,9 @@ export async function createJulesSession(
         message: "Processing response...",
       });
       if (!response.ok) {
+        const errorText = await response.text();
         throw new Error(
-          `Failed to create session: ${response.status} ${response.statusText}`,
+          `Failed to create session: ${response.status} ${response.statusText} - ${errorText}`,
         );
       }
       const session = (await response.json()) as SessionResponse;
@@ -88,6 +93,7 @@ export async function createJulesSession(
         throw new Error("Invalid response: session name is missing.");
       }
       await context.globalState.update("active-session-id", session.name);
+      await vscode.commands.executeCommand("jules-extension.refreshActivities");
       progress.report({
         increment: 100,
         message: "Session created!",
@@ -98,4 +104,35 @@ export async function createJulesSession(
       return session.name;
     },
   );
+}
+
+/**
+ * Sends a message to an existing Jules session.
+ * @param apiKey - The API key to use.
+ * @param sessionId - The ID of the session.
+ * @param prompt - The user prompt to send.
+ */
+export async function sendMessage(
+  apiKey: string,
+  sessionId: string,
+  prompt: string
+): Promise<void> {
+  const finalPrompt = buildFinalPrompt(prompt);
+  const response = await fetchWithTimeout(
+    `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+      },
+      body: JSON.stringify({ prompt: finalPrompt }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    const message = errorText || `${response.status} ${response.statusText}`;
+    throw new Error(message);
+  }
 }

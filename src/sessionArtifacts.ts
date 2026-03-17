@@ -1,7 +1,7 @@
 import { fetchWithTimeout } from "./fetchUtils";
 import { ActivitiesResponse } from "./types";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 
-const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
 export const ARTIFACTS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_ARTIFACTS_CACHE_SIZE = 50;
@@ -241,7 +241,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                 return undefined;
             }
             if (payload[i] === '"') {
-                i++; // skip opening quote
+                i += 1; // skip opening quote
                 let res = "";
                 while (i < payload.length && payload[i] !== '"') {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
@@ -249,11 +249,11 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                         i += 2;
                     } else {
                         res += payload[i];
-                        i++;
+                        i += 1;
                     }
                 }
                 if (payload[i] === '"') {
-                    i++; // skip closing quote
+                    i += 1; // skip closing quote
                 }
                 return res;
             } else {
@@ -262,7 +262,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
                         i += 2;
                     } else {
-                        i++;
+                        i += 1;
                     }
                 }
                 return payload.substring(start, i).replace(/\\(.)/g, '$1');
@@ -275,7 +275,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
         if (payload.startsWith('"a/') || payload.startsWith('a/')) {
             readPath(); // Skip path1
             if (i < payload.length && payload[i] === ' ') {
-                i++; // skip space delimiter
+                i += 1; // skip space delimiter
                 path2 = readPath();
             }
         }
@@ -469,7 +469,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
 export async function fetchLatestSessionArtifacts(
     apiKey: string,
     sessionId: string,
-    apiBaseUrl: string = DEFAULT_API_BASE_URL,
+    apiBaseUrl: string = JULES_API_BASE_URL,
     sessionUpdateTime?: string
 ): Promise<SessionArtifacts> {
     const cached = artifactsCache.get(sessionId);
