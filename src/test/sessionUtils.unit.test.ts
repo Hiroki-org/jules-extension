@@ -25,10 +25,16 @@ suite("sessionUtils Test Suite", () => {
             json: async () => ({ name: "sessions/test-123" })
         } as any);
 
-        const context = { globalState: { update: sinon.stub() } } as any;
+        const updateStub = sinon.stub().resolves();
+        const context = { globalState: { update: updateStub } } as any;
+        const infoMsgStub = sinon.stub(vscode.window, "showInformationMessage").resolves();
+
         const result = await createJulesSession(context, { name: "sources/123" } as any, "dummy-key", "main", "test prompt", "test title", "MANUAL");
 
         assert.strictEqual(result, "sessions/test-123");
+        assert.ok(fetchStub.calledOnce);
+        assert.ok(updateStub.calledWith("active-session-id", "sessions/test-123"));
+        assert.ok(infoMsgStub.calledWithMatch("Session created"));
     });
 
     test("createJulesSession throws error when response is not ok", async () => {
