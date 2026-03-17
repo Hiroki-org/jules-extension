@@ -1,6 +1,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { JULES_API_BASE_URL } from '../julesApiConstants';
 import {
     extractLatestArtifactsFromActivities,
     updateSessionArtifactsCache,
@@ -1262,8 +1263,6 @@ index 456..def 100644`;
     // =========================================================================
 
     suite('Performance Optimization (Fetch Strategy)', () => {
-        const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
-
         test('最適化フェッチが成功（降順）した場合、フォールバックせずに返却すること', async () => {
             const sessionId = 'session-opt-success';
             const apiKey = 'test-api-key';
@@ -1325,7 +1324,7 @@ index 456..def 100644`;
 
             const call2Args = fetchStub.secondCall.args;
             const url2 = call2Args[0] as string;
-            assert.strictEqual(url2, `${DEFAULT_API_BASE_URL}/${sessionId}/activities`);
+            assert.strictEqual(url2, `${JULES_API_BASE_URL}/${sessionId}/activities`);
         });
 
         test('最適化フェッチでアーティファクトが見つからない場合、フォールバックすること', async () => {

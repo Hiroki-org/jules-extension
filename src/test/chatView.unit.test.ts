@@ -132,6 +132,5 @@ suite("Chat View Unit Test Suite", function () {
     assert.ok(html.includes('--shiki-token-inserted: var(--vscode-terminal-ansiBrightGreen, #81b88b);'));
     assert.ok(html.includes('--shiki-token-deleted: var(--vscode-terminal-ansiBrightRed, #c74e39);'));
     assert.ok(html.includes('aria-label="Enter message (Ctrl/Cmd+Enter to send)"'));
-    assert.ok(html.includes('aria-label="Send message (Cmd/Ctrl+Enter)"'));
-  });
+    assert.ok(html.includes('aria-label="Send message (Ctrl/Cmd+Enter)"'));  });
 });

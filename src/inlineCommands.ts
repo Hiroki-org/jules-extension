@@ -17,7 +17,7 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this.onDidChangeCodeLensesEmitter.event;
     private configListener: vscode.Disposable;
 
-    constructor() {
+    constructor(private logChannel: vscode.OutputChannel) {
         this.configListener = vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration("jules-extension.enableCodeLens")) {
                 this.onDidChangeCodeLensesEmitter.fire();
@@ -48,12 +48,19 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
                 document.uri
             );
 
+            if (token.isCancellationRequested) {
+                return [];
+            }
+
             if (!symbols) {
                 return [];
             }
 
             const processSymbols = (syms: (vscode.DocumentSymbol | vscode.SymbolInformation)[]) => {
                 for (const symbol of syms) {
+                    if (token.isCancellationRequested) {
+                        return;
+                    }
                     if (
                         symbol.kind === vscode.SymbolKind.Function ||
                         symbol.kind === vscode.SymbolKind.Class ||
@@ -92,7 +99,8 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
 
             processSymbols(symbols);
         } catch (error) {
-            console.error("Failed to provide CodeLenses using symbols fallback to empty", error);
+            const errSafe = sanitizeForLogging(error instanceof Error ? error.message : String(error));
+            this.logChannel.appendLine(`[Jules] Failed to provide CodeLenses using symbols: ${errSafe}`);
         }
 
         return lenses;
@@ -158,7 +166,7 @@ export async function handleInlineTask(
     try {
         document = await vscode.workspace.openTextDocument(uri);
     } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
+        const errorMsg = sanitizeForLogging(e instanceof Error ? e.message : String(e));
         logChannel.appendLine(`[Jules] Error opening document ${uri.toString()}: ${errorMsg}`);
         vscode.window.showErrorMessage("Could not open the target document.");
         return;
@@ -291,7 +299,10 @@ export async function handleInlineTask(
             result.requireApproval
         );
     } catch (error) {
-        vscode.window.showErrorMessage(`Failed to create session: ${error instanceof Error ? error.message : "Unknown error"}`);
+        const errSafe = sanitizeForLogging(error instanceof Error ? error.message : String(error));
+        const stackSafe = error instanceof Error ? sanitizeForLogging(error.stack || "") : "";
+        logChannel.appendLine(`[Jules] Failed to create inline session: ${errSafe}\n${stackSafe}`);
+        vscode.window.showErrorMessage(`Failed to create Jules session. Please check the logs for details.`);
     }
 }
 
@@ -309,7 +320,7 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
         { scheme: "file", language: "c" },
     ];
 
-    const julesCodeLensProvider = new JulesCodeLensProvider();
+    const julesCodeLensProvider = new JulesCodeLensProvider(logChannel);
     const codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
         documentSelector,
         julesCodeLensProvider

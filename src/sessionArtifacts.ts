@@ -226,11 +226,23 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    const lines = diff.split(/\r?\n/);
-    for (const rawLine of lines) {
-        const line = rawLine.trimEnd();
-        if (!line.startsWith('diff --git ')) {
-            continue;
+    let pos = 0;
+
+    while (true) {
+        const lineStart = diff.indexOf('diff --git ', pos);
+        if (lineStart === -1) {
+            break;
+        }
+
+        let lineEnd = diff.indexOf('\n', lineStart);
+        if (lineEnd === -1) {
+            lineEnd = diff.length;
+        }
+
+        // lineEnd is inclusive of \n if found, but we want the end of the text on that line
+        let line = diff.substring(lineStart, lineEnd);
+        if (line.endsWith('\r')) {
+            line = line.substring(0, line.length - 1);
         }
 
         const payload = line.substring(11); // everything after 'diff --git '
@@ -289,6 +301,11 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
             if (match) {
                 files.push({ path: match[2] });
             }
+        }
+
+        pos = lineEnd + 1;
+        if (pos >= diff.length) {
+            break;
         }
     }
     return files;
