@@ -64,7 +64,6 @@ import {
 
 import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 import { createJulesSession, sendMessage as sendMessageToApi } from "./sessionUtils";
-import { buildFinalPrompt } from "./promptUtils";
 import { registerInlineCommands } from "./inlineCommands";
 
 // Constants
