@@ -62,7 +62,31 @@ export async function initMarkdownRenderer(): Promise<void> {
     });
 
     const shikiPlugin = await Shiki({
-      theme: cssVariablesTheme,
+      themes: {
+        light: cssVariablesTheme,
+        dark: cssVariablesTheme,
+      },
+      langs: [
+        "typescript",
+        "javascript",
+        "tsx",
+        "jsx",
+        "python",
+        "java",
+        "go",
+        "csharp",
+        "cpp",
+        "c",
+        "diff",
+        "json",
+        "yaml",
+        "markdown",
+        "bash",
+        "shell",
+        "html",
+        "css",
+      ],
+      fallbackLanguage: "markdown",
     });
     md.use(shikiPlugin);
   } catch (error) {

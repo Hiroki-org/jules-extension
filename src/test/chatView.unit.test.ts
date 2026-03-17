@@ -65,6 +65,37 @@ suite("Chat View Unit Test Suite", function () {
     assert.ok(rendered.includes('class="shiki'));
   });
 
+  test("renderChatMarkdown should render diff and unknown languages without throwing", () => {
+    const diffRendered = renderChatMarkdown("```diff\n+ added\n```");
+    assert.ok(diffRendered.includes('class="shiki'));
+
+    const unknownRendered = renderChatMarkdown("```rust\nlet x = 1;\n```");
+    assert.ok(unknownRendered.includes('class="shiki'));
+  });
+
+  test("buildChatMessagesFromActivities should render artifact diff with shiki", () => {
+    const messages = buildChatMessagesFromActivities([
+      createActivity({
+        id: "4",
+        name: "activities/4",
+        createTime: "2025-01-01T00:00:04Z",
+        artifacts: [
+          {
+            changeSet: {
+              gitPatch: {
+                unidiffPatch: "diff --git a/a.ts b/a.ts\n+const x = 1;",
+              },
+            },
+          },
+        ],
+      }),
+    ]);
+
+    assert.strictEqual(messages.length, 1);
+    assert.ok(messages[0].html.includes("View ChangeSet (1)"));
+    assert.ok(messages[0].html.includes('class="shiki'));
+  });
+
   test("isGeneratingSessionState should detect active generation states", () => {
     assert.strictEqual(isGeneratingSessionState("IN_PROGRESS"), true);
     assert.strictEqual(isGeneratingSessionState("PLANNING"), true);
