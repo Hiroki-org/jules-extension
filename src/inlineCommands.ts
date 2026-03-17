@@ -4,11 +4,9 @@ import { createJulesSession } from "./sessionUtils";
 import { showMessageComposer } from "./composer";
 import { getBranchesForSession } from "./branchUtils";
 import { JulesApiClient } from "./julesApiClient";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 import { sanitizeForLogging } from "./securityUtils";
 import { SourceType } from "./types";
-
-const ALL_SOURCES_ID = "all_repos";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
@@ -17,8 +15,10 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
     private onDidChangeCodeLensesEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this.onDidChangeCodeLensesEmitter.event;
     private configListener: vscode.Disposable;
+    private getLogChannel: () => vscode.OutputChannel;
 
-    constructor() {
+    constructor(getLogChannel: () => vscode.OutputChannel) {
+        this.getLogChannel = getLogChannel;
         this.configListener = vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration("jules-extension.enableCodeLens")) {
                 this.onDidChangeCodeLensesEmitter.fire();
@@ -94,7 +94,7 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
 
             processSymbols(symbols);
         } catch (error) {
-            console.error("Failed to provide CodeLenses using symbols fallback to empty", error);
+            this.getLogChannel().appendLine(`[Jules] Failed to provide CodeLenses: ${error instanceof Error ? error.message : String(error)}`);
         }
 
         return lenses;
@@ -142,7 +142,7 @@ export class JulesCodeActionProvider implements vscode.CodeActionProvider {
 // Common handler for inline tasks (Refactor, Generate Tests, etc.)
 export async function handleInlineTask(
     context: vscode.ExtensionContext,
-    logChannel: vscode.OutputChannel,
+    getLogChannel: () => vscode.OutputChannel,
     uri: vscode.Uri,
     range: vscode.Range | vscode.Selection,
     defaultTask: string
@@ -192,21 +192,19 @@ export async function handleInlineTask(
     const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
     // ブランチ選択ロジック
-    async function fetchBranches(options: { forceRefresh?: boolean; showProgress?: boolean }) {
+    const fetchBranches = async (options: { forceRefresh?: boolean; showProgress?: boolean }) => {
         try {
-            return await getBranchesForSession(selectedSource, apiClient, logChannel, context, options);
+            return await getBranchesForSession(selectedSource, apiClient, getLogChannel(), context, options);
         } catch (error) {
             const errSafe = sanitizeForLogging(error instanceof Error ? error.message : String(error));
-            logChannel.appendLine(`[Jules] Error fetching branches: ${errSafe}`);
-            vscode.window.showErrorMessage(`Failed to fetch branches: ${errSafe}`);
-            throw error;
+            getLogChannel().appendLine(`[Jules] Error fetching branches: ${errSafe}`);
+            vscode.window.showErrorMessage("Failed to fetch branches. Check the output panel for details.");
+            return null;
         }
-    }
+    };
 
-    let branchInfo;
-    try {
-        branchInfo = await fetchBranches({ showProgress: true });
-    } catch {
+    const branchInfo = await fetchBranches({ showProgress: true });
+    if (!branchInfo) {
         return;
     }
 
@@ -239,15 +237,17 @@ export async function handleInlineTask(
     let startingBranch = selectedBranch.label;
 
     if (!new Set(remoteBranches).has(startingBranch)) {
-      logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
-      try {
-          const freshBranchInfo = await fetchBranches({ forceRefresh: true, showProgress: true });
-          if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
-            vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
-            return;
-          }
-      } catch {
-          return;
+      getLogChannel().appendLine(`[Jules] Branch "${sanitizeForLogging(startingBranch)}" not found in cached remote branches, re-fetching...`);
+      const freshBranchInfo = await fetchBranches({
+        forceRefresh: true,
+        showProgress: true,
+      });
+      if (!freshBranchInfo) {
+        return;
+      }
+      if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
+        vscode.window.showErrorMessage(`Branch "${sanitizeForLogging(startingBranch)}" must exist on remote to create a session.`);
+        return;
       }
     }
 
@@ -284,12 +284,14 @@ export async function handleInlineTask(
         result.requireApproval
       );
     } catch (error) {
-      vscode.window.showErrorMessage(`Failed to create session: ${error instanceof Error ? error.message : "Unknown error"}`);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      getLogChannel().appendLine(`[Jules] Failed to create session: ${sanitizeForLogging(errorMessage)}`);
+      vscode.window.showErrorMessage("Failed to create session. Check the output panel for details.");
     }
 }
 
-export function registerInlineCommands(context: vscode.ExtensionContext, logChannel: vscode.OutputChannel) {
-  const julesCodeLensProvider = new JulesCodeLensProvider();
+export function registerInlineCommands(context: vscode.ExtensionContext, getLogChannel: () => vscode.OutputChannel) {
+  const julesCodeLensProvider = new JulesCodeLensProvider(getLogChannel);
   const codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
     "*",
     julesCodeLensProvider
@@ -300,7 +302,7 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
   const codeActionProviderDisposable = vscode.languages.registerCodeActionsProvider(
     "*",
     julesCodeActionProvider,
-    { providedCodeActionKinds: [vscode.CodeActionKind.Refactor] }
+    { providedCodeActionKinds: [vscode.CodeActionKind.Refactor, vscode.CodeActionKind.Refactor.append("jules.generateTests")] }
   );
   context.subscriptions.push(codeActionProviderDisposable);
 
@@ -311,7 +313,7 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
        const targetUri = uri || activeEditor?.document.uri;
        const targetRange = range || activeEditor?.selection;
        if (targetUri && targetRange) {
-         await handleInlineTask(context, logChannel, targetUri, targetRange, "Refactor");
+         await handleInlineTask(context, getLogChannel, targetUri, targetRange, "Refactor");
        } else {
          vscode.window.showErrorMessage("No code selected to refactor.");
        }
@@ -325,7 +327,7 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
        const targetUri = uri || activeEditor?.document.uri;
        const targetRange = range || activeEditor?.selection;
        if (targetUri && targetRange) {
-         await handleInlineTask(context, logChannel, targetUri, targetRange, "Generate Tests");
+         await handleInlineTask(context, getLogChannel, targetUri, targetRange, "Generate Tests");
        } else {
          vscode.window.showErrorMessage("No code selected to generate tests for.");
        }

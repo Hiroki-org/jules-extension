@@ -2329,7 +2329,7 @@ export function activate(context: vscode.ExtensionContext) {
     { webviewOptions: { retainContextWhenHidden: true } },
   );
 
-  registerInlineCommands(context, logChannel);
+  registerInlineCommands(context, () => logChannel);
 
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
