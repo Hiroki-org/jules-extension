@@ -12,7 +12,7 @@ export interface CreateSessionRequest {
       startingBranch: string;
     };
   };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
+  automationMode: "AUTO_CREATE_PR" | "MANUAL";
   title: string;
   requirePlanApproval?: boolean;
 }
