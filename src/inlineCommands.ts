@@ -93,6 +93,9 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
                     // Recursively process children if they exist (only DocumentSymbol has children)
                     if ('children' in symbol && symbol.children && symbol.children.length > 0) {
                         processSymbols(symbol.children);
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
                     }
                 }
             };
