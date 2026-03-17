@@ -44,7 +44,13 @@ const mockVscode = {
         showWarningMessage: () => undefined,
         showErrorMessage: () => undefined,
         showQuickPick: async () => undefined,
-        withProgress: async (_opts: any, task: any) => task({ report: () => { } }, { isCancellationRequested: false }),
+        withProgress: async (_opts: any, task: any) => {
+            const token = {
+                isCancellationRequested: false,
+                onCancellationRequested: () => ({ dispose: () => { } }),
+            };
+            return task({ report: () => { } }, token);
+        },
         showTextDocument: async () => undefined,
         activeTextEditor: undefined,
         visibleTextEditors: [],
