@@ -441,6 +441,34 @@ index 2345678..bcdefgh 100644
             assert.strictEqual(result.latestChangeSet.files.length, 2);
         });
 
+        test('CRLF の diff でも path に \\r が混入しないこと', () => {
+            const diff = 'diff --git a/src/file1.ts b/src/file1.ts\r\n'
+                + 'index 1234567..abcdefg 100644\r\n'
+                + '--- a/src/file1.ts\r\n'
+                + '+++ b/src/file1.ts\r\n'
+                + 'diff --git "a/path with spaces.ts" "b/path with spaces.ts"\r\n'
+                + 'index 2345678..bcdefgh 100644\r\n';
+
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    gitPatch: { diff },
+                    artifacts: [
+                        {
+                            changeSet: {},
+                        },
+                    ],
+                },
+            ];
+
+            const result = extractLatestArtifactsFromActivities(activities);
+            assert.ok(result.latestChangeSet);
+            assert.strictEqual(result.latestChangeSet.files.length, 2);
+            assert.strictEqual(result.latestChangeSet.files[0].path, 'src/file1.ts');
+            assert.strictEqual(result.latestChangeSet.files[1].path, 'path with spaces.ts');
+            assert.ok(result.latestChangeSet.files.every(file => !file.path.includes('\r')));
+        });
+
         test('引用符で囲まれたスペースを含むパスやエスケープされた文字を抽出すること', () => {
             const diff = `diff --git "a/path with spaces.ts" "b/path with spaces.ts"
 index 123..abc 100644

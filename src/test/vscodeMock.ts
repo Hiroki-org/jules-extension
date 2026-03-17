@@ -1,5 +1,12 @@
 import Module from "module";
 
+function createCodeActionKind(value: string) {
+    return {
+        value,
+        append: (suffix: string) => createCodeActionKind(`${value}.${suffix}`),
+    };
+}
+
 const mockVscode = {
     workspace: {
         fs: {
@@ -136,10 +143,7 @@ const mockVscode = {
         }
     },
     CodeActionKind: {
-        Refactor: {
-            value: 'refactor',
-            append: (suffix: string) => ({ value: `refactor.${suffix}` })
-        }
+        Refactor: createCodeActionKind('refactor')
     },
     CodeAction: class CodeAction {
         constructor(public title: string, public kind: any) {}

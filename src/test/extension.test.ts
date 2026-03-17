@@ -497,7 +497,7 @@ suite("Extension Test Suite", () => {
 
       // Prevent duplicate command registration errors during test
       const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => { } } as any));
-      const registerWebviewStub = localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
 
       // Call activate to load and clean cache
       activate(mockContext);

@@ -6,9 +6,7 @@ import { getBranchesForSession } from "./branchUtils";
 import { JulesApiClient } from "./julesApiClient";
 import { sanitizeForLogging } from "./securityUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
-
-const ALL_SOURCES_ID = "all_repos";
+import { ALL_SOURCES_ID, JULES_API_BASE_URL } from "./julesApiConstants";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
