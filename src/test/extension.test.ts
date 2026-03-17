@@ -489,6 +489,11 @@ suite("Extension Test Suite", () => {
 
       const consoleLogStub = localSandbox.stub(console, 'log');
 
+      // Prevent duplicate registration errors during test
+      localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeActionsProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeLensProvider').callsFake(() => ({ dispose: () => { } } as any));
+
       // Stub fetch so we can observe calls for expired entry
       const fetchStub = localSandbox.stub(fetchUtils, 'fetchWithTimeout').resolves({ ok: true, json: async () => ({ state: 'open' }) } as any);
 
