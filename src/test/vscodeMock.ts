@@ -1,5 +1,18 @@
 import Module from "module";
 
+/**
+ * CodeActionKind 相当のオブジェクトを作成する。
+ *
+ * @param value - 基となるコードアクション種別の文字列（例: 'refactor'）
+ * @returns 指定した `value` を保持し、`append(suffix)` によって `value.suffix` を持つ新しい同種オブジェクトを生成できるオブジェクト
+ */
+function createCodeActionKind(value: string) {
+    return {
+        value,
+        append: (suffix: string) => createCodeActionKind(`${value}.${suffix}`),
+    };
+}
+
 const mockVscode = {
     workspace: {
         fs: {
@@ -18,6 +31,7 @@ const mockVscode = {
         workspaceFolders: undefined as any,
         getConfiguration: () => ({
             get: () => undefined,
+            inspect: () => undefined,
         }),
         openTextDocument: async () => ({}) as any,
         onDidChangeConfiguration: () => ({ dispose: () => { } }),
@@ -132,6 +146,30 @@ const mockVscode = {
         constructor(id: string, color?: any) {
             this.id = id;
             this.color = color;
+        }
+    },
+    CodeActionKind: {
+        Refactor: createCodeActionKind('refactor')
+    },
+    CodeAction: class CodeAction {
+        constructor(public title: string, public kind: any) {}
+    },
+    Position: class Position {
+        constructor(public line: number, public character: number) {}
+    },
+    Range: class Range {
+        start: any;
+        end: any;
+        isEmpty: boolean;
+        constructor(startLineOrPos: number | any, startCharOrEndPos?: number | any, endLine?: number, endChar?: number) {
+            if (typeof startLineOrPos === "number" && typeof startCharOrEndPos === "number" && typeof endLine === "number" && typeof endChar === "number") {
+                this.start = new mockVscode.Position(startLineOrPos, startCharOrEndPos);
+                this.end = new mockVscode.Position(endLine, endChar);
+            } else {
+                this.start = startLineOrPos;
+                this.end = startCharOrEndPos;
+            }
+            this.isEmpty = this.start.line === this.end.line && this.start.character === this.end.character;
         }
     },
     StatusBarAlignment: {

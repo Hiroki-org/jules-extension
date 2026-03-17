@@ -44,6 +44,19 @@ export function isGeneratingSessionState(rawState: string | undefined): boolean 
   return GENERATING_SESSION_STATES.has(rawState);
 }
 
+/**
+ * アクティビティ群と任意のセッション初期プロンプトから、チャット表示用のメッセージ配列を構築する。
+ *
+ * 詳細:
+ * - アクティビティを作成時刻で昇順にソートし、各アクティビティのユーザー発言・エージェント発言・進捗／エラー／プラン／アーティファクト情報を適切にチャットメッセージとして変換する。
+ * - ワークスペース設定の `jules-extension.customPrompt` を検出し、初回出現時にラベル付きで表示する（以降は省略）。
+ * - 提供された `initialPrompt` は、最初のユーザーアクティビティと重複しない場合にセッション開始メッセージとして先頭に挿入される。
+ *
+ * @param activities - 変換元の Activity オブジェクトの配列
+ * @param initialPrompt - セッション全体の初期プロンプト（アクティビティに含まれない場合や重複しない場合のみ先頭に追加される）
+ * @param initialTime - `initialPrompt` に紐づける作成時刻（RFC 3339 形式などのタイムスタンプ文字列）
+ * @returns チャット UI に表示するために整形された ChatMessageItem の配列（活動ログ、ユーザー／アシスタント発言、詳細は必要に応じて HTML 化される）
+ */
 export function buildChatMessagesFromActivities(
   activities: Activity[],
   initialPrompt?: string,
@@ -167,7 +180,7 @@ export function buildChatMessagesFromActivities(
           let commandLine = outRec.commandLine;
           const commands = outRec.commands;
           if (commands && Array.isArray(commands) && commands.length > 0) {
-            commandLine = commands[0].commandLine;
+             commandLine = commands[0].commandLine;
           }
 
           if (commandLine || stdout || stderr) {
@@ -199,7 +212,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly onSendMessage: (sessionId: string, message: string) => Promise<void>,
-  ) { }
+  ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.view = webviewView;
@@ -259,6 +272,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
+/**
+ * チャット UI を表示するための完全な Webview HTML ドキュメントを生成する。
+ *
+ * @param webview - Webview の CSP ソースやリソース参照に使用する VS Code Webview オブジェクト
+ * @param nonce - HTML 内の script/style タグに埋める CSP ノンス値
+ * @returns 生成した HTML ドキュメント全体を表す文字列
+ */
 export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -441,13 +461,13 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       padding: 2px 0;
       outline: none;
     }
-    .activity-details summary:focus-visible {
-      outline: 1px solid var(--vscode-focusBorder);
-      outline-offset: 2px;
-    }
     .activity-details summary:hover {
       opacity: 1;
       text-decoration: underline;
+    }
+    .activity-details summary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
     }
     .details-content {
       margin-top: 6px;
@@ -475,17 +495,17 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
 </head>
 <body>
   <div id="chat"></div>
-  <div id="typing" class="typing" aria-live="polite" aria-label="Jules is working">
-    <span>Jules is working</span>
+  <div id="typing" class="typing" aria-live="polite" aria-label="Jules is typing">
+    <span>Jules is typing</span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
     <span class="typing-dot"></span>
   </div>
   <form id="composer">
-    <textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
+    <textarea id="messageInput" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button>
+      <button id="sendButton" type="submit" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
@@ -589,6 +609,13 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
 </html>`;
 }
 
+/**
+ * MarkdownIt のレンダラーを構築して返します。
+ *
+ * 作成されるレンダラーはHTML出力を無効にし、リンク化と改行変換を有効にした上で、言語指定があるコードブロックは highlight.js で構文強調し、言語未指定時はコードをエスケープして出力します。さらに各コードブロックをコピー用のボタンを含むラッパー<div class="code-block">で囲みます。
+ *
+ * @returns 構文強調とカスタムフェンス出力（コピー用ボタンを含む）を備えた MarkdownIt インスタンス
+ */
 function createMarkdownRenderer(): MarkdownIt {
   const markdown = new MarkdownIt({
     html: false,
@@ -610,7 +637,7 @@ function createMarkdownRenderer(): MarkdownIt {
     const rendered = defaultFence
       ? defaultFence(tokens, idx, options, env, self)
       : self.renderToken(tokens, idx, options);
-    return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
+    return `<div class="code-block"><button class="copy-code-button" type="button">Copy</button>${rendered}</div>`;
   };
 
   return markdown;

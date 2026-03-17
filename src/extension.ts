@@ -48,6 +48,9 @@ import {
 import { JulesChatViewProvider } from "./chatView";
 import { mapLimit } from "./asyncUtils";
 import { buildSessionTooltip } from "./tooltipUtils";
+import { registerInlineCommands } from "./inlineCommands";
+import { createJulesSession } from "./sessionUtils";
+import { buildFinalPrompt } from "./promptUtils";
 import {
   getActivityCategory,
   getActivityIcon,
@@ -63,10 +66,9 @@ import {
 } from "./activityUtils";
 
 // Constants
-const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
-const ALL_SOURCES_ID = "all_repos";
 const MAX_PAGE_SIZE = 100;
 const MAX_PAGINATION_PAGES = 100;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
@@ -95,24 +97,6 @@ const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 interface SourceQuickPickItem extends vscode.QuickPickItem {
   source: SourceType;
-}
-
-interface CreateSessionRequest {
-  prompt: string;
-  sourceContext: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch: string;
-    };
-  };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
-  title: string;
-  requirePlanApproval?: boolean;
-}
-
-interface SessionResponse {
-  name: string;
-  // Add other fields if needed
 }
 
 // Re-export Session, SessionOutput, and SessionState from types for backward compatibility
@@ -462,6 +446,11 @@ async function createRemoteBranch(
   }
 }
 
+/**
+ * ワークスペースの現在のブランチのコミットSHAを取得する。
+ *
+ * @returns 現在のブランチのコミットSHAを表す文字列。ブランチが存在しないか取得に失敗した場合は`null`
+ */
 async function getCurrentBranchSha(
   outputChannel?: vscode.OutputChannel,
 ): Promise<string | null> {
@@ -492,13 +481,6 @@ async function getCurrentBranchSha(
     logger.appendLine(`[Jules] Error getting current branch sha: ${error}`);
     return null;
   }
-}
-
-export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
-    .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
-  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
 }
 
 /**
@@ -574,10 +556,16 @@ function resolveSessionId(
   );
 }
 
+/**
+ * セッションまたはキャッシュ化されたセッション状態から、URL を持つプルリクエストを抽出する。
+ *
+ * @param sessionOrState - PR 情報を含む可能性のある `Session` または `CachedSessionState`
+ * @returns `PullRequestOutput` の配列。`url` を持つプルリクエストのみ含み、同一 `url` の重複は先に出現したものを残して削除する。
+ */
 function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) return [];
+  if (!sessionOrState.outputs) {return [];}
   const allPrs = sessionOrState.outputs
     .map((o) => o.pullRequest)
     .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
@@ -648,11 +636,19 @@ async function checkPRStatus(
   }
 }
 
+/**
+ * セッションで作成されたプルリクエストをユーザーに通知し、関連するアクション（PRを開く、説明文をコピー、複数PR時は一覧表示から選択して開く）を提供する。
+ *
+ * 単一のPRの場合はリポジトリと番号、タイトル、説明のプレビューを含む通知を表示し、「Open PR」または（説明がある場合）「Copy Description」を選べる。複数のPRがある場合は要約通知を表示し、「View PRs」を選ぶとPR一覧から1件を選んで開ける。
+ *
+ * @param session - 通知対象のセッション（通知文のタイトル表示に使用される）
+ * @param prs - 作成されたプルリクエストの配列（各要素の `url` を使用してPRを開く。`description` があればコピー可能）
+ */
 async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) return;
+  if (!prs || prs.length === 0) {return;}
 
   if (prs.length === 1) {
     const pr = prs[0];
@@ -736,17 +732,23 @@ async function fetchPlanFromActivities(
   }
 }
 
+/**
+ * セッションに対する承認待ちのプランをユーザーに通知し、承認または詳細表示の操作を提供する。
+ *
+ * セッションに関連する最新のプラン内容を（APIキーが利用可能な場合）活動ログから取得して要約を通知メッセージに含める。ユーザーが「Approve Plan」を選択するとプラン承認を実行し、ビュー詳細を選択すると該当セッションの活動表示コマンドを開く。
+ *
+ * @param session - 通知対象のセッション。`session.title`をメッセージ表示に、`session.name`を内部識別子として使用する。
+ */
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext,
-  apiKey?: string,
 ): Promise<void> {
   // Fetch plan details from activities
+  const apiKey = await context.secrets.get("jules-api-key");
   let planDetails = "";
-  const finalApiKey = apiKey ?? await context.secrets.get("jules-api-key");
 
-  if (finalApiKey) {
-    const plan = await fetchPlanFromActivities(session.name, finalApiKey);
+  if (apiKey) {
+    const plan = await fetchPlanFromActivities(session.name, apiKey);
     if (plan) {
       planDetails = formatPlanForNotification(
         plan,
@@ -1658,7 +1660,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         await this.sendNotifications(
           sessionsToNotifyPlan,
           "plan approval",
-          (session) => notifyPlanAwaitingApproval(session, this.context, apiKey),
+          (session) => notifyPlanAwaitingApproval(session, this.context),
         );
 
         // Notify User Feedback
@@ -2288,6 +2290,13 @@ function detectSocksProxy(): string | null {
   );
 }
 
+/**
+ * 拡張機能を初期化して、UI（ツリービュー・チャットビュー・ステータスバー）・コマンド・キャッシュ・プロバイダ・自動更新ループ等を登録および開始する。
+ *
+ * 初期化処理には SOCKS プロキシの検出と設定、PR ステータス／セッション状態／アクティビティのキャッシュ読み込み、各種 TextDocumentContentProvider と TreeDataProvider の生成、コマンドの登録、初回セッションフェッチと自動更新タイマーの開始が含まれる。
+ *
+ * @param context - VS Code の拡張機能コンテキスト（disposables 登録・グローバル状態や secrets へのアクセスに使用）
+ */
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
 
@@ -2351,6 +2360,8 @@ export function activate(context: vscode.ExtensionContext) {
     chatViewProvider,
     { webviewOptions: { retainContextWhenHidden: true } },
   );
+
+  registerInlineCommands(context, logChannel);
 
   // ステータスバーアイテム作成
   const statusBarItem = vscode.window.createStatusBarItem(
@@ -2835,70 +2846,18 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 
-        if (!selectedSource.name) {
-          throw new Error(
-            "Selected source is missing resource name required by Sources API.",
-          );
-        }
-
-        const requestBody: CreateSessionRequest = {
-          prompt: finalPrompt,
-          sourceContext: {
-            source: selectedSource.name,
-            githubRepoContext: {
-              startingBranch,
-            },
-          },
-          automationMode,
+        await createJulesSession(
+          context,
+          selectedSource,
+          apiKey,
+          startingBranch,
+          userPrompt,
           title,
-          requirePlanApproval: result.requireApproval,
-        };
-
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Creating Jules Session...",
-            cancellable: false,
-          },
-          async (progress) => {
-            progress.report({
-              increment: 0,
-              message: "Sending request...",
-            });
-            const response = await fetchWithTimeout(
-              `${JULES_API_BASE_URL}/sessions`,
-              {
-                method: "POST",
-                headers: {
-                  "X-Goog-Api-Key": apiKey,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-              },
-            );
-            progress.report({
-              increment: 50,
-              message: "Processing response...",
-            });
-            if (!response.ok) {
-              throw new Error(
-                `Failed to create session: ${response.status} ${response.statusText}`,
-              );
-            }
-            const session = (await response.json()) as SessionResponse;
-            await context.globalState.update("active-session-id", session.name);
-            progress.report({
-              increment: 100,
-              message: "Session created!",
-            });
-            vscode.window.showInformationMessage(
-              `Session created: ${session.name}`,
-            );
-          },
+          automationMode,
+          result.requireApproval
         );
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -3152,21 +3111,18 @@ export function activate(context: vscode.ExtensionContext) {
                   "artifacts",
                 ]);
                 const unionKeys = new Set(ACTIVITY_UNION_KEYS);
-                const inferredKeys: string[] = [];
-                for (const key in activity) {
+                const inferredKeys = Object.keys(activity).filter((key) => {
                   if (
-                    Object.prototype.hasOwnProperty.call(activity, key) &&
-                    !baseKeys.has(key) &&
-                    !unionKeys.has(key as ActivityUnionKey)
+                    baseKeys.has(key) ||
+                    unionKeys.has(key as ActivityUnionKey)
                   ) {
-                    const value = (
-                      activity as unknown as Record<string, unknown>
-                    )[key];
-                    if (value !== undefined && value !== null) {
-                      inferredKeys.push(key);
-                    }
+                    return false;
                   }
-                }
+                  const value = (
+                    activity as unknown as Record<string, unknown>
+                  )[key];
+                  return value !== undefined && value !== null;
+                });
                 keySummary =
                   inferredKeys.length === 0 ? "none" : inferredKeys.join(", ");
               }
@@ -3235,6 +3191,12 @@ export function activate(context: vscode.ExtensionContext) {
           activitiesUri,
           summaryHeader + detailLines.join("\n"),
         );
+        const activitiesDocument =
+          await vscode.workspace.openTextDocument(activitiesUri);
+        await vscode.window.showTextDocument(activitiesDocument, {
+          preview: true,
+          viewColumn: vscode.ViewColumn.Active,
+        });
 
         await context.globalState.update("active-session-id", sessionId);
       } catch (error) {

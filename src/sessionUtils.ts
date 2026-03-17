@@ -1,0 +1,112 @@
+import * as vscode from "vscode";
+import { fetchWithTimeout } from "./fetchUtils";
+import { buildFinalPrompt } from "./promptUtils";
+import { SourceType } from "./types";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
+
+export interface CreateSessionRequest {
+  prompt: string;
+  sourceContext: {
+    source: string;
+    githubRepoContext?: {
+      startingBranch: string;
+    };
+  };
+  automationMode: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
+  title: string;
+  requirePlanApproval?: boolean;
+}
+
+export interface SessionResponse {
+  name: string;
+}
+
+/**
+ * Jules セッションを作成し、作成されたセッションの識別子を返す。
+ *
+ * @param selectedSource - セッションに関連付けるソース。`name` プロパティがリソース名として使用されることを期待する
+ * @param startingBranch - GitHub リポジトリの開始ブランチ名（セッションの githubRepoContext に設定される）
+ * @param prompt - セッション用のユーザー入力プロンプト
+ * @param title - セッションのタイトル
+ * @param automationMode - セッションの自動化モード（"AUTO_CREATE_PR" または "MANUAL"）
+ * @param requirePlanApproval - 指定すると、実行前にプラン承認を要求する
+ * @returns 作成されたセッションの名前（セッション識別子）
+ */
+export async function createJulesSession(
+  context: vscode.ExtensionContext,
+  selectedSource: SourceType,
+  apiKey: string,
+  startingBranch: string,
+  prompt: string,
+  title: string,
+  automationMode: "AUTO_CREATE_PR" | "MANUAL",
+  requirePlanApproval?: boolean
+): Promise<string> {
+  const finalPrompt = buildFinalPrompt(prompt);
+
+  if (!selectedSource.name) {
+    throw new Error(
+      "Selected source is missing resource name required by Sources API.",
+    );
+  }
+
+  const requestBody: CreateSessionRequest = {
+    prompt: finalPrompt,
+    sourceContext: {
+      source: selectedSource.name,
+      githubRepoContext: {
+        startingBranch,
+      },
+    },
+    automationMode,
+    title,
+    requirePlanApproval,
+  };
+
+  return await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Creating Jules Session...",
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({
+        increment: 0,
+        message: "Sending request...",
+      });
+      const response = await fetchWithTimeout(
+        `${JULES_API_BASE_URL}/sessions`,
+        {
+          method: "POST",
+          headers: {
+            "X-Goog-Api-Key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+      );
+      progress.report({
+        increment: 50,
+        message: "Processing response...",
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Failed to create session: ${response.status} ${response.statusText}`,
+        );
+      }
+      const session = (await response.json()) as SessionResponse;
+      if (!session || typeof session.name !== "string" || !session.name.trim()) {
+        throw new Error("Invalid response: session name is missing.");
+      }
+      await context.globalState.update("active-session-id", session.name);
+      progress.report({
+        increment: 100,
+        message: "Session created!",
+      });
+      vscode.window.showInformationMessage(
+        `Session created: ${session.name}`,
+      );
+      return session.name;
+    },
+  );
+}
