@@ -478,7 +478,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <span class="typing-dot"></span>
   </div>
   <form id="composer">
-    <textarea id="messageInput" aria-label="Enter message (Ctrl/Cmd+Enter to send)" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
+    <textarea id="messageInput" aria-label="Enter message (Cmd/Ctrl+Enter to send)" placeholder="Enter message (Cmd/Ctrl+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
       <button id="sendButton" type="submit" aria-label="Send message (Cmd/Ctrl+Enter)" title="Send (Cmd/Ctrl+Enter)" disabled>Send</button>

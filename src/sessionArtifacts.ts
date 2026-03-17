@@ -226,7 +226,7 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    const lines = diff.split('\n');
+    const lines = diff.split('\n').filter(line => line.trim().length > 0 || line.startsWith('diff --git '));
     for (const line of lines) {
         if (!line.startsWith('diff --git ')) {
             continue;
