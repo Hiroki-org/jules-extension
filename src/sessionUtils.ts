@@ -93,7 +93,7 @@ export async function createJulesSession(
       await context.globalState.update("active-session-id", session.name);
       
       // Trigger refresh of activities to show the new session immediately
-      vscode.commands.executeCommand("jules-extension.refreshActivities");
+      await vscode.commands.executeCommand("jules-extension.refreshActivities");
 
       progress.report({
         increment: 100,

@@ -28,6 +28,11 @@ suite("sessionUtils Test Suite", () => {
             return await task({ report: sinon.stub() } as any, new vscode.CancellationTokenSource().token);
         });
 
+        const configStub = {
+            get: sinon.stub().withArgs("customPrompt").returns(""),
+        };
+        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
+
         const context = {
             globalState: {
                 update: sinon.stub().resolves(),
@@ -46,6 +51,9 @@ suite("sessionUtils Test Suite", () => {
 
         assert.strictEqual(sessionId, "sessions/123");
         assert.ok(fetchStub.calledOnce);
+        const fetchCall = fetchStub.getCall(0);
+        const payload = JSON.parse(fetchCall.args[1].body);
+        assert.strictEqual(payload.title, "test title");
         assert.ok(context.globalState.update.calledWith("active-session-id", "sessions/123"));
     });
 
@@ -60,6 +68,11 @@ suite("sessionUtils Test Suite", () => {
         windowProgressStub.callsFake(async (options, task) => {
             return await task({ report: sinon.stub() } as any, new vscode.CancellationTokenSource().token);
         });
+
+        const configStub = {
+            get: sinon.stub().withArgs("customPrompt").returns(""),
+        };
+        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
 
         const context = { globalState: { update: sinon.stub() } } as any;
 
@@ -76,6 +89,11 @@ suite("sessionUtils Test Suite", () => {
             ok: true,
             json: async () => ({}),
         } as Response);
+
+        const configStub = {
+            get: sinon.stub().withArgs("customPrompt").returns(""),
+        };
+        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
 
         await sendMessage("dummy-key", "sessions/123", "test prompt");
 
@@ -94,6 +112,11 @@ suite("sessionUtils Test Suite", () => {
             statusText: "Bad Request",
             text: async () => "Invalid prompt",
         } as Response);
+
+        const configStub = {
+            get: sinon.stub().withArgs("customPrompt").returns(""),
+        };
+        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
 
         try {
             await sendMessage("dummy-key", "sessions/123", "test prompt");
