@@ -61,7 +61,7 @@ export function buildChatMessagesFromActivities(
 
   function formatMessage(message: string): string {
     if (customPrompt && message.includes(customPrompt)) {
-      const baseMessage = message.replace(`\n\n${customPrompt}`, "").trim();
+      const baseMessage = message.replace(`${customPrompt}\n\n`, "").trim();
       if (!hasLabeledCustomPrompt) {
         hasLabeledCustomPrompt = true;
         // 初回はラベルをつけて表示
@@ -485,7 +485,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button>
+      <button id="sendButton" type="submit" aria-label="Send message (Ctrl/Cmd+Enter)" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">

@@ -167,7 +167,8 @@ export async function handleInlineTask(
         document = await vscode.workspace.openTextDocument(uri);
     } catch (e) {
         const errorMsg = sanitizeForLogging(e instanceof Error ? e.message : String(e));
-        logChannel.appendLine(`[Jules] Error opening document ${uri.toString()}: ${errorMsg}`);
+        const uriSafe = sanitizeForLogging(uri.toString());
+        logChannel.appendLine(`[Jules] Error opening document ${uriSafe}: ${errorMsg}`);
         vscode.window.showErrorMessage("Could not open the target document.");
         return;
     }
