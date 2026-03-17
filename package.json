@@ -334,12 +334,12 @@
       "editor/context": [
         {
           "command": "jules-extension.inlineRefactor",
-          "when": "editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
+          "when": "editorHasSelection && editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
           "group": "jules@1"
         },
         {
           "command": "jules-extension.inlineGenerateTests",
-          "when": "editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
+          "when": "editorHasSelection && editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
           "group": "jules@2"
         }
       ]
