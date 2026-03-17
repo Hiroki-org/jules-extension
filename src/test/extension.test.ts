@@ -381,7 +381,7 @@ suite("Extension Test Suite", () => {
       getConfigurationStub.restore();
     });
 
-    test("should append custom prompt to user prompt", () => {
+    test("should prepend custom prompt to user prompt", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
         inspect: sinon.stub().returns(undefined)
@@ -390,7 +390,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt");
+      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
@@ -497,7 +497,11 @@ suite("Extension Test Suite", () => {
 
       // Prevent duplicate command registration errors during test
       const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => { } } as any));
-      const registerWebviewStub = localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      const registerTreeStub = localSandbox.stub(vscode.window, 'registerTreeDataProvider').callsFake(() => ({ dispose: () => { } } as any));
+      const registerTextProviderStub = localSandbox.stub(vscode.workspace, 'registerTextDocumentContentProvider').callsFake(() => ({ dispose: () => { } } as any));
+      const registerCodeLensStub = localSandbox.stub(vscode.languages, 'registerCodeLensProvider').callsFake(() => ({ dispose: () => { } } as any));
+      const registerCodeActionStub = localSandbox.stub(vscode.languages, 'registerCodeActionsProvider').callsFake(() => ({ dispose: () => { } } as any));
 
       // Call activate to load and clean cache
       activate(mockContext);

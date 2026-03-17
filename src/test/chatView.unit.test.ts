@@ -74,5 +74,7 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes('type: "sendMessage"'));
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
+    assert.ok(html.includes('aria-label="Enter message (Ctrl/Cmd+Enter to send)"'));
+    assert.ok(html.includes('aria-label="Send message (Cmd/Ctrl+Enter)"'));
   });
 });
