@@ -10,6 +10,7 @@ import {
 } from "./activityUtils";
 import { formatFullPlan } from "./planUtils";
 import { escapeHtml } from "./composer";
+import { buildFencedCodeBlock } from "./markdownFencing";
 import { Activity } from "./types";
 
 export interface ChatMessageItem {
@@ -99,10 +100,6 @@ export function renderChatMarkdown(markdown: string): string {
     return escapeHtml(markdown);
   }
   return markdownRenderer.render(markdown);
-}
-
-function escapeFencedContent(content: string): string {
-  return content.replace(/`{3,}/g, (m) => m.replace(/`/g, "\\`"));
 }
 
 function updateMessageHtml(message: ChatMessageItem): ChatMessageItem {
@@ -228,7 +225,7 @@ export function buildChatMessagesFromActivities(
     if ((activity as any).gitPatch?.diff) {
       const diff = (activity as any).gitPatch.diff;
       if (typeof diff === "string" && diff.trim().length > 0) {
-        const diffHtml = renderChatMarkdown(`\`\`\`diff\n${escapeFencedContent(diff)}\n\`\`\``);
+        const diffHtml = renderChatMarkdown(buildFencedCodeBlock(diff, "diff"));
         detailsHtml += `<details class="activity-details"><summary>View Diff</summary><div class="details-content">${diffHtml}</div></details>`;
       }
     }
@@ -238,12 +235,12 @@ export function buildChatMessagesFromActivities(
         if (artifact.changeSet) {
           const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
           if (diffData && typeof diffData === "string") {
-            const diffHtml = renderChatMarkdown(`\`\`\`diff\n${escapeFencedContent(diffData)}\n\`\`\``);
+            const diffHtml = renderChatMarkdown(buildFencedCodeBlock(diffData, "diff"));
             detailsHtml += `<details class="activity-details"><summary>View ChangeSet (${i + 1})</summary><div class="details-content">${diffHtml}</div></details>`;
           } else {
             let raw = "";
             try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
-            const rawHtml = renderChatMarkdown(`\`\`\`json\n${escapeFencedContent(raw)}\n\`\`\``);
+            const rawHtml = renderChatMarkdown(buildFencedCodeBlock(raw, "json"));
             detailsHtml += `<details class="activity-details"><summary>View ChangeSet Details (${i + 1})</summary><div class="details-content">${rawHtml}</div></details>`;
           }
         }
@@ -260,7 +257,7 @@ export function buildChatMessagesFromActivities(
 
           if (commandLine || stdout || stderr) {
             const out = `> ${commandLine || "Command"}\n${stdout || ""}\n${stderr || ""}`.trim();
-            const bashHtml = renderChatMarkdown(`\`\`\`bash\n${escapeFencedContent(out)}\n\`\`\``);
+            const bashHtml = renderChatMarkdown(buildFencedCodeBlock(out, "bash"));
             detailsHtml += `<details class="activity-details"><summary>View Bash Output (${i + 1})</summary><div class="details-content">${bashHtml}</div></details>`;
           }
         }
@@ -375,6 +372,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       --shiki-token-string-expression: var(--vscode-debugTokenExpression-string, #ce9178);
       --shiki-token-punctuation: var(--vscode-editor-foreground);
       --shiki-token-link: var(--vscode-textLink-foreground);
+      --shiki-token-inserted: var(--vscode-terminal-ansiBrightGreen, #81b88b);
+      --shiki-token-deleted: var(--vscode-terminal-ansiBrightRed, #c74e39);
+      --shiki-token-markup-inserted: var(--vscode-terminal-ansiBrightGreen, #81b88b);
+      --shiki-token-markup-deleted: var(--vscode-terminal-ansiBrightRed, #c74e39);
     }
     * { box-sizing: border-box; }
     body {

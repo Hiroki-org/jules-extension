@@ -7,6 +7,7 @@ import { JulesApiClient } from "./julesApiClient";
 import { sanitizeForLogging } from "./securityUtils";
 import { SourceType } from "./types";
 import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { buildFencedCodeBlock } from "./markdownFencing";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
@@ -137,6 +138,15 @@ export class JulesCodeActionProvider implements vscode.CodeActionProvider {
     }
 }
 
+export function buildInlineTaskPrompt(
+    defaultTask: string,
+    relativePath: string,
+    languageId: string,
+    codeSnippet: string
+): string {
+    return `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${relativePath}\`\n\n${buildFencedCodeBlock(codeSnippet, languageId)}\n`;
+}
+
 // Common handler for inline tasks (Refactor, Generate Tests, etc.)
 export async function handleInlineTask(
     context: vscode.ExtensionContext,
@@ -257,7 +267,12 @@ export async function handleInlineTask(
       placeholder: `Describe your task or modify the prompt below...`,
       showCreatePrCheckbox: true,
       showRequireApprovalCheckbox: true,
-      value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n\`\`\`${document.languageId}\n${codeSnippet}\n\`\`\`\n`
+      value: buildInlineTaskPrompt(
+        defaultTask,
+        vscode.workspace.asRelativePath(document.uri),
+        document.languageId,
+        codeSnippet
+      )
     });
 
     if (result === undefined) {
