@@ -65,6 +65,7 @@ import {
 import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 import { createJulesSession, sendMessage as sendMessageToApi } from "./sessionUtils";
 import { buildFinalPrompt } from "./promptUtils";
+import { registerInlineCommands } from "./inlineCommands";
 
 // Constants
 const VIEW_DETAILS_ACTION = "View Details";
@@ -2374,6 +2375,8 @@ export function activate(context: vscode.ExtensionContext) {
   // Create OutputChannel for Logs
   logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
   context.subscriptions.push(logChannel);
+
+  registerInlineCommands(context, logChannel);
 
   // Sign in to GitHub via VS Code authentication
   const signInDisposable = vscode.commands.registerCommand(

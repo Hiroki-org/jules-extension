@@ -70,6 +70,11 @@
           "default": true,
           "description": "Automatically hide sessions with closed or merged pull requests from the session list"
         },
+        "jules-extension.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Jules CodeLens actions (Refactor, Generate Tests) above functions and classes"
+        },
         "jules.defaultBranch": {
           "type": "string",
           "enum": [
@@ -189,6 +194,18 @@
         "title": "Review Plan...",
         "category": "Jules",
         "icon": "$(preview)"
+      },
+      {
+        "command": "jules-extension.inlineRefactor",
+        "title": "Jules: Refactor",
+        "category": "Jules",
+        "icon": "$(robot)"
+      },
+      {
+        "command": "jules-extension.inlineGenerateTests",
+        "title": "Jules: Generate Tests",
+        "category": "Jules",
+        "icon": "$(robot)"
       },
       {
         "command": "jules.filterActivities",
@@ -312,6 +329,18 @@
           "command": "jules.showFailureReason",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-failed/",
           "group": "jules_info"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "jules-extension.inlineRefactor",
+          "when": "editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
+          "group": "jules@1"
+        },
+        {
+          "command": "jules-extension.inlineGenerateTests",
+          "when": "editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
+          "group": "jules@2"
         }
       ]
     }
