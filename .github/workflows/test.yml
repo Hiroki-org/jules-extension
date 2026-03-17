@@ -57,6 +57,7 @@ jobs:
         run: pnpm run package
 
   test-linux:
+    needs: [test-unit, build-check]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -100,6 +101,7 @@ jobs:
           xvfb-run -a pnpm test
 
   test-macos:
+    needs: [test-unit, build-check]
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -140,6 +142,7 @@ jobs:
         run: pnpm test
 
   test-windows:
+    needs: [test-unit, build-check]
     runs-on: windows-latest
     strategy:
       fail-fast: false

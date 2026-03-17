@@ -5,6 +5,7 @@ import {
   getChatWebviewHtml,
   isGeneratingSessionState,
   renderChatMarkdown,
+  initMarkdownRenderer,
 } from "../chatView";
 import { Activity } from "../types";
 
@@ -17,7 +18,13 @@ function createActivity(activity: Partial<Activity>): Activity {
   };
 }
 
-suite("Chat View Unit Test Suite", () => {
+suite("Chat View Unit Test Suite", function () {
+  this.timeout(10000); // Shiki initialization can take longer than default 2s
+
+  suiteSetup(async () => {
+    await initMarkdownRenderer();
+  });
+
   test("buildChatMessagesFromActivities should include user/assistant messages and logs", () => {
     const messages = buildChatMessagesFromActivities([
       createActivity({
@@ -55,7 +62,7 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes("<ul>"));
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
-    assert.ok(rendered.includes('class="hljs"'));
+    assert.ok(rendered.includes('class="shiki'));
   });
 
   test("isGeneratingSessionState should detect active generation states", () => {
