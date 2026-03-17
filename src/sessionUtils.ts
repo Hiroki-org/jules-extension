@@ -92,6 +92,7 @@ export async function createJulesSession(
         throw new Error("Invalid response: session name is missing.");
       }
       await context.globalState.update("active-session-id", session.name);
+      await vscode.commands.executeCommand("jules-extension.refreshActivities");
       progress.report({
         increment: 100,
         message: "Session created!",

@@ -38,21 +38,7 @@ export async function initMarkdownRenderer(): Promise<void> {
     breaks: true,
   });
 
-  const { default: Shiki } = await import("@shikijs/markdown-it");
-  const { createCssVariablesTheme } = await import("shiki");
-
-  const cssVariablesTheme = createCssVariablesTheme({
-    name: "css-variables",
-    variablePrefix: "--shiki-",
-    variableDefaults: {},
-    fontStyle: true,
-  });
-
-  const shikiPlugin = await Shiki({
-    theme: cssVariablesTheme,
-  });
-  md.use(shikiPlugin);
-
+  // Always apply the copy button override
   const defaultFence = md.renderer.rules.fence?.bind(md.renderer.rules);
   md.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
     const rendered = defaultFence
@@ -61,7 +47,27 @@ export async function initMarkdownRenderer(): Promise<void> {
     return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
   };
 
+  // Assign the basic renderer immediately so it can be used even if Shiki fails to load
   markdownRenderer = md;
+
+  try {
+    const { default: Shiki } = await import("@shikijs/markdown-it");
+    const { createCssVariablesTheme } = await import("shiki");
+
+    const cssVariablesTheme = createCssVariablesTheme({
+      name: "css-variables",
+      variablePrefix: "--shiki-",
+      variableDefaults: {},
+      fontStyle: true,
+    });
+
+    const shikiPlugin = await Shiki({
+      theme: cssVariablesTheme,
+    });
+    md.use(shikiPlugin);
+  } catch (error) {
+    console.error("Jules: Failed to initialize Shiki, falling back to basic MarkdownIt:", error);
+  }
 }
 
 export function renderChatMarkdown(markdown: string): string {
