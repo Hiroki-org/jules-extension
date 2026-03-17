@@ -381,7 +381,7 @@ suite("Extension Test Suite", () => {
       getConfigurationStub.restore();
     });
 
-    test("should append custom prompt to user prompt", () => {
+    test("should prepend custom prompt to user prompt", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
       };
@@ -389,7 +389,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt");
+      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
@@ -488,6 +488,11 @@ suite("Extension Test Suite", () => {
       } as any as vscode.ExtensionContext;
 
       const consoleLogStub = localSandbox.stub(console, 'log');
+
+      // Prevent duplicate registration errors during test
+      localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeActionsProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeLensProvider').callsFake(() => ({ dispose: () => { } } as any));
 
       // Stub fetch so we can observe calls for expired entry
       const fetchStub = localSandbox.stub(fetchUtils, 'fetchWithTimeout').resolves({ ok: true, json: async () => ({ state: 'open' }) } as any);
