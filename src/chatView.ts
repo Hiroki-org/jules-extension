@@ -445,6 +445,10 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       opacity: 1;
       text-decoration: underline;
     }
+    .activity-details summary:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
     .details-content {
       margin-top: 6px;
       padding: 10px;
