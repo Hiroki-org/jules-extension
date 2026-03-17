@@ -6,7 +6,9 @@ import { getBranchesForSession } from "./branchUtils";
 import { JulesApiClient } from "./julesApiClient";
 import { sanitizeForLogging } from "./securityUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
+
+const ALL_SOURCES_ID = "all_repos";
 
 /**
  * Provides CodeLens for Jules actions (Refactor, Generate Tests) above classes and functions.
@@ -215,19 +217,16 @@ export async function handleInlineTask(
       remoteBranches,
     } = branchInfo;
 
-    const remoteBranchSet = new Set(remoteBranches);
     const selectedBranch = await vscode.window.showQuickPick(
-      branches
-        .filter((branch) => remoteBranchSet.has(branch))
-        .map((branch) => ({
-          label: branch,
-          picked: branch === selectedDefaultBranch,
-          description:
-            (branch === selectedDefaultBranch ? "(default)" : undefined) ||
-            (branch === currentBranch ? "(current)" : undefined),
-        })),
+      branches.map((branch) => ({
+        label: branch,
+        picked: branch === selectedDefaultBranch,
+        description:
+          (branch === selectedDefaultBranch ? "(default)" : undefined) ||
+          (branch === currentBranch ? "(current)" : undefined),
+      })),
       {
-        placeHolder: "Select a remote branch for this session",
+        placeHolder: "Select a branch for this session",
         title: "Branch Selection",
       },
     );
@@ -254,7 +253,7 @@ export async function handleInlineTask(
 
     const result = await showMessageComposer({
       title: `Jules: ${defaultTask}`,
-      placeholder: `Describe your task or modify the prompt below...`,
+      placeholder: `Provide additional instructions for Jules...`,
       showCreatePrCheckbox: true,
       showRequireApprovalCheckbox: true,
       value: `Please ${defaultTask.toLowerCase()} the following code.\n\nFile: \`${vscode.workspace.asRelativePath(document.uri)}\`\n\n\`\`\`${document.languageId}\n${codeSnippet}\n\`\`\`\n`

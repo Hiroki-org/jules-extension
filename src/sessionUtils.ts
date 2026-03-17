@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 export interface CreateSessionRequest {
   prompt: string;
@@ -12,7 +12,7 @@ export interface CreateSessionRequest {
       startingBranch: string;
     };
   };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
+  automationMode: "AUTO_CREATE_PR" | "MANUAL" | "AUTOMATION_MODE_UNSPECIFIED";
   title: string;
   requirePlanApproval?: boolean;
 }
@@ -32,10 +32,6 @@ export async function createJulesSession(
   requirePlanApproval?: boolean
 ): Promise<string> {
   const finalPrompt = buildFinalPrompt(prompt);
-
-  if (selectedSource.id === ALL_SOURCES_ID) {
-    throw new Error("Please select a specific repository source first.");
-  }
 
   if (!selectedSource.name) {
     throw new Error(
@@ -92,7 +88,6 @@ export async function createJulesSession(
         throw new Error("Invalid response: session name is missing.");
       }
       await context.globalState.update("active-session-id", session.name);
-      await vscode.commands.executeCommand("jules-extension.refreshActivities");
       progress.report({
         increment: 100,
         message: "Session created!",
