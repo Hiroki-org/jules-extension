@@ -38,9 +38,35 @@ const mockVscode = {
         createTreeView: () => ({ dispose: () => { } }),
         createStatusBarItem: () => ({ show: () => { }, hide: () => { }, dispose: () => { } }),
         createOutputChannel: () => ({ append: () => { }, appendLine: () => { }, replace: () => { }, clear: () => { }, show: () => { }, hide: () => { }, dispose: () => { } }),
+        registerWebviewViewProvider: () => ({ dispose: () => { } }),
     },
     env: {
         openExternal: async () => true,
+    },
+    CodeActionKind: {
+        Empty: { value: "" },
+        QuickFix: { value: "quickfix" },
+        Refactor: { value: "refactor" },
+        RefactorExtract: { value: "refactor.extract" },
+        RefactorInline: { value: "refactor.inline" },
+        RefactorRewrite: { value: "refactor.rewrite" },
+        Source: { value: "source" },
+        SourceOrganizeImports: { value: "source.organizeImports" },
+        SourceFixAll: { value: "source.fixAll" },
+    },
+    CodeAction: class CodeAction {
+        title: string;
+        kind?: any;
+        constructor(title: string, kind?: any) {
+            this.title = title;
+            this.kind = kind;
+        }
+    },
+    DiagnosticSeverity: {
+        Error: 0,
+        Warning: 1,
+        Information: 2,
+        Hint: 3,
     },
     extensions: {
         getExtension: () => undefined,

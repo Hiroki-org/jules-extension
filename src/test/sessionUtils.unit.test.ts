@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
-import { createJulesSession } from "../sessionUtils";
+import { createJulesSession, sendMessage } from "../sessionUtils";
 import * as fetchUtils from "../fetchUtils";
 
 suite("sessionUtils Test Suite", () => {
@@ -68,6 +68,38 @@ suite("sessionUtils Test Suite", () => {
             assert.fail("Should have thrown error");
         } catch (error: any) {
             assert.ok(error.message.includes("API Error: Error body"));
+        }
+    });
+
+    test("sendMessage succeeds with 2xx response", async () => {
+        fetchStub.resolves({
+            ok: true,
+            json: async () => ({}),
+        } as Response);
+
+        await sendMessage("dummy-key", "sessions/123", "test prompt");
+
+        assert.ok(fetchStub.calledOnce);
+        const [url, options] = fetchStub.getCall(0).args;
+        assert.ok(url.includes("sessions/123:sendMessage"));
+        assert.strictEqual(options.method, "POST");
+        const body = JSON.parse(options.body);
+        assert.strictEqual(body.prompt, "test prompt");
+    });
+
+    test("sendMessage throws error when response is not ok", async () => {
+        fetchStub.resolves({
+            ok: false,
+            status: 400,
+            statusText: "Bad Request",
+            text: async () => "Invalid prompt",
+        } as Response);
+
+        try {
+            await sendMessage("dummy-key", "sessions/123", "test prompt");
+            assert.fail("Should have thrown error");
+        } catch (error: any) {
+            assert.strictEqual(error.message, "Invalid prompt");
         }
     });
 });

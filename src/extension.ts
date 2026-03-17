@@ -2146,7 +2146,6 @@ async function sendMessageToSession(
       vscode.window.showWarningMessage("Message was empty and not sent.");
       return;
     }
-    const finalPrompt = buildFinalPrompt(userPrompt);
 
     await vscode.window.withProgress(
       {
@@ -2800,7 +2799,6 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 

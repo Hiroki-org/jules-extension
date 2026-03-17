@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 export interface CreateSessionRequest {
   prompt: string;
@@ -13,6 +13,7 @@ export interface CreateSessionRequest {
     };
   };
   automationMode: "AUTO_CREATE_PR" | "MANUAL";
+  title: string;
   requirePlanApproval?: boolean;
 }
 
@@ -41,6 +42,12 @@ export async function createJulesSession(
 ): Promise<string> {
   const finalPrompt = buildFinalPrompt(prompt);
 
+  if (!selectedSource.name) {
+    throw new Error(
+      "Selected source is missing resource name required by Sources API.",
+    );
+  }
+
   return vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -57,10 +64,11 @@ export async function createJulesSession(
           },
         },
         automationMode,
+        title,
         requirePlanApproval,
       };
 
-      const url = `${JULES_API_BASE_URL}/${selectedSource.name}/sessions`;
+      const url = `${JULES_API_BASE_URL}/sessions`;
       const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: {
