@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 
 export interface CreateSessionRequest {
   prompt: string;
@@ -32,6 +32,10 @@ export async function createJulesSession(
   requirePlanApproval?: boolean
 ): Promise<string> {
   const finalPrompt = buildFinalPrompt(prompt);
+
+  if (selectedSource.id === ALL_SOURCES_ID) {
+    throw new Error("Please select a specific repository source first.");
+  }
 
   if (!selectedSource.name) {
     throw new Error(

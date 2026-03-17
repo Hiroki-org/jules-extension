@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import * as crypto from "crypto";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
@@ -16,6 +17,7 @@ export interface ChatMessageItem {
   role: "user" | "assistant";
   createTime?: string;
   html: string;
+  markdown?: string;
 }
 
 interface ChatStatePayload {
@@ -67,6 +69,16 @@ export function renderChatMarkdown(markdown: string): string {
     return escapeHtml(markdown);
   }
   return markdownRenderer.render(markdown);
+}
+
+function updateMessageHtml(message: ChatMessageItem): ChatMessageItem {
+  if (message.markdown) {
+    return {
+      ...message,
+      html: renderChatMarkdown(message.markdown),
+    };
+  }
+  return message;
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
@@ -121,22 +133,26 @@ export function buildChatMessagesFromActivities(
 
   // 1. セッション全体の初期プロンプトがあれば追加 (Activityに含まれない場合や重複しない場合のみ)
   if (initialPrompt && !isInitialPromptRedundant) {
+    const formatted = formatMessage(initialPrompt);
     messages.push({
       id: "session-initial-prompt",
       role: "user",
       createTime: initialTime,
-      html: renderChatMarkdown(formatMessage(initialPrompt)),
+      html: renderChatMarkdown(formatted),
+      markdown: formatted,
     });
   }
 
   sortedActivities.forEach((activity) => {
     const userMessage = pickFirstNonEmpty(activity.userMessaged?.userMessage);
     if (userMessage) {
+      const formatted = formatMessage(userMessage);
       messages.push({
         id: activity.id ?? activity.name,
         role: "user",
         createTime: activity.createTime,
-        html: renderChatMarkdown(formatMessage(userMessage)),
+        html: renderChatMarkdown(formatted),
+        markdown: formatted,
       });
       return;
     }
@@ -148,6 +164,7 @@ export function buildChatMessagesFromActivities(
         role: "assistant",
         createTime: activity.createTime,
         html: renderChatMarkdown(agentMessage),
+        markdown: agentMessage,
       });
       return;
     }
@@ -241,6 +258,12 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
     await initMarkdownRenderer();
     this.view = webviewView;
+
+    // If there were messages already, re-render them with the new renderer
+    if (this.state.messages.length > 0) {
+      this.state.messages = this.state.messages.map(updateMessageHtml);
+    }
+
     webviewView.webview.options = {
       enableScripts: true,
     };
