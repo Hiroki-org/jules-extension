@@ -244,9 +244,13 @@ export async function handleInlineTask(
             .map((branch) => ({
                 label: branch,
                 picked: branch === selectedDefaultBranch,
-                description:
-                    (branch === selectedDefaultBranch ? "(default)" : undefined) ||
-                    (branch === currentBranch ? "(current)" : undefined),
+                description: branch === selectedDefaultBranch && branch === currentBranch
+                    ? "(default, current)"
+                    : branch === selectedDefaultBranch
+                        ? "(default)"
+                        : branch === currentBranch
+                            ? "(current)"
+                            : undefined,
             })),
         {
             placeHolder: "Select a remote branch for this session",
@@ -254,8 +258,8 @@ export async function handleInlineTask(
         },
     );
 
-    if (!selectedBranch) {
-        vscode.window.showWarningMessage("Branch selection was cancelled.");
+    if (!selectedBranch || !selectedBranch.label) {
+        vscode.window.showWarningMessage("Branch selection was cancelled or invalid.");
         return;
     }
 
