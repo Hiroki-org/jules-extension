@@ -1,5 +1,12 @@
 import Module from "module";
 
+function createCodeActionKind(value: string) {
+    return {
+        value,
+        append: (suffix: string) => createCodeActionKind(`${value}.${suffix}`),
+    };
+}
+
 const mockVscode = {
     workspace: {
         fs: {
@@ -17,9 +24,14 @@ const mockVscode = {
         },
         workspaceFolders: undefined as any,
         getConfiguration: () => ({
-            get: () => undefined,
+            get: (key: string, defaultValue: any) => defaultValue,
         }),
-        openTextDocument: async () => ({}) as any,
+        openTextDocument: async () => ({
+            getText: (range?: any) => "mock text",
+            uri: { toString: () => "file:///mock" },
+            languageId: "typescript"
+        }) as any,
+        asRelativePath: (uri: any) => uri.fsPath || String(uri),
         onDidChangeConfiguration: () => ({ dispose: () => { } }),
         registerTextDocumentContentProvider: () => ({ dispose: () => { } }),
     },
@@ -32,9 +44,10 @@ const mockVscode = {
         showWarningMessage: () => undefined,
         showErrorMessage: () => undefined,
         showQuickPick: async () => undefined,
-        withProgress: async (_opts: any, task: any) => task(),
+        withProgress: async (_opts: any, task: any) => task({ report: () => { } }, { isCancellationRequested: false }),
         showTextDocument: async () => undefined,
         activeTextEditor: undefined,
+        visibleTextEditors: [],
         createTreeView: () => ({ dispose: () => { } }),
         createStatusBarItem: () => ({ show: () => { }, hide: () => { }, dispose: () => { } }),
         createOutputChannel: () => ({ append: () => { }, appendLine: () => { }, replace: () => { }, clear: () => { }, show: () => { }, hide: () => { }, dispose: () => { } }),
@@ -42,31 +55,6 @@ const mockVscode = {
     },
     env: {
         openExternal: async () => true,
-    },
-    CodeActionKind: {
-        Empty: { value: "" },
-        QuickFix: { value: "quickfix" },
-        Refactor: { value: "refactor" },
-        RefactorExtract: { value: "refactor.extract" },
-        RefactorInline: { value: "refactor.inline" },
-        RefactorRewrite: { value: "refactor.rewrite" },
-        Source: { value: "source" },
-        SourceOrganizeImports: { value: "source.organizeImports" },
-        SourceFixAll: { value: "source.fixAll" },
-    },
-    CodeAction: class CodeAction {
-        title: string;
-        kind?: any;
-        constructor(title: string, kind?: any) {
-            this.title = title;
-            this.kind = kind;
-        }
-    },
-    DiagnosticSeverity: {
-        Error: 0,
-        Warning: 1,
-        Information: 2,
-        Hint: 3,
     },
     extensions: {
         getExtension: () => undefined,
@@ -91,6 +79,74 @@ const mockVscode = {
     FileSystemError: {
         FileNotFound: () => Object.assign(new Error("FileNotFound"), { code: "FileNotFound" }),
     },
+    SymbolKind: {
+        File: 0,
+        Module: 1,
+        Namespace: 2,
+        Package: 3,
+        Class: 4,
+        Method: 5,
+        Property: 6,
+        Field: 7,
+        Constructor: 8,
+        Enum: 9,
+        Interface: 10,
+        Function: 11,
+        Variable: 12,
+        Constant: 13,
+        String: 14,
+        Number: 15,
+        Boolean: 16,
+        Array: 17,
+        Object: 18,
+        Key: 19,
+        Null: 20,
+        EnumMember: 21,
+        Struct: 22,
+        Event: 23,
+        Operator: 24,
+        TypeParameter: 25,
+    },
+    CodeActionKind: {
+        Refactor: createCodeActionKind('refactor')
+    },
+    CodeAction: class CodeAction {
+        command: any;
+        constructor(public title: string, public kind: any) { }
+    },
+    Position: class Position {
+        constructor(public line: number, public character: number) { }
+    },
+    Range: class Range {
+        start: any;
+        end: any;
+        constructor(startLine: number, startChar: number, endLine: number, endChar: number);
+        constructor(start: any, end: any);
+        constructor(p1: any, p2: any, p3?: any, p4?: any) {
+            if (typeof p3 === 'number') {
+                this.start = { line: p1, character: p2 };
+                this.end = { line: p3, character: p4 };
+            } else {
+                this.start = p1;
+                this.end = p2;
+            }
+        }
+        get isEmpty() { return this.start.line === this.end.line && this.start.character === this.end.character; }
+    },
+    Selection: class Selection {
+        start: any;
+        end: any;
+        constructor(startLine: number, startChar: number, endLine: number, endChar: number) {
+            this.start = { line: startLine, character: startChar };
+            this.end = { line: endLine, character: endChar };
+        }
+        get isEmpty() { return this.start.line === this.end.line && this.start.character === this.end.character; }
+    },
+    CancellationTokenSource: class CancellationTokenSource {
+        token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose: () => { } }) };
+        cancel() { this.token.isCancellationRequested = true; }
+        dispose() { }
+    },
     MarkdownString: class MarkdownString {
         value: string;
         isTrusted?: boolean;
@@ -103,7 +159,6 @@ const mockVscode = {
             return this;
         }
         appendText(value: string) {
-            // Simple escaping for mock purposes, or just append
             this.value += value;
             return this;
         }
@@ -139,6 +194,9 @@ const mockVscode = {
     ProgressLocation: {
         Notification: 15,
     },
+    CodeLens: class CodeLens {
+        constructor(public range: any, public command?: any) { }
+    },
     TreeItem: class TreeItem {
         label: string;
         collapsibleState: any;
@@ -164,30 +222,10 @@ const mockVscode = {
         Left: 1,
         Right: 2,
     },
-    Position: class Position {
-        constructor(public line: number, public character: number) { }
-    },
-    Range: class Range {
-        start: any;
-        end: any;
-        constructor(startLine: number, startChar: number, endLine: number, endChar: number);
-        constructor(start: any, end: any);
-        constructor(p1: any, p2: any, p3?: any, p4?: any) {
-            if (typeof p3 === 'number') {
-                this.start = { line: p1, character: p2 };
-                this.end = { line: p3, character: p4 };
-            } else {
-                this.start = p1;
-                this.end = p2;
-            }
-        }
-        get isEmpty() { return this.start.line === this.end.line && this.start.character === this.end.character; }
-    },
-    CancellationTokenSource: class CancellationTokenSource {
-        token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose: () => { } }) };
-        cancel() { this.token.isCancellationRequested = true; }
-        dispose() { }
-    },
+    languages: {
+        registerCodeActionsProvider: () => ({ dispose: () => { } }),
+        registerCodeLensProvider: () => ({ dispose: () => { } }),
+    }
 };
 
 const originalLoad = (Module as any)._load;

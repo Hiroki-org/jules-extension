@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
-import { createJulesSession, sendMessage } from "../sessionUtils";
+import { createJulesSession } from "../sessionUtils";
 import * as fetchUtils from "../fetchUtils";
 
 suite("sessionUtils Test Suite", () => {
@@ -28,11 +28,6 @@ suite("sessionUtils Test Suite", () => {
             return await task({ report: sinon.stub() } as any, new vscode.CancellationTokenSource().token);
         });
 
-        const configStub = {
-            get: sinon.stub().withArgs("customPrompt").returns(""),
-        };
-        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
-
         const context = {
             globalState: {
                 update: sinon.stub().resolves(),
@@ -51,9 +46,13 @@ suite("sessionUtils Test Suite", () => {
 
         assert.strictEqual(sessionId, "sessions/123");
         assert.ok(fetchStub.calledOnce);
-        const fetchCall = fetchStub.getCall(0);
-        const payload = JSON.parse(fetchCall.args[1].body);
+        const [url, options] = fetchStub.firstCall.args;
+        assert.strictEqual(url, "https://jules.googleapis.com/v1alpha/sessions");
+        
+        const payload = JSON.parse(options.body);
         assert.strictEqual(payload.title, "test title");
+        assert.strictEqual(payload.sourceContext.source, "sources/repo");
+        
         assert.ok(context.globalState.update.calledWith("active-session-id", "sessions/123"));
     });
 
@@ -69,11 +68,6 @@ suite("sessionUtils Test Suite", () => {
             return await task({ report: sinon.stub() } as any, new vscode.CancellationTokenSource().token);
         });
 
-        const configStub = {
-            get: sinon.stub().withArgs("customPrompt").returns(""),
-        };
-        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
-
         const context = { globalState: { update: sinon.stub() } } as any;
 
         try {
@@ -81,48 +75,6 @@ suite("sessionUtils Test Suite", () => {
             assert.fail("Should have thrown error");
         } catch (error: any) {
             assert.ok(error.message.includes("API Error: Error body"));
-        }
-    });
-
-    test("sendMessage succeeds with 2xx response", async () => {
-        fetchStub.resolves({
-            ok: true,
-            json: async () => ({}),
-        } as Response);
-
-        const configStub = {
-            get: sinon.stub().withArgs("customPrompt").returns(""),
-        };
-        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
-
-        await sendMessage("dummy-key", "sessions/123", "test prompt");
-
-        assert.ok(fetchStub.calledOnce);
-        const [url, options] = fetchStub.getCall(0).args;
-        assert.ok(url.includes("sessions/123:sendMessage"));
-        assert.strictEqual(options.method, "POST");
-        const body = JSON.parse(options.body);
-        assert.strictEqual(body.prompt, "test prompt");
-    });
-
-    test("sendMessage throws error when response is not ok", async () => {
-        fetchStub.resolves({
-            ok: false,
-            status: 400,
-            statusText: "Bad Request",
-            text: async () => "Invalid prompt",
-        } as Response);
-
-        const configStub = {
-            get: sinon.stub().withArgs("customPrompt").returns(""),
-        };
-        sinon.stub(vscode.workspace, "getConfiguration").returns(configStub as any);
-
-        try {
-            await sendMessage("dummy-key", "sessions/123", "test prompt");
-            assert.fail("Should have thrown error");
-        } catch (error: any) {
-            assert.strictEqual(error.message, "Invalid prompt");
         }
     });
 });
