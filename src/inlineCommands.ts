@@ -199,7 +199,7 @@ export async function handleInlineTask(
     }
 
     const selectedSource = context.globalState.get("selected-source") as SourceType;
-    if (!selectedSource || selectedSource.id === ALL_SOURCES_ID) {
+    if (!selectedSource?.id || !selectedSource?.name || selectedSource.id === ALL_SOURCES_ID) {
         vscode.window.showErrorMessage("Please select a specific repository source first.");
         return;
     }

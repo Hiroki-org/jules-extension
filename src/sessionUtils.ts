@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
 import { SourceType } from "./types";
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 export interface CreateSessionRequest {
   prompt: string;
@@ -91,7 +91,7 @@ export async function createJulesSession(
       await context.globalState.update("active-session-id", session.name);
       
       // Trigger refresh of activities to show the new session immediately
-      vscode.commands.executeCommand("jules-extension.refreshActivities");
+      vscode.commands.executeCommand("jules-extension.refreshActivities").then(undefined, () => { /* ignore */ });
 
       progress.report({
         increment: 100,
