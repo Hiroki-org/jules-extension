@@ -381,10 +381,9 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "@shikijs/markdown-it": "^4.0.2",
+    "highlight.js": "^11.11.1",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
-    "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
   }
 }
