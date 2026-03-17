@@ -1,7 +1,7 @@
 import { fetchWithTimeout } from "./fetchUtils";
 import { ActivitiesResponse } from "./types";
-import { JULES_API_BASE_URL } from "./julesApiConstants";
 
+const DEFAULT_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
 export const ARTIFACTS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_ARTIFACTS_CACHE_SIZE = 50;
@@ -226,7 +226,7 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    const lines = diff.split('\n').filter(line => line.trim().length > 0 || line.startsWith('diff --git '));
+    const lines = diff.split('\n');
     for (const line of lines) {
         if (!line.startsWith('diff --git ')) {
             continue;
@@ -468,7 +468,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
 export async function fetchLatestSessionArtifacts(
     apiKey: string,
     sessionId: string,
-    apiBaseUrl: string = JULES_API_BASE_URL,
+    apiBaseUrl: string = DEFAULT_API_BASE_URL,
     sessionUpdateTime?: string
 ): Promise<SessionArtifacts> {
     const cached = artifactsCache.get(sessionId);
