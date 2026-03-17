@@ -66,7 +66,7 @@ export function buildChatMessagesFromActivities(
       if (baseMessage.startsWith(`${customPrompt}\n\n`)) {
         baseMessage = baseMessage.slice(`${customPrompt}\n\n`.length);
       }
-      // Handle APPEND format
+      // Handle APPEND format (defensive: for backward compatibility with older sessions)
       if (baseMessage.endsWith(`\n\n${customPrompt}`)) {
         baseMessage = baseMessage.slice(0, baseMessage.length - `\n\n${customPrompt}`.length);
       }
