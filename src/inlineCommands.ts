@@ -167,7 +167,8 @@ export async function handleInlineTask(
         document = await vscode.workspace.openTextDocument(uri);
     } catch (e) {
         const errorMsg = sanitizeForLogging(e instanceof Error ? e.message : String(e));
-        logChannel.appendLine(`[Jules] Error opening document ${uri.toString()}: ${errorMsg}`);
+        const uriSafe = sanitizeForLogging(uri.toString());
+        logChannel.appendLine(`[Jules] Error opening document ${uriSafe}: ${errorMsg}`);
         vscode.window.showErrorMessage("Could not open the target document.");
         return;
     }
@@ -244,9 +245,13 @@ export async function handleInlineTask(
             .map((branch) => ({
                 label: branch,
                 picked: branch === selectedDefaultBranch,
-                description:
-                    (branch === selectedDefaultBranch ? "(default)" : undefined) ||
-                    (branch === currentBranch ? "(current)" : undefined),
+                description: branch === selectedDefaultBranch && branch === currentBranch
+                    ? "(default, current)"
+                    : branch === selectedDefaultBranch
+                        ? "(default)"
+                        : branch === currentBranch
+                            ? "(current)"
+                            : undefined,
             })),
         {
             placeHolder: "Select a remote branch for this session",
@@ -254,8 +259,8 @@ export async function handleInlineTask(
         },
     );
 
-    if (!selectedBranch) {
-        vscode.window.showWarningMessage("Branch selection was cancelled.");
+    if (!selectedBranch || !selectedBranch.label) {
+        vscode.window.showWarningMessage("Branch selection was cancelled or invalid.");
         return;
     }
 

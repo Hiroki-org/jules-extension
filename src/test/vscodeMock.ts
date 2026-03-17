@@ -51,6 +51,7 @@ const mockVscode = {
         createTreeView: () => ({ dispose: () => { } }),
         createStatusBarItem: () => ({ show: () => { }, hide: () => { }, dispose: () => { } }),
         createOutputChannel: () => ({ append: () => { }, appendLine: () => { }, replace: () => { }, clear: () => { }, show: () => { }, hide: () => { }, dispose: () => { } }),
+        registerWebviewViewProvider: () => ({ dispose: () => { } }),
     },
     env: {
         openExternal: async () => true,
@@ -220,6 +221,10 @@ const mockVscode = {
     StatusBarAlignment: {
         Left: 1,
         Right: 2,
+    },
+    languages: {
+        registerCodeActionsProvider: () => ({ dispose: () => { } }),
+        registerCodeLensProvider: () => ({ dispose: () => { } }),
     }
 };
 

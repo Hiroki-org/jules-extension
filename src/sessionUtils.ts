@@ -13,6 +13,7 @@ export interface CreateSessionRequest {
     };
   };
   automationMode: "AUTO_CREATE_PR" | "MANUAL";
+  title: string;
   requirePlanApproval?: boolean;
 }
 
@@ -39,6 +40,10 @@ export async function createJulesSession(
   automationMode: "AUTO_CREATE_PR" | "MANUAL",
   requirePlanApproval: boolean = false,
 ): Promise<string> {
+  if (!selectedSource.name) {
+    throw new Error("Selected source is missing resource name required by Jules API.");
+  }
+
   const finalPrompt = buildFinalPrompt(prompt);
 
   return vscode.window.withProgress(
@@ -57,10 +62,11 @@ export async function createJulesSession(
           },
         },
         automationMode,
+        title,
         requirePlanApproval,
       };
 
-      const url = `${JULES_API_BASE_URL}/${selectedSource.name}/sessions`;
+      const url = `${JULES_API_BASE_URL}/sessions`;
       const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: {

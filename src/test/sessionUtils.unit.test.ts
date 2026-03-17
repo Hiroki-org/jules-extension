@@ -46,6 +46,13 @@ suite("sessionUtils Test Suite", () => {
 
         assert.strictEqual(sessionId, "sessions/123");
         assert.ok(fetchStub.calledOnce);
+        const [url, options] = fetchStub.firstCall.args;
+        assert.strictEqual(url, "https://jules.googleapis.com/v1alpha/sessions");
+        
+        const payload = JSON.parse(options.body);
+        assert.strictEqual(payload.title, "test title");
+        assert.strictEqual(payload.sourceContext.source, "sources/repo");
+        
         assert.ok(context.globalState.update.calledWith("active-session-id", "sessions/123"));
     });
 
