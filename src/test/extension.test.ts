@@ -381,7 +381,7 @@ suite("Extension Test Suite", () => {
       getConfigurationStub.restore();
     });
 
-    test("should prepend custom prompt to user prompt", () => {
+    test("should append custom prompt to user prompt", () => {
       const workspaceConfig = {
         get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
         inspect: sinon.stub().returns(undefined)
@@ -390,7 +390,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
+      assert.strictEqual(finalPrompt, "User message\n\nMy custom prompt");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
