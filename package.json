@@ -335,12 +335,12 @@
         {
           "command": "jules-extension.inlineRefactor",
           "when": "editorHasSelection && resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|go|cs|cpp|c)$/",
-          "group": "navigation"
+          "group": "jules"
         },
         {
           "command": "jules-extension.inlineGenerateTests",
           "when": "editorHasSelection && resourceExtname =~ /\\.(ts|js|tsx|jsx|py|java|go|cs|cpp|c)$/",
-          "group": "navigation"
+          "group": "jules"
         }
       ]
     }

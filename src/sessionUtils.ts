@@ -53,7 +53,7 @@ export async function createJulesSession(
     },
     automationMode,
     title,
-    requirePlanApproval,
+    ...(requirePlanApproval !== undefined ? { requirePlanApproval } : {}),
   };
 
   return await vscode.window.withProgress(
@@ -83,8 +83,9 @@ export async function createJulesSession(
         message: "Processing response...",
       });
       if (!response.ok) {
+        const errorText = await response.text();
         throw new Error(
-          `Failed to create session: ${response.status} ${response.statusText}`,
+          `Failed to create session: ${response.status} ${response.statusText} - ${errorText}`,
         );
       }
       const session = (await response.json()) as SessionResponse;

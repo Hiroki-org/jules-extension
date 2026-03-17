@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import * as crypto from "crypto";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
@@ -28,71 +27,84 @@ interface ChatStatePayload {
 }
 
 let markdownRenderer: MarkdownIt | null = null;
+let markdownRendererInit: Promise<void> | null = null;
 
 export async function initMarkdownRenderer(): Promise<void> {
   if (markdownRenderer) {
     return;
   }
-  const md = new MarkdownIt({
-    html: false,
-    linkify: true,
-    breaks: true,
-  });
-
-  // Always apply the copy button override
-  const defaultFence = md.renderer.rules.fence?.bind(md.renderer.rules);
-  md.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
-    const rendered = defaultFence
-      ? defaultFence(tokens, idx, options, env, self)
-      : self.renderToken(tokens, idx, options);
-    return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
-  };
-
-  // Assign the basic renderer immediately so it can be used even if Shiki fails to load
-  markdownRenderer = md;
-
-  try {
-    const { default: Shiki } = await import("@shikijs/markdown-it");
-    const { createCssVariablesTheme } = await import("shiki");
-
-    const cssVariablesTheme = createCssVariablesTheme({
-      name: "css-variables",
-      variablePrefix: "--shiki-",
-      variableDefaults: {},
-      fontStyle: true,
-    });
-
-    const shikiPlugin = await Shiki({
-      themes: {
-        light: cssVariablesTheme,
-        dark: cssVariablesTheme,
-      },
-      langs: [
-        "typescript",
-        "javascript",
-        "tsx",
-        "jsx",
-        "python",
-        "java",
-        "go",
-        "csharp",
-        "cpp",
-        "c",
-        "diff",
-        "json",
-        "yaml",
-        "markdown",
-        "bash",
-        "shell",
-        "html",
-        "css",
-      ],
-      fallbackLanguage: "markdown",
-    });
-    md.use(shikiPlugin);
-  } catch (error) {
-    console.error("Jules: Failed to initialize Shiki, falling back to basic MarkdownIt:", error);
+  if (markdownRendererInit) {
+    return markdownRendererInit;
   }
+
+  markdownRendererInit = (async () => {
+    try {
+      const md = new MarkdownIt({
+        html: false,
+        linkify: true,
+        breaks: true,
+      });
+
+      // Always apply the copy button override
+      const defaultFence = md.renderer.rules.fence?.bind(md.renderer.rules);
+      md.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
+        const rendered = defaultFence
+          ? defaultFence(tokens, idx, options, env, self)
+          : self.renderToken(tokens, idx, options);
+        return `<div class="code-block"><button class="copy-code-button" type="button" title="Copy code">Copy</button>${rendered}</div>`;
+      };
+
+      try {
+        const { default: Shiki } = await import("@shikijs/markdown-it");
+        const { createCssVariablesTheme } = await import("shiki");
+
+        const cssVariablesTheme = createCssVariablesTheme({
+          name: "css-variables",
+          variablePrefix: "--shiki-",
+          variableDefaults: {},
+          fontStyle: true,
+        });
+
+        const shikiPlugin = await Shiki({
+          themes: {
+            light: cssVariablesTheme,
+            dark: cssVariablesTheme,
+          },
+          langs: [
+            "typescript",
+            "javascript",
+            "tsx",
+            "jsx",
+            "python",
+            "java",
+            "go",
+            "csharp",
+            "cpp",
+            "c",
+            "diff",
+            "json",
+            "yaml",
+            "markdown",
+            "bash",
+            "shell",
+            "html",
+            "css",
+          ],
+          fallbackLanguage: "markdown",
+        });
+        md.use(shikiPlugin);
+      } catch (error) {
+        console.error("Jules: Failed to initialize Shiki, falling back to basic MarkdownIt:", error);
+      }
+
+      markdownRenderer = md;
+    } catch (error) {
+      markdownRendererInit = null; // Allow retry on fatal error
+      throw error;
+    }
+  })();
+
+  return markdownRendererInit;
 }
 
 export function renderChatMarkdown(markdown: string): string {
@@ -100,16 +112,6 @@ export function renderChatMarkdown(markdown: string): string {
     return escapeHtml(markdown);
   }
   return markdownRenderer.render(markdown);
-}
-
-function updateMessageHtml(message: ChatMessageItem): ChatMessageItem {
-  if (message.markdown) {
-    return {
-      ...message,
-      html: renderChatMarkdown(message.markdown),
-    };
-  }
-  return message;
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
@@ -276,6 +278,9 @@ export function buildChatMessagesFromActivities(
 
 export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
+  private activities: Activity[] = [];
+  private sessionTitle?: string;
+  private sessionCreateTime?: string;
   private state: ChatStatePayload = {
     sessionId: null,
     messages: [],
@@ -291,8 +296,12 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.view = webviewView;
 
     // If there were messages already, re-render them with the new renderer
-    if (this.state.messages.length > 0) {
-      this.state.messages = this.state.messages.map(updateMessageHtml);
+    if (this.state.sessionId) {
+      this.state.messages = buildChatMessagesFromActivities(
+        this.activities,
+        this.sessionTitle,
+        this.sessionCreateTime
+      );
     }
 
     webviewView.webview.options = {
@@ -332,6 +341,9 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   updateSession(sessionId: string, activities: Activity[], rawState?: string, sessionTitle?: string, sessionCreateTime?: string): void {
+    this.activities = activities;
+    this.sessionTitle = sessionTitle;
+    this.sessionCreateTime = sessionCreateTime;
     this.state = {
       sessionId,
       messages: buildChatMessagesFromActivities(activities, sessionTitle, sessionCreateTime),
@@ -548,6 +560,8 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
       font-weight: 600;
       opacity: 0.8;
       padding: 2px 0;
+    }
+    .activity-details summary:focus:not(:focus-visible) {
       outline: none;
     }
     .activity-details summary:hover {

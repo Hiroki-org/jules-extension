@@ -716,9 +716,9 @@ async function fetchPlanFromActivities(
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext,
+  apiKey: string,
 ): Promise<void> {
   // Fetch plan details from activities
-  const apiKey = await context.secrets.get("jules-api-key");
   let planDetails = "";
 
   if (apiKey) {
@@ -1631,11 +1631,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         }
 
         // Notify Plan Approval
-        await this.sendNotifications(
-          sessionsToNotifyPlan,
-          "plan approval",
-          (session) => notifyPlanAwaitingApproval(session, this.context),
-        );
+        if (sessionsToNotifyPlan.length > 0) {
+          const apiKey = (await this.context.secrets.get("jules-api-key")) || "";
+          await this.sendNotifications(
+            sessionsToNotifyPlan,
+            "plan approval",
+            (session) => notifyPlanAwaitingApproval(session, this.context, apiKey),
+          );
+        }
 
         // Notify User Feedback
         await this.sendNotifications(

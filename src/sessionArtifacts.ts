@@ -240,7 +240,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                 return undefined;
             }
             if (payload[i] === '"') {
-                i++; // skip opening quote
+                i += 1; // skip opening quote
                 let res = "";
                 while (i < payload.length && payload[i] !== '"') {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
@@ -248,11 +248,11 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                         i += 2;
                     } else {
                         res += payload[i];
-                        i++;
+                        i += 1;
                     }
                 }
                 if (payload[i] === '"') {
-                    i++; // skip closing quote
+                    i += 1; // skip closing quote
                 }
                 return res;
             } else {
@@ -261,7 +261,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
                         i += 2;
                     } else {
-                        i++;
+                        i += 1;
                     }
                 }
                 return payload.substring(start, i).replace(/\\(.)/g, '$1');
@@ -274,7 +274,7 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
         if (payload.startsWith('"a/') || payload.startsWith('a/')) {
             readPath(); // Skip path1
             if (i < payload.length && payload[i] === ' ') {
-                i++; // skip space delimiter
+                i += 1; // skip space delimiter
                 path2 = readPath();
             }
         }

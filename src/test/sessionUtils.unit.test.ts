@@ -35,7 +35,8 @@ suite("sessionUtils Test Suite", () => {
         fetchStub.resolves({
             ok: false,
             status: 400,
-            statusText: "Bad Request"
+            statusText: "Bad Request",
+            text: async () => "error body"
         } as any);
 
         const context = { globalState: { update: sinon.stub() } } as any;
@@ -44,7 +45,7 @@ suite("sessionUtils Test Suite", () => {
             await createJulesSession(context, { name: "sources/123" } as any, "dummy-key", "main", "test prompt", "test title", "MANUAL");
             assert.fail("Should have thrown error");
         } catch (error: any) {
-            assert.ok(error.message.includes("Failed to create session"));
+            assert.ok(error.message.includes("Failed to create session: 400 Bad Request - error body"));
         }
     });
 

@@ -159,6 +159,8 @@ export async function handleInlineTask(
     try {
         document = await vscode.workspace.openTextDocument(uri);
     } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        logChannel.appendLine(`[Jules] Error opening document ${uri.toString()}: ${errorMsg}`);
         vscode.window.showErrorMessage("Could not open the target document.");
         return;
     }
@@ -176,12 +178,15 @@ export async function handleInlineTask(
         // Fallback: Check if there's an active editor for this document that has a selection
         const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uri.toString());
         if (editor && !editor.selection.isEmpty) {
-            codeSnippet = document.getText(editor.selection);
+            const selectionText = document.getText(editor.selection);
+            if (selectionText.trim().length > 0) {
+              codeSnippet = selectionText;
+            }
         }
     }
 
     if (!codeSnippet.trim()) {
-        vscode.window.showErrorMessage("Please select valid, non-empty code to perform this action.");
+        vscode.window.showErrorMessage("Please select a valid, non-empty code block to perform this action.");
         return;
     }
 
@@ -247,20 +252,7 @@ export async function handleInlineTask(
       return;
     }
 
-    let startingBranch = selectedBranch.label;
-
-    if (!remoteBranchSet.has(startingBranch)) {
-      logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
-      try {
-          const freshBranchInfo = await fetchBranches({ forceRefresh: true, showProgress: true });
-          if (!new Set(freshBranchInfo.remoteBranches).has(startingBranch)) {
-            vscode.window.showErrorMessage(`Branch "${startingBranch}" must exist on remote to create a session.`);
-            return;
-          }
-      } catch {
-          return;
-      }
-    }
+    const startingBranch = selectedBranch.label;
 
     const result = await showMessageComposer({
       title: `Jules: ${defaultTask}`,
@@ -305,16 +297,29 @@ export async function handleInlineTask(
 }
 
 export function registerInlineCommands(context: vscode.ExtensionContext, logChannel: vscode.OutputChannel) {
+  const documentSelector: vscode.DocumentSelector = [
+    { scheme: "file", language: "typescript" },
+    { scheme: "file", language: "javascript" },
+    { scheme: "file", language: "typescriptreact" },
+    { scheme: "file", language: "javascriptreact" },
+    { scheme: "file", language: "python" },
+    { scheme: "file", language: "java" },
+    { scheme: "file", language: "go" },
+    { scheme: "file", language: "csharp" },
+    { scheme: "file", language: "cpp" },
+    { scheme: "file", language: "c" },
+  ];
+
   const julesCodeLensProvider = new JulesCodeLensProvider();
   const codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
-    "*",
+    documentSelector,
     julesCodeLensProvider
   );
   context.subscriptions.push(codeLensProviderDisposable, julesCodeLensProvider);
 
   const julesCodeActionProvider = new JulesCodeActionProvider();
   const codeActionProviderDisposable = vscode.languages.registerCodeActionsProvider(
-    "*",
+    documentSelector,
     julesCodeActionProvider,
     { providedCodeActionKinds: [vscode.CodeActionKind.Refactor] }
   );
