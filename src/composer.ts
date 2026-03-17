@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import * as vscode from "vscode";
 import * as crypto from "crypto";
 
