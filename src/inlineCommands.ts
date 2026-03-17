@@ -108,8 +108,8 @@ export class JulesCodeActionProvider implements vscode.CodeActionProvider {
     public provideCodeActions(
         document: vscode.TextDocument,
         range: vscode.Range | vscode.Selection,
-        context: vscode.CodeActionContext,
-        token: vscode.CancellationToken
+        _context: vscode.CodeActionContext,
+        _token: vscode.CancellationToken
     ): vscode.CodeAction[] | undefined {
         // Return if nothing is selected or range is empty, and it's not a diagnostic request.
         // Actually, we can show it anytime there is a selection.
