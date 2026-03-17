@@ -220,31 +220,7 @@ const mockVscode = {
     StatusBarAlignment: {
         Left: 1,
         Right: 2,
-    },
-    Position: class Position {
-        constructor(public line: number, public character: number) { }
-    },
-    Range: class Range {
-        start: any;
-        end: any;
-        constructor(startLine: number, startChar: number, endLine: number, endChar: number);
-        constructor(start: any, end: any);
-        constructor(p1: any, p2: any, p3?: any, p4?: any) {
-            if (typeof p3 === 'number') {
-                this.start = { line: p1, character: p2 };
-                this.end = { line: p3, character: p4 };
-            } else {
-                this.start = p1;
-                this.end = p2;
-            }
-        }
-        get isEmpty() { return this.start.line === this.end.line && this.start.character === this.end.character; }
-    },
-    CancellationTokenSource: class CancellationTokenSource {
-        token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose: () => { } }) };
-        cancel() { this.token.isCancellationRequested = true; }
-        dispose() { }
-    },
+    }
 };
 
 const originalLoad = (Module as any)._load;
