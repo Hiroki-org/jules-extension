@@ -239,7 +239,7 @@ export async function handleInlineTask(
 
     let startingBranch = selectedBranch.label;
 
-    if (!new Set(remoteBranches).has(startingBranch)) {
+    if (!remoteBranchSet.has(startingBranch)) {
       logChannel.appendLine(`[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`);
       try {
           const freshBranchInfo = await fetchBranches({ forceRefresh: true, showProgress: true });
