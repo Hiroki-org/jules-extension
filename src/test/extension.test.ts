@@ -6,7 +6,6 @@ import * as vscode from "vscode";
 import {
   SessionTreeItem,
   mapApiStateToSessionState,
-  buildFinalPrompt,
   areOutputsEqual,
   areSessionListsEqual,
   updatePreviousStates,
@@ -16,10 +15,11 @@ import {
   getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
+  handleOpenInWebApp,
   Session,
   SessionOutput,
-  handleOpenInWebApp
 } from "../extension";
+import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";

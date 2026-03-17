@@ -62,11 +62,13 @@ import {
   type ActivityUnionKey,
 } from "./activityUtils";
 
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { createJulesSession, sendMessage as sendMessageToApi } from "./sessionUtils";
+import { buildFinalPrompt } from "./promptUtils";
+
 // Constants
-const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
-const ALL_SOURCES_ID = "all_repos";
 const MAX_PAGE_SIZE = 100;
 const MAX_PAGINATION_PAGES = 100;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
@@ -95,24 +97,6 @@ const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 interface SourceQuickPickItem extends vscode.QuickPickItem {
   source: SourceType;
-}
-
-interface CreateSessionRequest {
-  prompt: string;
-  sourceContext: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch: string;
-    };
-  };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
-  title: string;
-  requirePlanApproval?: boolean;
-}
-
-interface SessionResponse {
-  name: string;
-  // Add other fields if needed
 }
 
 // Re-export Session, SessionOutput, and SessionState from types for backward compatibility
@@ -494,13 +478,6 @@ async function getCurrentBranchSha(
   }
 }
 
-export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
-    .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
-  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
-}
-
 /**
  * Get privacy icon for a source
  * @param isPrivate - The isPrivate field from Source
@@ -736,6 +713,12 @@ async function fetchPlanFromActivities(
   }
 }
 
+/**
+ * Notifies the user that a plan is awaiting approval.
+ * @param session - The session that has a plan ready.
+ * @param context - The extension context.
+ * @param apiKey - The API key to use for fetching the plan.
+ */
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext,
@@ -2171,25 +2154,7 @@ async function sendMessageToSession(
         title: "Sending message to Jules...",
       },
       async () => {
-        const response = await fetchWithTimeout(
-          `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Goog-Api-Key": apiKey,
-            },
-            body: JSON.stringify({ prompt: finalPrompt }),
-          },
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const message =
-            errorText || `${response.status} ${response.statusText}`;
-          throw new Error(message);
-        }
-
+        await sendMessageToApi(apiKey, sessionId, userPrompt);
         vscode.window.showInformationMessage("Message sent successfully!");
       },
     );
@@ -2839,66 +2804,15 @@ export function activate(context: vscode.ExtensionContext) {
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 
-        if (!selectedSource.name) {
-          throw new Error(
-            "Selected source is missing resource name required by Sources API.",
-          );
-        }
-
-        const requestBody: CreateSessionRequest = {
-          prompt: finalPrompt,
-          sourceContext: {
-            source: selectedSource.name,
-            githubRepoContext: {
-              startingBranch,
-            },
-          },
-          automationMode,
+        await createJulesSession(
+          context,
+          selectedSource,
+          apiKey,
+          startingBranch,
+          userPrompt,
           title,
-          requirePlanApproval: result.requireApproval,
-        };
-
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Creating Jules Session...",
-            cancellable: false,
-          },
-          async (progress) => {
-            progress.report({
-              increment: 0,
-              message: "Sending request...",
-            });
-            const response = await fetchWithTimeout(
-              `${JULES_API_BASE_URL}/sessions`,
-              {
-                method: "POST",
-                headers: {
-                  "X-Goog-Api-Key": apiKey,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-              },
-            );
-            progress.report({
-              increment: 50,
-              message: "Processing response...",
-            });
-            if (!response.ok) {
-              throw new Error(
-                `Failed to create session: ${response.status} ${response.statusText}`,
-              );
-            }
-            const session = (await response.json()) as SessionResponse;
-            await context.globalState.update("active-session-id", session.name);
-            progress.report({
-              increment: 100,
-              message: "Session created!",
-            });
-            vscode.window.showInformationMessage(
-              `Session created: ${session.name}`,
-            );
-          },
+          automationMode,
+          result.requireApproval
         );
       } catch (error) {
         vscode.window.showErrorMessage(
