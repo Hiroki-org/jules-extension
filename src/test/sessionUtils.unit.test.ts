@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
-import { createJulesSession } from "../sessionUtils";
+import { createJulesSession, sendMessage } from "../sessionUtils";
 import * as fetchUtils from "../fetchUtils";
 
 suite("sessionUtils Test Suite", () => {
@@ -52,6 +52,9 @@ suite("sessionUtils Test Suite", () => {
         const payload = JSON.parse(options.body);
         assert.strictEqual(payload.title, "test title");
         assert.strictEqual(payload.sourceContext.source, "sources/repo");
+        assert.strictEqual(payload.automationMode, "MANUAL");
+        assert.strictEqual(payload.requirePlanApproval, false);
+        assert.strictEqual(payload.sourceContext.githubRepoContext.startingBranch, "main");
         
         assert.ok(context.globalState.update.calledWith("active-session-id", "sessions/123"));
     });
@@ -75,6 +78,37 @@ suite("sessionUtils Test Suite", () => {
             assert.fail("Should have thrown error");
         } catch (error: any) {
             assert.ok(error.message.includes("API Error: Error body"));
+        }
+    });
+
+    test("sendMessage succeeds when API returns OK", async () => {
+        fetchStub.resolves({
+            ok: true,
+        } as Response);
+
+        await sendMessage("dummy-key", "sessions/123", "test message");
+
+        assert.ok(fetchStub.calledOnce);
+        const [url, options] = fetchStub.firstCall.args;
+        assert.strictEqual(url, "https://jules.googleapis.com/v1alpha/sessions/123:sendMessage");
+        
+        const payload = JSON.parse(options.body);
+        assert.strictEqual(payload.prompt, "test message");
+    });
+
+    test("sendMessage throws error when API fails", async () => {
+        fetchStub.resolves({
+            ok: false,
+            status: 404,
+            statusText: "Not Found",
+            text: async () => "Session not found",
+        } as Response);
+
+        try {
+            await sendMessage("dummy-key", "sessions/123", "test message");
+            assert.fail("Should have thrown error");
+        } catch (error: any) {
+            assert.ok(error.message.includes("Session not found"));
         }
     });
 });

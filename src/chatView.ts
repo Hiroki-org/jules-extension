@@ -61,7 +61,17 @@ export function buildChatMessagesFromActivities(
 
   function formatMessage(message: string): string {
     if (customPrompt && message.includes(customPrompt)) {
-      const baseMessage = message.replace(`${customPrompt}\n\n`, "").trim();
+      let baseMessage = message;
+      // Handle PREPEND format
+      if (baseMessage.startsWith(`${customPrompt}\n\n`)) {
+        baseMessage = baseMessage.slice(`${customPrompt}\n\n`.length);
+      }
+      // Handle APPEND format
+      if (baseMessage.endsWith(`\n\n${customPrompt}`)) {
+        baseMessage = baseMessage.slice(0, baseMessage.length - `\n\n${customPrompt}`.length);
+      }
+      baseMessage = baseMessage.trim();
+
       if (!hasLabeledCustomPrompt) {
         hasLabeledCustomPrompt = true;
         // 初回はラベルをつけて表示
