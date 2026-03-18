@@ -61,10 +61,16 @@ export function buildChatMessagesFromActivities(
 
   function formatMessage(message: string): string {
     if (customPrompt && message.includes(customPrompt)) {
-      const baseMessage = message
-        .replace(`${customPrompt}\n\n`, "")
-        .replace(`\n\n${customPrompt}`, "")
-        .trim();
+      let baseMessage = message;
+      // Handle PREPEND format
+      if (baseMessage.startsWith(`${customPrompt}\n\n`)) {
+        baseMessage = baseMessage.slice(`${customPrompt}\n\n`.length);
+      // Handle APPEND format (defensive: for backward compatibility with older sessions)
+      } else if (baseMessage.endsWith(`\n\n${customPrompt}`)) {
+        baseMessage = baseMessage.slice(0, baseMessage.length - `\n\n${customPrompt}`.length);
+      }
+      baseMessage = baseMessage.trim();
+
       if (!hasLabeledCustomPrompt) {
         hasLabeledCustomPrompt = true;
         // 初回はラベルをつけて表示
@@ -488,7 +494,7 @@ export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): stri
     <textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea>
     <div class="composer-actions">
       <div id="sessionLabel" class="session-label">Session: None selected</div>
-      <button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button>
+      <button id="sendButton" type="submit" aria-label="Send message (Ctrl/Cmd+Enter)" disabled>Send</button>
     </div>
   </form>
   <script nonce="${nonce}">
