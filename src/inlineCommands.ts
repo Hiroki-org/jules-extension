@@ -176,23 +176,21 @@ export async function handleInlineTask(
         return;
     }
 
+    // Security check: Ensure document is within a workspace folder
+    if (!vscode.workspace.getWorkspaceFolder(document.uri)) {
+        vscode.window.showErrorMessage("This action is only supported for files within a workspace folder.");
+        return;
+    }
+
     let codeSnippet = "";
 
     if (range && !range.isEmpty) {
-        const selectionRange = range instanceof vscode.Selection ? range : new vscode.Range(range.start, range.end);
-        codeSnippet = document.getText(selectionRange);
-        if (!codeSnippet.trim()) {
-            vscode.window.showErrorMessage("Selected range contains only whitespace.");
-            return;
-        }
+        codeSnippet = document.getText(range);
     } else {
-        // Fallback: Check if there's an active editor for this document that has a selection
-        const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uri.toString());
-        if (editor && !editor.selection.isEmpty) {
-            const selectionText = document.getText(editor.selection);
-            if (selectionText.trim().length > 0) {
-                codeSnippet = selectionText;
-            }
+        // Fallback: Check if active editor matches this document and has a selection
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document.uri.toString() === uri.toString() && !editor.selection.isEmpty) {
+            codeSnippet = document.getText(editor.selection);
         }
     }
 

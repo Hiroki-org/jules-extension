@@ -53,6 +53,7 @@ export async function createJulesSession(
       cancellable: false,
     },
     async (progress) => {
+      progress.report({ increment: 0, message: "Sending request..." });
       const payload: CreateSessionRequest = {
         prompt: finalPrompt,
         sourceContext: {
@@ -76,6 +77,8 @@ export async function createJulesSession(
         body: JSON.stringify(payload),
       });
 
+      progress.report({ increment: 50, message: "Processing response..." });
+
       if (!response.ok) {
         const errorText = await response.text();
         const message = errorText || `${response.status} ${response.statusText}`;
@@ -87,6 +90,8 @@ export async function createJulesSession(
         throw new Error("Invalid response: session name is missing.");
       }
 
+      progress.report({ increment: 90, message: "Updating UI..." });
+
       // Update active session and refresh UI
       await context.globalState.update("active-session-id", session.name);
       
@@ -94,7 +99,7 @@ export async function createJulesSession(
       await vscode.commands.executeCommand("jules-extension.refreshActivities");
 
       progress.report({
-        increment: 100,
+        increment: 10,
         message: "Session created!",
       });
       
