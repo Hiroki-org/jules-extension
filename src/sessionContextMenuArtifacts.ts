@@ -36,7 +36,9 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
     }
 
     const folders = vscode.workspace.workspaceFolders ?? [];
-    for (const folder of folders) {
+
+    // Process all workspace folders concurrently
+    const statPromises = folders.map(async (folder) => {
         const folderPath = folder.uri.fsPath;
         // Use path.resolve to handle relative paths and normalization
         const candidatePath = path.resolve(folderPath, targetPath);
@@ -47,18 +49,26 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
 
         if (!isSafe) {
             console.warn(`[Security] Rejected path traversal attempt: ${targetPath} -> ${candidatePath}`);
-            continue;
+            // Reject the promise if unsafe
+            throw new Error("Unsafe path");
         }
 
         const candidateUri = vscode.Uri.file(candidatePath);
-        try {
-            // Use async fs.stat instead of synchronous fs.existsSync
-            await vscode.workspace.fs.stat(candidateUri);
-            return candidateUri;
-        } catch {
-            // File does not exist in this folder, try next
+        // Use async fs.stat instead of synchronous fs.existsSync
+        await vscode.workspace.fs.stat(candidateUri);
+        return candidateUri;
+    });
+
+    const results = await Promise.allSettled(statPromises);
+
+    // Iterate through results in original sequence order to maintain priority
+    for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
+        if (result.status === "fulfilled") {
+            return result.value;
         }
     }
+
     return null;
 }
 
