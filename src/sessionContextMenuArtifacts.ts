@@ -36,7 +36,12 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
     }
 
     const folders = vscode.workspace.workspaceFolders ?? [];
-    for (const folder of folders) {
+    if (folders.length === 0) {
+        return null;
+    }
+
+    // 2. Parallelize file existence checks while preserving folder priority order
+    const checks = folders.map(async (folder) => {
         const folderPath = folder.uri.fsPath;
         // Use path.resolve to handle relative paths and normalization
         const candidatePath = path.resolve(folderPath, targetPath);
@@ -47,19 +52,32 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
 
         if (!isSafe) {
             console.warn(`[Security] Rejected path traversal attempt: ${targetPath} -> ${candidatePath}`);
-            continue;
+            throw new Error('Unsafe path');
         }
 
         const candidateUri = vscode.Uri.file(candidatePath);
-        try {
-            // Use async fs.stat instead of synchronous fs.existsSync
-            await vscode.workspace.fs.stat(candidateUri);
-            return candidateUri;
-        } catch {
-            // File does not exist in this folder, try next
+        // Use async fs.stat instead of synchronous fs.existsSync
+        await vscode.workspace.fs.stat(candidateUri);
+
+        return { uri: candidateUri };
+    });
+
+    try {
+        const results = await Promise.allSettled(checks);
+
+        // Promise.allSettled guarantees the results array matches the order of the input iterable.
+        // Thus, iterating from 0 to length - 1 ensures we find the highest priority (first) folder's file.
+        for (let i = 0; i < results.length; i += 1) {
+            const result = results[i];
+            if (result.status === 'fulfilled') {
+                return result.value.uri;
+            }
         }
+
+        return null;
+    } catch {
+        return null;
     }
-    return null;
 }
 
 function buildChangeSetItems(changeSet: ChangeSetSummary): Array<vscode.QuickPickItem & { filePath: string }> {
