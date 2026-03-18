@@ -7,10 +7,12 @@ import * as fetchUtils from "../fetchUtils";
 suite("sessionUtils Test Suite", () => {
     let fetchStub: sinon.SinonStub;
     let windowProgressStub: sinon.SinonStub;
+    let executeCommandStub: sinon.SinonStub;
 
     setup(() => {
         fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout");
         windowProgressStub = sinon.stub(vscode.window, "withProgress");
+        executeCommandStub = sinon.stub(vscode.commands, "executeCommand").resolves();
     });
 
     teardown(() => {
@@ -46,6 +48,8 @@ suite("sessionUtils Test Suite", () => {
 
         assert.strictEqual(sessionId, "sessions/123");
         assert.ok(fetchStub.calledOnce);
+        assert.ok(executeCommandStub.calledWith("jules-extension.refreshActivities"));
+
         const [url, options] = fetchStub.firstCall.args;
         assert.strictEqual(url, "https://jules.googleapis.com/v1alpha/sessions");
         
