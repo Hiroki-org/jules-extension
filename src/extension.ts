@@ -626,6 +626,11 @@ async function checkPRStatus(
       console.log(
         `Jules: Failed to fetch PR status: ${response.status} ${response.statusText}`,
       );
+      // Cache the failure to avoid redundant network requests
+      prStatusCache[prUrl] = {
+        isClosed: false,
+        lastChecked: now,
+      };
       return false;
     }
 
@@ -644,6 +649,11 @@ async function checkPRStatus(
       `Jules: Error checking PR status for ${prUrl}:`,
       sanitizeError(error),
     );
+    // Cache the failure to avoid redundant network requests
+    prStatusCache[prUrl] = {
+      isClosed: false,
+      lastChecked: now,
+    };
     return false;
   }
 }
