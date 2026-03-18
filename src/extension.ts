@@ -577,11 +577,16 @@ function resolveSessionId(
 function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) return [];
-  const allPrs = sessionOrState.outputs
-    .map((o) => o.pullRequest)
-    .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
-  return Array.from(new Map(allPrs.map((pr) => [pr.url, pr])).values());
+  if (!sessionOrState.outputs) {return [];}
+  const prsByUrl = new Map<string, PullRequestOutput>();
+  const outputs = sessionOrState.outputs;
+  for (let i = 0; i < outputs.length; i += 1) {
+    const pr = outputs[i].pullRequest;
+    if (pr && pr.url) {
+      prsByUrl.set(pr.url, pr);
+    }
+  }
+  return Array.from(prsByUrl.values());
 }
 
 async function checkPRStatus(
@@ -652,7 +657,7 @@ async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) return;
+  if (!prs || prs.length === 0) {return;}
 
   if (prs.length === 1) {
     const pr = prs[0];
