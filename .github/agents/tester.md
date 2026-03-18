@@ -20,7 +20,7 @@ You are the Tester Sub-Agent. Your primary responsibility is to run, verify, and
 ### Core Commands
 - `pnpm run compile-tests` # compile tests into out/
 - `pnpm run test:unit`     # fast unit test pass
-- `pnpm test`              # vscode-test based extension test run
+- `pnpm test`              # vscode-test-based extension test run
 
 ### Minimum Verification
 For most changes, run at minimum:
