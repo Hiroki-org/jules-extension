@@ -16,16 +16,19 @@ export async function mapLimit<T, R>(
   }
 
   const results: R[] = new Array(items.length);
-  const entries = items.entries();
+  let nextIndex = 0;
   const executing: Promise<void>[] = [];
 
   const worker = async () => {
-    for (const [index, item] of entries) {
-      results[index] = await iterator(item);
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await iterator(items[index]);
     }
   };
 
-  for (let i = 0; i < Math.min(items.length, limit); i++) {
+  const workerCount = Math.min(items.length, limit);
+  for (let i = 0; i < workerCount; i += 1) {
     executing.push(worker());
   }
 
