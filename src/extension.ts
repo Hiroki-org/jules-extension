@@ -577,7 +577,9 @@ function resolveSessionId(
 function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) {return [];}
+  if (!sessionOrState.outputs) {
+    return [];
+  }
   const prsByUrl = new Map<string, PullRequestOutput>();
   const outputs = sessionOrState.outputs;
   for (let i = 0; i < outputs.length; i += 1) {
