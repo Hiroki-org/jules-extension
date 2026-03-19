@@ -89,11 +89,13 @@ interface PRStatusCache {
   [prUrl: string]: {
     isClosed: boolean;
     lastChecked: number;
+    isError?: boolean;
   };
 }
 
 let prStatusCache: PRStatusCache = {};
-const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const PR_ERROR_CACHE_DURATION = 30 * 1000; // 30 seconds for errors
 
 interface SourceQuickPickItem extends vscode.QuickPickItem {
   source: SourceType;
@@ -551,14 +553,22 @@ function resolveSessionId(
   );
 }
 
-function extractPRs(
+/**
+ * Extracts unique pull requests from a session or cached state.
+ * Optimized to use a Map for single-pass deduplication.
+ */
+export function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
   if (!sessionOrState.outputs) return [];
-  const allPrs = sessionOrState.outputs
-    .map((o) => o.pullRequest)
-    .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
-  return Array.from(new Map(allPrs.map((pr) => [pr.url, pr])).values());
+  const prMap = new Map<string, PullRequestOutput>();
+  for (const output of sessionOrState.outputs) {
+    const pr = output.pullRequest;
+    if (pr?.url) {
+      prMap.set(pr.url, pr);
+    }
+  }
+  return Array.from(prMap.values());
 }
 
 async function checkPRStatus(
@@ -569,7 +579,8 @@ async function checkPRStatus(
   // Check cache first
   const cached = prStatusCache[prUrl];
   const now = Date.now();
-  if (cached && now - cached.lastChecked < PR_CACHE_DURATION) {
+  const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
+  if (cached && now - cached.lastChecked < ttl) {
     return cached.isClosed;
   }
 
@@ -578,6 +589,7 @@ async function checkPRStatus(
     const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (!match) {
       console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
+      prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
       return false;
     }
 
@@ -603,6 +615,7 @@ async function checkPRStatus(
       console.log(
         `Jules: Failed to fetch PR status: ${response.status} ${response.statusText}`,
       );
+      prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
       return false;
     }
 
@@ -613,6 +626,7 @@ async function checkPRStatus(
     prStatusCache[prUrl] = {
       isClosed,
       lastChecked: now,
+      isError: false
     };
 
     return isClosed;
@@ -621,6 +635,7 @@ async function checkPRStatus(
       `Jules: Error checking PR status for ${prUrl}:`,
       sanitizeError(error),
     );
+    prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
     return false;
   }
 }

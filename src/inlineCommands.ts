@@ -116,7 +116,7 @@ export class JulesCodeLensProvider implements vscode.CodeLensProvider, vscode.Di
 export class JulesCodeActionProvider implements vscode.CodeActionProvider {
     public provideCodeActions(
         document: vscode.TextDocument,
-        range: vscode.Range | vscode.Selection,
+        range: vscode.Range,
         context: vscode.CodeActionContext,
         token: vscode.CancellationToken
     ): vscode.CodeAction[] | undefined {
@@ -162,7 +162,7 @@ export async function handleInlineTask(
     context: vscode.ExtensionContext,
     logChannel: vscode.OutputChannel,
     uri: vscode.Uri,
-    range: vscode.Range | vscode.Selection,
+    range: vscode.Range,
     defaultTask: string
 ) {
     let document: vscode.TextDocument;
@@ -343,7 +343,7 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
 
     const inlineRefactorDisposable = vscode.commands.registerCommand(
         "jules-extension.inlineRefactor",
-        async (uri?: vscode.Uri, range?: vscode.Range | vscode.Selection) => {
+        async (uri?: vscode.Uri, range?: vscode.Range) => {
             const activeEditor = vscode.window.activeTextEditor;
             const targetUri = uri || activeEditor?.document.uri;
             const targetRange = range || activeEditor?.selection;
@@ -357,7 +357,7 @@ export function registerInlineCommands(context: vscode.ExtensionContext, logChan
 
     const inlineGenerateTestsDisposable = vscode.commands.registerCommand(
         "jules-extension.inlineGenerateTests",
-        async (uri?: vscode.Uri, range?: vscode.Range | vscode.Selection) => {
+        async (uri?: vscode.Uri, range?: vscode.Range) => {
             const activeEditor = vscode.window.activeTextEditor;
             const targetUri = uri || activeEditor?.document.uri;
             const targetRange = range || activeEditor?.selection;

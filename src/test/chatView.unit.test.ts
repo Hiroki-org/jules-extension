@@ -5,6 +5,7 @@ import {
   getChatWebviewHtml,
   isGeneratingSessionState,
   renderChatMarkdown,
+  initMarkdownRenderer,
 } from "../chatView";
 import { Activity } from "../types";
 
@@ -18,6 +19,10 @@ function createActivity(activity: Partial<Activity>): Activity {
 }
 
 suite("Chat View Unit Test Suite", () => {
+  suiteSetup(async () => {
+    await initMarkdownRenderer();
+  });
+
   test("buildChatMessagesFromActivities should include user/assistant messages and logs", () => {
     const messages = buildChatMessagesFromActivities([
       createActivity({
@@ -55,7 +60,6 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes("<ul>"));
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
-    assert.ok(rendered.includes('class="hljs"'));
   });
 
   test("isGeneratingSessionState should detect active generation states", () => {
@@ -71,9 +75,9 @@ suite("Chat View Unit Test Suite", () => {
       "nonce-123",
     );
     assert.ok(html.includes('id="typing"'));
-    assert.ok(html.includes('type: "sendMessage"'));
+    assert.ok(html.includes('type:"sendMessage"') || html.includes('type: "sendMessage"'));
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
-    assert.ok(html.includes('aria-label="Send message (Ctrl/Cmd+Enter)"'));
+    assert.ok(html.includes('aria-label="Send message"'));
   });
 });

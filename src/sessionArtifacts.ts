@@ -260,20 +260,28 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
             }
             if (payload[i] === '"') {
                 i += 1; // skip opening quote
-                let res = "";
+                const bytes: number[] = [];
                 while (i < payload.length && payload[i] !== '"') {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
-                        res += payload[i + 1];
-                        i += 2;
+                        // Check for octal escape: \343\201\202
+                        const octalMatch = payload.substring(i + 1).match(/^[0-7]{3}/);
+                        if (octalMatch) {
+                            bytes.push(parseInt(octalMatch[0], 8));
+                            i += 4; // skip \ and 3 digits
+                        } else {
+                            // Standard escape like \" or \\
+                            bytes.push(payload.charCodeAt(i + 1));
+                            i += 2;
+                        }
                     } else {
-                        res += payload[i];
+                        bytes.push(payload.charCodeAt(i));
                         i += 1;
                     }
                 }
                 if (payload[i] === '"') {
                     i += 1; // skip closing quote
                 }
-                return res;
+                return Buffer.from(bytes).toString('utf8');
             } else {
                 const startPos = i;
                 while (i < payload.length && payload[i] !== ' ') {
@@ -283,7 +291,9 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
                         i += 1;
                     }
                 }
-                return payload.substring(startPos, i).replace(/\\(.)/g, '$1');
+                const rawPath = payload.substring(startPos, i);
+                // Even unquoted paths might contain escaped characters in some git versions
+                return rawPath.replace(/\\(.)/g, '$1');
             }
         }
 
