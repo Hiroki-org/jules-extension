@@ -582,8 +582,8 @@ function extractPRs(
   }
   const prsByUrl = new Map<string, PullRequestOutput>();
   const outputs = sessionOrState.outputs;
-  for (let i = 0; i < outputs.length; i += 1) {
-    const pr = outputs[i].pullRequest;
+  for (const output of outputs) {
+    const pr = output.pullRequest;
     if (pr && pr.url) {
       prsByUrl.set(pr.url, pr);
     }
