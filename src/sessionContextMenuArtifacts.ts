@@ -62,7 +62,6 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
         return { uri: candidateUri };
     });
 
-    try {
         const results = await Promise.allSettled(checks);
 
         // Promise.allSettled guarantees the results array matches the order of the input iterable.
@@ -75,9 +74,6 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
         }
 
         return null;
-    } catch {
-        return null;
-    }
 }
 
 function buildChangeSetItems(changeSet: ChangeSetSummary): Array<vscode.QuickPickItem & { filePath: string }> {
