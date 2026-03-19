@@ -88,7 +88,10 @@ export function buildChatMessagesFromActivities(activities: Activity[], initialP
 
   function formatMessage(message: string): string {
     if (customPrompt && message.includes(customPrompt)) {
-      const baseMessage = message.replace('\n\n' + customPrompt, "").trim();
+      const baseMessage = message
+        .replace(customPrompt + '\n\n', "")
+        .replace('\n\n' + customPrompt, "")
+        .trim();
       if (!hasLabeledCustomPrompt) {
         hasLabeledCustomPrompt = true;
         return baseMessage + '\n\n**[custom prompt]**\n' + customPrompt;
@@ -140,8 +143,17 @@ export function buildChatMessagesFromActivities(activities: Activity[], initialP
         }
         if (artifact.bashOutput) {
           const outRec = artifact.bashOutput as Record<string, any>;
-          let out = ('> ' + (outRec.commandLine || (outRec.commands && outRec.commands[0] && outRec.commands[0].commandLine) || "Command") + '\n' + (outRec.stdout || "") + '\n' + (outRec.stderr || "")).trim();
-          detailsHtml += '<details class="activity-details"><summary>View Bash Output (' + (i + 1) + ')</summary><div class="details-content">' + renderChatMarkdown('```bash\n' + out + '\n```') + '</div></details>';
+          let commandLine = outRec.commandLine;
+          const commands = outRec.commands;
+          if (commands && Array.isArray(commands) && commands.length > 0) {
+            commandLine = commands[0].commandLine;
+          }
+          const stdout = outRec.stdout;
+          const stderr = outRec.stderr;
+          if (commandLine || stdout || stderr) {
+            const out = ('> ' + (commandLine || "Command") + '\n' + (stdout || "") + '\n' + (stderr || "")).trim();
+            detailsHtml += '<details class="activity-details"><summary>View Bash Output (' + (i + 1) + ')</summary><div class="details-content">' + renderChatMarkdown('```bash\n' + out + '\n```') + '</div></details>';
+          }
         }
       });
     }
@@ -186,7 +198,89 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
 export function getChatWebviewHtml(webview: vscode.Webview, nonce: string): string {
   const css = '* { box-sizing: border-box; } body { margin: 0; padding: 10px; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); height: 100vh; display: flex; flex-direction: column; gap: 10px; } #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; } .message { display: flex; flex-direction: column; max-width: 92%; animation: slide-in .18s ease-out; gap: 4px; } .message.user { margin-left: auto; align-items: flex-end; } .message.assistant { margin-right: auto; align-items: flex-start; } .bubble { border: 1px solid var(--vscode-widget-border, transparent); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); line-height: 1.5; overflow-wrap: anywhere; } .user .bubble { background: color-mix(in srgb, var(--vscode-button-background) 28%, transparent); border-color: var(--vscode-button-background); } .assistant .bubble { background: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 75%, transparent); } .meta { color: var(--vscode-descriptionForeground); font-size: 11px; padding: 0 4px; } blockquote { margin: 8px 0; border-left: 3px solid var(--vscode-textBlockQuote-border); padding-left: 10px; color: var(--vscode-textBlockQuote-foreground); background: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 35%, transparent); border-radius: 6px; } ul, ol { padding-left: 18px; margin: 6px 0; } p { margin: 0 0 8px; } .code-block { position: relative; margin: 8px 0; } .code-block pre { margin: 0; padding: 10px; border-radius: 8px; background: var(--vscode-textCodeBlock-background); overflow-x: auto; border: 1px solid var(--vscode-widget-border, transparent); } .code-block code { font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); } .copy-code-button { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .15s ease; border: 1px solid var(--vscode-button-border, transparent); border-radius: 4px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: pointer; font-size: 11px; padding: 2px 8px; } .code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; } .typing { display: none; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); padding: 0 4px; } .typing.visible { display: flex; } .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vscode-textLink-foreground); animation: pulse 1s infinite ease-in-out; } .typing-dot:nth-child(2) { animation-delay: .15s; } .typing-dot:nth-child(3) { animation-delay: .3s; } #composer { border-top: 1px solid var(--vscode-panel-border, var(--vscode-widget-border)); padding-top: 10px; display: grid; gap: 8px; } #messageInput { width: 100%; resize: vertical; min-height: 64px; max-height: 180px; border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border-radius: 6px; padding: 8px; font: inherit; } #messageInput:focus-visible { outline: 1px solid var(--vscode-focusBorder); } .composer-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .session-label { color: var(--vscode-descriptionForeground); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; } #sendButton { border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 4px; padding: 6px 12px; cursor: pointer; } #sendButton:hover { background: var(--vscode-button-hoverBackground); } #sendButton:disabled { opacity: .5; cursor: not-allowed; } .activity-log { font-size: 0.9em; opacity: 0.75; margin-bottom: 2px; } .activity-details { margin-top: 4px; font-size: 0.9em; } .activity-details summary { cursor: pointer; user-select: none; font-weight: 600; opacity: 0.8; padding: 2px 0; outline: none; } .activity-details summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; } .activity-details summary:hover { opacity: 1; text-decoration: underline; } .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; } .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; } .shiki { background-color: transparent !important; } .shiki span { color: var(--shiki-light); } [data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); } [data-vscode-theme-kind="vscode-high-contrast"] .shiki span { color: var(--shiki-dark); } @keyframes pulse { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } } @keyframes slide-in { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }';
-  const js = '(function(){const v=typeof acquireVsCodeApi==="function"?acquireVsCodeApi():null;const c=document.getElementById("chat");const t=document.getElementById("typing");const i=document.getElementById("messageInput");const s=document.getElementById("sendButton");const l=document.getElementById("sessionLabel");let st={sessionId:null,messages:[],isTyping:false};function u(){const h=!!st.sessionId;s.disabled=!h||i.value.trim().length===0;l.textContent=h?"Session: "+st.sessionId:"Session: None selected"}function f(tm){if(!tm)return "";const d=new Date(tm);return isNaN(d.getTime())?"":d.toLocaleString()}function r(){c.innerHTML=st.messages.map(m=>\'<div class="message \'+m.role+\'"><div class="bubble">\'+m.html+\'</div><div class="meta">\'+f(m.createTime)+\'</div></div>\').join("");t.classList.toggle("visible",!!st.isTyping);c.scrollTop=c.scrollHeight;u()}i.addEventListener("input",u);i.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){e.preventDefault();if(!s.disabled){const tx=i.value.trim();v.postMessage({type:"sendMessage",sessionId:st.sessionId,text:tx});i.value="";u()}}});document.getElementById("composer").addEventListener("submit",e=>{e.preventDefault();const tx=i.value.trim();if(st.sessionId&&tx){v.postMessage({type:"sendMessage",sessionId:st.sessionId,text:tx});i.value="";u()}});c.addEventListener("click",async e=>{const b=e.target.closest(".copy-code-button");if(!b)return;const tx=b.closest(".code-block").querySelector("code").innerText;try{await navigator.clipboard.writeText(tx);b.textContent="Copied";setTimeout(()=>b.textContent="Copy",1200)}catch{b.textContent="Failed"}});window.addEventListener("message",e=>{if(e.data.type==="chatState"){st=e.data.payload||st;r()}});v.postMessage({type:"requestInitialState"})})()';
+  const js = `(function() {
+    const vscode = typeof acquireVsCodeApi === "function"
+      ? acquireVsCodeApi()
+      : { postMessage: (m) => console.warn("VSCode API unavailable", m) };
+
+    const chatContainer = document.getElementById("chat");
+    const typingIndicator = document.getElementById("typing");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const sessionLabel = document.getElementById("sessionLabel");
+
+    let state = { sessionId: null, messages: [], isTyping: false };
+
+    function updateUI() {
+      const hasSession = !!state.sessionId;
+      sendButton.disabled = !hasSession || messageInput.value.trim().length === 0;
+      sessionLabel.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
+    }
+
+    function formatTime(timestamp) {
+      if (!timestamp) return "";
+      const date = new Date(timestamp);
+      return isNaN(date.getTime()) ? "" : date.toLocaleString();
+    }
+
+    function renderMessages() {
+      chatContainer.innerHTML = state.messages.map(m => \`
+        <div class="message \${m.role}">
+          <div class="bubble">\${m.html}</div>
+          <div class="meta">\${formatTime(m.createTime)}</div>
+        </div>
+      \`).join("");
+      typingIndicator.classList.toggle("visible", !!state.isTyping);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      updateUI();
+    }
+
+    messageInput.addEventListener("input", updateUI);
+    messageInput.addEventListener("keydown", e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!sendButton.disabled) {
+          const text = messageInput.value.trim();
+          vscode.postMessage({ type: "sendMessage", sessionId: state.sessionId, text });
+          messageInput.value = "";
+          updateUI();
+        }
+      }
+    });
+
+    document.getElementById("composer").addEventListener("submit", e => {
+      e.preventDefault();
+      const text = messageInput.value.trim();
+      if (state.sessionId && text) {
+        vscode.postMessage({ type: "sendMessage", sessionId: state.sessionId, text });
+        messageInput.value = "";
+        updateUI();
+      }
+    });
+
+    chatContainer.addEventListener("click", async e => {
+      const copyButton = e.target.closest(".copy-code-button");
+      if (!copyButton) return;
+      const code = copyButton.closest(".code-block").querySelector("code").innerText;
+      try {
+        await navigator.clipboard.writeText(code);
+        const originalText = copyButton.textContent;
+        copyButton.textContent = "Copied";
+        setTimeout(() => copyButton.textContent = originalText, 1200);
+      } catch {
+        copyButton.textContent = "Failed";
+      }
+    });
+
+    window.addEventListener("message", e => {
+      if (e.data.type === "chatState") {
+        state = e.data.payload || state;
+        renderMessages();
+      }
+    });
+
+    vscode.postMessage({ type: "requestInitialState" });
+  })()`;
   return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src ' + webview.cspSource + ' \'nonce-' + nonce + '\'; script-src \'nonce-' + nonce + '\';" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Jules Chat</title><style nonce="' + nonce + '">' + css + '</style></head><body><div id="chat"></div><div id="typing" class="typing" aria-live="polite" aria-label="Jules is working"><span>Jules is working</span><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div><form id="composer"><textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea><div class="composer-actions"><div id="sessionLabel" class="session-label">Session: None selected</div><button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button></div></form><script nonce="' + nonce + '">' + js + '</script></body></html>';
 }
 

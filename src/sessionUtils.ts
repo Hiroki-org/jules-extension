@@ -90,7 +90,7 @@ export async function createJulesSession(
         throw new Error("Invalid response: session name is missing.");
       }
 
-      progress.report({ increment: 90, message: "Updating UI..." });
+      progress.report({ increment: 40, message: "Updating UI..." });
 
       // Update active session and refresh UI
       await context.globalState.update("active-session-id", session.name);
