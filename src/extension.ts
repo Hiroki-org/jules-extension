@@ -3449,19 +3449,19 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Sources & Branches キャッシュをフィルタしてクリア
         let branchKeysCount = 0;
-        const updatePromises: Thenable<void>[] = [
-          context.globalState.update("jules.sources", undefined),
-        ];
+        const keysToUpdate: string[] = ["jules.sources"];
 
         for (let i = 0; i < allKeys.length; i += 1) {
           const key = allKeys[i];
           if (key.startsWith("jules.branches.")) {
-            updatePromises.push(context.globalState.update(key, undefined));
+            keysToUpdate.push(key);
             branchKeysCount += 1;
           }
         }
 
-        await Promise.all(updatePromises);
+        await Promise.all(
+          keysToUpdate.map((key) => context.globalState.update(key, undefined)),
+        );
 
         const totalCleared = branchKeysCount + 1;
 
