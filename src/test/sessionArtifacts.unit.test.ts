@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import {
@@ -464,6 +463,28 @@ index 456..def 100644`;
             assert.strictEqual(result.latestChangeSet.files.length, 2);
             assert.strictEqual(result.latestChangeSet.files[0].path, 'path with spaces.ts');
             assert.strictEqual(result.latestChangeSet.files[1].path, 'file with " quote.txt');
+        });
+
+        test('引用符で囲まれた octal escape の Unicode パスを抽出すること', () => {
+            const diff = `diff --git "a/src/\\343\\203\\225\\343\\202\\241\\343\\202\\244\\343\\203\\253.ts" "b/src/\\343\\203\\225\\343\\202\\241\\343\\202\\244\\343\\203\\253.ts"
+index 123..abc 100644`;
+
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    gitPatch: { diff },
+                    artifacts: [
+                        {
+                            changeSet: {},
+                        },
+                    ],
+                },
+            ];
+
+            const result = extractLatestArtifactsFromActivities(activities);
+            assert.ok(result.latestChangeSet);
+            assert.strictEqual(result.latestChangeSet.files.length, 1);
+            assert.strictEqual(result.latestChangeSet.files[0].path, 'src/ファイル.ts');
         });
 
         test('無効な形式の diff を処理すること', () => {

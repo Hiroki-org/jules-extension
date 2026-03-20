@@ -359,10 +359,10 @@ function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
 
 function extractChangeSetFiles(changeSet: Record<string, unknown>, fallbackDiff?: string): ChangeSetFile[] {
     const files = tryExtractFromCandidate(changeSet.files) ??
-                  tryExtractFromCandidate(changeSet.changes) ??
-                  tryExtractFromCandidate(changeSet.entries) ??
-                  tryExtractFromCandidate(changeSet.changedFiles) ??
-                  tryExtractFromCandidate(changeSet.paths);
+        tryExtractFromCandidate(changeSet.changes) ??
+        tryExtractFromCandidate(changeSet.entries) ??
+        tryExtractFromCandidate(changeSet.changedFiles) ??
+        tryExtractFromCandidate(changeSet.paths);
 
     if (files) {
         return files;
