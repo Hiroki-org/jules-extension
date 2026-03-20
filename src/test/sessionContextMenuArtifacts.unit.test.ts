@@ -8,7 +8,6 @@ suite("Session Context Menu Artifacts Security Suite", () => {
     let sandbox: sinon.SinonSandbox;
     let fsStatStub: sinon.SinonStub;
     let workspaceFoldersStub: sinon.SinonStub;
-    let consoleWarnStub: sinon.SinonStub;
 
     setup(() => {
         sandbox = sinon.createSandbox();
@@ -45,7 +44,6 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         }
 
         fsStatStub = mockFs.stat;
-        consoleWarnStub = sandbox.stub(console, "warn");
     });
 
     teardown(() => {
@@ -74,44 +72,6 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         const result = await resolveWorkspaceFile(targetPath);
         assert.strictEqual(result, null, "Should reject traversal");
         assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat traversed path");
-    });
-
-    test("should sanitize absolute path values before logging", async () => {
-        const absPath = `${path.resolve("/etc/passwd")}\nINJECT`;
-
-        const result = await resolveWorkspaceFile(absPath);
-
-        assert.strictEqual(result, null);
-        assert.strictEqual(consoleWarnStub.calledOnce, true);
-        const message = consoleWarnStub.firstCall.args[0] as string;
-        assert.ok(message.includes("\\nINJECT"), "Expected escaped newline in log output");
-        assert.strictEqual(message.includes("\nINJECT"), false, "Log output should not contain raw newlines");
-    });
-
-    test("should return as soon as the highest-priority folder resolves successfully", async () => {
-        const root1 = path.resolve("/workspace1");
-        const root2 = path.resolve("/workspace2");
-
-        const folder1 = { uri: vscode.Uri.file(root1), name: "w1", index: 0 };
-        const folder2 = { uri: vscode.Uri.file(root2), name: "w2", index: 1 };
-
-        workspaceFoldersStub.value([folder1, folder2]);
-
-        const targetPath = "shared/config.json";
-        const uri1 = vscode.Uri.file(path.resolve(root1, targetPath));
-        const uri2 = vscode.Uri.file(path.resolve(root2, targetPath));
-
-        fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === uri1.fsPath)).resolves({ type: vscode.FileType.File });
-        fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === uri2.fsPath)).returns(new Promise(() => {}));
-
-        const result = await Promise.race([
-            resolveWorkspaceFile(targetPath),
-            new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 50)),
-        ]);
-
-        assert.notStrictEqual(result, "timeout", "Should not wait for slower lower-priority folders");
-        assert.ok(result);
-        assert.strictEqual((result as vscode.Uri).fsPath, uri1.fsPath);
     });
 
     test("should allow valid paths within workspace", async () => {

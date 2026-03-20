@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { fetchLatestSessionArtifacts, getCachedSessionArtifacts, ChangeSetSummary } from "./sessionArtifacts";
 import { sanitizeError } from "./errorUtils";
-import { isValidSessionId, sanitizeForLogging } from "./securityUtils";
+import { isValidSessionId } from "./securityUtils";
 
 export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProvider {
     private readonly contents = new Map<string, string>();
@@ -31,14 +31,14 @@ export function resolveWorkspaceFile(targetPath: string): Promise<vscode.Uri | n
 async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri | null> {
     // 1. Reject absolute paths immediately for security
     if (path.isAbsolute(targetPath)) {
-        console.warn(`[Security] Rejected absolute path in changeset: ${sanitizeForLogging(targetPath)}`);
+        console.warn(`[Security] Rejected absolute path in changeset: ${targetPath}`);
         return null;
     }
 
     const folders = vscode.workspace.workspaceFolders ?? [];
 
     // Process all workspace folders concurrently
-    const statPromises = folders.map(async (folder): Promise<vscode.Uri | null> => {
+    const statPromises = folders.map(async (folder) => {
         const folderPath = folder.uri.fsPath;
         // Use path.resolve to handle relative paths and normalization
         const candidatePath = path.resolve(folderPath, targetPath);
@@ -48,27 +48,24 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
         const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
 
         if (!isSafe) {
-            console.warn(
-                `[Security] Rejected path traversal attempt: ${sanitizeForLogging(targetPath)} -> ${sanitizeForLogging(candidatePath)}`,
-            );
-            return null;
+            console.warn(`[Security] Rejected path traversal attempt: ${targetPath} -> ${candidatePath}`);
+            // Reject the promise if unsafe
+            throw new Error("Unsafe path");
         }
 
         const candidateUri = vscode.Uri.file(candidatePath);
-        try {
-            // Use async fs.stat instead of synchronous fs.existsSync
-            await vscode.workspace.fs.stat(candidateUri);
-            return candidateUri;
-        } catch {
-            return null;
-        }
+        // Use async fs.stat instead of synchronous fs.existsSync
+        await vscode.workspace.fs.stat(candidateUri);
+        return candidateUri;
     });
 
-    // Keep workspace priority order while still allowing all stat calls to start immediately.
-    for (const statPromise of statPromises) {
-        const candidateUri = await statPromise;
-        if (candidateUri) {
-            return candidateUri;
+    const results = await Promise.allSettled(statPromises);
+
+    // Iterate through results in original sequence order to maintain priority
+    for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
+        if (result.status === "fulfilled") {
+            return result.value;
         }
     }
 
