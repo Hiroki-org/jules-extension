@@ -1,0 +1,35 @@
+name: njsscan sarif
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 12 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  njsscan:
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+    runs-on: ubuntu-latest
+    name: njsscan code scanning
+    steps:
+    - name: Checkout the code
+      uses: actions/checkout@v4
+    - name: nodejsscan scan
+      id: njsscan
+      uses: ajinabraham/njsscan-action@7237412fdd36af517e2745077cedbf9d6900d711
+      continue-on-error: true
+      with:
+        args: '. --sarif --output results.sarif'
+    - name: Upload njsscan report
+      if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb
+      with:
+        sarif_file: results.sarif

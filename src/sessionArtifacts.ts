@@ -261,15 +261,17 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
             if (payload[i] === '"') {
                 i += 1; // skip opening quote
                 let res = "";
+                let startChunk = i;
                 while (i < payload.length && payload[i] !== '"') {
                     if (payload[i] === '\\' && i + 1 < payload.length) {
-                        res += payload[i + 1];
+                        res += payload.substring(startChunk, i) + payload[i + 1];
                         i += 2;
+                        startChunk = i;
                     } else {
-                        res += payload[i];
                         i += 1;
                     }
                 }
+                res += payload.substring(startChunk, i);
                 if (payload[i] === '"') {
                     i += 1; // skip closing quote
                 }
