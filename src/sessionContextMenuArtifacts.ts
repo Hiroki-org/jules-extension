@@ -21,6 +21,12 @@ export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProv
     }
 }
 
+export const sessionContextMenuArtifactsLogger = {
+    warn(message: string): void {
+        console.warn(message);
+    },
+};
+
 // Intentionally keep a small wrapper around the async implementation to
 // provide a stable exported API and allow future logic (e.g., logging or
 // alternative resolution strategies) without changing callers.
@@ -31,7 +37,9 @@ export function resolveWorkspaceFile(targetPath: string): Promise<vscode.Uri | n
 async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri | null> {
     // 1. Reject absolute paths immediately for security
     if (path.isAbsolute(targetPath)) {
-        console.warn(`[Security] Rejected absolute path in changeset: ${sanitizeForLogging(targetPath)}`);
+        sessionContextMenuArtifactsLogger.warn(
+            `[Security] Rejected absolute path in changeset: ${sanitizeForLogging(targetPath)}`,
+        );
         return null;
     }
 
@@ -51,7 +59,7 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
         const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
 
         if (!isSafe) {
-            console.warn(
+            sessionContextMenuArtifactsLogger.warn(
                 `[Security] Rejected path traversal attempt: ${sanitizeForLogging(targetPath)} -> ${sanitizeForLogging(candidatePath)}`,
             );
             return null;

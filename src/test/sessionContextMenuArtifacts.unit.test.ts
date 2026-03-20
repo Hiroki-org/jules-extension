@@ -2,13 +2,13 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
 import * as path from "path";
-import { resolveWorkspaceFile } from "../sessionContextMenuArtifacts";
+import { resolveWorkspaceFile, sessionContextMenuArtifactsLogger } from "../sessionContextMenuArtifacts";
 
 suite("Session Context Menu Artifacts Security Suite", () => {
     let sandbox: sinon.SinonSandbox;
     let fsStatStub: sinon.SinonStub;
     let workspaceFoldersStub: sinon.SinonStub;
-    let consoleWarnStub: sinon.SinonStub;
+    let loggerWarnStub: sinon.SinonStub;
 
     setup(() => {
         sandbox = sinon.createSandbox();
@@ -45,7 +45,7 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         }
 
         fsStatStub = mockFs.stat;
-        consoleWarnStub = sandbox.stub(console, "warn");
+        loggerWarnStub = sandbox.stub(sessionContextMenuArtifactsLogger, "warn");
     });
 
     teardown(() => {
@@ -78,12 +78,15 @@ suite("Session Context Menu Artifacts Security Suite", () => {
 
     test("should sanitize absolute path values before logging", async () => {
         const absPath = `${path.resolve("/etc/passwd")}\nINJECT`;
+        loggerWarnStub.resetHistory();
 
         const result = await resolveWorkspaceFile(absPath);
 
         assert.strictEqual(result, null);
-        assert.strictEqual(consoleWarnStub.calledOnce, true);
-        const message = consoleWarnStub.firstCall.args[0] as string;
+        assert.strictEqual(loggerWarnStub.calledOnce, true);
+        const message = loggerWarnStub.firstCall.args[0] as string;
+
+        assert.ok(message.includes("[Security] Rejected absolute path in changeset:"), "Expected a security warning for absolute paths");
         assert.ok(message.includes("\\nINJECT"), "Expected escaped newline in log output");
         assert.strictEqual(message.includes("\nINJECT"), false, "Log output should not contain raw newlines");
     });
