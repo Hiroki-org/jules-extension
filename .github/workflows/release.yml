@@ -29,7 +29,7 @@ jobs:
       - run: pnpm run compile
 
       - name: Install xvfb
-        run: sudo apt-get install -y xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - run: xvfb-run -a pnpm test
 
