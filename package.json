@@ -70,6 +70,11 @@
           "default": true,
           "description": "Automatically hide sessions with closed or merged pull requests from the session list"
         },
+        "jules-extension.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Jules CodeLens actions (Refactor, Generate Tests) above functions and classes"
+        },
         "jules.defaultBranch": {
           "type": "string",
           "enum": [
@@ -189,6 +194,18 @@
         "title": "Review Plan...",
         "category": "Jules",
         "icon": "$(preview)"
+      },
+      {
+        "command": "jules-extension.inlineRefactor",
+        "title": "Jules: Refactor",
+        "category": "Jules",
+        "icon": "$(robot)"
+      },
+      {
+        "command": "jules-extension.inlineGenerateTests",
+        "title": "Jules: Generate Tests",
+        "category": "Jules",
+        "icon": "$(robot)"
       },
       {
         "command": "jules.filterActivities",
@@ -313,6 +330,18 @@
           "when": "view == julesSessionsView && viewItem =~ /jules-session-failed/",
           "group": "jules_info"
         }
+      ],
+      "editor/context": [
+        {
+          "command": "jules-extension.inlineRefactor",
+          "when": "editorHasSelection && editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
+          "group": "jules@1"
+        },
+        {
+          "command": "jules-extension.inlineGenerateTests",
+          "when": "editorHasSelection && editorTextFocus && editorLangId =~ /^(typescript|javascript|typescriptreact|javascriptreact|python|java|go|csharp|cpp|c)$/",
+          "group": "jules@2"
+        }
       ]
     }
   },
@@ -352,9 +381,10 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "highlight.js": "^11.11.1",
+    "@shikijs/markdown-it": "^4.0.2",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
+    "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
   }
 }

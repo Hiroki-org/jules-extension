@@ -62,11 +62,13 @@ import {
   type ActivityUnionKey,
 } from "./activityUtils";
 
+import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { createJulesSession, sendMessage as sendMessageToApi } from "./sessionUtils";
+import { registerInlineCommands } from "./inlineCommands";
+
 // Constants
-const JULES_API_BASE_URL = "https://jules.googleapis.com/v1alpha";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
-const ALL_SOURCES_ID = "all_repos";
 const MAX_PAGE_SIZE = 100;
 const MAX_PAGINATION_PAGES = 100;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
@@ -87,32 +89,16 @@ interface PRStatusCache {
   [prUrl: string]: {
     isClosed: boolean;
     lastChecked: number;
+    isError?: boolean;
   };
 }
 
 let prStatusCache: PRStatusCache = {};
-const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const PR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const PR_ERROR_CACHE_DURATION = 30 * 1000; // 30 seconds for errors
 
 interface SourceQuickPickItem extends vscode.QuickPickItem {
   source: SourceType;
-}
-
-interface CreateSessionRequest {
-  prompt: string;
-  sourceContext: {
-    source: string;
-    githubRepoContext?: {
-      startingBranch: string;
-    };
-  };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
-  title: string;
-  requirePlanApproval?: boolean;
-}
-
-interface SessionResponse {
-  name: string;
-  // Add other fields if needed
 }
 
 // Re-export Session, SessionOutput, and SessionState from types for backward compatibility
@@ -494,13 +480,6 @@ async function getCurrentBranchSha(
   }
 }
 
-export function buildFinalPrompt(userPrompt: string): string {
-  const customPrompt = vscode.workspace
-    .getConfiguration("jules-extension")
-    .get<string>("customPrompt", "");
-  return customPrompt ? `${userPrompt}\n\n${customPrompt}` : userPrompt;
-}
-
 /**
  * Get privacy icon for a source
  * @param isPrivate - The isPrivate field from Source
@@ -574,14 +553,22 @@ function resolveSessionId(
   );
 }
 
-function extractPRs(
+/**
+ * Extracts unique pull requests from a session or cached state.
+ * Optimized to use a Map for single-pass deduplication.
+ */
+export function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
   if (!sessionOrState.outputs) return [];
-  const allPrs = sessionOrState.outputs
-    .map((o) => o.pullRequest)
-    .filter((pr): pr is PullRequestOutput => !!pr && !!pr.url);
-  return Array.from(new Map(allPrs.map((pr) => [pr.url, pr])).values());
+  const prMap = new Map<string, PullRequestOutput>();
+  for (const output of sessionOrState.outputs) {
+    const pr = output.pullRequest;
+    if (pr?.url) {
+      prMap.set(pr.url, pr);
+    }
+  }
+  return Array.from(prMap.values());
 }
 
 async function checkPRStatus(
@@ -592,7 +579,8 @@ async function checkPRStatus(
   // Check cache first
   const cached = prStatusCache[prUrl];
   const now = Date.now();
-  if (cached && now - cached.lastChecked < PR_CACHE_DURATION) {
+  const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
+  if (cached && now - cached.lastChecked < ttl) {
     return cached.isClosed;
   }
 
@@ -601,6 +589,7 @@ async function checkPRStatus(
     const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (!match) {
       console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
+      prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
       return false;
     }
 
@@ -626,6 +615,7 @@ async function checkPRStatus(
       console.log(
         `Jules: Failed to fetch PR status: ${response.status} ${response.statusText}`,
       );
+      prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
       return false;
     }
 
@@ -636,6 +626,7 @@ async function checkPRStatus(
     prStatusCache[prUrl] = {
       isClosed,
       lastChecked: now,
+      isError: false
     };
 
     return isClosed;
@@ -644,6 +635,7 @@ async function checkPRStatus(
       `Jules: Error checking PR status for ${prUrl}:`,
       sanitizeError(error),
     );
+    prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
     return false;
   }
 }
@@ -736,6 +728,12 @@ async function fetchPlanFromActivities(
   }
 }
 
+/**
+ * Notifies the user that a plan is awaiting approval.
+ * @param session - The session that has a plan ready.
+ * @param context - The extension context.
+ * @param apiKey - The API key to use for fetching the plan.
+ */
 async function notifyPlanAwaitingApproval(
   session: Session,
   context: vscode.ExtensionContext,
@@ -2163,7 +2161,6 @@ async function sendMessageToSession(
       vscode.window.showWarningMessage("Message was empty and not sent.");
       return;
     }
-    const finalPrompt = buildFinalPrompt(userPrompt);
 
     await vscode.window.withProgress(
       {
@@ -2171,25 +2168,7 @@ async function sendMessageToSession(
         title: "Sending message to Jules...",
       },
       async () => {
-        const response = await fetchWithTimeout(
-          `${JULES_API_BASE_URL}/${sessionId}:sendMessage`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Goog-Api-Key": apiKey,
-            },
-            body: JSON.stringify({ prompt: finalPrompt }),
-          },
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const message =
-            errorText || `${response.status} ${response.statusText}`;
-          throw new Error(message);
-        }
-
+        await sendMessageToApi(apiKey, sessionId, userPrompt);
         vscode.window.showInformationMessage("Message sent successfully!");
       },
     );
@@ -2409,6 +2388,8 @@ export function activate(context: vscode.ExtensionContext) {
   // Create OutputChannel for Logs
   logChannel = vscode.window.createOutputChannel("Jules Extension Logs");
   context.subscriptions.push(logChannel);
+
+  registerInlineCommands(context, logChannel);
 
   // Sign in to GitHub via VS Code authentication
   const signInDisposable = vscode.commands.registerCommand(
@@ -2835,70 +2816,18 @@ export function activate(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const finalPrompt = buildFinalPrompt(userPrompt);
         const title = userPrompt.split("\n")[0];
         const automationMode = result.createPR ? "AUTO_CREATE_PR" : "MANUAL";
 
-        if (!selectedSource.name) {
-          throw new Error(
-            "Selected source is missing resource name required by Sources API.",
-          );
-        }
-
-        const requestBody: CreateSessionRequest = {
-          prompt: finalPrompt,
-          sourceContext: {
-            source: selectedSource.name,
-            githubRepoContext: {
-              startingBranch,
-            },
-          },
-          automationMode,
+        await createJulesSession(
+          context,
+          selectedSource,
+          apiKey,
+          startingBranch,
+          userPrompt,
           title,
-          requirePlanApproval: result.requireApproval,
-        };
-
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Creating Jules Session...",
-            cancellable: false,
-          },
-          async (progress) => {
-            progress.report({
-              increment: 0,
-              message: "Sending request...",
-            });
-            const response = await fetchWithTimeout(
-              `${JULES_API_BASE_URL}/sessions`,
-              {
-                method: "POST",
-                headers: {
-                  "X-Goog-Api-Key": apiKey,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-              },
-            );
-            progress.report({
-              increment: 50,
-              message: "Processing response...",
-            });
-            if (!response.ok) {
-              throw new Error(
-                `Failed to create session: ${response.status} ${response.statusText}`,
-              );
-            }
-            const session = (await response.json()) as SessionResponse;
-            await context.globalState.update("active-session-id", session.name);
-            progress.report({
-              increment: 100,
-              message: "Session created!",
-            });
-            vscode.window.showInformationMessage(
-              `Session created: ${session.name}`,
-            );
-          },
+          automationMode,
+          result.requireApproval
         );
       } catch (error) {
         vscode.window.showErrorMessage(
