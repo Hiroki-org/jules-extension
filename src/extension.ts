@@ -426,7 +426,7 @@ async function createRemoteBranch(
       logger.appendLine(
         `[Jules] GitHub API error response: ${sanitizeForLogging(respText)}`,
       );
-      let errMsg = "Unknown error";
+      let errMsg: string;
       try {
         const parsed = JSON.parse(respText);
         errMsg = parsed?.message || JSON.stringify(parsed);
