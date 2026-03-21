@@ -41,4 +41,4 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           npm install -g @vscode/vsce
-          vsce publish -p $VSCE_PAT
+          vsce publish --no-dependencies -p $VSCE_PAT

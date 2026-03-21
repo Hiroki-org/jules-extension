@@ -37,7 +37,7 @@ jobs:
         run: npm install -g @vscode/vsce
 
       - name: Package extension
-        run: vsce package
+        run: vsce package --no-dependencies
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
