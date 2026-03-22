@@ -18,6 +18,7 @@ import {
   handleOpenInWebApp,
   Session,
   SessionOutput,
+  createRemoteBranch,
 } from "../extension";
 import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
@@ -885,4 +886,87 @@ suite("Extension Test Suite", () => {
       assert.ok(appendLineSpy.getCall(0).args[0].includes("Failed to open external URL"));
     });
   });
+
+  suite("createRemoteBranch", () => {
+    let sandbox: sinon.SinonSandbox;
+    let fetchStub: sinon.SinonStub;
+    let getExtensionStub: sinon.SinonStub;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+
+      // Mock git extension to return a fake SHA
+      const gitApi = {
+        repositories: [
+          {
+            rootUri: vscode.Uri.file("/test"),
+            state: {
+              HEAD: { commit: "fake-sha-123" },
+            },
+          },
+        ],
+      };
+      const gitExtensionMock = {
+        activate: sandbox.stub().resolves(),
+        exports: {
+          getAPI: sandbox.stub().returns(gitApi)
+        }
+      };
+      getExtensionStub = sandbox.stub(vscode.extensions, "getExtension");
+      getExtensionStub.returns(gitExtensionMock as any);
+      
+      // Mock workspace folder for getCurrentBranchSha
+      sandbox.stub(vscode.workspace, "workspaceFolders").value([{ name: "test", uri: vscode.Uri.file("/test") }]);
+    });
+
+    teardown(() => {
+      sandbox.restore();
+    });
+
+    test("should handle successful branch creation", async () => {
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({ ref: "refs/heads/new-branch" }),
+      } as any);
+
+      await createRemoteBranch("token", "owner", "repo", "new-branch");
+      
+      assert.ok(fetchStub.calledOnce);
+      const url = fetchStub.getCall(0).args[0];
+      assert.strictEqual(url, "https://api.github.com/repos/owner/repo/git/refs");
+    });
+
+    test("should handle failing GitHub API error-response with valid JSON", async () => {
+      const errorJson = { message: "Validation Failed" };
+      fetchStub.resolves({
+        ok: false,
+        status: 422,
+        text: async () => JSON.stringify(errorJson),
+      } as any);
+
+      try {
+        await createRemoteBranch("token", "owner", "repo", "new-branch");
+        assert.fail("Should have thrown an error");
+      } catch (err: any) {
+        assert.strictEqual(err.message, "GitHub API error: 422 - Validation Failed");
+      }
+    });
+
+    test("should handle failing GitHub API error-response with invalid/non-JSON body", async () => {
+      fetchStub.resolves({
+        ok: false,
+        status: 500,
+        text: async () => "Internal Server Error",
+      } as any);
+
+      try {
+        await createRemoteBranch("token", "owner", "repo", "new-branch");
+        assert.fail("Should have thrown an error");
+      } catch (err: any) {
+        assert.strictEqual(err.message, "GitHub API error: 500 - Internal Server Error");
+      }
+    });
+  });
 });
+

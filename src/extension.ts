@@ -382,7 +382,7 @@ async function getRepoInfoForBranchCreation(
   }
 }
 
-async function createRemoteBranch(
+export async function createRemoteBranch(
   token: string,
   owner: string,
   repo: string,
@@ -448,7 +448,7 @@ async function createRemoteBranch(
   }
 }
 
-async function getCurrentBranchSha(
+export async function getCurrentBranchSha(
   outputChannel?: vscode.OutputChannel,
 ): Promise<string | null> {
   const logger =
