@@ -63,7 +63,10 @@ import {
 } from "./activityUtils";
 
 import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
-import { createJulesSession, sendMessage as sendMessageToApi } from "./sessionUtils";
+import {
+  createJulesSession,
+  sendMessage as sendMessageToApi,
+} from "./sessionUtils";
 import { registerInlineCommands } from "./inlineCommands";
 
 // Constants
@@ -589,7 +592,11 @@ async function checkPRStatus(
     const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (!match) {
       console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
-      prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
+      prStatusCache[prUrl] = {
+        isClosed: false,
+        lastChecked: now,
+        isError: true,
+      };
       return false;
     }
 
@@ -615,7 +622,11 @@ async function checkPRStatus(
       console.log(
         `Jules: Failed to fetch PR status: ${response.status} ${response.statusText}`,
       );
-      prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
+      prStatusCache[prUrl] = {
+        isClosed: false,
+        lastChecked: now,
+        isError: true,
+      };
       return false;
     }
 
@@ -626,7 +637,7 @@ async function checkPRStatus(
     prStatusCache[prUrl] = {
       isClosed,
       lastChecked: now,
-      isError: false
+      isError: false,
     };
 
     return isClosed;
@@ -741,7 +752,7 @@ async function notifyPlanAwaitingApproval(
 ): Promise<void> {
   // Fetch plan details from activities
   let planDetails = "";
-  const finalApiKey = apiKey ?? await context.secrets.get("jules-api-key");
+  const finalApiKey = apiKey ?? (await context.secrets.get("jules-api-key"));
 
   if (finalApiKey) {
     const plan = await fetchPlanFromActivities(session.name, finalApiKey);
@@ -1656,7 +1667,8 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         await this.sendNotifications(
           sessionsToNotifyPlan,
           "plan approval",
-          (session) => notifyPlanAwaitingApproval(session, this.context, apiKey),
+          (session) =>
+            notifyPlanAwaitingApproval(session, this.context, apiKey),
         );
 
         // Notify User Feedback
@@ -2298,7 +2310,9 @@ export function activate(context: vscode.ExtensionContext) {
   let expiredCount = 0;
 
   for (const url in prStatusCache) {
-    if (now - prStatusCache[url].lastChecked > PR_CACHE_DURATION) {
+    const entry = prStatusCache[url];
+    const ttl = entry.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
+    if (now - entry.lastChecked > ttl) {
       delete prStatusCache[url];
       expiredCount++;
     }
@@ -2827,7 +2841,7 @@ export function activate(context: vscode.ExtensionContext) {
           userPrompt,
           title,
           automationMode,
-          result.requireApproval
+          result.requireApproval,
         );
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -3246,7 +3260,10 @@ export function activate(context: vscode.ExtensionContext) {
     async (item?: SessionTreeItem | string) => {
       const sessionId = resolveSessionId(context, item);
       if (sessionId) {
-        await vscode.commands.executeCommand("jules-extension.showActivities", sessionId);
+        await vscode.commands.executeCommand(
+          "jules-extension.showActivities",
+          sessionId,
+        );
       }
       vscode.commands.executeCommand("julesChatView.focus");
     },
