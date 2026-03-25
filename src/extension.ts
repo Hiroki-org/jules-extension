@@ -1203,12 +1203,12 @@ export function mergeActivitiesByIdentity(
     }
   }
 
-  const values = [...mergedMap.values()];
-  const mapped = new Array(values.length);
-  for (let i = 0; i < values.length; i += 1) {
-    const item = values[i];
-    mapped[i] = { item, time: Date.parse(item.createTime || "") };
-  }
+  const mapped: Array<{ item: Activity; time: number }> = [
+    ...mergedMap.values(),
+  ].map((item) => ({
+    item,
+    time: Date.parse(item.createTime || ""),
+  }));
 
   mapped.sort((a, b) => {
     if (!Number.isNaN(a.time) && !Number.isNaN(b.time) && a.time !== b.time) {
@@ -1221,12 +1221,7 @@ export function mergeActivitiesByIdentity(
     );
   });
 
-  const result = new Array(mapped.length);
-  for (let i = 0; i < mapped.length; i += 1) {
-    result[i] = mapped[i].item;
-  }
-
-  return result;
+  return mapped.map((entry) => entry.item);
 }
 
 function buildActivitySummaryHeader(
