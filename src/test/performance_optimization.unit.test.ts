@@ -17,11 +17,7 @@ suite('Performance Optimization - getCurrentBranch', () => {
 
     const buildEditor = (fsPath: string): vscode.TextEditor => ({
         document: {
-            uri: {
-                fsPath,
-                scheme: 'file',
-                toString: () => `file://${fsPath}`
-            } as vscode.Uri
+            uri: vscode.Uri.file(fsPath)
         }
     } as vscode.TextEditor);
 
