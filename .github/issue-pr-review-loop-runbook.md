@@ -80,9 +80,14 @@ PR_NUMBER="<PR#>"
 max_iterations=20
 
 for iteration in $(seq 1 "$max_iterations"); do
+  check_scope="--required"
+  if ! gh pr checks "$PR_NUMBER" --required --json bucket >/dev/null 2>&1; then
+    check_scope=""
+  fi
+
   unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
-  pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
-  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
+  pending_checks="$(gh pr checks "$PR_NUMBER" $check_scope --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
+  failing_checks="$(gh pr checks "$PR_NUMBER" $check_scope --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
   merge_state="$(gh pr view "$PR_NUMBER" --json mergeStateStatus --jq '.mergeStateStatus')"
   mergeable_state="$(gh pr view "$PR_NUMBER" --json mergeable --jq '.mergeable')"
 
@@ -97,12 +102,18 @@ for iteration in $(seq 1 "$max_iterations"); do
 
   sleep 300
 done
+
+if [ "$unresolved_threads" -ne 0 ] || [ "$pending_checks" -ne 0 ] || [ "$failing_checks" -ne 0 ] || [ "$merge_state" = "DIRTY" ] || [ "$mergeable_state" != "MERGEABLE" ]; then
+  echo "停止条件未達。再レビュー依頼は行わず、ブロッカーを報告してエスカレーションする。"
+fi
 ```
 
 6. 再レビュー依頼
 
 ```bash
-gh pr comment <PR#> --body "レビュー指摘対応と thread resolve を完了しました。CI/コンフリクト確認済みです。再レビューお願いします。"
+if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ] && [ "$merge_state" != "DIRTY" ] && [ "$mergeable_state" = "MERGEABLE" ]; then
+  gh pr comment <PR#> --body "レビュー指摘対応と thread resolve を完了しました。CI/コンフリクト確認済みです。再レビューお願いします。"
+fi
 ```
 
 ## 停止条件

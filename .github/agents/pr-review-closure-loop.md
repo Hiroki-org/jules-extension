@@ -54,6 +54,7 @@ You are a specialist for closing PR review loops in `Hiroki-org/jules-extension`
    - `gh pr checks <PR#> --watch --interval 10`
 7. Poll until completion:
    - check unresolved/pending/failing/merge-state/mergeable
+   - use required checks (`gh pr checks --required`) when available; if not available, fallback to all checks
    - enforce loop cap with iteration counter (max 20)
 8. Repeat until stop conditions or loop cap.
 
@@ -74,9 +75,14 @@ gh api graphql -f query='mutation($threadId:ID!) { resolveReviewThread(input:{th
 ```bash
 max_iterations=20
 for iteration in $(seq 1 "$max_iterations"); do
+  check_scope="--required"
+  if ! gh pr checks <PR#> --required --json bucket >/dev/null 2>&1; then
+    check_scope=""
+  fi
+
   unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner=Hiroki-org -F repo=jules-extension -F number=<PR#> --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
-  pending_checks="$(gh pr checks <PR#> --json bucket --jq '[.[] | select(.bucket == \"pending\")] | length')"
-  failing_checks="$(gh pr checks <PR#> --json bucket --jq '[.[] | select(.bucket == \"fail\" or .bucket == \"failure\" or .bucket == \"cancel\" or .bucket == \"cancelled\")] | length')"
+  pending_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == \"pending\")] | length')"
+  failing_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == \"fail\" or .bucket == \"failure\" or .bucket == \"cancel\" or .bucket == \"cancelled\")] | length')"
   merge_state="$(gh pr view <PR#> --json mergeStateStatus --jq '.mergeStateStatus')"
   mergeable_state="$(gh pr view <PR#> --json mergeable --jq '.mergeable')"
 
