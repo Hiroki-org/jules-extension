@@ -28,8 +28,8 @@ let markdownRenderer: MarkdownIt | null = null;
 let markdownRendererInit: Promise<void> | null = null;
 
 export async function initMarkdownRenderer(): Promise<void> {
-  if (markdownRenderer) return;
-  if (markdownRendererInit) return markdownRendererInit;
+  if (markdownRenderer) {return;}
+  if (markdownRendererInit) {return markdownRendererInit;}
 
   markdownRendererInit = (async () => {
     try {
@@ -70,14 +70,14 @@ export async function initMarkdownRenderer(): Promise<void> {
 }
 
 export function renderChatMarkdown(markdown: string): string {
-  if (!markdownRenderer) return escapeHtml(markdown);
+  if (!markdownRenderer) {return escapeHtml(markdown);}
   return markdownRenderer.render(markdown);
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set(["IN_PROGRESS", "QUEUED", "PLANNING"]);
 
 export function isGeneratingSessionState(rawState: string | undefined): boolean {
-  if (!rawState) return false;
+  if (!rawState) {return false;}
   return GENERATING_SESSION_STATES.has(rawState);
 }
 
@@ -125,17 +125,17 @@ export function buildChatMessagesFromActivities(activities: Activity[], initialP
     }
     const combinedText = getActivityIcon(activity) + ' ' + getActivityLabelPrefix(activity) + getActivitySummaryText(activity);
     let detailsHtml = "";
-    if (activity.sessionFailed?.reason) detailsHtml += '<details class="activity-details"><summary>View Error Details</summary><div class="details-content code-block"><pre><code>' + escapeHtml(activity.sessionFailed.reason) + '</code></pre></div></details>';
-    if (activity.planGenerated?.plan) detailsHtml += '<details class="activity-details"><summary>View Plan</summary><div class="details-content">' + renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) + '</div></details>';
+    if (activity.sessionFailed?.reason) {detailsHtml += '<details class="activity-details"><summary>View Error Details</summary><div class="details-content code-block"><pre><code>' + escapeHtml(activity.sessionFailed.reason) + '</code></pre></div></details>';}
+    if (activity.planGenerated?.plan) {detailsHtml += '<details class="activity-details"><summary>View Plan</summary><div class="details-content">' + renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) + '</div></details>';}
     if ((activity as any).gitPatch?.diff) {
       const diff = (activity as any).gitPatch.diff;
-      if (typeof diff === "string" && diff.trim().length > 0) detailsHtml += '<details class="activity-details"><summary>View Diff</summary><div class="details-content">' + renderChatMarkdown('```diff\n' + diff + '\n```') + '</div></details>';
+      if (typeof diff === "string" && diff.trim().length > 0) {detailsHtml += '<details class="activity-details"><summary>View Diff</summary><div class="details-content">' + renderChatMarkdown('```diff\n' + diff + '\n```') + '</div></details>';}
     }
     if (activity.artifacts && activity.artifacts.length > 0) {
       activity.artifacts.forEach((artifact, i) => {
         if (artifact.changeSet) {
           const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
-          if (diffData && typeof diffData === "string") detailsHtml += '<details class="activity-details"><summary>View ChangeSet (' + (i + 1) + ')</summary><div class="details-content">' + renderChatMarkdown('```diff\n' + diffData + '\n```') + '</div></details>';
+          if (diffData && typeof diffData === "string") {detailsHtml += '<details class="activity-details"><summary>View ChangeSet (' + (i + 1) + ')</summary><div class="details-content">' + renderChatMarkdown('```diff\n' + diffData + '\n```') + '</div></details>';}
           else {
             let raw = ""; try { raw = JSON.stringify(artifact.changeSet, null, 2); } catch { raw = String(artifact.changeSet); }
             detailsHtml += '<details class="activity-details"><summary>View ChangeSet Details (' + (i + 1) + ')</summary><div class="details-content">' + renderChatMarkdown('```json\n' + raw + '\n```') + '</div></details>';
@@ -176,13 +176,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getChatWebviewHtml(webviewView.webview, getNonce());
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message?.type === "requestInitialState") { this.postState(); return; }
-      if (message?.type !== "sendMessage") return;
+      if (message?.type !== "sendMessage") {return;}
       const sessionId = typeof message.sessionId === "string" ? message.sessionId : "";
       const text = typeof message.text === "string" ? message.text.trim() : "";
-      if (!sessionId || !text) return;
+      if (!sessionId || !text) {return;}
       try { await this.onSendMessage(sessionId, text); } catch (error) { vscode.window.showErrorMessage('Failed to send message: ' + (error instanceof Error ? error.message : "Unknown error")); }
     });
-    if (this.state.sessionId) this.state.messages = buildChatMessagesFromActivities(this.activities, this.sessionTitle, this.sessionCreateTime);
+    if (this.state.sessionId) {this.state.messages = buildChatMessagesFromActivities(this.activities, this.sessionTitle, this.sessionCreateTime);}
     this.postState();
   }
   updateSession(sessionId: string, activities: Activity[], rawState?: string, sessionTitle?: string, sessionCreateTime?: string): void {
@@ -191,7 +191,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.postState();
   }
   private postState(): void {
-    if (!this.view) return;
+    if (!this.view) {return;}
     void Promise.resolve(this.view.webview.postMessage({ type: "chatState", payload: this.state })).catch((err: unknown) => console.error("Jules: Failed to post state to chat view:", err));
   }
 }

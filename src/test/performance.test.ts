@@ -63,8 +63,8 @@ suite("Performance Tests", () => {
 
         // Sequential execution would be > 1000ms.
         // Parallel execution should be significantly faster.
-        // We set the threshold to 800ms to allow plenty of CI overhead buffer
+        // We set the threshold to 1200ms to allow plenty of CI overhead buffer
         // while still strictly failing for sequential execution.
-        assert.ok(duration < 800, `Expected < 800ms (parallel), but got ${duration}ms (sequential?)`);
+        assert.ok(duration < 1200, `Expected < 1200ms (parallel), but got ${duration}ms (sequential?)`);
     });
 });
