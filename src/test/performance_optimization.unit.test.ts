@@ -53,6 +53,23 @@ suite('Performance Optimization - getCurrentBranch', () => {
                 }
             }
         };
+        // Normalize the mock root paths the same way branchUtils.ts resolves them
+        const path = require('path');
+        const gitApi = {
+            repositories: [
+                { rootUri: { fsPath: path.resolve('/repo1') }, state: { HEAD: { name: 'main' }, remotes: [] } },
+                { rootUri: { fsPath: path.resolve('/repo2') }, state: { HEAD: { name: 'dev' }, remotes: [] } }
+            ]
+        };
+        const gitExtension = {
+            exports: {
+                getAPI: () => gitApi
+            }
+        };
+        // Overwrite the already stubbed git extension return value instead of double-stubbing
+        (vscode.extensions.getExtension as sinon.SinonStub).returns(gitExtension as any);
+
+        activeEditorStub.document.uri.fsPath = path.resolve('/repo2/src/file.ts');
         sandbox.stub(vscode.window, 'activeTextEditor').value(activeEditorStub);
 
         const branch = await getCurrentBranch(outputChannelStub, { silent: true });
