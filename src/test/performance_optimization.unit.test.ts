@@ -48,7 +48,8 @@ suite('Performance Optimization - getCurrentBranch', () => {
             document: {
                 uri: {
                     fsPath: '/repo2/src/file.ts',
-                    scheme: 'file'
+                    scheme: 'file',
+                    toString: () => 'file:///repo2/src/file.ts'
                 }
             }
         };
