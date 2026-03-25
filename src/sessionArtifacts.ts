@@ -345,8 +345,7 @@ function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
                 ?? normalizePath(record.filePath)
                 ?? normalizePath(record.file)
                 ?? normalizePath(record.name)
-                ?? normalizePath(record.filename)
-                ?? null;
+                ?? normalizePath(record.filename);
 
             extractedStatus = normalizeStatus(record.status)
                 ?? normalizeStatus(record.action)
