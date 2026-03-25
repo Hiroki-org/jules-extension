@@ -113,6 +113,7 @@ count_unresolved_threads() {
 }
 
 max_iterations=20
+cap_reached=0
 
 for iteration in $(seq 1 "$max_iterations"); do
   check_scope="--required"
@@ -139,13 +140,14 @@ for iteration in $(seq 1 "$max_iterations"); do
 
   if [ "$iteration" -eq "$max_iterations" ]; then
     echo "Loop cap reached (${max_iterations} iterations). Human escalation required."
+    cap_reached=1
     break
   fi
 
   sleep 300
 done
 
-if [ "$unresolved_threads" -ne 0 ] || [ "$pending_checks" -ne 0 ] || [ "$failing_checks" -ne 0 ] || [ "$merge_state" = "DIRTY" ] || [ "$mergeable_state" != "MERGEABLE" ]; then
+if [ "$cap_reached" -ne 1 ] && { [ "$unresolved_threads" -ne 0 ] || [ "$pending_checks" -ne 0 ] || [ "$failing_checks" -ne 0 ] || [ "$merge_state" = "DIRTY" ] || [ "$mergeable_state" != "MERGEABLE" ]; }; then
   echo "停止条件未達。再レビュー依頼は行わず、ブロッカーを報告してエスカレーションする。"
 fi
 ```
