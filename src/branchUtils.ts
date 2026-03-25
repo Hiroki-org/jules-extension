@@ -8,6 +8,13 @@ import { sanitizeForLogging } from './securityUtils';
 const DEFAULT_FALLBACK_BRANCH = 'main';
 const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
+// Cache for remote branches to optimize API calls
+const remoteBranchesCache = new Map<string, { branches: any[], defaultBranch: string | undefined, timestamp: number }>();
+const REMOTE_BRANCHES_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
+export function clearRemoteBranchesCache() {
+    remoteBranchesCache.clear();
+}
+
 async function getActiveRepository(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<any | null> {
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
@@ -177,11 +184,20 @@ export async function getBranchesForSession(
             if (!sourceName) {
                 throw new Error("Selected source is missing a name.");
             }
-            const sourceDetail = await apiClient.getSource(sourceName);
-            if (sourceDetail.githubRepo?.branches) {
-                remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);
+            let cachedData = remoteBranchesCache.get(sourceName);
+            if (forceRefresh || !cachedData || (Date.now() - cachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {
+                const sourceDetail = await apiClient.getSource(sourceName);
+                cachedData = {
+                    branches: sourceDetail.githubRepo?.branches || [],
+                    defaultBranch: sourceDetail.githubRepo?.defaultBranch?.displayName,
+                    timestamp: Date.now()
+                };
+                remoteBranchesCache.set(sourceName, cachedData);
+            }
+            if (cachedData) {
+                remoteBranches = cachedData.branches.map((b: any) => b.displayName);
                 branches = [...remoteBranches];
-                defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || DEFAULT_FALLBACK_BRANCH;
+                defaultBranch = cachedData.defaultBranch || DEFAULT_FALLBACK_BRANCH;
             }
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error);
