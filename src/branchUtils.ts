@@ -8,7 +8,31 @@ import { sanitizeForLogging } from './securityUtils';
 const DEFAULT_FALLBACK_BRANCH = 'main';
 const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
+let cachedRepository: any | null = null;
+let lastActiveDocumentUri: string | undefined;
+
+vscode.window.onDidChangeActiveTextEditor(editor => {
+    if (editor && editor.document.uri.scheme === 'file') {
+        const newUri = editor.document.uri.toString();
+        if (newUri !== lastActiveDocumentUri) {
+            cachedRepository = null;
+            lastActiveDocumentUri = newUri;
+        }
+    } else {
+        cachedRepository = null;
+        lastActiveDocumentUri = undefined;
+    }
+});
+
+vscode.workspace.onDidChangeWorkspaceFolders(() => {
+    cachedRepository = null;
+});
+
 async function getActiveRepository(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<any | null> {
+    if (options.silent && cachedRepository) {
+        return cachedRepository;
+    }
+
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
         outputChannel.appendLine('Git extension not available');
@@ -31,13 +55,17 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
             const activeEditor = vscode.window.activeTextEditor;
             if (activeEditor && activeEditor.document.uri.scheme === 'file') {
                 const docPath = path.resolve(activeEditor.document.uri.fsPath);
-                repository = git.repositories.find((repo: any) => {
-                    const repoPath = path.resolve(repo.rootUri.fsPath);
-                    const relative = path.relative(repoPath, docPath);
-                    // If relative is empty, docPath is the same as repoPath.
-                    // If relative is not empty, it should not start with '..' and not be an absolute path.
-                    return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
-                });
+                for (let i = 0; i < git.repositories.length; i += 1) {
+                    const repo = git.repositories[i];
+                    const gitRoot = repo.rootUri.fsPath;
+                    if (docPath.startsWith(gitRoot)) {
+                        const relative = docPath.slice(gitRoot.length);
+                        if (relative === '' || relative.startsWith(path.sep)) {
+                            repository = repo;
+                            break;
+                        }
+                    }
+                }
             }
 
             if (!repository) {
@@ -62,6 +90,14 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
                 return null;
             }
             repository = selected.repo;
+        }
+    }
+
+    if (options.silent && repository) {
+        cachedRepository = repository;
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            lastActiveDocumentUri = activeEditor.document.uri.toString();
         }
     }
 

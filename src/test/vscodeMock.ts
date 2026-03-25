@@ -9,6 +9,7 @@ function createCodeActionKind(value: string) {
 
 const mockVscode = {
     workspace: {
+        onDidChangeWorkspaceFolders: () => ({ dispose: () => { } }),
         fs: {
             stat: async () => {
                 throw mockVscode.FileSystemError.FileNotFound();
@@ -40,6 +41,7 @@ const mockVscode = {
         executeCommand: async () => undefined,
     },
     window: {
+        onDidChangeActiveTextEditor: () => ({ dispose: () => { } }),
         showInformationMessage: () => undefined,
         showWarningMessage: () => undefined,
         showErrorMessage: () => undefined,
