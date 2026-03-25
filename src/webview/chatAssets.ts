@@ -111,13 +111,12 @@ export const CHAT_JS = `(function() {
     const copyButton = e.target.closest(".copy-code-button");
     if (!copyButton) return;
     const code = copyButton.closest(".code-block").querySelector("code").innerText;
+    const originalText = copyButton.textContent;
     try {
       await navigator.clipboard.writeText(code);
-      const originalText = copyButton.textContent;
       copyButton.textContent = "Copied";
       setTimeout(() => copyButton.textContent = originalText, 1200);
     } catch {
-      const originalText = copyButton.textContent;
       copyButton.textContent = "Failed";
       setTimeout(() => copyButton.textContent = originalText, 1200);
     }
