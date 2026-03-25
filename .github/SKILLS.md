@@ -74,18 +74,27 @@ PR_NUMBER="<PR#>"
 
 gh pr checks "$PR_NUMBER" --watch --interval 10
 
-while true; do
+max_iterations=20
+
+for iteration in $(seq 1 "$max_iterations"); do
   unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
   pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
   failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
   merge_state="$(gh pr view "$PR_NUMBER" --json mergeStateStatus --jq '.mergeStateStatus')"
+  mergeable_state="$(gh pr view "$PR_NUMBER" --json mergeable --jq '.mergeable')"
 
-  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ] && [ "$merge_state" != "DIRTY" ]; then
+  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ] && [ "$merge_state" != "DIRTY" ] && [ "$mergeable_state" = "MERGEABLE" ]; then
     gh pr checks "$PR_NUMBER"
     break
   fi
 
-  echo "unresolved=$unresolved_threads pending=$pending_checks failing=$failing_checks mergeState=$merge_state"
+  echo "iteration=$iteration unresolved=$unresolved_threads pending=$pending_checks failing=$failing_checks mergeState=$merge_state mergeable=$mergeable_state"
+
+  if [ "$iteration" -eq "$max_iterations" ]; then
+    echo "Loop cap reached (${max_iterations} iterations). Human escalation required."
+    break
+  fi
+
   sleep 300
 done
 ```
@@ -94,7 +103,7 @@ done
 - `unresolved_threads = 0`
 - `pending_checks = 0`
 - `failing_checks = 0`
-- `mergeStateStatus` is mergeable (not `DIRTY`)
+- `mergeStateStatus != DIRTY` and `mergeable == MERGEABLE`
 
 ---
 
@@ -129,7 +138,7 @@ gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!) { reposi
 **Workflow**:
 
 ```bash
-git add -A
+git add <changed-files>
 git commit -m "fix(scope): summary"
 git push -u origin <branch>
 ```

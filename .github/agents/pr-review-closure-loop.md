@@ -32,6 +32,9 @@ You are a specialist for closing PR review loops in `Hiroki-org/jules-extension`
 - Ignore policy: strict (default is ADDRESS)
 - CI scope: required checks preferred; if branch protection is unset, use all visible checks
 - Loop cap: 20 iterations
+- Outdated thread policy:
+  - If `isOutdated == true`, still post a thread reply with status (ADDRESS or IGNORE_WITH_REASON).
+  - Resolve if possible; if resolution fails due to permissions/outdated constraints, explicitly escalate in a PR comment.
 
 ## Hard Rules
 
@@ -50,7 +53,8 @@ You are a specialist for closing PR review loops in `Hiroki-org/jules-extension`
 6. Monitor checks:
    - `gh pr checks <PR#> --watch --interval 10`
 7. Poll until completion:
-   - check unresolved/pending/failing/merge-state
+   - check unresolved/pending/failing/merge-state/mergeable
+   - enforce loop cap with iteration counter (max 20)
 8. Repeat until stop conditions or loop cap.
 
 ## Preferred Commands
@@ -65,6 +69,28 @@ gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { re
 
 ```bash
 gh api graphql -f query='mutation($threadId:ID!) { resolveReviewThread(input:{threadId:$threadId}) { thread { id isResolved } } }' -f threadId=<THREAD_ID>
+```
+
+```bash
+max_iterations=20
+for iteration in $(seq 1 "$max_iterations"); do
+  unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner=Hiroki-org -F repo=jules-extension -F number=<PR#> --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+  pending_checks="$(gh pr checks <PR#> --json bucket --jq '[.[] | select(.bucket == \"pending\")] | length')"
+  failing_checks="$(gh pr checks <PR#> --json bucket --jq '[.[] | select(.bucket == \"fail\" or .bucket == \"failure\" or .bucket == \"cancel\" or .bucket == \"cancelled\")] | length')"
+  merge_state="$(gh pr view <PR#> --json mergeStateStatus --jq '.mergeStateStatus')"
+  mergeable_state="$(gh pr view <PR#> --json mergeable --jq '.mergeable')"
+
+  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ] && [ "$merge_state" != "DIRTY" ] && [ "$mergeable_state" = "MERGEABLE" ]; then
+    break
+  fi
+
+  if [ "$iteration" -eq "$max_iterations" ]; then
+    echo "Loop cap reached (${max_iterations} iterations). Human escalation required."
+    break
+  fi
+
+  sleep 300
+done
 ```
 
 ## Reply Templates

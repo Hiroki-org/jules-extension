@@ -77,13 +77,21 @@ OWNER="Hiroki-org"
 REPO="jules-extension"
 PR_NUMBER="<PR#>"
 
-while true; do
+max_iterations=20
+
+for iteration in $(seq 1 "$max_iterations"); do
   unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
   pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
   failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
   merge_state="$(gh pr view "$PR_NUMBER" --json mergeStateStatus --jq '.mergeStateStatus')"
+  mergeable_state="$(gh pr view "$PR_NUMBER" --json mergeable --jq '.mergeable')"
 
-  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ] && [ "$merge_state" != "DIRTY" ]; then
+  if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ] && [ "$merge_state" != "DIRTY" ] && [ "$mergeable_state" = "MERGEABLE" ]; then
+    break
+  fi
+
+  if [ "$iteration" -eq "$max_iterations" ]; then
+    echo "Loop cap reached (${max_iterations} iterations). Human escalation required."
     break
   fi
 
@@ -102,7 +110,7 @@ gh pr comment <PR#> --body "レビュー指摘対応と thread resolve を完了
 - unresolved threads = 0
 - pending checks = 0
 - failing/cancelled checks = 0
-- `mergeStateStatus != DIRTY`
+- `mergeStateStatus != DIRTY` and `mergeable == MERGEABLE`
 
 ## エスカレーション
 
