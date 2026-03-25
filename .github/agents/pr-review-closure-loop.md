@@ -127,8 +127,8 @@ for iteration in $(seq 1 "$max_iterations"); do
   fi
 
   unresolved_threads="$(count_unresolved_threads "Hiroki-org" "jules-extension" "<PR#>")"
-  pending_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == \"pending\")] | length')"
-  failing_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == \"fail\" or .bucket == \"failure\" or .bucket == \"cancel\" or .bucket == \"cancelled\")] | length')"
+  pending_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
+  failing_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
   merge_state="$(gh pr view <PR#> --json mergeStateStatus --jq '.mergeStateStatus')"
   mergeable_state="$(gh pr view <PR#> --json mergeable --jq '.mergeable')"
 
