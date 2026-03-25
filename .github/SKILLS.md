@@ -112,7 +112,10 @@ max_iterations=20
 
 for iteration in $(seq 1 "$max_iterations"); do
   check_scope="--required"
-  if ! gh pr checks "$PR_NUMBER" --required --json bucket >/dev/null 2>&1; then
+  required_probe="$(gh pr checks "$PR_NUMBER" --required --json bucket 2>&1 || true)"
+  if echo "$required_probe" | grep -qi "no required checks reported"; then
+    check_scope=""
+  elif ! echo "$required_probe" | jq -e . >/dev/null 2>&1; then
     check_scope=""
   fi
 
