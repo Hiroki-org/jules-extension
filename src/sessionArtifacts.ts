@@ -139,12 +139,10 @@ function restoreArtifactsCacheFromGlobalState(now: number): boolean {
             continue;
         }
 
-        let latestChangeSetFiles: { path: string; status?: string }[] | undefined = undefined;
+        let latestChangeSetFiles: ChangeSetFile[] | undefined = undefined;
         if (Array.isArray(entry.latestChangeSetFiles)) {
             latestChangeSetFiles = [];
-            const files = entry.latestChangeSetFiles;
-            for (let i = 0; i < files.length; i += 1) {
-                const file = files[i];
+            for (const file of entry.latestChangeSetFiles) {
                 if (file && typeof file.path === "string") {
                     latestChangeSetFiles.push({
                         path: file.path,
