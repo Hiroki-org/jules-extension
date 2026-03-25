@@ -30,7 +30,7 @@ p { margin: 0 0 8px; }
 #messageInput { width: 100%; min-height: 40px; max-height: 120px; resize: vertical; padding: 8px 12px; border: 1px solid var(--vscode-input-border, transparent); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: inherit; font-size: var(--vscode-editor-font-size); border-radius: 6px; outline: none; }
 #messageInput:focus-visible { border-color: var(--vscode-focusBorder); }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; }
-.session-label { color: var(--vscode-descriptionForeground); font-size: 11px; user-select: none; }
+.session-label { color: var(--vscode-descriptionForeground); font-size: 11px; user-select: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sendButton { padding: 6px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
 #sendButton:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
 #sendButton:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -41,6 +41,10 @@ p { margin: 0 0 8px; }
 .activity-details summary:hover { opacity: 1; text-decoration: underline; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+.shiki { background-color: transparent !important; }
+.shiki span { color: var(--shiki-light); }
+[data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); }
+[data-vscode-theme-kind="vscode-high-contrast"] .shiki span { color: var(--shiki-dark); }
 `;
 
 export const CHAT_JS = `(function() {
@@ -113,7 +117,9 @@ export const CHAT_JS = `(function() {
       copyButton.textContent = "Copied";
       setTimeout(() => copyButton.textContent = originalText, 1200);
     } catch {
+      const originalText = copyButton.textContent;
       copyButton.textContent = "Failed";
+      setTimeout(() => copyButton.textContent = originalText, 1200);
     }
   });
 

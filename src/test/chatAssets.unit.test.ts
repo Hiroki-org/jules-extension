@@ -30,4 +30,31 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_CSS.includes("max-height: 350px"));
     assert.ok(CHAT_CSS.includes("overflow-y: auto"));
   });
+
+  test("CHAT_CSS should keep shiki theme variable selectors", () => {
+    assert.ok(CHAT_CSS.includes(".shiki { background-color: transparent !important; }"));
+    assert.ok(CHAT_CSS.includes(".shiki span { color: var(--shiki-light); }"));
+    assert.ok(
+      CHAT_CSS.includes(
+        '[data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); }',
+      ),
+    );
+    assert.ok(
+      CHAT_CSS.includes(
+        '[data-vscode-theme-kind="vscode-high-contrast"] .shiki span { color: var(--shiki-dark); }',
+      ),
+    );
+  });
+
+  test("CHAT_CSS should keep session label truncation safeguards", () => {
+    assert.ok(CHAT_CSS.includes(".session-label"));
+    assert.ok(CHAT_CSS.includes("max-width: 70%"));
+    assert.ok(CHAT_CSS.includes("text-overflow: ellipsis"));
+    assert.ok(CHAT_CSS.includes("white-space: nowrap"));
+  });
+
+  test("CHAT_JS should reset copy button text after failure", () => {
+    assert.ok(CHAT_JS.includes('copyButton.textContent = "Failed"'));
+    assert.ok(CHAT_JS.includes("setTimeout(() => copyButton.textContent = originalText, 1200)"));
+  });
 });
