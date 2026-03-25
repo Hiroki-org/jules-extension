@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from 'path';
 import { JulesApiClient } from './julesApiClient';
-import { Source as SourceType, type GitHubBranch } from './types';
+import { Source as SourceType } from './types';
 import { BranchesCache, isCacheValid } from './cache';
 import { sanitizeForLogging } from './securityUtils';
 
@@ -9,7 +9,7 @@ const DEFAULT_FALLBACK_BRANCH = 'main';
 const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
 // Cache for remote branches to optimize API calls
-const remoteBranchesCache = new Map<string, { branches: GitHubBranch[]; defaultBranch: string | undefined; timestamp: number }>();
+const remoteBranchesCache = new Map<string, { branches: any[], defaultBranch: string | undefined, timestamp: number }>();
 const REMOTE_BRANCHES_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
 export function clearRemoteBranchesCache() {
     remoteBranchesCache.clear();
@@ -178,16 +178,14 @@ export async function getBranchesForSession(
         let branches: string[] = [];
         let defaultBranch = DEFAULT_FALLBACK_BRANCH;
         let remoteBranches: string[] = [];
-        let existingCachedData: { branches: GitHubBranch[]; defaultBranch: string | undefined; timestamp: number } | undefined;
 
         try {
             const sourceName = selectedSource.name;
             if (!sourceName) {
                 throw new Error("Selected source is missing a name.");
             }
-            existingCachedData = remoteBranchesCache.get(sourceName);
-            let cachedData: { branches: GitHubBranch[]; defaultBranch: string | undefined; timestamp: number };
-            if (forceRefresh || !existingCachedData || (Date.now() - existingCachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {
+            let cachedData = remoteBranchesCache.get(sourceName);
+            if (forceRefresh || !cachedData || (Date.now() - cachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {
                 const sourceDetail = await apiClient.getSource(sourceName);
                 cachedData = {
                     branches: sourceDetail.githubRepo?.branches || [],
@@ -195,23 +193,16 @@ export async function getBranchesForSession(
                     timestamp: Date.now()
                 };
                 remoteBranchesCache.set(sourceName, cachedData);
-            } else {
-                cachedData = existingCachedData;
             }
-            remoteBranches = cachedData.branches.map((b) => b.displayName);
-            branches = [...remoteBranches];
-            defaultBranch = cachedData.defaultBranch || DEFAULT_FALLBACK_BRANCH;
+            if (cachedData) {
+                remoteBranches = cachedData.branches.map((b: any) => b.displayName);
+                branches = [...remoteBranches];
+                defaultBranch = cachedData.defaultBranch || DEFAULT_FALLBACK_BRANCH;
+            }
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error);
             outputChannel.appendLine(`[Jules] Failed to get branches: ${msg}`);
-            if (!forceRefresh && existingCachedData) {
-                remoteBranches = existingCachedData.branches.map((b) => b.displayName);
-                branches = [...remoteBranches];
-                defaultBranch = existingCachedData.defaultBranch || DEFAULT_FALLBACK_BRANCH;
-                outputChannel.appendLine(`[Jules] Falling back to stale branch cache for ${sanitizeForLogging(sourceId)}`);
-            } else {
-                branches = [defaultBranch];
-            }
+            branches = [defaultBranch];
         }
 
         let repository = null; try { repository = await getActiveRepository(outputChannel, { silent }); } catch (e) { }
