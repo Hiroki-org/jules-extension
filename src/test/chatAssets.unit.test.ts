@@ -23,4 +23,11 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_JS.includes("copy-code-button"));
     assert.ok(CHAT_JS.includes("navigator.clipboard.writeText"));
   });
+
+  test("CHAT_CSS should include activity details layout styles", () => {
+    assert.ok(CHAT_CSS.includes(".activity-details"));
+    assert.ok(CHAT_CSS.includes(".details-content"));
+    assert.ok(CHAT_CSS.includes("max-height: 350px"));
+    assert.ok(CHAT_CSS.includes("overflow-y: auto"));
+  });
 });

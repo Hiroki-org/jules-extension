@@ -34,6 +34,13 @@ p { margin: 0 0 8px; }
 #sendButton { padding: 6px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
 #sendButton:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
 #sendButton:disabled { opacity: 0.5; cursor: not-allowed; }
+.activity-log { font-size: 0.9em; opacity: 0.75; margin-bottom: 2px; }
+.activity-details { margin-top: 4px; font-size: 0.9em; }
+.activity-details summary { cursor: pointer; user-select: none; font-weight: 600; opacity: 0.8; padding: 2px 0; outline: none; }
+.activity-details summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.activity-details summary:hover { opacity: 1; text-decoration: underline; }
+.details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
+.details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
 `;
 
 export const CHAT_JS = `(function() {
