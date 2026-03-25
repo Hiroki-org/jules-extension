@@ -12,7 +12,7 @@ import {
   Activity,
   ActivitiesResponse,
 } from "./types";
-import { clearRemoteBranchesCache, getBranchesForSession } from "./branchUtils";
+import { getBranchesForSession } from "./branchUtils";
 import { showMessageComposer } from "./composer";
 import { parseGitHubUrl } from "./githubUtils";
 import { GitHubAuth } from "./githubAuth";
@@ -3403,7 +3403,6 @@ export function activate(context: vscode.ExtensionContext) {
         await Promise.all(
           cacheKeys.map((key) => context.globalState.update(key, undefined)),
         );
-        clearRemoteBranchesCache();
 
         vscode.window.showInformationMessage(
           `Jules cache cleared: ${cacheKeys.length} entries removed`,
