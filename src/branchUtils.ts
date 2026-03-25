@@ -10,10 +10,12 @@ const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
 let cachedRepository: any | null = null;
 let lastActiveDocumentUri: string | undefined;
+let cachedRepositoryCount: number | undefined;
 
 function clearActiveRepositoryCache(documentUri?: string) {
     cachedRepository = null;
     lastActiveDocumentUri = documentUri;
+    cachedRepositoryCount = undefined;
 }
 
 function normalizePathForComparison(fsPath: string): string {
@@ -68,7 +70,11 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
     }
 
     if (options.silent && cachedRepository) {
-        if (activeDocumentUri === lastActiveDocumentUri && isRepositoryStillAvailable(git, cachedRepository)) {
+        if (
+            activeDocumentUri === lastActiveDocumentUri &&
+            cachedRepositoryCount === git.repositories.length &&
+            isRepositoryStillAvailable(git, cachedRepository)
+        ) {
             return cachedRepository;
         }
         clearActiveRepositoryCache(activeDocumentUri);
@@ -120,6 +126,7 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
     if (options.silent && repository) {
         cachedRepository = repository;
         lastActiveDocumentUri = activeDocumentUri;
+        cachedRepositoryCount = git.repositories.length;
     }
 
     return repository;

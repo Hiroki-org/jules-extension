@@ -109,6 +109,27 @@ suite('Performance Optimization - getCurrentBranch', () => {
         assert.strictEqual(second, 'main', 'Should recompute from current git repositories instead of stale cache');
     });
 
+    test('Optimization: repository count changes invalidate cache for non-file editor context', async () => {
+        gitApi.repositories = [
+            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'main' }, remotes: [] } }
+        ];
+        activeEditorState.current = undefined;
+        const first = await getCurrentBranch(outputChannelStub, { silent: true });
+        assert.strictEqual(first, 'main');
+
+        gitApi.repositories = [
+            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'main' }, remotes: [] } },
+            { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'dev' }, remotes: [] } }
+        ];
+
+        const second = await getCurrentBranch(outputChannelStub, { silent: true });
+        assert.strictEqual(second, null, 'Should not reuse stale cache when repository count changed');
+        assert.strictEqual(
+            (outputChannelStub.appendLine as sinon.SinonStub).calledWith('Multiple repositories found and silent mode is on. Cannot determine active repository.'),
+            true
+        );
+    });
+
     test('Optimization: active editor change invalidates cache', async () => {
         const findSpy = sandbox.spy(gitApi.repositories, 'find');
         const firstEditor = buildEditor('/repo2/src/file.ts');
