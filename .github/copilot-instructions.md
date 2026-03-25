@@ -228,7 +228,7 @@ echo "Polling until all conversations are resolved and CI is fully green..."
 while true; do
   unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
   pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
-  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')"
+  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
 
   if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ]; then
     gh pr checks "$PR_NUMBER"
@@ -260,7 +260,7 @@ echo "Polling until unresolved conversations reach zero and CI is fully green...
 while true; do
   unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')" &&
   pending_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "pending")] | length')" &&
-  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')"
+  failing_checks="$(gh pr checks "$PR_NUMBER" --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
 
   if [ "$unresolved_threads" -eq 0 ] && [ "$pending_checks" -eq 0 ] && [ "$failing_checks" -eq 0 ]; then
     gh pr checks "$PR_NUMBER"
@@ -315,6 +315,9 @@ Only merge after all checks are green, all review conversations are resolved, an
 ## Agent Summary
 
 - Read `.github/copilot-instructions.md` first
+- Use `.github/issue-pr-review-loop-runbook.md` as the execution-order reference for issue → PR → review closure loop
+- Use `.github/SKILLS.md` for reusable operational skills (`review-closure-loop`, `ci-check-loop`, `pr-status-check`)
+- For specialized loop execution, prefer `.github/agents/pr-review-closure-loop.md`
 - Create a branch for new work
 - Update tests alongside implementation
 - After opening a PR, follow both review conversations and CI to completion
