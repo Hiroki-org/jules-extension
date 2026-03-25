@@ -72,7 +72,41 @@ OWNER="Hiroki-org"
 REPO="jules-extension"
 PR_NUMBER="<PR#>"
 
-gh pr checks "$PR_NUMBER" --watch --interval 10
+# Optional warm-up watch with timeout guard so loop cap remains effective
+if command -v timeout >/dev/null 2>&1; then
+  timeout 300 gh pr checks "$PR_NUMBER" --watch --interval 10 || true
+fi
+
+count_unresolved_threads() {
+  local owner="$1"
+  local repo="$2"
+  local pr_number="$3"
+  local after=""
+  local unresolved_total=0
+
+  while true; do
+    local response
+    if [ -n "$after" ]; then
+      response="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100, after:$after) { nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }' -F owner="$owner" -F repo="$repo" -F number="$pr_number" -f after="$after")"
+    else
+      response="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }' -F owner="$owner" -F repo="$repo" -F number="$pr_number")"
+    fi
+
+    local unresolved_in_page
+    unresolved_in_page="$(echo "$response" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+    unresolved_total=$((unresolved_total + unresolved_in_page))
+
+    local has_next
+    has_next="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
+    if [ "$has_next" != "true" ]; then
+      break
+    fi
+
+    after="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')"
+  done
+
+  echo "$unresolved_total"
+}
 
 max_iterations=20
 
@@ -82,7 +116,7 @@ for iteration in $(seq 1 "$max_iterations"); do
     check_scope=""
   fi
 
-  unresolved_threads="$(gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved } } } } }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER" --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+  unresolved_threads="$(count_unresolved_threads "$OWNER" "$REPO" "$PR_NUMBER")"
   pending_checks="$(gh pr checks "$PR_NUMBER" $check_scope --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
   failing_checks="$(gh pr checks "$PR_NUMBER" $check_scope --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
   merge_state="$(gh pr view "$PR_NUMBER" --json mergeStateStatus --jq '.mergeStateStatus')"
