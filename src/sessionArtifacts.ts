@@ -350,7 +350,8 @@ function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
 
             extractedStatus = normalizeStatus(record.status)
                 ?? normalizeStatus(record.action)
-                ?? normalizeStatus(record.type)
+                ?? normalizeStatus(record.type);
+
         }
 
         if (extractedPath && !seenPaths.has(extractedPath)) {
