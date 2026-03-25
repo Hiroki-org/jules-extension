@@ -112,10 +112,14 @@ max_iterations=20
 
 for iteration in $(seq 1 "$max_iterations"); do
   check_scope="--required"
+  # `gh pr checks` returns exit code 8 while checks are pending.
+  # Do not use exit status alone to decide fallback scope.
   required_probe="$(gh pr checks "$PR_NUMBER" --required --json bucket 2>&1 || true)"
   if echo "$required_probe" | grep -qi "no required checks reported"; then
     check_scope=""
-  elif ! echo "$required_probe" | jq -e . >/dev/null 2>&1; then
+  elif echo "$required_probe" | jq -e . >/dev/null 2>&1; then
+    : # required checks are available; keep --required scope
+  else
     check_scope=""
   fi
 
