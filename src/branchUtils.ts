@@ -11,26 +11,46 @@ const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 let cachedRepository: any | null = null;
 let lastActiveDocumentUri: string | undefined;
 
-vscode.window.onDidChangeActiveTextEditor(editor => {
-    if (editor && editor.document.uri.scheme === 'file') {
-        const newUri = editor.document.uri.toString();
-        if (newUri !== lastActiveDocumentUri) {
-            cachedRepository = null;
-            lastActiveDocumentUri = newUri;
-        }
-    } else {
-        cachedRepository = null;
-        lastActiveDocumentUri = undefined;
-    }
-});
-
-vscode.workspace.onDidChangeWorkspaceFolders(() => {
+function clearActiveRepositoryCache(documentUri?: string) {
     cachedRepository = null;
-});
+    lastActiveDocumentUri = documentUri;
+}
+
+function normalizePathForComparison(fsPath: string): string {
+    const resolved = path.resolve(fsPath);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+export function initializeActiveRepositoryCache(subscriptions: vscode.Disposable[]): void {
+    subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor?.document.uri.scheme === 'file') {
+                const newUri = editor.document.uri.toString();
+                if (newUri !== lastActiveDocumentUri) {
+                    clearActiveRepositoryCache(newUri);
+                }
+                return;
+            }
+
+            clearActiveRepositoryCache(undefined);
+        }),
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            clearActiveRepositoryCache(undefined);
+        })
+    );
+}
 
 async function getActiveRepository(outputChannel: vscode.OutputChannel, options: { silent?: boolean } = {}): Promise<any | null> {
+    const activeEditor = vscode.window.activeTextEditor;
+    const activeDocumentUri = activeEditor?.document.uri.scheme === 'file'
+        ? activeEditor.document.uri.toString()
+        : undefined;
+
     if (options.silent && cachedRepository) {
-        return cachedRepository;
+        if (activeDocumentUri === lastActiveDocumentUri) {
+            return cachedRepository;
+        }
+        clearActiveRepositoryCache(activeDocumentUri);
     }
 
     const gitExtension = vscode.extensions.getExtension('vscode.git');
@@ -52,20 +72,15 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
         // Multi-root workspace
         if (options.silent) {
             // Try to infer repository from active text editor
-            const activeEditor = vscode.window.activeTextEditor;
-            if (activeEditor && activeEditor.document.uri.scheme === 'file') {
-                const docPath = path.resolve(activeEditor.document.uri.fsPath);
-                for (let i = 0; i < git.repositories.length; i += 1) {
-                    const repo = git.repositories[i];
-                    const gitRoot = repo.rootUri.fsPath;
-                    if (docPath.startsWith(gitRoot)) {
-                        const relative = docPath.slice(gitRoot.length);
-                        if (relative === '' || relative.startsWith(path.sep)) {
-                            repository = repo;
-                            break;
-                        }
-                    }
-                }
+            if (activeEditor?.document.uri.scheme === 'file') {
+                const docPath = normalizePathForComparison(activeEditor.document.uri.fsPath);
+                repository = git.repositories.find((repo: any) => {
+                    const repoPath = normalizePathForComparison(repo.rootUri.fsPath);
+                    const relative = path.relative(repoPath, docPath);
+                    // If relative is empty, docPath is the same as repoPath.
+                    // If relative is not empty, it should not start with '..' and not be an absolute path.
+                    return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+                });
             }
 
             if (!repository) {
@@ -95,10 +110,7 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
 
     if (options.silent && repository) {
         cachedRepository = repository;
-        const activeEditor = vscode.window.activeTextEditor;
-        if (activeEditor) {
-            lastActiveDocumentUri = activeEditor.document.uri.toString();
-        }
+        lastActiveDocumentUri = activeDocumentUri;
     }
 
     return repository;

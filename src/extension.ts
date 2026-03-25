@@ -12,7 +12,7 @@ import {
   Activity,
   ActivitiesResponse,
 } from "./types";
-import { getBranchesForSession } from "./branchUtils";
+import { getBranchesForSession, initializeActiveRepositoryCache } from "./branchUtils";
 import { showMessageComposer } from "./composer";
 import { parseGitHubUrl } from "./githubUtils";
 import { GitHubAuth } from "./githubAuth";
@@ -2281,6 +2281,7 @@ function detectSocksProxy(): string | null {
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
+  initializeActiveRepositoryCache(context.subscriptions);
 
   // SOCKSプロキシ検出と設定
   const socksProxy = detectSocksProxy();
