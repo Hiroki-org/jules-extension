@@ -315,6 +315,9 @@ Only merge after all checks are green, all review conversations are resolved, an
 ## Agent Summary
 
 - Read `.github/copilot-instructions.md` first
+- Use `.github/issue-pr-review-loop-runbook.md` as the execution-order reference for issue → PR → review closure loop
+- Use `.github/SKILLS.md` for reusable operational skills (`review-closure-loop`, `ci-check-loop`, `pr-status-check`)
+- For specialized loop execution, prefer `.github/agents/pr-review-closure-loop.md`
 - Create a branch for new work
 - Update tests alongside implementation
 - After opening a PR, follow both review conversations and CI to completion
