@@ -1203,14 +1203,25 @@ export function mergeActivitiesByIdentity(
     }
   }
 
-  return [...mergedMap.values()].sort((a, b) => {
-    const at = Date.parse(a.createTime || "");
-    const bt = Date.parse(b.createTime || "");
-    if (!Number.isNaN(at) && !Number.isNaN(bt) && at !== bt) {
-      return at - bt;
+  const values = [...mergedMap.values()];
+  const mapped = new Array<{ item: Activity; time: number }>(values.length);
+  for (let i = 0; i < values.length; i += 1) {
+    const item = values[i];
+    mapped[i] = { item, time: Date.parse(item.createTime || "") };
+  }
+
+  mapped.sort((a, b) => {
+    if (!Number.isNaN(a.time) && !Number.isNaN(b.time) && a.time !== b.time) {
+      return a.time - b.time;
     }
-    return (a.name || a.id || "").localeCompare(b.name || b.id || "");
+    const aItem = a.item;
+    const bItem = b.item;
+    return (aItem.name || aItem.id || "").localeCompare(
+      bItem.name || bItem.id || "",
+    );
   });
+
+  return mapped.map((m) => m.item);
 }
 
 function buildActivitySummaryHeader(
