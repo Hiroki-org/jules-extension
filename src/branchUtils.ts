@@ -204,7 +204,7 @@ export async function getBranchesForSession(
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error);
             outputChannel.appendLine(`[Jules] Failed to get branches: ${msg}`);
-            if (!forceRefresh && existingCachedData) {
+            if (existingCachedData) {
                 remoteBranches = existingCachedData.branches.map((b) => b.displayName);
                 branches = [...remoteBranches];
                 defaultBranch = existingCachedData.defaultBranch || DEFAULT_FALLBACK_BRANCH;
