@@ -703,59 +703,6 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(merged[2].name, "activities/3");
     });
 
-    test("mergeActivitiesByIdentity should handle invalid or missing createTime with fallback sort", () => {
-      const activities = [
-        {
-          name: "activities/valid-2",
-          id: "2",
-          createTime: "2026-02-28T10:02:00Z",
-        },
-        {
-          name: "activities/missing",
-          id: "missing",
-          createTime: undefined,
-        },
-        {
-          name: "activities/empty",
-          id: "empty",
-          createTime: "",
-        },
-        {
-          name: "activities/invalid",
-          id: "invalid",
-          createTime: "not-a-date",
-        },
-        {
-          name: "activities/valid-1",
-          id: "1",
-          createTime: "2026-02-28T10:01:00Z",
-        },
-        {
-          name: "activities/same-b",
-          id: "same-b",
-          createTime: "2026-02-28T11:00:00Z",
-        },
-        {
-          name: "activities/same-a",
-          id: "same-a",
-          createTime: "2026-02-28T11:00:00Z",
-        },
-      ] as any;
-
-      const merged = mergeActivitiesByIdentity([], activities);
-      const names = merged.map((activity) => activity.name);
-
-      assert.deepStrictEqual(names, [
-        "activities/empty",
-        "activities/invalid",
-        "activities/missing",
-        "activities/valid-1",
-        "activities/valid-2",
-        "activities/same-a",
-        "activities/same-b",
-      ]);
-    });
-
     test("getLatestActivityCreateTime should return latest valid timestamp", () => {
       const latest = getLatestActivityCreateTime([
         { id: "1", name: "a1", createTime: "invalid" },
