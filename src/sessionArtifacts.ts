@@ -139,15 +139,23 @@ function restoreArtifactsCacheFromGlobalState(now: number): boolean {
             continue;
         }
 
-        const latestChangeSetFiles = Array.isArray(entry.latestChangeSetFiles)
-            ? entry.latestChangeSetFiles
-                .filter((file) => file && typeof file.path === "string")
-                .map((file) => ({
-                    path: file.path,
-                    status: typeof file.status === "string" ? file.status : undefined,
-                }))
-                .slice(0, MAX_PERSISTED_CHANGESET_FILES)
-            : undefined;
+        let latestChangeSetFiles: { path: string; status?: string }[] | undefined = undefined;
+        if (Array.isArray(entry.latestChangeSetFiles)) {
+            latestChangeSetFiles = [];
+            const files = entry.latestChangeSetFiles;
+            for (let i = 0; i < files.length; i += 1) {
+                const file = files[i];
+                if (file && typeof file.path === "string") {
+                    latestChangeSetFiles.push({
+                        path: file.path,
+                        status: typeof file.status === "string" ? file.status : undefined,
+                    });
+                    if (latestChangeSetFiles.length >= MAX_PERSISTED_CHANGESET_FILES) {
+                        break;
+                    }
+                }
+            }
+        }
 
         const restoredDiff =
             typeof entry.latestDiff === "string" && shouldPersistDiff(entry.latestDiff)
