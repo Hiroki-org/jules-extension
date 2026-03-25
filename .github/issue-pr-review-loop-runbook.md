@@ -37,7 +37,8 @@ git switch -c feat/issue-<number>-<topic> origin/main
 
 ```bash
 pnpm run check-types && pnpm run lint && pnpm run test:unit
-git add -A
+git status --short
+git add <changed-files>
 git commit -m "feat(<scope>): <summary>"
 git push -u origin <branch>
 gh pr create --base main --head <branch> --title "<title>" --body $'<概要>\n\nCloses #<ISSUE_NUMBER>'
@@ -51,7 +52,8 @@ gh pr create --base main --head <branch> --title "<title>" --body $'<概要>\n\n
 
 ```bash
 gh pr view <PR#> --json number,state,mergeStateStatus,mergeable,reviewDecision,reviews,comments,statusCheckRollup,headRefName,baseRefName
-gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } } } } }' -f owner=Hiroki-org -f repo=jules-extension -F pr=<PR#>
+# Repeat with `-f after="<endCursor>"` while `hasNextPage` is true.
+gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100, after:$after) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } pageInfo { hasNextPage endCursor } } } } }' -f owner=Hiroki-org -f repo=jules-extension -F pr=<PR#>
 ```
 
 2. 各スレッドを判定

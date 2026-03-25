@@ -26,6 +26,7 @@ You are a specialist for closing PR review loops in `Hiroki-org/jules-extension`
 - pending checks: `0`
 - failing/cancelled checks: `0`
 - merge state is not conflict (`mergeStateStatus != DIRTY`)
+- mergeability is ready (`mergeable == MERGEABLE`)
 
 ## Policy Locks
 
@@ -51,7 +52,7 @@ You are a specialist for closing PR review loops in `Hiroki-org/jules-extension`
 4. Execute ADDRESS changes (code/test), commit, and push if needed.
 5. Reply to each processed thread, then resolve it.
 6. Monitor checks:
-   - `gh pr checks <PR#> --watch --interval 10`
+   - `if command -v timeout >/dev/null 2>&1; then timeout 300 gh pr checks <PR#> --watch --interval 10 || true; fi`
 7. Poll until completion:
    - check unresolved/pending/failing/merge-state/mergeable
    - use required checks (`gh pr checks --required`) when available; if not available, fallback to all checks
@@ -66,7 +67,8 @@ gh pr view <PR#> --json number,state,mergeStateStatus,mergeable,reviewDecision,r
 ```
 
 ```bash
-gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } } } } }' -F owner=Hiroki-org -F repo=jules-extension -F number=<PR#>
+# Repeat with `-f after="<endCursor>"` while `hasNextPage` is true.
+gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100, after:$after) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } pageInfo { hasNextPage endCursor } } } } }' -F owner=Hiroki-org -F repo=jules-extension -F number=<PR#>
 ```
 
 ```bash

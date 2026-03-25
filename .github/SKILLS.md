@@ -29,19 +29,21 @@ PR_NUMBER="<PR#>"
 
 # 1) Collect unresolved threads
 gh api graphql -f query='
-query($owner:String!, $repo:String!, $number:Int!) {
+query($owner:String!, $repo:String!, $number:Int!, $after:String) {
   repository(owner:$owner, name:$repo) {
     pullRequest(number:$number) {
-      reviewThreads(first:100) {
+      reviewThreads(first:100, after:$after) {
         nodes {
           id
           isResolved
           comments(first:20) { nodes { databaseId author { login } body path line url } }
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
 }' -F owner="$OWNER" -F repo="$REPO" -F number="$PR_NUMBER"
+# Repeat with -f after="<endCursor>" while hasNextPage is true.
 
 # 2) For each unresolved thread:
 #    - ADDRESS: implement fix, commit, push, reply in thread
@@ -167,7 +169,8 @@ Then for each PR:
 
 ```bash
 gh pr checks <PR#> --json name,bucket,state
-gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100) { nodes { isResolved } } } } }' -f owner=Hiroki-org -f repo=jules-extension -F pr=<PR#>
+# Repeat with `-f after="<endCursor>"` while `hasNextPage` is true.
+gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100, after:$after) { nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }' -f owner=Hiroki-org -f repo=jules-extension -F pr=<PR#>
 ```
 
 **Output**:
