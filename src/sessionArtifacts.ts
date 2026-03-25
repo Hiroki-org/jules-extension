@@ -340,12 +340,18 @@ function tryExtractFromCandidate(candidate: unknown): ChangeSetFile[] | null {
             extractedPath = normalizePath(entry);
         } else if (entry && typeof entry === 'object') {
             const record = entry as Record<string, unknown>;
-            extractedPath = [record.path, record.filePath, record.file, record.name, record.filename]
-                .map(normalizePath)
-                .find(path => path !== null) ?? null;
-            extractedStatus = [record.status, record.action, record.type]
-                .map(normalizeStatus)
-                .find(status => status !== undefined);
+
+            extractedPath = normalizePath(record.path)
+                ?? normalizePath(record.filePath)
+                ?? normalizePath(record.file)
+                ?? normalizePath(record.name)
+                ?? normalizePath(record.filename)
+                ?? null;
+
+            extractedStatus = normalizeStatus(record.status)
+                ?? normalizeStatus(record.action)
+                ?? normalizeStatus(record.type)
+                ?? undefined;
         }
 
         if (extractedPath && !seenPaths.has(extractedPath)) {
