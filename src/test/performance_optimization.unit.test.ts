@@ -100,6 +100,19 @@ suite('Performance Optimization - getCurrentBranch', () => {
         assert.strictEqual(findSpy.callCount, 1, 'second call should reuse cached repository');
     });
 
+    test('Optimization: stale cached repository is not reused after repository set changes', async () => {
+        activeEditorState.current = buildEditor('/repo2/src/file.ts');
+        const first = await getCurrentBranch(outputChannelStub, { silent: true });
+        assert.strictEqual(first, 'dev');
+
+        gitApi.repositories = [
+            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'main' }, remotes: [] } }
+        ];
+
+        const second = await getCurrentBranch(outputChannelStub, { silent: true });
+        assert.strictEqual(second, 'main', 'Should recompute from current git repositories instead of stale cache');
+    });
+
     test('Optimization: active editor change invalidates cache', async () => {
         const findSpy = sandbox.spy(gitApi.repositories, 'find');
         const firstEditor = buildEditor('/repo2/src/file.ts');

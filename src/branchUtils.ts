@@ -21,6 +21,15 @@ function normalizePathForComparison(fsPath: string): string {
     return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
+function isRepositoryStillAvailable(git: any, repository: any): boolean {
+    if (!repository?.rootUri?.fsPath) {
+        return false;
+    }
+
+    const cachedRoot = normalizePathForComparison(repository.rootUri.fsPath);
+    return git.repositories.some((repo: any) => normalizePathForComparison(repo.rootUri.fsPath) === cachedRoot);
+}
+
 export function initializeActiveRepositoryCache(subscriptions: vscode.Disposable[]): void {
     subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
@@ -46,13 +55,6 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
         ? activeEditor.document.uri.toString()
         : undefined;
 
-    if (options.silent && cachedRepository) {
-        if (activeDocumentUri === lastActiveDocumentUri) {
-            return cachedRepository;
-        }
-        clearActiveRepositoryCache(activeDocumentUri);
-    }
-
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
         outputChannel.appendLine('Git extension not available');
@@ -63,6 +65,13 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
     if (!git || git.repositories.length === 0) {
         outputChannel.appendLine('No git repositories found');
         return null;
+    }
+
+    if (options.silent && cachedRepository) {
+        if (activeDocumentUri === lastActiveDocumentUri && isRepositoryStillAvailable(git, cachedRepository)) {
+            return cachedRepository;
+        }
+        clearActiveRepositoryCache(activeDocumentUri);
     }
 
     let repository;
