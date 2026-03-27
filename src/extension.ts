@@ -1312,6 +1312,7 @@ async function fetchAllSessionsPaginated(
             "X-Goog-Api-Key": apiKey,
             "Content-Type": "application/json",
           },
+          timeout: 60000,
         },
       );
 
