@@ -68,7 +68,8 @@
         "jules-extension.enforceJapanese": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically append an instruction that GitHub interactions should be written in Japanese."
+          "description": "Automatically append an instruction to enforce Japanese language for all GitHub interactions (PRs, comments).",
+          "markdownDescription": "If enabled, Jules will automatically use Japanese for all GitHub interactions like Pull Request titles, descriptions, and commit messages."
         },
         "jules-extension.hideClosedPRSessions": {
           "type": "boolean",

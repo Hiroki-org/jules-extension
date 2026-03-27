@@ -2304,30 +2304,27 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
 
   // プロキシ検出と設定
-  let proxy = detectProxy();
+  const proxy = detectProxy();
   if (proxy) {
     try {
       new URL(proxy.url);
     } catch {
-      console.warn(
+      console.error(
         `Jules: Invalid proxy URL: ${stripUrlCredentials(proxy.url)}`,
       );
-      vscode.window.showWarningMessage(
-        `無効なプロキシURL（${stripUrlCredentials(proxy.url)}）が検出されました。プロキシなしで続行します。`,
-      );
-      proxy = null;
+      return;
     }
-    if (proxy) {
+    if (proxy.type === 'socks') {
+      setSocksProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
-      const proxyTypeDisplay =
-        proxy.type === "socks" ? "SOCKSプロキシ" : "HTTP/HTTPSプロキシ";
-      if (proxy.type === 'socks') {
-        setSocksProxy(proxy.url);
-      } else {
-        setHttpProxy(proxy.url);
-      }
       vscode.window.showInformationMessage(
-        `${proxyTypeDisplay}（${safeProxy}）経由で接続します。`,
+        `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
+      );
+    } else {
+      setHttpProxy(proxy.url);
+      const safeProxy = stripUrlCredentials(proxy.url);
+      vscode.window.showInformationMessage(
+        `HTTP/HTTPSプロキシ（${safeProxy}）経由で接続します。`,
       );
     }
   }

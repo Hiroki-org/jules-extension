@@ -6,17 +6,13 @@ import * as vscode from "vscode";
  * @returns The combined prompt with custom instructions at the beginning.
  */
 export function buildFinalPrompt(userPrompt: string): string {
-  const extensionConfig = vscode.workspace.getConfiguration("jules-extension");
-  const customPrompt = extensionConfig.get<string>("customPrompt", "");
-  const enforceJapanese = extensionConfig.get<boolean>("enforceJapanese", true);
+  const customPrompt = vscode.workspace
+    .getConfiguration("jules-extension")
+    .get<string>("customPrompt", "");
 
   const basePrompt = customPrompt ? `${customPrompt}
 
 ${userPrompt}` : userPrompt;
-
-  if (!enforceJapanese) {
-    return basePrompt;
-  }
 
   const japaneseInstruction = "Please use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).";
 

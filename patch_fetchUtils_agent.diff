@@ -1,0 +1,19 @@
+<<<<<<< SEARCH
+        const options: https.RequestOptions = {
+            hostname: url.hostname,
+            port,
+            path: url.pathname + url.search,
+            method,
+            headers,
+            agent: agent as any,
+        };
+=======
+        const options: https.RequestOptions = {
+            hostname: url.hostname,
+            port,
+            path: url.pathname + url.search,
+            method,
+            headers,
+            agent: agent as http.Agent,
+        };
+>>>>>>> REPLACE
