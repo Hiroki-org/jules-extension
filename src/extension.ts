@@ -177,6 +177,7 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
 }
 let autoRefreshInterval: NodeJS.Timeout | undefined;
 let isFetchingSensitiveData = false;
+let isRefreshingActiveChatSession = false;
 
 // Helper functions
 
@@ -1145,7 +1146,7 @@ async function refreshSessionActivitiesCacheFromApi(
   const previousLatestCreateTime =
     context.globalState.get<string>(latestCreateTimeKey);
   const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
-  const useDeltaFetch =
+  const shouldMergeWithCache =
     !!previousLatestCreateTime && cachedActivities.length > 0;
 
   const newActivities = await fetchSessionActivitiesPaginated(
@@ -1156,7 +1157,7 @@ async function refreshSessionActivitiesCacheFromApi(
     },
   );
 
-  const mergedActivities = useDeltaFetch
+  const mergedActivities = shouldMergeWithCache
     ? mergeActivitiesByIdentity(cachedActivities, newActivities)
     : mergeActivitiesByIdentity([], newActivities);
 
@@ -1172,72 +1173,85 @@ export async function refreshActiveChatSessionFromAutoRefresh(
   context: vscode.ExtensionContext,
   chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
 ): Promise<void> {
-  const activeSessionId = context.globalState.get<string>("active-session-id");
-  if (!activeSessionId || !isValidSessionId(activeSessionId)) {
-    return;
-  }
-
-  const apiKey = await context.secrets.get("jules-api-key");
-  if (!apiKey) {
-    return;
-  }
-
-  const sessionResponse = await fetchWithTimeout(
-    `${JULES_API_BASE_URL}/${activeSessionId}`,
-    {
-      method: "GET",
-      headers: {
-        "X-Goog-Api-Key": apiKey,
-        "Content-Type": "application/json",
-      },
-    },
-  );
-  if (!sessionResponse.ok) {
-    const errorText = await sessionResponse.text();
-    throw new Error(
-      `Failed to fetch active session for chat polling: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`,
+  if (isRefreshingActiveChatSession) {
+    logChannel.appendLine(
+      "Jules: Active chat session refresh already in progress. Skipping.",
     );
+    return;
   }
 
-  const sessionDetails = (await sessionResponse.json()) as {
-    state?: string;
-    title?: string;
-    createTime?: string;
-  };
+  isRefreshingActiveChatSession = true;
+  try {
+    const activeSessionId = context.globalState.get<string>("active-session-id");
+    if (!activeSessionId || !isValidSessionId(activeSessionId)) {
+      return;
+    }
 
-  const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(activeSessionId);
-  const previousLatestCreateTime =
-    context.globalState.get<string>(latestCreateTimeKey);
-  const cachedActivities = sessionActivitiesCache.get(activeSessionId) || [];
-  const useDeltaFetch =
-    !!previousLatestCreateTime && cachedActivities.length > 0;
+    const apiKey = await context.secrets.get("jules-api-key");
+    if (!apiKey) {
+      return;
+    }
 
-  const newActivities = await fetchSessionActivitiesPaginated(
-    apiKey,
-    activeSessionId,
-    {
-      showPaginationProgress: false,
-    },
-  );
+    const sessionResponse = await fetchWithTimeout(
+      `${JULES_API_BASE_URL}/${activeSessionId}`,
+      {
+        method: "GET",
+        headers: {
+          "X-Goog-Api-Key": apiKey,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    if (!sessionResponse.ok) {
+      const errorText = await sessionResponse.text();
+      throw new Error(
+        `Failed to fetch active session for chat polling: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`,
+      );
+    }
 
-  const mergedActivities = useDeltaFetch
-    ? mergeActivitiesByIdentity(cachedActivities, newActivities)
-    : mergeActivitiesByIdentity([], newActivities);
+    const sessionDetails = (await sessionResponse.json()) as {
+      state?: string;
+      title?: string;
+      createTime?: string;
+    };
 
-  addToActivitiesCache(activeSessionId, mergedActivities);
+    const latestCreateTimeKey =
+      getActivitiesLatestCreateTimeKey(activeSessionId);
+    const previousLatestCreateTime =
+      context.globalState.get<string>(latestCreateTimeKey);
+    const cachedActivities = sessionActivitiesCache.get(activeSessionId) || [];
+    const shouldMergeWithCache =
+      !!previousLatestCreateTime && cachedActivities.length > 0;
 
-  const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
-  if (latestCreateTime) {
-    await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+    const newActivities = await fetchSessionActivitiesPaginated(
+      apiKey,
+      activeSessionId,
+      {
+        showPaginationProgress: false,
+      },
+    );
+
+    const mergedActivities = shouldMergeWithCache
+      ? mergeActivitiesByIdentity(cachedActivities, newActivities)
+      : mergeActivitiesByIdentity([], newActivities);
+
+    addToActivitiesCache(activeSessionId, mergedActivities);
+
+    const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
+    if (latestCreateTime) {
+      await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+    }
+
+    chatViewProvider.updateSession(
+      activeSessionId,
+      mergedActivities,
+      sessionDetails.state,
+      sessionDetails.title,
+      sessionDetails.createTime,
+    );
+  } finally {
+    isRefreshingActiveChatSession = false;
   }
-
-  chatViewProvider.updateSession(
-    activeSessionId,
-    mergedActivities,
-    sessionDetails.state,
-    sessionDetails.title,
-    sessionDetails.createTime,
-  );
 }
 
 function getActivitiesLatestCreateTimeKey(sessionId: string): string {
@@ -3051,7 +3065,7 @@ export function activate(context: vscode.ExtensionContext) {
         const previousLatestCreateTime =
           context.globalState.get<string>(latestCreateTimeKey);
         const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
-        const useDeltaFetch =
+        const shouldMergeWithCache =
           !!previousLatestCreateTime && cachedActivities.length > 0;
 
         const newActivities = await fetchSessionActivitiesPaginated(
@@ -3062,7 +3076,7 @@ export function activate(context: vscode.ExtensionContext) {
           },
         );
 
-        const mergedActivities = useDeltaFetch
+        const mergedActivities = shouldMergeWithCache
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)
           : mergeActivitiesByIdentity([], newActivities);
 
