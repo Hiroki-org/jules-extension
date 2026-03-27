@@ -384,9 +384,15 @@ suite("Extension Test Suite", () => {
 
     test("should prepend custom prompt to user prompt", () => {
       const workspaceConfig = {
-        get: sinon.stub()
-          .withArgs("customPrompt", "").returns("My custom prompt")
-          .withArgs("enforceJapanese", true).returns(true),
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === "customPrompt") {
+            return "My custom prompt";
+          }
+          if (key === "enforceJapanese") {
+            return true;
+          }
+          return defaultValue;
+        },
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -397,9 +403,15 @@ suite("Extension Test Suite", () => {
 
     test("should return only user prompt if custom prompt is empty", () => {
       const workspaceConfig = {
-        get: sinon.stub()
-          .withArgs("customPrompt", "").returns("")
-          .withArgs("enforceJapanese", true).returns(true),
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === "customPrompt") {
+            return "";
+          }
+          if (key === "enforceJapanese") {
+            return true;
+          }
+          return defaultValue;
+        },
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -410,9 +422,15 @@ suite("Extension Test Suite", () => {
 
     test("should return only user prompt if custom prompt is not set", () => {
       const workspaceConfig = {
-        get: sinon.stub()
-          .withArgs("customPrompt", "").returns(undefined)
-          .withArgs("enforceJapanese", true).returns(true),
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === "customPrompt") {
+            return undefined;
+          }
+          if (key === "enforceJapanese") {
+            return true;
+          }
+          return defaultValue;
+        },
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -423,9 +441,15 @@ suite("Extension Test Suite", () => {
 
     test("should not append Japanese instruction when enforceJapanese is false", () => {
       const workspaceConfig = {
-        get: sinon.stub()
-          .withArgs("customPrompt", "").returns("")
-          .withArgs("enforceJapanese", true).returns(false),
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === "customPrompt") {
+            return "";
+          }
+          if (key === "enforceJapanese") {
+            return false;
+          }
+          return defaultValue;
+        },
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
