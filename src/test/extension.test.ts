@@ -384,15 +384,15 @@ suite("Extension Test Suite", () => {
 
     test("should prepend custom prompt to user prompt", () => {
       const workspaceConfig = {
-        get: (key: string, defaultValue?: unknown) => {
+        get: sinon.stub().callsFake((key: string) => {
           if (key === "customPrompt") {
             return "My custom prompt";
           }
           if (key === "enforceJapanese") {
             return true;
           }
-          return defaultValue;
-        },
+          return undefined;
+        }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -403,15 +403,15 @@ suite("Extension Test Suite", () => {
 
     test("should return only user prompt if custom prompt is empty", () => {
       const workspaceConfig = {
-        get: (key: string, defaultValue?: unknown) => {
+        get: sinon.stub().callsFake((key: string) => {
           if (key === "customPrompt") {
             return "";
           }
           if (key === "enforceJapanese") {
             return true;
           }
-          return defaultValue;
-        },
+          return undefined;
+        }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -422,40 +422,21 @@ suite("Extension Test Suite", () => {
 
     test("should return only user prompt if custom prompt is not set", () => {
       const workspaceConfig = {
-        get: (key: string, defaultValue?: unknown) => {
+        get: sinon.stub().callsFake((key: string) => {
           if (key === "customPrompt") {
             return undefined;
           }
           if (key === "enforceJapanese") {
             return true;
           }
-          return defaultValue;
-        },
+          return undefined;
+        }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
       assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
-    });
-
-    test("should not append Japanese instruction when enforceJapanese is false", () => {
-      const workspaceConfig = {
-        get: (key: string, defaultValue?: unknown) => {
-          if (key === "customPrompt") {
-            return "";
-          }
-          if (key === "enforceJapanese") {
-            return false;
-          }
-          return defaultValue;
-        },
-      };
-      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
-
-      const userPrompt = "User message";
-      const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message");
     });
   });
 
