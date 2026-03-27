@@ -53,7 +53,7 @@ async function fetchViaProxy(
             path: url.pathname + url.search,
             method,
             headers,
-            agent: agent as any,
+            agent: agent as http.Agent,
         };
 
         const transport: typeof https = isHttps ? https : (http as unknown as typeof https);

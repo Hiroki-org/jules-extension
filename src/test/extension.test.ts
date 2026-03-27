@@ -383,8 +383,11 @@ suite("Extension Test Suite", () => {
     });
 
     test("should prepend custom prompt to user prompt", () => {
+      const getStub = sinon.stub();
+      getStub.withArgs("customPrompt", "").returns("My custom prompt");
+      getStub.withArgs("enforceJapanese", true).returns(true);
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
+        get: getStub,
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -394,8 +397,11 @@ suite("Extension Test Suite", () => {
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
+      const getStub = sinon.stub();
+      getStub.withArgs("customPrompt", "").returns("");
+      getStub.withArgs("enforceJapanese", true).returns(true);
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns(""),
+        get: getStub,
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -405,14 +411,31 @@ suite("Extension Test Suite", () => {
     });
 
     test("should return only user prompt if custom prompt is not set", () => {
+      const getStub = sinon.stub();
+      getStub.withArgs("customPrompt", "").returns(undefined);
+      getStub.withArgs("enforceJapanese", true).returns(true);
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns(undefined),
+        get: getStub,
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
       assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
+    });
+
+    test("should return base prompt when enforceJapanese is false", () => {
+      const getStub = sinon.stub();
+      getStub.withArgs("customPrompt", "").returns("My custom prompt");
+      getStub.withArgs("enforceJapanese", true).returns(false);
+      const workspaceConfig = {
+        get: getStub,
+      };
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+
+      const userPrompt = "User message";
+      const finalPrompt = buildFinalPrompt(userPrompt);
+      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
     });
   });
 

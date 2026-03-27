@@ -65,6 +65,11 @@
           "description": "A custom prompt to automatically prepend to every message sent to Jules. This acts as a persistent instruction.",
           "markdownDescription": "Enter a custom prompt that will be automatically added to the beginning of every message you send to Jules. This is useful for providing persistent instructions or context.\n\n**Example:**\n`Always reply in Japanese.`"
         },
+        "jules-extension.enforceJapanese": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically append an instruction that GitHub interactions should be written in Japanese."
+        },
         "jules-extension.hideClosedPRSessions": {
           "type": "boolean",
           "default": true,
