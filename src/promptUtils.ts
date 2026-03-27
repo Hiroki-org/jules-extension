@@ -9,7 +9,14 @@ export function buildFinalPrompt(userPrompt: string): string {
   const customPrompt = vscode.workspace
     .getConfiguration("jules-extension")
     .get<string>("customPrompt", "");
-  return customPrompt ? `${customPrompt}
+
+  const basePrompt = customPrompt ? `${customPrompt}
 
 ${userPrompt}` : userPrompt;
+
+  const japaneseInstruction = "Please use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).";
+
+  return `${basePrompt}
+
+${japaneseInstruction}`;
 }
