@@ -103,6 +103,9 @@ async function fetchViaProxy(
 /**
  * Performs a fetch with a specified timeout.
  * Defaults to 30 seconds.
+ * Proxy priority: SOCKS proxy > HTTP proxy > direct fetch.
+ * The proxy logic is delegated to fetchViaProxy(). To change this behavior,
+ * adjust the branch order below.
  */
 export async function fetchWithTimeout(input: string | URL | Request, init?: RequestInit & { timeout?: number }): Promise<Response> {
     const timeout = init?.timeout ?? 30000;

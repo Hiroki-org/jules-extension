@@ -8,11 +8,20 @@ suite("sessionUtils Test Suite", () => {
     let fetchStub: sinon.SinonStub;
     let windowProgressStub: sinon.SinonStub;
     let executeCommandStub: sinon.SinonStub;
+    let getConfigurationStub: sinon.SinonStub;
+    let configGetStub: sinon.SinonStub;
 
     setup(() => {
         fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout");
         windowProgressStub = sinon.stub(vscode.window, "withProgress");
         executeCommandStub = sinon.stub(vscode.commands, "executeCommand").resolves();
+        configGetStub = sinon.stub();
+        configGetStub.withArgs("customPrompt", "").returns("");
+        configGetStub.withArgs("enforceJapanese", true).returns(true);
+        configGetStub.callsFake((_key: string, defaultValue: unknown) => defaultValue);
+        getConfigurationStub = sinon.stub(vscode.workspace, "getConfiguration").returns({
+            get: configGetStub,
+        } as any);
     });
 
     teardown(() => {
@@ -98,6 +107,20 @@ suite("sessionUtils Test Suite", () => {
         
         const payload = JSON.parse(options.body);
         assert.strictEqual(payload.prompt, "test message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
+    });
+
+    test("sendMessage omits Japanese instruction when enforceJapanese is false", async () => {
+        fetchStub.resolves({
+            ok: true,
+        } as Response);
+        configGetStub.withArgs("enforceJapanese", true).returns(false);
+
+        await sendMessage("dummy-key", "sessions/123", "test message");
+
+        const [, options] = fetchStub.firstCall.args;
+        const payload = JSON.parse(options.body);
+        assert.strictEqual(payload.prompt, "test message");
+        assert.ok(getConfigurationStub.calledWith("jules-extension"));
     });
 
     test("sendMessage throws error when API fails", async () => {
