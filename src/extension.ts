@@ -178,6 +178,7 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
 let autoRefreshInterval: NodeJS.Timeout | undefined;
 let isFetchingSensitiveData = false;
 let isRefreshingActiveChatSession = false;
+let isAutoRefreshPipelineRunning = false;
 
 // Helper functions
 
@@ -1036,16 +1037,25 @@ function startAutoRefresh(
   }
 
   autoRefreshInterval = setInterval(() => {
+    if (isAutoRefreshPipelineRunning) {
+      logChannel.appendLine("Jules: Auto-refresh pipeline already in progress. Skipping.");
+      return;
+    }
+    isAutoRefreshPipelineRunning = true;
     logChannel.appendLine("Jules: Auto-refresh triggered");
-    sessionsProvider.refresh(true); // Pass true for background refresh
-    void refreshActiveChatSessionFromAutoRefresh(
-      context,
-      chatViewProvider,
-    ).catch((error: unknown) => {
-      logChannel.appendLine(
-        `Jules: Failed to refresh active chat session during auto-refresh: ${sanitizeError(error)}`,
-      );
-    });
+    void sessionsProvider
+      .refresh(true) // Pass true for background refresh
+      .then(async () => {
+        await refreshActiveChatSessionFromAutoRefresh(context, chatViewProvider);
+      })
+      .catch((error: unknown) => {
+        logChannel.appendLine(
+          `Jules: Auto-refresh pipeline failed: ${sanitizeError(error)}`,
+        );
+      })
+      .finally(() => {
+        isAutoRefreshPipelineRunning = false;
+      });
   }, interval);
 }
 
@@ -1054,6 +1064,7 @@ function stopAutoRefresh(): void {
     clearInterval(autoRefreshInterval);
     autoRefreshInterval = undefined;
   }
+  isAutoRefreshPipelineRunning = false;
 }
 
 function resetAutoRefresh(
@@ -1234,6 +1245,15 @@ export async function refreshActiveChatSessionFromAutoRefresh(
     const mergedActivities = shouldMergeWithCache
       ? mergeActivitiesByIdentity(cachedActivities, newActivities)
       : mergeActivitiesByIdentity([], newActivities);
+
+    const currentActiveSessionId =
+      context.globalState.get<string>("active-session-id");
+    if (currentActiveSessionId !== activeSessionId) {
+      logChannel.appendLine(
+        "Jules: Discarding stale active chat refresh result.",
+      );
+      return;
+    }
 
     addToActivitiesCache(activeSessionId, mergedActivities);
 

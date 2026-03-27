@@ -877,6 +877,68 @@ suite("Extension Test Suite", () => {
 
       assert.strictEqual(updateSessionStub.callCount, 0);
     });
+
+    test("should discard stale result when active session changes during in-flight refresh", async () => {
+      let activeSessionId = "sessions/slow";
+      const updateSessionStub = sandbox.stub();
+      const updateGlobalStateStub = sandbox.stub().resolves();
+
+      let resolveActivitiesFetch: ((value: unknown) => void) | undefined;
+      const activitiesFetchPromise = new Promise((resolve) => {
+        resolveActivitiesFetch = resolve;
+      });
+
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({
+          state: "IN_PROGRESS",
+          title: "Slow Session",
+          createTime: "2026-03-01T00:00:00Z",
+        }),
+      } as any);
+      fetchStub.onSecondCall().returns(activitiesFetchPromise as any);
+
+      const context = {
+        globalState: {
+          get: sandbox.stub().callsFake((key: string) => {
+            if (key === "active-session-id") {
+              return activeSessionId;
+            }
+            return undefined;
+          }),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      const refreshPromise = refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      // Simulate user switching active session while the first refresh is in flight.
+      activeSessionId = "sessions/newer";
+
+      resolveActivitiesFetch?.({
+        ok: true,
+        json: async () => ({
+          activities: [
+            {
+              id: "1",
+              name: "activities/1",
+              createTime: "2026-03-01T00:01:00Z",
+              agentMessaged: { agentMessage: "stale" },
+            },
+          ],
+        }),
+      } as any);
+
+      await refreshPromise;
+
+      assert.strictEqual(updateSessionStub.callCount, 0);
+      assert.strictEqual(updateGlobalStateStub.callCount, 0);
+    });
   });
 
   suite("areSessionListsEqual", () => {
