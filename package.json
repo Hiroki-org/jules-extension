@@ -386,5 +386,11 @@
     "markdown-it": "^14.1.1",
     "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "serialize-javascript": "^7.0.3",
+      "diff": "^8.0.3"
+    }
   }
 }
