@@ -379,6 +379,12 @@
     "source-map-support": "^0.5.21",
     "typescript": "^5.9.3"
   },
+  "pnpm": {
+    "overrides": {
+      "serialize-javascript": "^7.0.3",
+      "diff": "^8.0.3"
+    }
+  },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "@shikijs/markdown-it": "^4.0.2",
