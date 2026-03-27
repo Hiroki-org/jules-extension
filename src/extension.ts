@@ -1009,6 +1009,7 @@ export async function updatePreviousStates(
 function startAutoRefresh(
   context: vscode.ExtensionContext,
   sessionsProvider: JulesSessionsProvider,
+  chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
 ): void {
   const config = vscode.workspace.getConfiguration(
     "jules-extension.autoRefresh",
@@ -1036,6 +1037,14 @@ function startAutoRefresh(
   autoRefreshInterval = setInterval(() => {
     logChannel.appendLine("Jules: Auto-refresh triggered");
     sessionsProvider.refresh(true); // Pass true for background refresh
+    void refreshActiveChatSessionFromAutoRefresh(
+      context,
+      chatViewProvider,
+    ).catch((error: unknown) => {
+      logChannel.appendLine(
+        `Jules: Failed to refresh active chat session during auto-refresh: ${sanitizeError(error)}`,
+      );
+    });
   }, interval);
 }
 
@@ -1049,9 +1058,10 @@ function stopAutoRefresh(): void {
 function resetAutoRefresh(
   context: vscode.ExtensionContext,
   sessionsProvider: JulesSessionsProvider,
+  chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
 ): void {
   stopAutoRefresh();
-  startAutoRefresh(context, sessionsProvider);
+  startAutoRefresh(context, sessionsProvider, chatViewProvider);
 }
 
 interface SessionsResponse {
@@ -1156,6 +1166,78 @@ async function refreshSessionActivitiesCacheFromApi(
   if (latestCreateTime) {
     await context.globalState.update(latestCreateTimeKey, latestCreateTime);
   }
+}
+
+export async function refreshActiveChatSessionFromAutoRefresh(
+  context: vscode.ExtensionContext,
+  chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
+): Promise<void> {
+  const activeSessionId = context.globalState.get<string>("active-session-id");
+  if (!activeSessionId || !isValidSessionId(activeSessionId)) {
+    return;
+  }
+
+  const apiKey = await context.secrets.get("jules-api-key");
+  if (!apiKey) {
+    return;
+  }
+
+  const sessionResponse = await fetchWithTimeout(
+    `${JULES_API_BASE_URL}/${activeSessionId}`,
+    {
+      method: "GET",
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  if (!sessionResponse.ok) {
+    const errorText = await sessionResponse.text();
+    throw new Error(
+      `Failed to fetch active session for chat polling: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`,
+    );
+  }
+
+  const sessionDetails = (await sessionResponse.json()) as {
+    state?: string;
+    title?: string;
+    createTime?: string;
+  };
+
+  const latestCreateTimeKey = getActivitiesLatestCreateTimeKey(activeSessionId);
+  const previousLatestCreateTime =
+    context.globalState.get<string>(latestCreateTimeKey);
+  const cachedActivities = sessionActivitiesCache.get(activeSessionId) || [];
+  const useDeltaFetch =
+    !!previousLatestCreateTime && cachedActivities.length > 0;
+
+  const newActivities = await fetchSessionActivitiesPaginated(
+    apiKey,
+    activeSessionId,
+    {
+      showPaginationProgress: false,
+    },
+  );
+
+  const mergedActivities = useDeltaFetch
+    ? mergeActivitiesByIdentity(cachedActivities, newActivities)
+    : mergeActivitiesByIdentity([], newActivities);
+
+  addToActivitiesCache(activeSessionId, mergedActivities);
+
+  const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
+  if (latestCreateTime) {
+    await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+  }
+
+  chatViewProvider.updateSession(
+    activeSessionId,
+    mergedActivities,
+    sessionDetails.state,
+    sessionDetails.title,
+    sessionDetails.createTime,
+  );
 }
 
 function getActivitiesLatestCreateTimeKey(sessionId: string): string {
@@ -2490,7 +2572,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
+      resetAutoRefresh(context, sessionsProvider, chatViewProvider);
 
       try {
         const cacheKey = "jules.sources";
@@ -2632,7 +2714,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
       } finally {
         isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
+        resetAutoRefresh(context, sessionsProvider, chatViewProvider);
       }
     },
   );
@@ -2668,7 +2750,7 @@ export function activate(context: vscode.ExtensionContext) {
       const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
       isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
+      resetAutoRefresh(context, sessionsProvider, chatViewProvider);
       try {
         // ブランチ選択ロジック（メッセージ入力前に移動）
         const {
@@ -2862,7 +2944,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
       } finally {
         isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
+        resetAutoRefresh(context, sessionsProvider, chatViewProvider);
       }
     },
   );
@@ -2871,7 +2953,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Jules: Starting initial refresh...");
   sessionsProvider.refresh();
 
-  startAutoRefresh(context, sessionsProvider);
+  startAutoRefresh(context, sessionsProvider, chatViewProvider);
 
   const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(
     (event) => {
@@ -2884,7 +2966,7 @@ export function activate(context: vscode.ExtensionContext) {
           .getConfiguration("jules-extension.autoRefresh")
           .get<boolean>("enabled");
         if (autoRefreshEnabled) {
-          startAutoRefresh(context, sessionsProvider);
+          startAutoRefresh(context, sessionsProvider, chatViewProvider);
         }
       }
     },

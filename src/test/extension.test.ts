@@ -16,6 +16,7 @@ import {
   getSourceDisplayName,
   getSourceIsPrivate,
   handleOpenInWebApp,
+  refreshActiveChatSessionFromAutoRefresh,
   Session,
   SessionOutput,
   createRemoteBranch,
@@ -714,6 +715,170 @@ suite("Extension Test Suite", () => {
     });
   });
 
+  suite("Chat polling auto refresh", () => {
+    let sandbox: sinon.SinonSandbox;
+    let fetchStub: sinon.SinonStub;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+    });
+
+    teardown(() => {
+      sandbox.restore();
+    });
+
+    test("should skip polling when no active session id", async () => {
+      const updateSessionStub = sandbox.stub();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns(undefined),
+          update: sandbox.stub().resolves(),
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.strictEqual(fetchStub.callCount, 0);
+      assert.strictEqual(updateSessionStub.callCount, 0);
+    });
+
+    test("should skip polling when active session id is invalid", async () => {
+      const updateSessionStub = sandbox.stub();
+      const context = {
+        globalState: {
+          get: sandbox
+            .stub()
+            .withArgs("active-session-id")
+            .returns("sessions/../invalid"),
+          update: sandbox.stub().resolves(),
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.strictEqual(fetchStub.callCount, 0);
+      assert.strictEqual(updateSessionStub.callCount, 0);
+    });
+
+    test("should refresh active chat session from API and update chat state", async () => {
+      const activeSessionId = "sessions/abc123";
+      const latestCreateTimeKey = `jules.activities.latestCreateTime.${activeSessionId}`;
+      const updateSessionStub = sandbox.stub();
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const getGlobalStateStub = sandbox
+        .stub()
+        .withArgs("active-session-id")
+        .returns(activeSessionId);
+      getGlobalStateStub.withArgs(latestCreateTimeKey).returns(undefined);
+
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({
+          state: "IN_PROGRESS",
+          title: "Session Title",
+          createTime: "2026-03-01T00:00:00Z",
+        }),
+      } as any);
+      fetchStub.onSecondCall().resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            {
+              id: "2",
+              name: "activities/2",
+              createTime: "2026-03-01T00:02:00Z",
+              agentMessaged: { agentMessage: "second" },
+            },
+            {
+              id: "1",
+              name: "activities/1",
+              createTime: "2026-03-01T00:01:00Z",
+              userMessaged: { userMessage: "first" },
+            },
+          ],
+        }),
+      } as any);
+
+      const context = {
+        globalState: {
+          get: getGlobalStateStub,
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.strictEqual(fetchStub.callCount, 2);
+      assert.ok(String(fetchStub.getCall(0).args[0]).includes(`/${activeSessionId}`));
+      assert.ok(
+        String(fetchStub.getCall(1).args[0]).includes(`/${activeSessionId}/activities?pageSize=100`),
+      );
+
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      const updateArgs = updateSessionStub.getCall(0).args;
+      assert.strictEqual(updateArgs[0], activeSessionId);
+      assert.strictEqual(updateArgs[2], "IN_PROGRESS");
+      assert.strictEqual(updateArgs[3], "Session Title");
+      assert.strictEqual(updateArgs[4], "2026-03-01T00:00:00Z");
+      assert.strictEqual(updateArgs[1].length, 2);
+      assert.strictEqual(updateArgs[1][0].name, "activities/1");
+      assert.strictEqual(updateArgs[1][1].name, "activities/2");
+
+      assert.ok(
+        updateGlobalStateStub.calledWith(
+          latestCreateTimeKey,
+          "2026-03-01T00:02:00Z",
+        ),
+      );
+    });
+
+    test("should throw when active session fetch fails", async () => {
+      const updateSessionStub = sandbox.stub();
+      fetchStub.onFirstCall().resolves({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: async () => "boom",
+      } as any);
+
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/fail"),
+          update: sandbox.stub().resolves(),
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await assert.rejects(
+        () =>
+          refreshActiveChatSessionFromAutoRefresh(context, {
+            updateSession: updateSessionStub,
+          }),
+        /Failed to fetch active session for chat polling/,
+      );
+
+      assert.strictEqual(updateSessionStub.callCount, 0);
+    });
+  });
+
   suite("areSessionListsEqual", () => {
     test("should return true for same sessions in different order", () => {
       const s1 = { name: "1", title: "t1", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
@@ -969,4 +1134,3 @@ suite("Extension Test Suite", () => {
     });
   });
 });
-
