@@ -360,8 +360,8 @@
     "test": "vscode-test",
     "pretest:unit": "npm run compile-tests",
     "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\"",
-    "pretest:coverage": "npm run compile-tests",
-    "test:coverage": "c8 --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
+    "pretest:coverage": "npm run pretest:unit",
+    "test:coverage": "c8 --all --src src --exclude \"src/test/**\" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
