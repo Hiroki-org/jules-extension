@@ -439,6 +439,44 @@ suite("Extension Test Suite", () => {
       const finalPrompt = buildFinalPrompt(userPrompt);
       assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
     });
+
+    test("should not append Japanese instruction when enforceJapanese is false", () => {
+      const workspaceConfig = {
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return "";
+          }
+          if (key === "enforceJapanese") {
+            return false;
+          }
+          return undefined;
+        }),
+      };
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+
+      const userPrompt = "User message";
+      const finalPrompt = buildFinalPrompt(userPrompt);
+      assert.strictEqual(finalPrompt, "User message");
+    });
+
+    test("should not append Japanese instruction when enforceJapanese is false even with custom prompt", () => {
+      const workspaceConfig = {
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return "Custom instructions";
+          }
+          if (key === "enforceJapanese") {
+            return false;
+          }
+          return undefined;
+        }),
+      };
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+
+      const userPrompt = "User message";
+      const finalPrompt = buildFinalPrompt(userPrompt);
+      assert.strictEqual(finalPrompt, "Custom instructions\n\nUser message");
+    });
   });
 
   suite("PR Status Check Feature", () => {
