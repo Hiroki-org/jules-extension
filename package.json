@@ -365,7 +365,9 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "pretest:unit": "npm run compile-tests",
-    "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
+    "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\"",
+    "pretest:coverage": "npm run pretest:unit",
+    "test:coverage": "c8 --all --src src --exclude \"src/test/**\" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
@@ -383,7 +385,8 @@
     "npm-run-all": "^4.1.5",
     "sinon": "^17.0.0",
     "source-map-support": "^0.5.21",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "c8": "^10.1.3"
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
@@ -393,5 +396,11 @@
     "markdown-it": "^14.1.1",
     "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "serialize-javascript": "^7.0.3",
+      "diff": "^8.0.3"
+    }
   }
 }

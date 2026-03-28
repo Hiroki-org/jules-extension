@@ -177,6 +177,8 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
 }
 let autoRefreshInterval: NodeJS.Timeout | undefined;
 let isFetchingSensitiveData = false;
+let isRefreshingActiveChatSession = false;
+let isAutoRefreshPipelineRunning = false;
 
 // Helper functions
 
@@ -1013,6 +1015,7 @@ export async function updatePreviousStates(
 function startAutoRefresh(
   context: vscode.ExtensionContext,
   sessionsProvider: JulesSessionsProvider,
+  chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
 ): void {
   const config = vscode.workspace.getConfiguration(
     "jules-extension.autoRefresh",
@@ -1038,8 +1041,25 @@ function startAutoRefresh(
   }
 
   autoRefreshInterval = setInterval(() => {
+    if (isAutoRefreshPipelineRunning) {
+      logChannel.appendLine("Jules: Auto-refresh pipeline already in progress. Skipping.");
+      return;
+    }
+    isAutoRefreshPipelineRunning = true;
     logChannel.appendLine("Jules: Auto-refresh triggered");
-    sessionsProvider.refresh(true); // Pass true for background refresh
+    void sessionsProvider
+      .refresh(true) // Pass true for background refresh
+      .then(async () => {
+        await refreshActiveChatSessionFromAutoRefresh(context, chatViewProvider);
+      })
+      .catch((error: unknown) => {
+        logChannel.appendLine(
+          `Jules: Auto-refresh pipeline failed: ${sanitizeError(error)}`,
+        );
+      })
+      .finally(() => {
+        isAutoRefreshPipelineRunning = false;
+      });
   }, interval);
 }
 
@@ -1048,14 +1068,16 @@ function stopAutoRefresh(): void {
     clearInterval(autoRefreshInterval);
     autoRefreshInterval = undefined;
   }
+  isAutoRefreshPipelineRunning = false;
 }
 
 function resetAutoRefresh(
   context: vscode.ExtensionContext,
   sessionsProvider: JulesSessionsProvider,
+  chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
 ): void {
   stopAutoRefresh();
-  startAutoRefresh(context, sessionsProvider);
+  startAutoRefresh(context, sessionsProvider, chatViewProvider);
 }
 
 interface SessionsResponse {
@@ -1139,7 +1161,7 @@ async function refreshSessionActivitiesCacheFromApi(
   const previousLatestCreateTime =
     context.globalState.get<string>(latestCreateTimeKey);
   const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
-  const useDeltaFetch =
+  const shouldMergeWithCache =
     !!previousLatestCreateTime && cachedActivities.length > 0;
 
   const newActivities = await fetchSessionActivitiesPaginated(
@@ -1150,7 +1172,7 @@ async function refreshSessionActivitiesCacheFromApi(
     },
   );
 
-  const mergedActivities = useDeltaFetch
+  const mergedActivities = shouldMergeWithCache
     ? mergeActivitiesByIdentity(cachedActivities, newActivities)
     : mergeActivitiesByIdentity([], newActivities);
 
@@ -1159,6 +1181,100 @@ async function refreshSessionActivitiesCacheFromApi(
   const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
   if (latestCreateTime) {
     await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+  }
+}
+
+export async function refreshActiveChatSessionFromAutoRefresh(
+  context: vscode.ExtensionContext,
+  chatViewProvider: Pick<JulesChatViewProvider, "updateSession">,
+): Promise<void> {
+  if (isRefreshingActiveChatSession) {
+    logChannel.appendLine(
+      "Jules: Active chat session refresh already in progress. Skipping.",
+    );
+    return;
+  }
+
+  isRefreshingActiveChatSession = true;
+  try {
+    const activeSessionId = context.globalState.get<string>("active-session-id");
+    if (!activeSessionId || !isValidSessionId(activeSessionId)) {
+      return;
+    }
+
+    const apiKey = await context.secrets.get("jules-api-key");
+    if (!apiKey) {
+      return;
+    }
+
+    const sessionResponse = await fetchWithTimeout(
+      `${JULES_API_BASE_URL}/${activeSessionId}`,
+      {
+        method: "GET",
+        headers: {
+          "X-Goog-Api-Key": apiKey,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    if (!sessionResponse.ok) {
+      const errorText = await sessionResponse.text();
+      throw new Error(
+        `Failed to fetch active session for chat polling: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`,
+      );
+    }
+
+    const sessionDetails = (await sessionResponse.json()) as {
+      state?: string;
+      title?: string;
+      createTime?: string;
+    };
+
+    const latestCreateTimeKey =
+      getActivitiesLatestCreateTimeKey(activeSessionId);
+    const previousLatestCreateTime =
+      context.globalState.get<string>(latestCreateTimeKey);
+    const cachedActivities = sessionActivitiesCache.get(activeSessionId) || [];
+    const shouldMergeWithCache =
+      !!previousLatestCreateTime && cachedActivities.length > 0;
+
+    const newActivities = await fetchSessionActivitiesPaginated(
+      apiKey,
+      activeSessionId,
+      {
+        showPaginationProgress: false,
+      },
+    );
+
+    const mergedActivities = shouldMergeWithCache
+      ? mergeActivitiesByIdentity(cachedActivities, newActivities)
+      : mergeActivitiesByIdentity([], newActivities);
+
+    const currentActiveSessionId =
+      context.globalState.get<string>("active-session-id");
+    if (currentActiveSessionId !== activeSessionId) {
+      logChannel.appendLine(
+        "Jules: Discarding stale active chat refresh result.",
+      );
+      return;
+    }
+
+    addToActivitiesCache(activeSessionId, mergedActivities);
+
+    const latestCreateTime = getLatestActivityCreateTime(mergedActivities);
+    if (latestCreateTime) {
+      await context.globalState.update(latestCreateTimeKey, latestCreateTime);
+    }
+
+    chatViewProvider.updateSession(
+      activeSessionId,
+      mergedActivities,
+      sessionDetails.state,
+      sessionDetails.title,
+      sessionDetails.createTime,
+    );
+  } finally {
+    isRefreshingActiveChatSession = false;
   }
 }
 
@@ -1316,6 +1432,7 @@ async function fetchAllSessionsPaginated(
             "X-Goog-Api-Key": apiKey,
             "Content-Type": "application/json",
           },
+          timeout: 60000,
         },
       );
 
@@ -2512,7 +2629,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
+      resetAutoRefresh(context, sessionsProvider, chatViewProvider);
 
       try {
         const cacheKey = "jules.sources";
@@ -2654,7 +2771,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage(`Failed to list sources: ${message}`);
       } finally {
         isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
+        resetAutoRefresh(context, sessionsProvider, chatViewProvider);
       }
     },
   );
@@ -2690,7 +2807,7 @@ export function activate(context: vscode.ExtensionContext) {
       const apiClient = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
       isFetchingSensitiveData = true;
-      resetAutoRefresh(context, sessionsProvider);
+      resetAutoRefresh(context, sessionsProvider, chatViewProvider);
       try {
         // ブランチ選択ロジック（メッセージ入力前に移動）
         const {
@@ -2884,7 +3001,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
       } finally {
         isFetchingSensitiveData = false;
-        resetAutoRefresh(context, sessionsProvider);
+        resetAutoRefresh(context, sessionsProvider, chatViewProvider);
       }
     },
   );
@@ -2893,7 +3010,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Jules: Starting initial refresh...");
   sessionsProvider.refresh();
 
-  startAutoRefresh(context, sessionsProvider);
+  startAutoRefresh(context, sessionsProvider, chatViewProvider);
 
   const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(
     (event) => {
@@ -2906,7 +3023,7 @@ export function activate(context: vscode.ExtensionContext) {
           .getConfiguration("jules-extension.autoRefresh")
           .get<boolean>("enabled");
         if (autoRefreshEnabled) {
-          startAutoRefresh(context, sessionsProvider);
+          startAutoRefresh(context, sessionsProvider, chatViewProvider);
         }
       }
     },
@@ -2991,7 +3108,7 @@ export function activate(context: vscode.ExtensionContext) {
         const previousLatestCreateTime =
           context.globalState.get<string>(latestCreateTimeKey);
         const cachedActivities = sessionActivitiesCache.get(sessionId) || [];
-        const useDeltaFetch =
+        const shouldMergeWithCache =
           !!previousLatestCreateTime && cachedActivities.length > 0;
 
         const newActivities = await fetchSessionActivitiesPaginated(
@@ -3002,7 +3119,7 @@ export function activate(context: vscode.ExtensionContext) {
           },
         );
 
-        const mergedActivities = useDeltaFetch
+        const mergedActivities = shouldMergeWithCache
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)
           : mergeActivitiesByIdentity([], newActivities);
 
