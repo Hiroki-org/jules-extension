@@ -138,7 +138,8 @@ suite("tooltipUtils Unit Tests", () => {
       assert.ok(value.includes("Created:"));
       assert.ok(value.includes("Updated:"));
       assert.ok(value.includes("❌ **Failure Reason:**"));
-      assert.ok(value.includes("Build failed in CI"));
+      const normalizedTooltip = value.replace(/&nbsp;/g, " ");
+      assert.ok(normalizedTooltip.includes("Build failed in CI"));
       assert.ok(value.includes("ID: `sessions/full`"));
     });
 
