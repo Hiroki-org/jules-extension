@@ -28,7 +28,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
+        if: matrix.node-version != 20
         run: pnpm run test:unit
+
+      - name: Run unit tests with coverage
+        if: matrix.node-version == 20
+        run: pnpm run test:coverage
+
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == 20
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: unit-node20
+          fail_ci_if_error: true
 
   build-check:
     runs-on: ubuntu-latest
