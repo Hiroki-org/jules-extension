@@ -35,11 +35,12 @@ suite("tooltipUtils Unit Tests", () => {
 
   suite("buildSessionTooltip", () => {
     test("builds minimal tooltip and falls back to session name when title is missing", () => {
-      const session = {
+      const session: Session = {
         name: "sessions/minimal",
+        title: "",
         state: "RUNNING",
         rawState: "NO_SUCH_STATE",
-      } as Session;
+      };
 
       const tooltip = buildSessionTooltip({
         session,
@@ -117,6 +118,7 @@ suite("tooltipUtils Unit Tests", () => {
       });
 
       const value = tooltip.value;
+      const normalizedValue = value.replace(/&nbsp;/g, " ");
       assert.ok(value.includes("**Full Session**"));
       assert.ok(value.includes("Status: **COMPLETED**"));
       assert.ok(value.includes("State: In progress"));
@@ -127,6 +129,8 @@ suite("tooltipUtils Unit Tests", () => {
       const openPrLinks = value.match(/\[Open PR/g) || [];
       assert.strictEqual(openPrLinks.length, 3);
       assert.ok(value.includes("[Open PR (repo#42)](https://github.com/octo/repo/pull/42)"));
+      assert.ok(normalizedValue.includes("Fix parser"));
+      assert.ok(!normalizedValue.includes("Fix parser duplicate"));
       assert.ok(value.includes("[Open PR (another#5)](https://github.com/octo/another/pull/5)"));
       assert.ok(value.includes("[Open PR](https://example.com/not-github)"));
       assert.ok(value.includes("..."));
@@ -138,9 +142,26 @@ suite("tooltipUtils Unit Tests", () => {
       assert.ok(value.includes("Created:"));
       assert.ok(value.includes("Updated:"));
       assert.ok(value.includes("❌ **Failure Reason:**"));
-      const normalizedTooltip = value.replace(/&nbsp;/g, " ");
-      assert.ok(normalizedTooltip.includes("Build failed in CI"));
+      assert.ok(normalizedValue.includes("Build failed in CI"));
       assert.ok(value.includes("ID: `sessions/full`"));
+    });
+
+    test("renders diff-only artifacts when only hasDiff is true", () => {
+      const session: Session = {
+        name: "sessions/diff-only",
+        title: "Diff Session",
+        state: "RUNNING",
+        rawState: "IN_PROGRESS",
+      };
+
+      const tooltip = buildSessionTooltip({
+        session,
+        hasDiff: true,
+        hasChangeset: false,
+      }).value;
+
+      assert.ok(tooltip.includes("Artifacts: 📄 Diff"));
+      assert.ok(!tooltip.includes("📁 Changeset"));
     });
 
     test("renders manual and custom automation modes plus public source formatting", () => {
@@ -173,12 +194,12 @@ suite("tooltipUtils Unit Tests", () => {
       assert.ok(manualTooltip.includes("Artifacts: 📁 Changeset"));
       assert.ok(manualTooltip.includes("Source: 🌐 `custom/source/path` (Public)"));
 
-      const customModeSession = {
+      const customModeSession: Session = {
         ...manualSession,
         name: "sessions/custom",
         title: "Custom Session",
         automationMode: "AUTOMATION_MODE_UNSPECIFIED",
-      } as Session;
+      };
 
       const customTooltip = buildSessionTooltip({
         session: customModeSession,
@@ -187,6 +208,9 @@ suite("tooltipUtils Unit Tests", () => {
       }).value;
 
       assert.ok(customTooltip.includes("Mode: AUTOMATION_MODE_UNSPECIFIED"));
+      assert.ok(customTooltip.includes("Source: `custom/source/path`"));
+      assert.ok(!customTooltip.includes("🌐"));
+      assert.ok(!customTooltip.includes("🔒"));
       assert.ok(!customTooltip.includes("Artifacts:"));
     });
   });
