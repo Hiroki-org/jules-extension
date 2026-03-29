@@ -23,7 +23,7 @@ import {
   isValidSessionId,
 } from "./securityUtils";
 import { sanitizeError } from "./errorUtils";
-import { fetchWithTimeout, setSocksProxy } from "./fetchUtils";
+import { fetchWithTimeout, setSocksProxy, setHttpProxy } from "./fetchUtils";
 import { formatPlanForNotification, Plan } from "./planUtils";
 import {
   getPullRequestUrlForSession,
@@ -565,7 +565,9 @@ function resolveSessionId(
 export function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) return [];
+  if (!sessionOrState.outputs) {
+    return [];
+  }
   const prMap = new Map<string, PullRequestOutput>();
   for (const output of sessionOrState.outputs) {
     const pr = output.pullRequest;
@@ -657,7 +659,9 @@ async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) return;
+  if (!prs || prs.length === 0) {
+    return;
+  }
 
   if (prs.length === 1) {
     const pr = prs[0];
@@ -2382,7 +2386,7 @@ export async function handleOpenInWebApp(
  * 環境変数からSOCKSプロキシが設定されているか確認し、最初に見つかった値を返す。
  * 設定されていない場合は null を返す。
  */
-function detectSocksProxy(): string | null {
+function detectProxy(): { type: 'socks' | 'http', url: string } | null {
   const proxyEnvVars: (string | undefined)[] = [
     process.env.HTTP_PROXY,
     process.env.http_proxy,
@@ -2398,34 +2402,52 @@ function detectSocksProxy(): string | null {
   if (vsCodeProxy) {
     proxyEnvVars.push(vsCodeProxy);
   }
+
   const socksSchemes = ["socks://", "socks4://", "socks5://"];
-  // 大文字小文字を無視してスキームをマッチング
-  return (
-    proxyEnvVars.find(
-      (v) => v && socksSchemes.some((s) => v.toLowerCase().startsWith(s)),
-    ) ?? null
-  );
+  const httpSchemes = ["http://", "https://"];
+
+  for (const v of proxyEnvVars) {
+    if (v) {
+      const lower = v.toLowerCase();
+      if (socksSchemes.some((s) => lower.startsWith(s))) {
+        return { type: 'socks', url: v };
+      }
+      if (httpSchemes.some((s) => lower.startsWith(s))) {
+        return { type: 'http', url: v };
+      }
+    }
+  }
+
+  return null;
 }
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
 
-  // SOCKSプロキシ検出と設定
-  const socksProxy = detectSocksProxy();
-  if (socksProxy) {
+  // プロキシ検出と設定
+  const proxy = detectProxy();
+  if (proxy) {
     try {
-      new URL(socksProxy);
+      new URL(proxy.url);
     } catch {
       console.error(
-        `Jules: Invalid SOCKS proxy URL: ${stripUrlCredentials(socksProxy)}`,
+        `Jules: Invalid proxy URL: ${stripUrlCredentials(proxy.url)}`,
       );
       return;
     }
-    setSocksProxy(socksProxy);
-    const safeProxy = stripUrlCredentials(socksProxy);
-    vscode.window.showInformationMessage(
-      `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
-    );
+    if (proxy.type === 'socks') {
+      setSocksProxy(proxy.url);
+      const safeProxy = stripUrlCredentials(proxy.url);
+      vscode.window.showInformationMessage(
+        `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
+      );
+    } else {
+      setHttpProxy(proxy.url);
+      const safeProxy = stripUrlCredentials(proxy.url);
+      vscode.window.showInformationMessage(
+        `HTTP/HTTPSプロキシ（${safeProxy}）経由で接続します。`,
+      );
+    }
   }
 
   // Load PR status cache to avoid redundant GitHub API calls on startup

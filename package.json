@@ -65,6 +65,12 @@
           "description": "A custom prompt to automatically prepend to every message sent to Jules. This acts as a persistent instruction.",
           "markdownDescription": "Enter a custom prompt that will be automatically added to the beginning of every message you send to Jules. This is useful for providing persistent instructions or context.\n\n**Example:**\n`Always reply in Japanese.`"
         },
+        "jules-extension.enforceJapanese": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically append an instruction to enforce Japanese language for all GitHub interactions (PRs, comments).",
+          "markdownDescription": "If enabled, Jules will automatically use Japanese for all GitHub interactions like Pull Request titles, descriptions, and commit messages."
+        },
         "jules-extension.hideClosedPRSessions": {
           "type": "boolean",
           "default": true,
@@ -385,6 +391,7 @@
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "@shikijs/markdown-it": "^4.0.2",
+    "https-proxy-agent": "^7.0.6",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
     "shiki": "^4.0.2",
