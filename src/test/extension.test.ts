@@ -385,18 +385,72 @@ suite("Extension Test Suite", () => {
 
     test("should prepend custom prompt to user prompt", () => {
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns("My custom prompt"),
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return "My custom prompt";
+          }
+          if (key === "enforceJapanese") {
+            return true;
+          }
+          return undefined;
+        }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
+      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns(""),
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return "";
+          }
+          if (key === "enforceJapanese") {
+            return true;
+          }
+          return undefined;
+        }),
+      };
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+
+      const userPrompt = "User message";
+      const finalPrompt = buildFinalPrompt(userPrompt);
+      assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
+    });
+
+    test("should return only user prompt if custom prompt is not set", () => {
+      const workspaceConfig = {
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return undefined;
+          }
+          if (key === "enforceJapanese") {
+            return true;
+          }
+          return undefined;
+        }),
+      };
+      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
+
+      const userPrompt = "User message";
+      const finalPrompt = buildFinalPrompt(userPrompt);
+      assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
+    });
+
+    test("should not append Japanese instruction when enforceJapanese is false", () => {
+      const workspaceConfig = {
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return "";
+          }
+          if (key === "enforceJapanese") {
+            return false;
+          }
+          return undefined;
+        }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
@@ -405,15 +459,23 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(finalPrompt, "User message");
     });
 
-    test("should return only user prompt if custom prompt is not set", () => {
+    test("should not append Japanese instruction when enforceJapanese is false even with custom prompt", () => {
       const workspaceConfig = {
-        get: sinon.stub().withArgs("customPrompt").returns(undefined),
+        get: sinon.stub().callsFake((key: string) => {
+          if (key === "customPrompt") {
+            return "Custom instructions";
+          }
+          if (key === "enforceJapanese") {
+            return false;
+          }
+          return undefined;
+        }),
       };
       getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message");
+      assert.strictEqual(finalPrompt, "Custom instructions\n\nUser message");
     });
   });
 

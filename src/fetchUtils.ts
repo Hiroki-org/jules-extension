@@ -1,11 +1,17 @@
 import * as https from 'node:https';
 import * as http from 'node:http';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 let _socksProxyUrl: string | null = null;
+let _httpProxyUrl: string | null = null;
 
 export function setSocksProxy(url: string | null): void {
     _socksProxyUrl = url;
+}
+
+export function setHttpProxy(url: string | null): void {
+    _httpProxyUrl = url;
 }
 
 function normalizeHeaders(headers: RequestInit['headers']): Record<string, string> {
@@ -25,15 +31,16 @@ function normalizeHeaders(headers: RequestInit['headers']): Record<string, strin
     return headers as Record<string, string>;
 }
 
-async function fetchViaSocks(
+async function fetchViaProxy(
     input: string | URL | Request,
     init: RequestInit & { signal?: AbortSignal },
-    proxyUrl: string
+    proxyUrl: string,
+    proxyType: 'socks' | 'http'
 ): Promise<Response> {
     const urlString = input instanceof Request ? input.url : input.toString();
     const url = new URL(urlString);
     const isHttps = url.protocol === 'https:';
-    const agent = new SocksProxyAgent(proxyUrl);
+    const agent = proxyType === 'socks' ? new SocksProxyAgent(proxyUrl) : new HttpsProxyAgent(proxyUrl);
     const method = (input instanceof Request ? input.method : init?.method) ?? 'GET';
     const headers = normalizeHeaders(init?.headers);
     const body = init?.body;
@@ -46,7 +53,7 @@ async function fetchViaSocks(
             path: url.pathname + url.search,
             method,
             headers,
-            agent,
+            agent: agent as http.Agent,
         };
 
         const transport: typeof https = isHttps ? https : (http as unknown as typeof https);
@@ -123,7 +130,9 @@ export async function fetchWithTimeout(input: string | URL | Request, init?: Req
 
     try {
         if (_socksProxyUrl) {
-            return await fetchViaSocks(input, { ...init, signal: finalSignal }, _socksProxyUrl);
+            return await fetchViaProxy(input, { ...init, signal: finalSignal }, _socksProxyUrl, 'socks');
+        } else if (_httpProxyUrl) {
+            return await fetchViaProxy(input, { ...init, signal: finalSignal }, _httpProxyUrl, 'http');
         }
         return await fetch(input, {
             ...init,
