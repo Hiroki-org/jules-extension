@@ -565,7 +565,9 @@ function resolveSessionId(
 export function extractPRs(
   sessionOrState: Session | CachedSessionState,
 ): PullRequestOutput[] {
-  if (!sessionOrState.outputs) return [];
+  if (!sessionOrState.outputs) {
+    return [];
+  }
   const prMap = new Map<string, PullRequestOutput>();
   for (const output of sessionOrState.outputs) {
     const pr = output.pullRequest;
@@ -657,7 +659,9 @@ async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
 ): Promise<void> {
-  if (!prs || prs.length === 0) return;
+  if (!prs || prs.length === 0) {
+    return;
+  }
 
   if (prs.length === 1) {
     const pr = prs[0];
