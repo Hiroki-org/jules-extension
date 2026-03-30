@@ -74,6 +74,8 @@ jobs:
   integration:
     needs: [test-unit, build-check]
     runs-on: ${{ matrix.os }}
+    env:
+      JULES_E2E_VSCODE_VERSION: "1.113.0"
     strategy:
       fail-fast: false
       matrix:
@@ -100,7 +102,7 @@ jobs:
             ~/.vscode-test
             ~/.vscode
             .vscode-test
-          key: ${{ runner.os }}-vscode-test
+          key: ${{ runner.os }}-vscode-test-${{ env.JULES_E2E_VSCODE_VERSION }}
           restore-keys: |
             ${{ runner.os }}-vscode-test-
 
@@ -124,6 +126,10 @@ jobs:
         shell: bash
         run: pnpm test
 
+      # The regular integration matrix already exercises the extension host across
+      # Linux, macOS, and Windows. Keep this second-VS-Code smoke narrow to the
+      # most stable lane so CI cost stays bounded and the UI selectors remain
+      # deterministic.
       - name: Run E2E smoke test (macOS)
         if: runner.os == 'macOS' && matrix.node-version == 20
         shell: bash

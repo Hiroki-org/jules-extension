@@ -1,4 +1,3 @@
-import * as assert from "assert";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -7,7 +6,14 @@ import { _electron as electron, ElectronApplication, Page } from "playwright-cor
 
 const COMMAND_LABEL = "Create Jules Session";
 const ERROR_MESSAGE = "No source selected. Please list and select a source first.";
-// Keep the default VS Code build pinned because the selector strategy is tied to a tested workbench version.
+// Keep the default VS Code build pinned because this smoke test reaches into
+// workbench selectors such as `[aria-label="Open Quick Access"]`,
+// `input[aria-label="Type the name of a command to run."]`, and
+// `.quick-input-list .monaco-list-row`.
+// If a VS Code update breaks them, rerun with
+// `PWDEBUG=1 JULES_E2E_VSCODE_VERSION=<candidate> pnpm run test:e2e`, inspect the
+// DOM in Playwright, and prefer stable role/aria/text selectors before falling
+// back to Monaco-specific CSS hooks.
 const VSCODE_VERSION = process.env.JULES_E2E_VSCODE_VERSION || "1.113.0";
 
 type LaunchResult = {
@@ -110,8 +116,6 @@ suite("VS Code UI Smoke Tests", () => {
         .getByText(ERROR_MESSAGE, { exact: true })
         .first();
       await notification.waitFor({ state: "visible", timeout: 15_000 });
-
-      assert.strictEqual(await notification.textContent(), ERROR_MESSAGE);
     } finally {
       if (app) {
         await closeApp(app);
