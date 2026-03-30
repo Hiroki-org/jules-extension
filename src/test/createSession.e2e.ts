@@ -7,6 +7,7 @@ import { _electron as electron, ElectronApplication, Page } from "playwright-cor
 
 const COMMAND_LABEL = "Create Jules Session";
 const ERROR_MESSAGE = "No source selected. Please list and select a source first.";
+// Keep the default VS Code build pinned because the selector strategy is tied to a tested workbench version.
 const VSCODE_VERSION = process.env.JULES_E2E_VSCODE_VERSION || "1.113.0";
 
 type LaunchResult = {
