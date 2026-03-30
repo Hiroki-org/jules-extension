@@ -397,9 +397,13 @@
     "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
   },
+  "overrides": {
+    "serialize-javascript": "^7.0.5",
+    "diff": "^8.0.3"
+  },
   "pnpm": {
     "overrides": {
-      "serialize-javascript": "^7.0.3",
+      "serialize-javascript": "^7.0.5",
       "diff": "^8.0.3"
     }
   }
