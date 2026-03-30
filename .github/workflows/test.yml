@@ -99,6 +99,7 @@ jobs:
           path: |
             ~/.vscode-test
             ~/.vscode
+            .vscode-test
           key: ${{ runner.os }}-vscode-test
           restore-keys: |
             ${{ runner.os }}-vscode-test-
@@ -122,3 +123,8 @@ jobs:
         if: runner.os != 'Linux'
         shell: bash
         run: pnpm test
+
+      - name: Run E2E smoke test (macOS)
+        if: runner.os == 'macOS' && matrix.node-version == 20
+        shell: bash
+        run: pnpm run test:e2e
