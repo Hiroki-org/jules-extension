@@ -135,7 +135,7 @@ If tests fail, check:
 Mocha TDD interface doesn't support `.only` easily, but you can:
 ```bash
 # Run specific test file
-pnpm run compile-tests && mocha out/test/securityUtils.unit.test.js
+pnpm run compile-tests && pnpm exec mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js out/test/securityUtils.unit.test.js
 ```
 
 ## Security Considerations
