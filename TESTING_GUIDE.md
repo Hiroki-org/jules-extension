@@ -1,18 +1,51 @@
-# Testing Guide - Security Utils
+# Testing Guide
 
 ## Quick Reference
 
 ### Running Tests
 ```bash
-# Run only unit tests for security utils
-npm run test:unit
+# Run only unit tests
+pnpm run test:unit
 
-# Run all tests
-npm test
+# Run the VS Code extension test suite
+pnpm test
 
 # Compile tests first
-npm run compile-tests
+pnpm run compile-tests
+
+# Run the Playwright-backed VS Code UI smoke test
+pnpm run test:e2e
 ```
+
+## VS Code UI Smoke Test
+
+### Test File Location
+`src/test/createSession.e2e.ts`
+
+### Coverage
+- Launches a second VS Code instance with `@vscode/test-electron`
+- Opens the command palette and runs `Create Jules Session`
+- Verifies the `No source selected. Please list and select a source first.` toast
+
+### Local Debugging
+The smoke test pins `JULES_E2E_VSCODE_VERSION=1.113.0` by default because it relies on workbench selectors that are validated against a known VS Code build.
+
+If the smoke test starts failing after a VS Code update:
+
+1. Re-run with Playwright debug mode enabled:
+   ```bash
+   PWDEBUG=1 JULES_E2E_VSCODE_VERSION=<candidate> pnpm run test:e2e
+   ```
+2. Re-check the selectors in `src/test/createSession.e2e.ts`, especially:
+   - `[aria-label="Open Quick Access"]`
+   - `input[aria-label="Type the name of a command to run."]`
+   - `.quick-input-list .monaco-list-row`
+3. Prefer stable role, aria-label, or visible-text selectors before falling back to Monaco-specific CSS hooks.
+
+### CI Scope
+The broad cross-platform test matrix already comes from `pnpm test` on Linux, macOS, and Windows. The additional UI smoke test runs only on macOS + Node 20 to keep the second-VS-Code launch deterministic and CI cost bounded.
+
+## Security Utils
 
 ### Test File Location
 `src/test/securityUtils.unit.test.ts`
@@ -102,7 +135,7 @@ If tests fail, check:
 Mocha TDD interface doesn't support `.only` easily, but you can:
 ```bash
 # Run specific test file
-npm run compile-tests && mocha out/test/securityUtils.unit.test.js
+pnpm run compile-tests && mocha out/test/securityUtils.unit.test.js
 ```
 
 ## Security Considerations
