@@ -12,6 +12,7 @@ import {
   buildActivitiesListEndpoint,
   buildSessionsListEndpoint,
   mergeActivitiesByIdentity,
+  buildActivitySummaryHeader,
   getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
@@ -736,6 +737,43 @@ suite("Extension Test Suite", () => {
   });
 
   suite("Activities Delta Helpers", () => {
+    test("mergeActivitiesByIdentity should return existing when incoming is empty", () => {
+      const existing = [{ name: "1", createTime: "2026-01-01T00:00:00Z" }] as any;
+      const incoming: any[] = [];
+      const merged = mergeActivitiesByIdentity(existing, incoming);
+      assert.strictEqual(merged, existing);
+    });
+
+    test("mergeActivitiesByIdentity should correctly calculate counts and buildActivitySummaryHeader should use them", () => {
+      const existing = [
+        { name: "1", createTime: "2026-01-01T00:00:00Z", planGenerated: {} }, // Category: Plan
+        { name: "2", createTime: "2026-01-01T00:01:00Z", progressUpdated: {} }, // Category: Progress
+      ] as any;
+
+      const incoming = [
+        { name: "2", createTime: "2026-01-01T00:01:00Z", sessionFailed: { reason: "test" } }, // Changed to Errors
+        { name: "3", createTime: "2026-01-01T00:02:00Z", artifacts: [{ changeSet: {} }] }, // Category: Artifacts
+      ] as any;
+
+      const merged = mergeActivitiesByIdentity(existing, incoming);
+
+      const summary = buildActivitySummaryHeader("RUNNING", merged);
+
+      assert.ok(summary.includes("Plan: 1"));
+      assert.ok(summary.includes("Progress: 0")); // Because activity 2 was overwritten
+      assert.ok(summary.includes("Errors: 1"));
+      assert.ok(summary.includes("Artifacts: 1"));
+
+      // Also test that buildActivitySummaryHeader calculates from scratch if array is new
+      const newArray = [
+        { name: "1", planGenerated: {} }, // Plan
+        { name: "2", planGenerated: {} }, // Plan
+      ] as any;
+      const summary2 = buildActivitySummaryHeader("RUNNING", newArray);
+      assert.ok(summary2.includes("Plan: 2"));
+      assert.ok(summary2.includes("Progress: 0"));
+    });
+
     test("mergeActivitiesByIdentity should merge unique activities and keep chronological order", () => {
       const existing = [
         {

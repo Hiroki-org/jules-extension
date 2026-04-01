@@ -1367,7 +1367,7 @@ export function mergeActivitiesByIdentity(
   return result;
 }
 
-function buildActivitySummaryHeader(
+export function buildActivitySummaryHeader(
   sessionState: string,
   activities: Activity[],
 ): string {
