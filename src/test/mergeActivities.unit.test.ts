@@ -81,4 +81,54 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
     assert.strictEqual(merged[0].name, "activities/1");
     assert.strictEqual(merged[2].name, "activities/2"); // later createTime => last
   });
+
+
+  test("buildActivitySummaryHeader should handle empty activities array", () => {
+    const summary = buildActivitySummaryHeader("UNKNOWN", []);
+    assert.ok(summary.includes("Status: UNKNOWN"));
+    assert.ok(summary.includes("Activities: 0"));
+    assert.ok(summary.includes("Latest: N/A"));
+  });
+
+  test("mergeActivitiesByIdentity should handle activities without name or id", () => {
+    const existing = [{ createTime: "2026-01-01T00:00:00Z" }] as any; // No name/id
+    const incoming = [{ createTime: "2026-01-01T00:01:00Z" }] as any; // No name/id
+    const merged = mergeActivitiesByIdentity(existing, incoming);
+    assert.strictEqual(merged.length, 0); // They are ignored by the map
+  });
+
+  test("mergeActivitiesByIdentity should fallback to localeCompare for sorting when times are equal or NaN", () => {
+    const existing = [
+      { name: "B", id: "B", createTime: "invalid-time" },
+      { name: "A", id: "A", createTime: "invalid-time" },
+      { name: "C", id: "C" }, // No createTime at all
+    ] as any;
+    const incoming: any[] = [];
+    const merged = mergeActivitiesByIdentity([], existing);
+
+    // Time should be NaN or 0, so it falls back to name comparison: A, B, C
+    assert.strictEqual(merged.length, 3);
+    assert.strictEqual(merged[0].name, "A");
+    assert.strictEqual(merged[1].name, "B");
+    assert.strictEqual(merged[2].name, "C");
+  });
+
+  test("mergeActivitiesByIdentity should fallback to localeCompare when times are exactly equal", () => {
+    const existing = [
+      { name: "Y", id: "Y", createTime: "2026-01-01T00:00:00Z" },
+      { name: "X", id: "X", createTime: "2026-01-01T00:00:00Z" },
+    ] as any;
+    const merged = mergeActivitiesByIdentity([], existing);
+    assert.strictEqual(merged[0].name, "X");
+    assert.strictEqual(merged[1].name, "Y");
+  });
+
+  test("buildActivitySummaryHeader should handle activities with undefined createTime", () => {
+    const activities = [
+      { name: "X", progressUpdated: { title: "Custom Title" } },
+    ] as any;
+    const summary = buildActivitySummaryHeader("RUNNING", activities);
+    assert.ok(summary.includes("Latest: Custom Title"));
+  });
+
 });
