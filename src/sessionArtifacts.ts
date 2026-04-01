@@ -422,6 +422,9 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
             if (!latestChangeSetRaw || !latestDiff) {
                 for (let j = 0; j < artifacts.length; j += 1) {
                     const artifact = artifacts[j];
+                    if (!artifact) {
+                        continue;
+                    }
                     // Check for ChangeSet
                     if (!latestChangeSetRaw) {
                         const changeSet = artifact?.changeSet;
