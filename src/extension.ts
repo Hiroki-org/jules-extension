@@ -560,7 +560,7 @@ function resolveSessionId(
 
 /**
  * Extracts unique pull requests from a session or cached state.
- * Optimized to use a single-pass backward loop and a Set for deduplication.
+ * Preserves first-seen URL order while keeping the latest PR data for each URL.
  */
 export function extractPRs(
   sessionOrState: Session | CachedSessionState,
@@ -568,17 +568,14 @@ export function extractPRs(
   if (!sessionOrState.outputs) {
     return [];
   }
-  const prs: PullRequestOutput[] = [];
-  const seenUrls = new Set<string>();
-  for (let i = sessionOrState.outputs.length - 1; i >= 0; i -= 1) {
-    const pr = sessionOrState.outputs[i].pullRequest;
-    if (pr?.url && !seenUrls.has(pr.url)) {
-      seenUrls.add(pr.url);
-      prs.push(pr);
+  const prMap = new Map<string, PullRequestOutput>();
+  for (const output of sessionOrState.outputs) {
+    const pr = output.pullRequest;
+    if (pr?.url) {
+      prMap.set(pr.url, pr);
     }
   }
-  // Optional: if the order is important, uncomment prs.reverse();
-  return prs.reverse();
+  return Array.from(prMap.values());
 }
 
 async function checkPRStatus(

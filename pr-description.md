@@ -1,3 +1,5 @@
+# extractPRs optimization summary
+
 💡 **What:**
 Optimized the `extractPRs` function in `src/extension.ts` by replacing `Map` overhead with a `Set` for deduplication and using a backward iteration over the output array. This allows us to find the most recent matching PR directly and populate the result array directly, entirely avoiding the intermediate `Array.from(prMap.values())` call.
 
