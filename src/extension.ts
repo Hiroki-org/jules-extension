@@ -1305,20 +1305,41 @@ export function getLatestActivityCreateTime(
   return latestTime;
 }
 
+const arrayCategoryCountsCache = new WeakMap<Activity[], Record<ActivityCategory, number>>();
+
 export function mergeActivitiesByIdentity(
   existing: Activity[],
   incoming: Activity[],
 ): Activity[] {
+  if (incoming.length === 0) {
+    return existing;
+  }
+
+  const prevCounts = arrayCategoryCountsCache.get(existing);
+  const newCounts: Record<ActivityCategory, number> = prevCounts
+    ? { ...prevCounts }
+    : { Plan: 0, Progress: 0, Artifacts: 0, Messages: 0, Errors: 0 };
+
   const mergedMap = new Map<string, Activity>();
+
   for (const activity of existing) {
     const key = activity.name || activity.id;
     if (key) {
       mergedMap.set(key, activity);
+      if (!prevCounts) {
+        newCounts[getActivityCategory(activity)] += 1;
+      }
     }
   }
+
   for (const activity of incoming) {
     const key = activity.name || activity.id;
     if (key) {
+      const existingActivity = mergedMap.get(key);
+      if (existingActivity) {
+        newCounts[getActivityCategory(existingActivity)] -= 1;
+      }
+      newCounts[getActivityCategory(activity)] += 1;
       mergedMap.set(key, activity);
     }
   }
@@ -1341,23 +1362,29 @@ export function mergeActivitiesByIdentity(
     );
   });
 
-  return mapped.map((m) => m.item);
+  const result = mapped.map((m) => m.item);
+  arrayCategoryCountsCache.set(result, newCounts);
+  return result;
 }
 
 function buildActivitySummaryHeader(
   sessionState: string,
   activities: Activity[],
 ): string {
-  const categoryCounts: Record<ActivityCategory, number> = {
-    Plan: 0,
-    Progress: 0,
-    Artifacts: 0,
-    Messages: 0,
-    Errors: 0,
-  };
+  let categoryCounts = arrayCategoryCountsCache.get(activities);
 
-  for (const activity of activities) {
-    categoryCounts[getActivityCategory(activity)] += 1;
+  if (!categoryCounts) {
+    categoryCounts = {
+      Plan: 0,
+      Progress: 0,
+      Artifacts: 0,
+      Messages: 0,
+      Errors: 0,
+    };
+    for (const activity of activities) {
+      categoryCounts[getActivityCategory(activity)] += 1;
+    }
+    arrayCategoryCountsCache.set(activities, categoryCounts);
   }
 
   const latestActivity =
