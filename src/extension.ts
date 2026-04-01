@@ -560,7 +560,7 @@ function resolveSessionId(
 
 /**
  * Extracts unique pull requests from a session or cached state.
- * Optimized to use a Map for single-pass deduplication.
+ * Preserves first-seen URL order while keeping the latest PR data for each URL.
  */
 export function extractPRs(
   sessionOrState: Session | CachedSessionState,

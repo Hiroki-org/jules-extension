@@ -62,7 +62,7 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(getSourceIsPrivate({} as any), undefined);
     });
 
-    test("extractPRs should deduplicate PRs by URL", () => {
+    test("extractPRs should deduplicate PRs by URL and keep first-seen order", () => {
       const prs = extractPRs({
         outputs: [
           {
@@ -74,17 +74,29 @@ suite("Extension helper unit tests", () => {
           },
           {
             pullRequest: {
+              url: "https://github.com/org/repo/pull/2",
+              title: "Two",
+              description: "B",
+            },
+          },
+          {
+            pullRequest: {
               url: "https://github.com/org/repo/pull/1",
               title: "Updated title",
-              description: "B",
+              description: "C",
             },
           },
           {},
         ],
       } as any);
 
-      assert.strictEqual(prs.length, 1);
-      assert.strictEqual(prs[0].title, "Updated title");
+      assert.deepStrictEqual(
+        prs.map((pr) => [pr.url, pr.title]),
+        [
+          ["https://github.com/org/repo/pull/1", "Updated title"],
+          ["https://github.com/org/repo/pull/2", "Two"],
+        ],
+      );
     });
   });
 
