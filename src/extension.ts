@@ -898,14 +898,20 @@ export async function updatePreviousStates(
 
   // 1. Identify sessions that require PR status checks
   // We only check for sessions that are COMPLETED, have a PR URL, and are NOT already terminated.
-  const sessionsToCheck = currentSessions.filter((session) => {
+  const sessionsToCheck: Session[] = [];
+  const sessionPRsMap = new Map<string, PullRequestOutput[]>();
+
+  for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
     if (prevState?.isTerminated) {
-      return false;
+      continue;
     }
     const prs = extractPRs(session);
-    return session.state === "COMPLETED" && prs.length > 0;
-  });
+    if (session.state === "COMPLETED" && prs.length > 0) {
+      sessionsToCheck.push(session);
+      sessionPRsMap.set(session.name, prs);
+    }
+  }
 
   // 2. Perform checks in parallel
   // This avoids sequential API calls (N+1 problem) when multiple sessions are completed.
@@ -918,32 +924,33 @@ export async function updatePreviousStates(
 
     // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
     const uniquePRUrls = new Set<string>();
-    for (const session of sessionsToCheck) {
-      const prs = extractPRs(session);
+    for (const prs of sessionPRsMap.values()) {
       for (const pr of prs) {
         uniquePRUrls.add(pr.url);
       }
     }
 
     // Fetch all unique PR statuses in parallel with concurrency limit
-    const uniquePRUrlsArray = Array.from(uniquePRUrls);
+    const uniquePRUrlsArray = [...uniquePRUrls];
     const prStatusLookup = new Map<string, boolean>();
 
     await mapLimit(uniquePRUrlsArray, 5, async (url) => {
-      const isClosed = await checkPRStatus(url, context, token);
-      prStatusLookup.set(url, isClosed);
+      try {
+        const isClosed = await checkPRStatus(url, context, token);
+        prStatusLookup.set(url, isClosed);
+      } catch (error) {
+        console.error(
+          `Jules: Failed to check PR status for ${url}:`,
+          sanitizeError(error),
+        );
+        prStatusLookup.set(url, false);
+      }
     });
 
     // Populate session statuses based on the fetched unique PR statuses
     for (const session of sessionsToCheck) {
-      const prs = extractPRs(session);
-      let isClosed = prs.length > 0;
-      for (const pr of prs) {
-        if (!prStatusLookup.get(pr.url)) {
-          isClosed = false;
-          break;
-        }
-      }
+      const prs = sessionPRsMap.get(session.name) ?? [];
+      const isClosed = prs.length > 0 && prs.every((pr) => prStatusLookup.get(pr.url) === true);
       prStatusMap.set(session.name, isClosed);
     }
   }

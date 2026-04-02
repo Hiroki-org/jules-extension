@@ -21,6 +21,8 @@ import {
   SessionOutput,
   createRemoteBranch,
 } from "../extension";
+import * as asyncUtils from "../asyncUtils";
+import { GitHubAuth } from "../githubAuth";
 import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
@@ -1040,10 +1042,18 @@ suite("Extension Test Suite", () => {
     let sandbox: sinon.SinonSandbox;
     let mockContext: vscode.ExtensionContext;
     let updateStub: sinon.SinonStub;
+    let getTokenStub: sinon.SinonStub;
+    let fetchStub: sinon.SinonStub;
+    let consoleLogStub: sinon.SinonStub;
+    let consoleErrorStub: sinon.SinonStub;
 
     setup(() => {
       sandbox = sinon.createSandbox();
       updateStub = sandbox.stub().resolves();
+      getTokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("fake-token");
+      fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+      consoleLogStub = sandbox.stub(console, "log");
+      consoleErrorStub = sandbox.stub(console, "error");
       mockContext = {
         globalState: {
           get: sandbox.stub().returns({}),
@@ -1056,6 +1066,13 @@ suite("Extension Test Suite", () => {
     teardown(() => {
       sandbox.restore();
     });
+
+    function getSavedSessionState(sessionName: string): any {
+      const updateCall = updateStub
+        .getCalls()
+        .find((call) => call.args[0] === "jules.previousSessionStates");
+      return updateCall?.args[1]?.[sessionName];
+    }
 
     test("should not update globalState if session state unchanged", async () => {
       const session: Session = {
@@ -1106,6 +1123,117 @@ suite("Extension Test Suite", () => {
         }
       }
       assert.ok(prCacheUpdateCalled, "Should have attempted to save PR status cache");
+    });
+
+    test("should check PR status without an auth token and keep the session open", async () => {
+      getTokenStub.resolves(undefined);
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({ state: "open" }),
+      } as any);
+
+      const session: Session = {
+        name: "s4",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [
+          {
+            pullRequest: {
+              url: "https://github.com/owner/repo/pull/4",
+              title: "PR 4",
+              description: "desc",
+            },
+          },
+        ],
+      };
+
+      await assert.doesNotReject(() => updatePreviousStates([session], mockContext));
+
+      assert.strictEqual(fetchStub.calledOnce, true);
+      const fetchInit = fetchStub.firstCall.args[1] as { headers?: Record<string, string> };
+      assert.strictEqual(fetchInit?.headers?.Authorization, undefined);
+      assert.strictEqual(consoleErrorStub.called, false);
+      assert.strictEqual(updateStub.callCount, 2);
+      assert.strictEqual(getSavedSessionState("s4")?.isTerminated, false);
+    });
+
+    test("should fall back to open when PR status fetch fails", async () => {
+      fetchStub.rejects(new Error("API boom"));
+
+      const session: Session = {
+        name: "s5",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [
+          {
+            pullRequest: {
+              url: "https://github.com/owner/repo/pull/5",
+              title: "PR 5",
+              description: "desc",
+            },
+          },
+        ],
+      };
+
+      await assert.doesNotReject(() => updatePreviousStates([session], mockContext));
+
+      assert.strictEqual(fetchStub.calledOnce, true);
+      assert.strictEqual(consoleErrorStub.called, true);
+      assert.strictEqual(updateStub.callCount, 2);
+      assert.strictEqual(getSavedSessionState("s5")?.isTerminated, false);
+    });
+
+    test("should handle invalid PR URLs without throwing", async () => {
+      const session: Session = {
+        name: "s6",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [
+          {
+            pullRequest: {
+              url: "not-a-valid-url",
+              title: "PR 6",
+              description: "desc",
+            },
+          },
+        ],
+      };
+
+      await assert.doesNotReject(() => updatePreviousStates([session], mockContext));
+
+      assert.strictEqual(fetchStub.callCount, 0);
+      assert.strictEqual(consoleLogStub.calledWithMatch("Invalid GitHub PR URL format"), true);
+      assert.strictEqual(updateStub.callCount, 2);
+      assert.strictEqual(getSavedSessionState("s6")?.isTerminated, false);
+    });
+
+    test("should treat missing PR status lookup entries as open", async () => {
+      const mapLimitStub = sandbox.stub(asyncUtils, "mapLimit").callsFake(async () => [] as any);
+      const session: Session = {
+        name: "s7",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [
+          {
+            pullRequest: {
+              url: "https://github.com/owner/repo/pull/7",
+              title: "PR 7",
+              description: "desc",
+            },
+          },
+        ],
+      };
+
+      await updatePreviousStates([session], mockContext);
+
+      assert.strictEqual(mapLimitStub.calledOnce, true);
+      assert.strictEqual(fetchStub.callCount, 0);
+      assert.strictEqual(updateStub.callCount, 2);
+      assert.strictEqual(getSavedSessionState("s7")?.isTerminated, false);
     });
   });
 
