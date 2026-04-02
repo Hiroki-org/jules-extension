@@ -1307,6 +1307,24 @@ export function getLatestActivityCreateTime(
 
 const arrayCategoryCountsCache = new WeakMap<Activity[], Record<ActivityCategory, number>>();
 
+function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
+  return {
+    Plan: 0,
+    Progress: 0,
+    Artifacts: 0,
+    Messages: 0,
+    Errors: 0,
+  };
+}
+
+function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
+  const counts = createEmptyActivityCategoryCounts();
+  for (const activity of activities) {
+    counts[getActivityCategory(activity)] += 1;
+  }
+  return counts;
+}
+
 export function mergeActivitiesByIdentity(
   existing: Activity[],
   incoming: Activity[],
@@ -1315,31 +1333,18 @@ export function mergeActivitiesByIdentity(
     return existing;
   }
 
-  const prevCounts = arrayCategoryCountsCache.get(existing);
-  const newCounts: Record<ActivityCategory, number> = prevCounts
-    ? { ...prevCounts }
-    : { Plan: 0, Progress: 0, Artifacts: 0, Messages: 0, Errors: 0 };
-
   const mergedMap = new Map<string, Activity>();
 
   for (const activity of existing) {
     const key = activity.name || activity.id;
     if (key) {
       mergedMap.set(key, activity);
-      if (!prevCounts) {
-        newCounts[getActivityCategory(activity)] += 1;
-      }
     }
   }
 
   for (const activity of incoming) {
     const key = activity.name || activity.id;
     if (key) {
-      const existingActivity = mergedMap.get(key);
-      if (existingActivity) {
-        newCounts[getActivityCategory(existingActivity)] -= 1;
-      }
-      newCounts[getActivityCategory(activity)] += 1;
       mergedMap.set(key, activity);
     }
   }
@@ -1363,7 +1368,7 @@ export function mergeActivitiesByIdentity(
   });
 
   const result = mapped.map((m) => m.item);
-  arrayCategoryCountsCache.set(result, newCounts);
+  arrayCategoryCountsCache.set(result, countActivityCategoryCounts(result));
   return result;
 }
 
@@ -1374,16 +1379,7 @@ export function buildActivitySummaryHeader(
   let categoryCounts = arrayCategoryCountsCache.get(activities);
 
   if (!categoryCounts) {
-    categoryCounts = {
-      Plan: 0,
-      Progress: 0,
-      Artifacts: 0,
-      Messages: 0,
-      Errors: 0,
-    };
-    for (const activity of activities) {
-      categoryCounts[getActivityCategory(activity)] += 1;
-    }
+    categoryCounts = countActivityCategoryCounts(activities);
     arrayCategoryCountsCache.set(activities, categoryCounts);
   }
 

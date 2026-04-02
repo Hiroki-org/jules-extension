@@ -49,6 +49,38 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
     assert.ok(summary.includes("Artifacts: 1"));
   });
 
+  test("should count only merged activities when existing contains duplicate keys", () => {
+    const existing: Activity[] = [
+      {
+        name: "dup",
+        createTime: "2026-01-01T00:00:00Z",
+        planGenerated: {},
+      } as any,
+      {
+        name: "dup",
+        createTime: "2026-01-01T00:01:00Z",
+        progressUpdated: {},
+      } as any,
+    ];
+
+    const incoming = [
+      {
+        name: "unique",
+        createTime: "2026-01-01T00:02:00Z",
+        sessionFailed: { reason: "test" },
+      },
+    ] as any;
+
+    const merged = mergeActivitiesByIdentity(existing, incoming);
+    const summary = buildActivitySummaryHeader("RUNNING", merged);
+
+    assert.strictEqual(merged.length, 2);
+    assert.ok(summary.includes("Activities: 2"));
+    assert.ok(summary.includes("Plan: 0"));
+    assert.ok(summary.includes("Progress: 1"));
+    assert.ok(summary.includes("Errors: 1"));
+  });
+
   test("should merge unique activities and keep chronological order", () => {
     const existing = [
       {
@@ -103,7 +135,6 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
       { name: "A", id: "A", createTime: "invalid-time" },
       { name: "C", id: "C" }, // No createTime at all
     ] as any;
-    const incoming: any[] = [];
     const merged = mergeActivitiesByIdentity([], existing);
 
     // Time should be NaN or 0, so it falls back to name comparison: A, B, C

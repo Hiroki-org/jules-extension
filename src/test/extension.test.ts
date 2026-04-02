@@ -12,7 +12,6 @@ import {
   buildActivitiesListEndpoint,
   buildSessionsListEndpoint,
   mergeActivitiesByIdentity,
-  buildActivitySummaryHeader,
   getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
@@ -737,8 +736,6 @@ suite("Extension Test Suite", () => {
   });
 
   suite("Activities Delta Helpers", () => {
-
-
     test("mergeActivitiesByIdentity should merge unique activities and keep chronological order", () => {
       const existing = [
         {
