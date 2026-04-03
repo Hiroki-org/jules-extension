@@ -1286,19 +1286,18 @@ export function getLatestActivityCreateTime(
   activities: Activity[],
 ): string | undefined {
   let latestTime: string | undefined;
-  let latestMs = Number.NEGATIVE_INFINITY;
 
   for (const activity of activities) {
-    if (!activity.createTime) {
+    const createTime = activity.createTime;
+    if (!createTime) {
       continue;
     }
-    const parsed = Date.parse(activity.createTime);
-    if (Number.isNaN(parsed)) {
-      continue;
-    }
-    if (parsed > latestMs) {
-      latestMs = parsed;
-      latestTime = activity.createTime;
+
+    if (latestTime === undefined || createTime > latestTime) {
+      // Validate only if it's a potential candidate for the latest time
+      if (!Number.isNaN(Date.parse(createTime))) {
+        latestTime = createTime;
+      }
     }
   }
 
