@@ -49,6 +49,29 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
     assert.ok(summary.includes("Artifacts: 1"));
   });
 
+  test("buildActivitySummaryHeader should reuse cached counts for the same array reference", () => {
+    const activities = mergeActivitiesByIdentity([], [
+      {
+        name: "1",
+        createTime: "2026-01-01T00:00:00Z",
+        planGenerated: {},
+      },
+    ] as any);
+
+    const firstSummary = buildActivitySummaryHeader("RUNNING", activities);
+    activities.push({
+      name: "2",
+      createTime: "2026-01-01T00:01:00Z",
+      progressUpdated: {},
+    } as any);
+    const secondSummary = buildActivitySummaryHeader("RUNNING", activities);
+
+    assert.ok(firstSummary.includes("Activities: 1"));
+    assert.ok(secondSummary.includes("Activities: 1"));
+    assert.ok(secondSummary.includes("Plan: 1"));
+    assert.ok(secondSummary.includes("Progress: 0"));
+  });
+
   test("should count only merged activities when existing contains duplicate keys", () => {
     const existing: Activity[] = [
       {

@@ -1317,11 +1317,25 @@ function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
   };
 }
 
+function getActivityIdentityKey(activity: Activity): string | undefined {
+  return activity.name || activity.id || undefined;
+}
+
 function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
   const counts = createEmptyActivityCategoryCounts();
+  const mergedByIdentity = new Map<string, Activity>();
+
   for (const activity of activities) {
+    const key = getActivityIdentityKey(activity);
+    if (key) {
+      mergedByIdentity.set(key, activity);
+    }
+  }
+
+  for (const activity of mergedByIdentity.values()) {
     counts[getActivityCategory(activity)] += 1;
   }
+
   return counts;
 }
 
@@ -1336,14 +1350,14 @@ export function mergeActivitiesByIdentity(
   const mergedMap = new Map<string, Activity>();
 
   for (const activity of existing) {
-    const key = activity.name || activity.id;
+    const key = getActivityIdentityKey(activity);
     if (key) {
       mergedMap.set(key, activity);
     }
   }
 
   for (const activity of incoming) {
-    const key = activity.name || activity.id;
+    const key = getActivityIdentityKey(activity);
     if (key) {
       mergedMap.set(key, activity);
     }
@@ -1383,6 +1397,12 @@ export function buildActivitySummaryHeader(
     arrayCategoryCountsCache.set(activities, categoryCounts);
   }
 
+  const activityCount =
+    categoryCounts.Plan +
+    categoryCounts.Progress +
+    categoryCounts.Artifacts +
+    categoryCounts.Messages +
+    categoryCounts.Errors;
   const latestActivity =
     activities.length > 0 ? activities[activities.length - 1] : undefined;
   const latestDesc = latestActivity
@@ -1392,7 +1412,7 @@ export function buildActivitySummaryHeader(
   return [
     "=== Session Summary ===",
     `Status: ${sessionState}`,
-    `Activities: ${activities.length} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
+    `Activities: ${activityCount} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
     `Latest: ${latestDesc}`,
     "========================",
     "",
