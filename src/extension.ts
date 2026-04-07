@@ -1305,7 +1305,12 @@ export function getLatestActivityCreateTime(
   return latestTime;
 }
 
-const arrayCategoryCountsCache = new WeakMap<Activity[], Record<ActivityCategory, number>>();
+type ActivityCategoryCountsCacheEntry = {
+  counts: Record<ActivityCategory, number>;
+  length: number;
+};
+
+const arrayCategoryCountsCache = new WeakMap<Activity[], ActivityCategoryCountsCacheEntry>();
 
 function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
   return {
@@ -1323,16 +1328,7 @@ function getActivityIdentityKey(activity: Activity): string | undefined {
 
 function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
   const counts = createEmptyActivityCategoryCounts();
-  const mergedByIdentity = new Map<string, Activity>();
-
   for (const activity of activities) {
-    const key = getActivityIdentityKey(activity);
-    if (key) {
-      mergedByIdentity.set(key, activity);
-    }
-  }
-
-  for (const activity of mergedByIdentity.values()) {
     counts[getActivityCategory(activity)] += 1;
   }
 
@@ -1382,7 +1378,10 @@ export function mergeActivitiesByIdentity(
   });
 
   const result = mapped.map((m) => m.item);
-  arrayCategoryCountsCache.set(result, countActivityCategoryCounts(result));
+  arrayCategoryCountsCache.set(result, {
+    counts: countActivityCategoryCounts(result),
+    length: result.length,
+  });
   return result;
 }
 
@@ -1390,19 +1389,20 @@ export function buildActivitySummaryHeader(
   sessionState: string,
   activities: Activity[],
 ): string {
-  let categoryCounts = arrayCategoryCountsCache.get(activities);
+  const cachedCounts = arrayCategoryCountsCache.get(activities);
+  let categoryCounts = cachedCounts?.counts;
 
-  if (!categoryCounts) {
+  if (!cachedCounts || cachedCounts.length !== activities.length) {
     categoryCounts = countActivityCategoryCounts(activities);
-    arrayCategoryCountsCache.set(activities, categoryCounts);
+    arrayCategoryCountsCache.set(activities, {
+      counts: categoryCounts,
+      length: activities.length,
+    });
+  } else {
+    categoryCounts = cachedCounts.counts;
   }
 
-  const activityCount =
-    categoryCounts.Plan +
-    categoryCounts.Progress +
-    categoryCounts.Artifacts +
-    categoryCounts.Messages +
-    categoryCounts.Errors;
+  const activityCount = activities.length;
   const latestActivity =
     activities.length > 0 ? activities[activities.length - 1] : undefined;
   const latestDesc = latestActivity

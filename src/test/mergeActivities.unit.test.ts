@@ -49,7 +49,7 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
     assert.ok(summary.includes("Artifacts: 1"));
   });
 
-  test("buildActivitySummaryHeader should reuse cached counts for the same array reference", () => {
+  test("buildActivitySummaryHeader should refresh cached counts when the array length changes", () => {
     const activities = mergeActivitiesByIdentity([], [
       {
         name: "1",
@@ -67,9 +67,9 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
     const secondSummary = buildActivitySummaryHeader("RUNNING", activities);
 
     assert.ok(firstSummary.includes("Activities: 1"));
-    assert.ok(secondSummary.includes("Activities: 1"));
+    assert.ok(secondSummary.includes("Activities: 2"));
     assert.ok(secondSummary.includes("Plan: 1"));
-    assert.ok(secondSummary.includes("Progress: 0"));
+    assert.ok(secondSummary.includes("Progress: 1"));
   });
 
   test("should count only merged activities when existing contains duplicate keys", () => {
@@ -183,6 +183,17 @@ suite("mergeActivitiesByIdentity Unit Tests", () => {
     ] as any;
     const summary = buildActivitySummaryHeader("RUNNING", activities);
     assert.ok(summary.includes("Latest: Custom Title"));
+  });
+
+  test("buildActivitySummaryHeader should count raw activities without identity keys", () => {
+    const activities = [
+      { createTime: "2026-01-01T00:00:00Z", sessionFailed: { reason: "test" } },
+    ] as any;
+
+    const summary = buildActivitySummaryHeader("RUNNING", activities);
+
+    assert.ok(summary.includes("Activities: 1"));
+    assert.ok(summary.includes("Errors: 1"));
   });
 
 });
