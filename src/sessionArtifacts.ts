@@ -71,17 +71,10 @@ function evictOldestArtifactsEntryIfNeeded(): void {
         return;
     }
 
-    let oldestSessionId: string | undefined;
-    let oldestSavedAt = Number.POSITIVE_INFINITY;
-    for (const [sessionId, entry] of artifactsCache.entries()) {
-        if (entry.savedAt < oldestSavedAt) {
-            oldestSavedAt = entry.savedAt;
-            oldestSessionId = sessionId;
-        }
-    }
-
-    if (oldestSessionId) {
-        artifactsCache.delete(oldestSessionId);
+    // Map preserves insertion order. The oldest entry is always the first one.
+    const firstKey = artifactsCache.keys().next().value;
+    if (firstKey !== undefined) {
+        artifactsCache.delete(firstKey);
     }
 }
 
@@ -182,7 +175,9 @@ function restoreArtifactsCacheFromGlobalState(now: number): boolean {
     }
 
     artifactsCache.clear();
-    for (const [sessionId, entry] of trimmedEntries) {
+    // Reverse insertion to ensure oldest items are at the front of the map
+    for (let i = trimmedEntries.length - 1; i >= 0; i -= 1) {
+        const [sessionId, entry] = trimmedEntries[i];
         artifactsCache.set(sessionId, entry);
     }
 
@@ -505,6 +500,8 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     const timeChanged = updateTime !== previousEntry?.updateTime;
 
     if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
+        // Delete before set to update insertion order (move to newest)
+        artifactsCache.delete(sessionId);
         artifactsCache.set(sessionId, {
             artifacts: latest,
             updateTime: nextUpdateTime,
