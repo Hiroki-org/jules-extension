@@ -835,7 +835,7 @@ index 123..abc 100644`;
             for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE + 1; i += 1) {
                 persisted[`sessions/${i}`] = {
                     latestDiff: `diff-${i}`,
-                    savedAt: base - i,
+                    savedAt: base + i,
                 };
             }
 
@@ -856,8 +856,26 @@ index 123..abc 100644`;
             }
 
             assert.strictEqual(restoredCount, MAX_ARTIFACTS_CACHE_SIZE);
-            assert.strictEqual(getCachedSessionArtifacts('sessions/50'), undefined);
+            // The item with smallest savedAt is dropped (which is sessions/0 since it has base + 0 compared to others which have base + >0, and oldest has base - 999999)
+            // Wait: 0 has base, oldest has base - 999999. So oldest and 0 are the oldest.
+            assert.strictEqual(getCachedSessionArtifacts('sessions/0'), undefined);
             assert.strictEqual(getCachedSessionArtifacts('sessions/oldest'), undefined);
+
+            // Further verify insertion order behavior for LRU
+            // Update sessions/1 so it becomes the newest
+            updateSessionArtifactsCache('sessions/1', [], undefined);
+
+            // Add a completely new item, which should evict the oldest remaining item
+            updateSessionArtifactsCache('sessions/new', [{
+                createTime: new Date().toISOString(),
+                gitPatch: { diff: 'new' }
+            }], undefined);
+
+            // Since sessions/1 was updated, it should NOT be evicted
+            assert.ok(getCachedSessionArtifacts('sessions/1'));
+            // Instead, the next oldest item should have been evicted (sessions/2)
+            assert.strictEqual(getCachedSessionArtifacts('sessions/2'), undefined);
+            assert.ok(getCachedSessionArtifacts('sessions/new'));
         });
 
         test('大きすぎるdiffは永続化されないこと', async () => {
