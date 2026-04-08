@@ -1676,21 +1676,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         );
       }
 
-      let latestProgress: Activity | undefined;
-      let maxTimeStr = "";
-
-      for (let i = 0; i < activities.length; i += 1) {
-        const activity = activities[i];
-        if (activity.progressUpdated && activity.createTime) {
-          if (activity.createTime > maxTimeStr) {
-            const parsedTime = Date.parse(activity.createTime);
-            if (!Number.isNaN(parsedTime)) {
-              maxTimeStr = activity.createTime;
-              latestProgress = activity;
-            }
-          }
-        }
-      }
+      const latestProgress = getLatestProgressActivity(activities);
 
       if (latestProgress?.progressUpdated) {
         const title = latestProgress.progressUpdated.title || "Working...";
@@ -3783,4 +3769,23 @@ export function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() {
   stopAutoRefresh();
+}
+
+export function getLatestProgressActivity(activities: Activity[]): Activity | undefined {
+  let latestProgress: Activity | undefined;
+  let maxTimeStr = "";
+
+  for (let i = 0; i < activities.length; i += 1) {
+    const activity = activities[i];
+    if (activity.progressUpdated && activity.createTime) {
+      if (activity.createTime > maxTimeStr) {
+        const parsedTime = Date.parse(activity.createTime);
+        if (!Number.isNaN(parsedTime)) {
+          maxTimeStr = activity.createTime;
+          latestProgress = activity;
+        }
+      }
+    }
+  }
+  return latestProgress;
 }
