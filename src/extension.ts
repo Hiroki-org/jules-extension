@@ -1286,19 +1286,20 @@ export function getLatestActivityCreateTime(
   activities: Activity[],
 ): string | undefined {
   let latestTime: string | undefined;
-  let latestMs = Number.NEGATIVE_INFINITY;
+  let latestTimeStr = "";
 
-  for (const activity of activities) {
+  for (let i = 0; i < activities.length; i += 1) {
+    const activity = activities[i];
     if (!activity.createTime) {
       continue;
     }
-    const parsed = Date.parse(activity.createTime);
-    if (Number.isNaN(parsed)) {
-      continue;
-    }
-    if (parsed > latestMs) {
-      latestMs = parsed;
-      latestTime = activity.createTime;
+
+    if (activity.createTime > latestTimeStr) {
+      const parsed = Date.parse(activity.createTime);
+      if (!Number.isNaN(parsed)) {
+        latestTimeStr = activity.createTime;
+        latestTime = activity.createTime;
+      }
     }
   }
 
@@ -1676,14 +1677,17 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       }
 
       let latestProgress: Activity | undefined;
-      let maxTime = -Infinity;
+      let maxTimeStr = "";
 
-      for (const activity of activities) {
+      for (let i = 0; i < activities.length; i += 1) {
+        const activity = activities[i];
         if (activity.progressUpdated && activity.createTime) {
-          const parsedTime = Date.parse(activity.createTime);
-          if (!Number.isNaN(parsedTime) && parsedTime > maxTime) {
-            maxTime = parsedTime;
-            latestProgress = activity;
+          if (activity.createTime > maxTimeStr) {
+            const parsedTime = Date.parse(activity.createTime);
+            if (!Number.isNaN(parsedTime)) {
+              maxTimeStr = activity.createTime;
+              latestProgress = activity;
+            }
           }
         }
       }
