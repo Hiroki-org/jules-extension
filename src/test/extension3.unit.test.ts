@@ -44,6 +44,6 @@ suite("Extension Unit Tests - getLatestProgressActivity", () => {
       { id: "3", name: "3", createTime: "2024-03-24T10:00:00Z", progressUpdated: { title: "Newer" } } as unknown as Activity,
     ];
     const result = getLatestProgressActivity(activities);
-    assert.strictEqual(result?.name, "2");
+    assert.strictEqual(result?.id, "2");
   });
 });
