@@ -1286,20 +1286,21 @@ export function getLatestActivityCreateTime(
   activities: Activity[],
 ): string | undefined {
   let latestTime: string | undefined;
-  let latestTimeStr = "";
+  let latestMs = Number.NEGATIVE_INFINITY;
 
-  for (let i = 0; i < activities.length; i += 1) {
-    const activity = activities[i];
+  for (const activity of activities) {
     if (!activity.createTime) {
       continue;
     }
 
-    if (activity.createTime > latestTimeStr) {
-      const parsed = Date.parse(activity.createTime);
-      if (!Number.isNaN(parsed)) {
-        latestTimeStr = activity.createTime;
-        latestTime = activity.createTime;
-      }
+    const parsed = Date.parse(activity.createTime);
+    if (Number.isNaN(parsed)) {
+      continue;
+    }
+
+    if (parsed > latestMs) {
+      latestMs = parsed;
+      latestTime = activity.createTime;
     }
   }
 
@@ -3773,18 +3774,21 @@ export function deactivate() {
 
 export function getLatestProgressActivity(activities: Activity[]): Activity | undefined {
   let latestProgress: Activity | undefined;
-  let maxTimeStr = "";
+  let maxTime = Number.NEGATIVE_INFINITY;
 
-  for (let i = 0; i < activities.length; i += 1) {
-    const activity = activities[i];
-    if (activity.progressUpdated && activity.createTime) {
-      if (activity.createTime > maxTimeStr) {
-        const parsedTime = Date.parse(activity.createTime);
-        if (!Number.isNaN(parsedTime)) {
-          maxTimeStr = activity.createTime;
-          latestProgress = activity;
-        }
-      }
+  for (const activity of activities) {
+    if (!activity.progressUpdated || !activity.createTime) {
+      continue;
+    }
+
+    const parsedTime = Date.parse(activity.createTime);
+    if (Number.isNaN(parsedTime)) {
+      continue;
+    }
+
+    if (parsedTime > maxTime) {
+      maxTime = parsedTime;
+      latestProgress = activity;
     }
   }
   return latestProgress;

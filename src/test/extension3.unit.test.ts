@@ -28,6 +28,15 @@ suite("Extension Unit Tests - getLatestProgressActivity", () => {
     assert.strictEqual(getLatestProgressActivity(activities), undefined);
   });
 
+
+  test("should compare progress timestamps with timezone offsets correctly", () => {
+    const activities: Activity[] = [
+      { id: "1", name: "1", createTime: "2024-03-24T18:00:00+09:00", progressUpdated: { title: "A" } } as unknown as Activity,
+      { id: "2", name: "2", createTime: "2024-03-24T10:00:00Z", progressUpdated: { title: "B" } } as unknown as Activity,
+    ];
+    const result = getLatestProgressActivity(activities);
+    assert.strictEqual(result?.id, "2");
+  });
   test("should return latest progress activity", () => {
     const activities: Activity[] = [
       { id: "1", name: "1", createTime: "2024-03-23T10:00:00Z", progressUpdated: { title: "Old" } } as unknown as Activity,
