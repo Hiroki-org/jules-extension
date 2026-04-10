@@ -362,7 +362,7 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltip.includes("🔗 **Pull Request**"), "PR section should be present");
       // appendText replaces spaces with &nbsp;, so check word unique to PR title (not session title)
       assert.ok(tooltip.includes("Feature"), "PR title word should be present");
-      assert.ok(tooltip.includes("[Open PR (myrepo#100)](https://github.com/myorg/myrepo/pull/200)"), "PR link should be present");
+      assert.ok(tooltip.includes("[Open PR (myrepo#200)](https://github.com/myorg/myrepo/pull/200)"), "PR link should be present");
       assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
       assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");
       assert.ok(tooltip.includes("Branch: `main`"), "Branch should be present");
@@ -558,6 +558,11 @@ suite("Extension Test Suite", () => {
 
       // Prevent duplicate registration errors during test
       localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.window, 'createTreeView').callsFake(() => ({
+        onDidChangeSelection: () => ({ dispose: () => { } }),
+        reveal: async () => undefined,
+        dispose: () => { },
+      } as any));
       localSandbox.stub(vscode.languages, 'registerCodeActionsProvider').callsFake(() => ({ dispose: () => { } } as any));
       localSandbox.stub(vscode.languages, 'registerCodeLensProvider').callsFake(() => ({ dispose: () => { } } as any));
 
