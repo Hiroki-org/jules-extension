@@ -345,7 +345,7 @@ suite("Extension Test Suite", () => {
         outputs: [
           {
             pullRequest: {
-              url: "https://github.com/myorg/myrepo/pull/100",
+              url: "https://github.com/myorg/myrepo/pull/200",
               title: "Complete Feature",
               description: "Full implementation",
             },
@@ -362,7 +362,7 @@ suite("Extension Test Suite", () => {
       assert.ok(tooltip.includes("🔗 **Pull Request**"), "PR section should be present");
       // appendText replaces spaces with &nbsp;, so check word unique to PR title (not session title)
       assert.ok(tooltip.includes("Feature"), "PR title word should be present");
-      assert.ok(tooltip.includes("[Open PR (myrepo#100)](https://github.com/myorg/myrepo/pull/100)"), "PR link should be present");
+      assert.ok(tooltip.includes("[Open PR (myrepo#100)](https://github.com/myorg/myrepo/pull/200)"), "PR link should be present");
       assert.ok(tooltip.includes("📄 Diff"), "Diff availability should be present");
       assert.ok(tooltip.includes("📁 Changeset"), "Changeset availability should be present");
       assert.ok(tooltip.includes("Branch: `main`"), "Branch should be present");
@@ -1115,7 +1115,7 @@ suite("Extension Test Suite", () => {
         json: async () => ({ state: "open" }),
       } as any);
 
-      const sharedPrUrl = "https://github.com/owner/repo/pull/100";
+      const sharedPrUrl = "https://github.com/owner/repo/pull/200";
       const session1: Session = {
         name: "s4",
         title: "title1",
@@ -1135,6 +1135,53 @@ suite("Extension Test Suite", () => {
 
       assert.strictEqual(tokenStub.callCount, 1);
       assert.strictEqual(fetchStub.callCount, 1);
+    });
+
+    test("should mark session as non-terminated when any fetched PR remains open", async () => {
+      sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").callsFake(async (url: unknown) => {
+        const value = String(url);
+        if (value.endsWith('/pulls/300')) {
+          return { ok: true, json: async () => ({ state: "closed" }) } as any;
+        }
+        if (value.endsWith('/pulls/301')) {
+          return { ok: true, json: async () => ({ state: "open" }) } as any;
+        }
+        throw new Error(`unexpected url: ${value}`);
+      });
+
+      const closedPr = { url: "https://github.com/owner/repo/pull/300", title: "closed" };
+      const openPr = { url: "https://github.com/owner/repo/pull/301", title: "open" };
+
+      const sessionClosedOnly: Session = {
+        name: "s6",
+        title: "closed-only",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: closedPr } as any],
+      };
+      const sessionMixed: Session = {
+        name: "s7",
+        title: "mixed",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [
+          { pullRequest: closedPr } as any,
+          { pullRequest: openPr } as any,
+        ],
+      };
+
+      await updatePreviousStates([sessionClosedOnly, sessionMixed], mockContext);
+
+      assert.strictEqual(fetchStub.callCount, 2);
+
+      const stateUpdateCall = updateStub
+        .getCalls()
+        .find((call) => call.args[0] === "jules.previousSessionStates");
+      assert.ok(stateUpdateCall);
+      const persisted = stateUpdateCall?.args[1] as Record<string, { isTerminated: boolean }>;
+      assert.strictEqual(persisted["s6"]?.isTerminated, true);
+      assert.strictEqual(persisted["s7"]?.isTerminated, false);
     });
 
   });
