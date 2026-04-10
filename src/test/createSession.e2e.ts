@@ -59,6 +59,9 @@ async function launchExtensionHost(): Promise<LaunchResult> {
     timeout: 30_000,
   });
 
+  // Give extension host time to activate
+  await page.waitForTimeout(5000);
+
   return {
     app,
     page,

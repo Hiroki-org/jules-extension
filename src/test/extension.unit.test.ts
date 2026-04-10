@@ -90,5 +90,14 @@ suite("Extension Unit Tests", () => {
       const result = getLatestActivityCreateTime(activities);
       assert.strictEqual(result, "2026-02-28T10:00:00Z");
     });
+
+    test("should handle duplicate timestamp values without updating", () => {
+      const activities: Activity[] = [
+        { id: "1", name: "1", createTime: "2026-02-28T10:00:00Z" } as unknown as Activity,
+        { id: "2", name: "2", createTime: "2026-02-28T10:00:00Z" } as unknown as Activity, // duplicate
+      ];
+      const result = getLatestActivityCreateTime(activities);
+      assert.strictEqual(result, "2026-02-28T10:00:00Z");
+    });
   });
 });

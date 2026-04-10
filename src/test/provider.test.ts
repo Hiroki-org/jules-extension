@@ -21,6 +21,10 @@ suite("JulesSessionsProvider Test Suite", () => {
             }
         } as any;
         fetchStub = sandbox.stub(global, 'fetch');
+        fetchStub.resolves({
+            ok: true,
+            json: async () => ({ sources: [], sessions: [] })
+        });
     });
 
     teardown(() => {
