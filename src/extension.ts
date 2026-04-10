@@ -917,9 +917,11 @@ export async function updatePreviousStates(
     const token = await GitHubAuth.getToken();
 
     // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
+    const sessionPRsMap = new Map<string, PullRequestOutput[]>();
     const uniquePRUrls = new Set<string>();
     for (const session of sessionsToCheck) {
       const prs = extractPRs(session);
+      sessionPRsMap.set(session.name, prs);
       for (const pr of prs) {
         uniquePRUrls.add(pr.url);
       }
@@ -936,7 +938,7 @@ export async function updatePreviousStates(
 
     // Populate session statuses based on the fetched unique PR statuses
     for (const session of sessionsToCheck) {
-      const prs = extractPRs(session);
+      const prs = sessionPRsMap.get(session.name) ?? [];
       let isClosed = prs.length > 0;
       for (const pr of prs) {
         if (!prStatusLookup.get(pr.url)) {

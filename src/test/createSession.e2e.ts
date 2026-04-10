@@ -109,8 +109,6 @@ suite("VS Code UI Smoke Tests", () => {
       app = launched.app;
       tempDirs = launched.tempDirs;
 
-      await new Promise(r => setTimeout(r, 2000));
-
       await openCommandPalette(launched.page, COMMAND_LABEL);
 
       const notification = launched.page
