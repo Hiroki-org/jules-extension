@@ -168,16 +168,15 @@ function restoreArtifactsCacheFromGlobalState(now: number): boolean {
         ]);
     }
 
-    // Sort oldest -> newest so insertion order in Map becomes LRU order.
-    validEntries.sort((a, b) => a[1].savedAt - b[1].savedAt);
-    const startIndex = Math.max(0, validEntries.length - MAX_ARTIFACTS_CACHE_SIZE);
-    const trimmedEntries = validEntries.slice(startIndex);
+    validEntries.sort((a, b) => b[1].savedAt - a[1].savedAt);
+    const trimmedEntries = validEntries.slice(0, MAX_ARTIFACTS_CACHE_SIZE);
     if (trimmedEntries.length < validEntries.length) {
         didDropEntries = true;
     }
 
     artifactsCache.clear();
-    for (let i = 0; i < trimmedEntries.length; i += 1) {
+    // Reverse insertion to ensure oldest items are at the front of the map
+    for (let i = trimmedEntries.length - 1; i >= 0; i -= 1) {
         const [sessionId, entry] = trimmedEntries[i];
         artifactsCache.set(sessionId, entry);
     }
