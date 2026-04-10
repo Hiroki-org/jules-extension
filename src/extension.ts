@@ -916,36 +916,21 @@ export async function updatePreviousStates(
     // hitting authentication provider or secure storage repeatedly.
     const token = await GitHubAuth.getToken();
 
-    // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
-    const uniquePRUrls = new Set<string>();
-    for (const session of sessionsToCheck) {
+    // Optimization: Use mapLimit to process PR checks with concurrency limit.
+    // This prevents rate limiting issues when checking many sessions at once.
+    await mapLimit(sessionsToCheck, 5, async (session) => {
       const prs = extractPRs(session);
-      for (const pr of prs) {
-        uniquePRUrls.add(pr.url);
-      }
-    }
-
-    // Fetch all unique PR statuses in parallel with concurrency limit
-    const uniquePRUrlsArray = Array.from(uniquePRUrls);
-    const prStatusLookup = new Map<string, boolean>();
-
-    await mapLimit(uniquePRUrlsArray, 5, async (url) => {
-      const isClosed = await checkPRStatus(url, context, token);
-      prStatusLookup.set(url, isClosed);
-    });
-
-    // Populate session statuses based on the fetched unique PR statuses
-    for (const session of sessionsToCheck) {
-      const prs = extractPRs(session);
-      let isClosed = prs.length > 0;
-      for (const pr of prs) {
-        if (!prStatusLookup.get(pr.url)) {
-          isClosed = false;
-          break;
-        }
-      }
+      // The check is redundant because `sessionsToCheck` is already filtered.
+      // At least one PR is guaranteed here.
+      const isClosed =
+        prs.length > 0 &&
+        (
+          await Promise.all(
+            prs.map((pr) => checkPRStatus(pr.url, context, token)),
+          )
+        ).every((closed) => closed);
       prStatusMap.set(session.name, isClosed);
-    }
+    });
   }
 
   for (const session of currentSessions) {
