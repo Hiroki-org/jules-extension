@@ -1084,7 +1084,7 @@ suite("Extension Test Suite", () => {
 
       const session2: Session = { ...session1, state: "COMPLETED" };
       await updatePreviousStates([session2], mockContext);
-      assert.ok(updateStub.callCount >= 1, "Should update when state changes (states + cache)");
+      assert.strictEqual(updateStub.callCount, 2, "Should update when state changes (states + cache)");
     });
 
     test("should persist PR status cache when session state changes", async () => {
