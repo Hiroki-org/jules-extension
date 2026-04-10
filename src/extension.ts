@@ -560,7 +560,7 @@ function resolveSessionId(
 
 /**
  * Extracts unique pull requests from a session or cached state.
- * Preserves first-seen URL order while keeping the latest PR data for each URL.
+ * Optimized to use a Map for single-pass deduplication.
  */
 export function extractPRs(
   sessionOrState: Session | CachedSessionState,
@@ -1308,55 +1308,19 @@ export function getLatestActivityCreateTime(
   return latestTime;
 }
 
-type ActivityCategoryCountsCacheEntry = {
-  counts: Record<ActivityCategory, number>;
-  length: number;
-};
-
-const arrayCategoryCountsCache = new WeakMap<Activity[], ActivityCategoryCountsCacheEntry>();
-
-function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
-  return {
-    Plan: 0,
-    Progress: 0,
-    Artifacts: 0,
-    Messages: 0,
-    Errors: 0,
-  };
-}
-
-function getActivityIdentityKey(activity: Activity): string | undefined {
-  return activity.name || activity.id || undefined;
-}
-
-function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
-  const counts = createEmptyActivityCategoryCounts();
-  for (const activity of activities) {
-    counts[getActivityCategory(activity)] += 1;
-  }
-
-  return counts;
-}
-
 export function mergeActivitiesByIdentity(
   existing: Activity[],
   incoming: Activity[],
 ): Activity[] {
-  if (incoming.length === 0) {
-    return existing;
-  }
-
   const mergedMap = new Map<string, Activity>();
-
   for (const activity of existing) {
-    const key = getActivityIdentityKey(activity);
+    const key = activity.name || activity.id;
     if (key) {
       mergedMap.set(key, activity);
     }
   }
-
   for (const activity of incoming) {
-    const key = getActivityIdentityKey(activity);
+    const key = activity.name || activity.id;
     if (key) {
       mergedMap.set(key, activity);
     }
@@ -1380,32 +1344,25 @@ export function mergeActivitiesByIdentity(
     );
   });
 
-  const result = mapped.map((m) => m.item);
-  arrayCategoryCountsCache.set(result, {
-    counts: countActivityCategoryCounts(result),
-    length: result.length,
-  });
-  return result;
+  return mapped.map((m) => m.item);
 }
 
-export function buildActivitySummaryHeader(
+function buildActivitySummaryHeader(
   sessionState: string,
   activities: Activity[],
 ): string {
-  const cachedCounts = arrayCategoryCountsCache.get(activities);
-  let categoryCounts = cachedCounts?.counts;
+  const categoryCounts: Record<ActivityCategory, number> = {
+    Plan: 0,
+    Progress: 0,
+    Artifacts: 0,
+    Messages: 0,
+    Errors: 0,
+  };
 
-  if (!cachedCounts || cachedCounts.length !== activities.length) {
-    categoryCounts = countActivityCategoryCounts(activities);
-    arrayCategoryCountsCache.set(activities, {
-      counts: categoryCounts,
-      length: activities.length,
-    });
-  } else {
-    categoryCounts = cachedCounts.counts;
+  for (const activity of activities) {
+    categoryCounts[getActivityCategory(activity)] += 1;
   }
 
-  const activityCount = activities.length;
   const latestActivity =
     activities.length > 0 ? activities[activities.length - 1] : undefined;
   const latestDesc = latestActivity
@@ -1415,7 +1372,7 @@ export function buildActivitySummaryHeader(
   return [
     "=== Session Summary ===",
     `Status: ${sessionState}`,
-    `Activities: ${activityCount} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
+    `Activities: ${activities.length} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
     `Latest: ${latestDesc}`,
     "========================",
     "",

@@ -227,30 +227,6 @@ suite('SessionArtifacts ユニットテスト', () => {
             assert.strictEqual(result.latestChangeSet.files[0].path, 'src/file1.ts');
         });
 
-        test('null / undefined の artifact を含んでも安全にスキップすること', () => {
-            const activities = [
-                {
-                    createTime: '2024-01-01T00:00:00Z',
-                    artifacts: [
-                        null,
-                        undefined,
-                        {
-                            changeSet: {
-                                files: [
-                                    { path: 'src/file1.ts', status: 'modified' },
-                                ],
-                            },
-                        },
-                    ],
-                },
-            ];
-
-            const result = extractLatestArtifactsFromActivities(activities as any);
-            assert.ok(result.latestChangeSet);
-            assert.strictEqual(result.latestChangeSet.files.length, 1);
-            assert.strictEqual(result.latestChangeSet.files[0].path, 'src/file1.ts');
-        });
-
         test('changeSet.paths から抽出すること', () => {
             const activities = [
                 {

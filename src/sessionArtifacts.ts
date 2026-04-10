@@ -402,7 +402,7 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
     let latestChangeSetRaw: Record<string, unknown> | undefined;
 
     // Iterate backwards to find the latest artifacts
-    for (let i = activities.length - 1; i >= 0; i -= 1) {
+    for (let i = activities.length - 1; i >= 0; i--) {
         const activity = activities[i];
         if (!activity) {
             continue;
@@ -420,11 +420,7 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
         if (Array.isArray(artifacts)) {
             // If we still need to find something, scan artifacts
             if (!latestChangeSetRaw || !latestDiff) {
-                for (let j = 0; j < artifacts.length; j += 1) {
-                    const artifact = artifacts[j];
-                    if (!artifact) {
-                        continue;
-                    }
+                for (const artifact of artifacts) {
                     // Check for ChangeSet
                     if (!latestChangeSetRaw) {
                         const changeSet = artifact?.changeSet;
@@ -439,10 +435,6 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
                         if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
                             latestDiff = uniDiff;
                         }
-                    }
-
-                    if (latestChangeSetRaw && latestDiff) {
-                        break;
                     }
                 }
             }
