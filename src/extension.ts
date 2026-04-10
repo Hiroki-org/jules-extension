@@ -154,6 +154,13 @@ interface CachedSessionState {
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
+
+export function resetUpdatePreviousStatesCachesForTests(): void {
+  previousSessionStates = new Map();
+  notifiedSessions = new Set();
+  prStatusCache = {};
+}
+
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
   name: "Jules Logs (Fallback)",
@@ -916,21 +923,38 @@ export async function updatePreviousStates(
     // hitting authentication provider or secure storage repeatedly.
     const token = await GitHubAuth.getToken();
 
-    // Optimization: Use mapLimit to process PR checks with concurrency limit.
-    // This prevents rate limiting issues when checking many sessions at once.
-    await mapLimit(sessionsToCheck, 5, async (session) => {
+    // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
+    const sessionPRsMap = new Map<string, PullRequestOutput[]>();
+    const uniquePRUrls = new Set<string>();
+    for (const session of sessionsToCheck) {
       const prs = extractPRs(session);
-      // The check is redundant because `sessionsToCheck` is already filtered.
-      // At least one PR is guaranteed here.
-      const isClosed =
-        prs.length > 0 &&
-        (
-          await Promise.all(
-            prs.map((pr) => checkPRStatus(pr.url, context, token)),
-          )
-        ).every((closed) => closed);
-      prStatusMap.set(session.name, isClosed);
+      sessionPRsMap.set(session.name, prs);
+      for (const pr of prs) {
+        uniquePRUrls.add(pr.url);
+      }
+    }
+
+    // Fetch all unique PR statuses in parallel with concurrency limit
+    const uniquePRUrlsArray = Array.from(uniquePRUrls);
+    const prStatusLookup = new Map<string, boolean>();
+
+    await mapLimit(uniquePRUrlsArray, 5, async (url) => {
+      const isClosed = await checkPRStatus(url, context, token);
+      prStatusLookup.set(url, isClosed);
     });
+
+    // Populate session statuses based on the fetched unique PR statuses
+    for (const session of sessionsToCheck) {
+      const prs = sessionPRsMap.get(session.name) ?? [];
+      let isClosed = prs.length > 0;
+      for (const pr of prs) {
+        if (!prStatusLookup.get(pr.url)) {
+          isClosed = false;
+          break;
+        }
+      }
+      prStatusMap.set(session.name, isClosed);
+    }
   }
 
   for (const session of currentSessions) {
