@@ -62,6 +62,9 @@ const mockVscode = {
     env: {
         openExternal: async () => true,
     },
+    authentication: {
+        getSession: async () => undefined,
+    },
     extensions: {
         getExtension: () => undefined,
         all: [],
@@ -227,6 +230,9 @@ const mockVscode = {
     StatusBarAlignment: {
         Left: 1,
         Right: 2,
+    },
+    ViewColumn: {
+        Active: 1,
     },
     languages: {
         registerCodeActionsProvider: () => ({ dispose: () => { } }),
