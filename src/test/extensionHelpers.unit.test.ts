@@ -17,6 +17,7 @@ import {
   handleOpenInWebApp,
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
+  resetUpdatePreviousStatesCachesForTests,
   updatePreviousStates,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
@@ -209,10 +210,12 @@ suite("Extension helper unit tests", () => {
 
     setup(() => {
       sandbox = sinon.createSandbox();
+      resetUpdatePreviousStatesCachesForTests();
     });
 
     teardown(() => {
       sandbox.restore();
+      resetUpdatePreviousStatesCachesForTests();
     });
 
     test("deduplicates PR status checks for shared PR URLs", async () => {

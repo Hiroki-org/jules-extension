@@ -154,6 +154,13 @@ interface CachedSessionState {
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
+
+export function resetUpdatePreviousStatesCachesForTests(): void {
+  previousSessionStates = new Map();
+  notifiedSessions = new Set();
+  prStatusCache = {};
+}
+
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
   name: "Jules Logs (Fallback)",
