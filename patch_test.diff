@@ -1,0 +1,27 @@
+<<<<<<< SEARCH
+      const launched = await launchExtensionHost();
+      app = launched.app;
+      tempDirs = launched.tempDirs;
+
+      await openCommandPalette(launched.page, COMMAND_LABEL);
+
+      const notification = launched.page
+        .locator(".notifications-toasts")
+        .getByText(ERROR_MESSAGE, { exact: true })
+        .first();
+      await notification.waitFor({ state: "visible", timeout: 30_000 });
+=======
+      const launched = await launchExtensionHost();
+      app = launched.app;
+      tempDirs = launched.tempDirs;
+
+      await new Promise(r => setTimeout(r, 2000));
+
+      await openCommandPalette(launched.page, COMMAND_LABEL);
+
+      const notification = launched.page
+        .locator(".notifications-toasts")
+        .getByText(ERROR_MESSAGE, { exact: true })
+        .first();
+      await notification.waitFor({ state: "visible", timeout: 15_000 });
+>>>>>>> REPLACE

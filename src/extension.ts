@@ -916,21 +916,36 @@ export async function updatePreviousStates(
     // hitting authentication provider or secure storage repeatedly.
     const token = await GitHubAuth.getToken();
 
-    // Optimization: Use mapLimit to process PR checks with concurrency limit.
-    // This prevents rate limiting issues when checking many sessions at once.
-    await mapLimit(sessionsToCheck, 5, async (session) => {
+    // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
+    const uniquePRUrls = new Set<string>();
+    for (const session of sessionsToCheck) {
       const prs = extractPRs(session);
-      // The check is redundant because `sessionsToCheck` is already filtered.
-      // At least one PR is guaranteed here.
-      const isClosed =
-        prs.length > 0 &&
-        (
-          await Promise.all(
-            prs.map((pr) => checkPRStatus(pr.url, context, token)),
-          )
-        ).every((closed) => closed);
-      prStatusMap.set(session.name, isClosed);
+      for (const pr of prs) {
+        uniquePRUrls.add(pr.url);
+      }
+    }
+
+    // Fetch all unique PR statuses in parallel with concurrency limit
+    const uniquePRUrlsArray = Array.from(uniquePRUrls);
+    const prStatusLookup = new Map<string, boolean>();
+
+    await mapLimit(uniquePRUrlsArray, 5, async (url) => {
+      const isClosed = await checkPRStatus(url, context, token);
+      prStatusLookup.set(url, isClosed);
     });
+
+    // Populate session statuses based on the fetched unique PR statuses
+    for (const session of sessionsToCheck) {
+      const prs = extractPRs(session);
+      let isClosed = prs.length > 0;
+      for (const pr of prs) {
+        if (!prStatusLookup.get(pr.url)) {
+          isClosed = false;
+          break;
+        }
+      }
+      prStatusMap.set(session.name, isClosed);
+    }
   }
 
   for (const session of currentSessions) {
@@ -1305,55 +1320,19 @@ export function getLatestActivityCreateTime(
   return latestTime;
 }
 
-type ActivityCategoryCountsCacheEntry = {
-  counts: Record<ActivityCategory, number>;
-  length: number;
-};
-
-const arrayCategoryCountsCache = new WeakMap<Activity[], ActivityCategoryCountsCacheEntry>();
-
-function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
-  return {
-    Plan: 0,
-    Progress: 0,
-    Artifacts: 0,
-    Messages: 0,
-    Errors: 0,
-  };
-}
-
-function getActivityIdentityKey(activity: Activity): string | undefined {
-  return activity.name || activity.id || undefined;
-}
-
-function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
-  const counts = createEmptyActivityCategoryCounts();
-  for (const activity of activities) {
-    counts[getActivityCategory(activity)] += 1;
-  }
-
-  return counts;
-}
-
 export function mergeActivitiesByIdentity(
   existing: Activity[],
   incoming: Activity[],
 ): Activity[] {
-  if (incoming.length === 0) {
-    return existing;
-  }
-
   const mergedMap = new Map<string, Activity>();
-
   for (const activity of existing) {
-    const key = getActivityIdentityKey(activity);
+    const key = activity.name || activity.id;
     if (key) {
       mergedMap.set(key, activity);
     }
   }
-
   for (const activity of incoming) {
-    const key = getActivityIdentityKey(activity);
+    const key = activity.name || activity.id;
     if (key) {
       mergedMap.set(key, activity);
     }
@@ -1377,32 +1356,25 @@ export function mergeActivitiesByIdentity(
     );
   });
 
-  const result = mapped.map((m) => m.item);
-  arrayCategoryCountsCache.set(result, {
-    counts: countActivityCategoryCounts(result),
-    length: result.length,
-  });
-  return result;
+  return mapped.map((m) => m.item);
 }
 
-export function buildActivitySummaryHeader(
+function buildActivitySummaryHeader(
   sessionState: string,
   activities: Activity[],
 ): string {
-  const cachedCounts = arrayCategoryCountsCache.get(activities);
-  let categoryCounts = cachedCounts?.counts;
+  const categoryCounts: Record<ActivityCategory, number> = {
+    Plan: 0,
+    Progress: 0,
+    Artifacts: 0,
+    Messages: 0,
+    Errors: 0,
+  };
 
-  if (!cachedCounts || cachedCounts.length !== activities.length) {
-    categoryCounts = countActivityCategoryCounts(activities);
-    arrayCategoryCountsCache.set(activities, {
-      counts: categoryCounts,
-      length: activities.length,
-    });
-  } else {
-    categoryCounts = cachedCounts.counts;
+  for (const activity of activities) {
+    categoryCounts[getActivityCategory(activity)] += 1;
   }
 
-  const activityCount = activities.length;
   const latestActivity =
     activities.length > 0 ? activities[activities.length - 1] : undefined;
   const latestDesc = latestActivity
@@ -1412,7 +1384,7 @@ export function buildActivitySummaryHeader(
   return [
     "=== Session Summary ===",
     `Status: ${sessionState}`,
-    `Activities: ${activityCount} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
+    `Activities: ${activities.length} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
     `Latest: ${latestDesc}`,
     "========================",
     "",
