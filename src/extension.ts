@@ -917,9 +917,11 @@ export async function updatePreviousStates(
     const token = await GitHubAuth.getToken();
 
     // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
+    const sessionPRsMap = new Map<string, PullRequestOutput[]>();
     const uniquePRUrls = new Set<string>();
     for (const session of sessionsToCheck) {
       const prs = extractPRs(session);
+      sessionPRsMap.set(session.name, prs);
       for (const pr of prs) {
         uniquePRUrls.add(pr.url);
       }
@@ -936,7 +938,7 @@ export async function updatePreviousStates(
 
     // Populate session statuses based on the fetched unique PR statuses
     for (const session of sessionsToCheck) {
-      const prs = extractPRs(session);
+      const prs = sessionPRsMap.get(session.name) ?? [];
       let isClosed = prs.length > 0;
       for (const pr of prs) {
         if (!prStatusLookup.get(pr.url)) {
@@ -1320,19 +1322,55 @@ export function getLatestActivityCreateTime(
   return latestTime;
 }
 
+type ActivityCategoryCountsCacheEntry = {
+  counts: Record<ActivityCategory, number>;
+  length: number;
+};
+
+const arrayCategoryCountsCache = new WeakMap<Activity[], ActivityCategoryCountsCacheEntry>();
+
+function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
+  return {
+    Plan: 0,
+    Progress: 0,
+    Artifacts: 0,
+    Messages: 0,
+    Errors: 0,
+  };
+}
+
+function getActivityIdentityKey(activity: Activity): string | undefined {
+  return activity.name || activity.id || undefined;
+}
+
+function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
+  const counts = createEmptyActivityCategoryCounts();
+  for (const activity of activities) {
+    counts[getActivityCategory(activity)] += 1;
+  }
+
+  return counts;
+}
+
 export function mergeActivitiesByIdentity(
   existing: Activity[],
   incoming: Activity[],
 ): Activity[] {
+  if (incoming.length === 0) {
+    return existing;
+  }
+
   const mergedMap = new Map<string, Activity>();
+
   for (const activity of existing) {
-    const key = activity.name || activity.id;
+    const key = getActivityIdentityKey(activity);
     if (key) {
       mergedMap.set(key, activity);
     }
   }
+
   for (const activity of incoming) {
-    const key = activity.name || activity.id;
+    const key = getActivityIdentityKey(activity);
     if (key) {
       mergedMap.set(key, activity);
     }
@@ -1356,25 +1394,32 @@ export function mergeActivitiesByIdentity(
     );
   });
 
-  return mapped.map((m) => m.item);
+  const result = mapped.map((m) => m.item);
+  arrayCategoryCountsCache.set(result, {
+    counts: countActivityCategoryCounts(result),
+    length: result.length,
+  });
+  return result;
 }
 
-function buildActivitySummaryHeader(
+export function buildActivitySummaryHeader(
   sessionState: string,
   activities: Activity[],
 ): string {
-  const categoryCounts: Record<ActivityCategory, number> = {
-    Plan: 0,
-    Progress: 0,
-    Artifacts: 0,
-    Messages: 0,
-    Errors: 0,
-  };
+  const cachedCounts = arrayCategoryCountsCache.get(activities);
+  let categoryCounts = cachedCounts?.counts;
 
-  for (const activity of activities) {
-    categoryCounts[getActivityCategory(activity)] += 1;
+  if (!cachedCounts || cachedCounts.length !== activities.length) {
+    categoryCounts = countActivityCategoryCounts(activities);
+    arrayCategoryCountsCache.set(activities, {
+      counts: categoryCounts,
+      length: activities.length,
+    });
+  } else {
+    categoryCounts = cachedCounts.counts;
   }
 
+  const activityCount = activities.length;
   const latestActivity =
     activities.length > 0 ? activities[activities.length - 1] : undefined;
   const latestDesc = latestActivity
@@ -1384,7 +1429,7 @@ function buildActivitySummaryHeader(
   return [
     "=== Session Summary ===",
     `Status: ${sessionState}`,
-    `Activities: ${activities.length} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
+    `Activities: ${activityCount} (Plan: ${categoryCounts.Plan}, Progress: ${categoryCounts.Progress}, Artifacts: ${categoryCounts.Artifacts}, Messages: ${categoryCounts.Messages}, Errors: ${categoryCounts.Errors})`,
     `Latest: ${latestDesc}`,
     "========================",
     "",
