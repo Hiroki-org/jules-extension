@@ -122,9 +122,7 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
         tooltip.appendText(descPreview.replace(/\n/g, ' '));
       }
       
-      if (url) {
-        tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
-      }
+      tooltip.appendMarkdown(`\n\n[Open PR${repoInfoStr}](${url})`);
     });
   }
 
