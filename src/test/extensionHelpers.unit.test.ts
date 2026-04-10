@@ -186,6 +186,16 @@ suite("Extension helper unit tests", () => {
       );
     });
 
+    test("getLatestActivityCreateTime should handle timezone offsets correctly", () => {
+      assert.strictEqual(
+        getLatestActivityCreateTime([
+          { id: "1", createTime: "2024-03-24T18:00:00+09:00" },
+          { id: "2", createTime: "2024-03-24T10:00:00Z" },
+        ] as any),
+        "2024-03-24T10:00:00Z",
+      );
+    });
+
     test("endpoint builders should include pagination parameters", () => {
       assert.ok(
         buildSessionsListEndpoint("https://example.test/api", "next-page").includes(
