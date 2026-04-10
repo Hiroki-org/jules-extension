@@ -877,10 +877,9 @@ index 123..abc 100644`;
             assert.strictEqual(getCachedSessionArtifacts('sessions/2'), undefined);
             assert.ok(getCachedSessionArtifacts('sessions/new'));
 
-            // Hit the undefined branch of eviction for 100% coverage
             clearSessionArtifactsInMemoryCache();
-            // Call the evict function while size is 0 to cover the return statement
-            // Not directly exposed, so we just test that the behavior is correct
+            // Verify that adding to an empty cache works correctly
+            // (eviction is skipped when size <= MAX_ARTIFACTS_CACHE_SIZE)
             updateSessionArtifactsCache('sessions/another-new', [], undefined);
         });
 
