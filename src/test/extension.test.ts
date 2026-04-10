@@ -26,6 +26,7 @@ import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { activate } from "../extension";
+import { GitHubAuth } from "../githubAuth";
 
 suite("Extension Test Suite", () => {
   vscode.window.showInformationMessage("Start all tests.");
@@ -1107,6 +1108,35 @@ suite("Extension Test Suite", () => {
       }
       assert.ok(prCacheUpdateCalled, "Should have attempted to save PR status cache");
     });
+    test("should check duplicate PR URLs only once across sessions", async () => {
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "open" }),
+      } as any);
+
+      const sharedPrUrl = "https://github.com/owner/repo/pull/100";
+      const session1: Session = {
+        name: "s4",
+        title: "title1",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: { url: sharedPrUrl, title: "PR1" } } as any],
+      };
+      const session2: Session = {
+        name: "s5",
+        title: "title2",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: { url: sharedPrUrl, title: "PR1" } } as any],
+      };
+
+      await updatePreviousStates([session1, session2], mockContext);
+
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+    });
+
   });
 
   suite("openInWebApp Command", () => {
