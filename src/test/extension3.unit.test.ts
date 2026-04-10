@@ -5,7 +5,16 @@ import { Activity } from "../types";
 suite("Extension Unit Tests - getLatestProgressActivity", () => {
   test("should return undefined for empty array", () => {
     assert.strictEqual(getLatestProgressActivity([]), undefined);
+
+  test("should handle older progress updates that are older than maxTimeMs", () => {
+    const activities: Activity[] = [
+      { id: "1", name: "1", createTime: "2026-02-28T10:00:00Z", progressUpdated: { title: "New" } } as unknown as Activity,
+      { id: "2", name: "2", createTime: "2026-02-28T09:00:00Z", progressUpdated: { title: "Old" } } as unknown as Activity, // Should fail parsedTime > maxTimeMs condition
+    ];
+    const result = getLatestProgressActivity(activities);
+    assert.strictEqual(result?.name, "1");
   });
+});
 
   test("should return undefined if no activities have progressUpdated", () => {
     const activities: Activity[] = [

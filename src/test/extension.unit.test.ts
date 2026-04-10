@@ -53,5 +53,14 @@ suite("Extension Unit Tests", () => {
       const result = getLatestActivityCreateTime(activities);
       assert.strictEqual(result, "2024-03-25T10:00:00Z");
     });
+
+    test("should handle older valid dates after newer ones", () => {
+      const activities: Activity[] = [
+        { id: "1", name: "1", createTime: "2026-02-28T10:00:00Z" },
+        { id: "2", name: "2", createTime: "2026-02-28T09:00:00Z" }, // older, should fail parsed > latestMs branch
+      ] as unknown as Activity[];
+      const result = getLatestActivityCreateTime(activities);
+      assert.strictEqual(result, "2026-02-28T10:00:00Z");
+    });
   });
 });
