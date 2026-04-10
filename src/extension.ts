@@ -1288,17 +1288,14 @@ export function getLatestActivityCreateTime(
   let latestTime: string | undefined;
   let latestMs = Number.NEGATIVE_INFINITY;
 
-  for (const activity of activities) {
+  for (let i = 0; i < activities.length; i += 1) {
+    const activity = activities[i];
     if (!activity.createTime) {
       continue;
     }
 
     const parsed = Date.parse(activity.createTime);
-    if (Number.isNaN(parsed)) {
-      continue;
-    }
-
-    if (parsed > latestMs) {
+    if (!Number.isNaN(parsed) && parsed > latestMs) {
       latestMs = parsed;
       latestTime = activity.createTime;
     }
@@ -3774,21 +3771,16 @@ export function deactivate() {
 
 export function getLatestProgressActivity(activities: Activity[]): Activity | undefined {
   let latestProgress: Activity | undefined;
-  let maxTime = Number.NEGATIVE_INFINITY;
+  let maxTimeMs = Number.NEGATIVE_INFINITY;
 
-  for (const activity of activities) {
-    if (!activity.progressUpdated || !activity.createTime) {
-      continue;
-    }
-
-    const parsedTime = Date.parse(activity.createTime);
-    if (Number.isNaN(parsedTime)) {
-      continue;
-    }
-
-    if (parsedTime > maxTime) {
-      maxTime = parsedTime;
-      latestProgress = activity;
+  for (let i = 0; i < activities.length; i += 1) {
+    const activity = activities[i];
+    if (activity.progressUpdated && activity.createTime) {
+      const parsedTime = Date.parse(activity.createTime);
+      if (!Number.isNaN(parsedTime) && parsedTime > maxTimeMs) {
+        maxTimeMs = parsedTime;
+        latestProgress = activity;
+      }
     }
   }
   return latestProgress;

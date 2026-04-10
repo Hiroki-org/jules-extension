@@ -28,22 +28,13 @@ suite("Extension Unit Tests - getLatestProgressActivity", () => {
     assert.strictEqual(getLatestProgressActivity(activities), undefined);
   });
 
-
-  test("should compare progress timestamps with timezone offsets correctly", () => {
+  test("should return latest progress activity using parsed timestamps", () => {
     const activities: Activity[] = [
-      { id: "1", name: "1", createTime: "2024-03-24T18:00:00+09:00", progressUpdated: { title: "A" } } as unknown as Activity,
-      { id: "2", name: "2", createTime: "2024-03-24T10:00:00Z", progressUpdated: { title: "B" } } as unknown as Activity,
+      { id: "1", name: "1", createTime: "2026-02-28T10:00:00Z", progressUpdated: { title: "Old" } } as unknown as Activity,
+      { id: "2", name: "2", createTime: "2026-02-28T06:00:00-05:00", progressUpdated: { title: "Newest" } } as unknown as Activity, // 11:00 UTC
+      { id: "3", name: "3", createTime: "2026-02-28T10:00:00+02:00", progressUpdated: { title: "Older" } } as unknown as Activity, // 08:00 UTC
     ];
     const result = getLatestProgressActivity(activities);
-    assert.strictEqual(result?.id, "2");
-  });
-  test("should return latest progress activity", () => {
-    const activities: Activity[] = [
-      { id: "1", name: "1", createTime: "2024-03-23T10:00:00Z", progressUpdated: { title: "Old" } } as unknown as Activity,
-      { id: "2", name: "2", createTime: "2024-03-25T10:00:00Z", progressUpdated: { title: "Newest" } } as unknown as Activity,
-      { id: "3", name: "3", createTime: "2024-03-24T10:00:00Z", progressUpdated: { title: "Newer" } } as unknown as Activity,
-    ];
-    const result = getLatestProgressActivity(activities);
-    assert.strictEqual(result?.id, "2");
+    assert.strictEqual(result?.name, "2");
   });
 });
