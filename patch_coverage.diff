@@ -1,0 +1,77 @@
+--- src/test/extension.test.ts
++++ src/test/extension.test.ts
+@@ -1084,7 +1084,7 @@
+
+       const session2: Session = { ...session1, state: "COMPLETED" };
+       await updatePreviousStates([session2], mockContext);
+-      assert.ok(updateStub.callCount >= 1, "Should update when state changes (states + cache)");
++      assert.strictEqual(updateStub.callCount, 2, "Should update when state changes (states + cache)");
+     });
+
+     test("should persist PR status cache when session state changes", async () => {
+@@ -1107,6 +1107,65 @@
+       }
+       assert.ok(prCacheUpdateCalled, "Should have attempted to save PR status cache");
+     });
++
++    test("should check duplicate PR URLs only once across sessions", async () => {
++      const prUrl = "https://github.com/owner/repo/pull/6";
++      const session1: Session = {
++        name: "s6",
++        title: "title",
++        state: "COMPLETED",
++        rawState: "COMPLETED",
++        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
++      };
++      const session2: Session = {
++        name: "s7",
++        title: "title",
++        state: "COMPLETED",
++        rawState: "COMPLETED",
++        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
++      };
++
++      const fetchStub = sandbox.stub(global, 'fetch').resolves({ ok: true, json: async () => ({ state: "closed" }) } as any);
++
++      await updatePreviousStates([session1, session2], mockContext);
++
++      assert.strictEqual(fetchStub.callCount, 1, "Should check PR status exactly once for duplicate PR URLs");
++    });
++
++    test("should check PR status without an auth token and keep the session open", async () => {
++      const prUrl = "https://github.com/owner/repo/pull/9";
++      const session: Session = {
++        name: "s9",
++        title: "title",
++        state: "COMPLETED",
++        rawState: "COMPLETED",
++        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
++      };
++
++      sandbox.stub(require("../githubAuth").GitHubAuth, 'getToken').resolves(undefined);
++      const fetchStub = sandbox.stub(global, 'fetch').resolves({ ok: true, json: async () => ({ state: "open" }) } as any);
++
++      await updatePreviousStates([session], mockContext);
++
++      assert.strictEqual(fetchStub.callCount, 1, "Should check PR status even without an auth token");
++    });
++
++    test("should fall back to open when PR status fetch fails", async () => {
++      const prUrl = "https://github.com/owner/repo/pull/10";
++      const session: Session = {
++        name: "s10",
++        title: "title",
++        state: "COMPLETED",
++        rawState: "COMPLETED",
++        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
++      };
++
++      const fetchStub = sandbox.stub(global, 'fetch').rejects(new Error("API boom"));
++
++      await updatePreviousStates([session], mockContext);
++
++      assert.strictEqual(fetchStub.callCount, 1, "Should check PR status exactly once");
++    });
+   });
+
+   suite("openInWebApp Command", () => {
