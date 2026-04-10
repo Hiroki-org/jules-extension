@@ -1152,6 +1152,82 @@ suite("Extension Test Suite", () => {
 
       assert.strictEqual(fetchStub.callCount, 2, "Should check both PR statuses");
     });
+
+    test("should check PR status without an auth token and keep the session open", async () => {
+      const prUrl = "https://github.com/owner/repo/pull/9";
+      const session: Session = {
+        name: "s9",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
+      };
+
+      sandbox.stub(require("../githubAuth").GitHubAuth, 'getToken').resolves(undefined);
+      const fetchStub = sandbox.stub(global, 'fetch').resolves({ ok: true, json: async () => ({ state: "open" }) } as any);
+
+      await updatePreviousStates([session], mockContext);
+
+      assert.strictEqual(fetchStub.callCount, 1, "Should check PR status even without an auth token");
+    });
+
+    test("should fall back to open when PR status fetch fails", async () => {
+      const prUrl = "https://github.com/owner/repo/pull/10";
+      const session: Session = {
+        name: "s10",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
+      };
+
+      const fetchStub = sandbox.stub(global, 'fetch').rejects(new Error("API boom"));
+
+      await updatePreviousStates([session], mockContext);
+
+      assert.strictEqual(fetchStub.callCount, 1, "Should check PR status exactly once");
+      const prevState = (mockContext.globalState.update as sinon.SinonStub).getCalls().find(call => call.args[0] === 'jules.previousSessionStates')?.args[1];
+      assert.strictEqual(prevState?.["s10"]?.isTerminated, false, "Session should not be terminated if PR status fails to fetch");
+    });
+
+    test("should handle invalid PR URLs without throwing", async () => {
+      const prUrl = "not-a-valid-url";
+      const session: Session = {
+        name: "s11",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
+      };
+
+      const fetchStub = sandbox.stub(global, 'fetch');
+
+      await updatePreviousStates([session], mockContext);
+
+      assert.strictEqual(fetchStub.callCount, 0, "Should not attempt to fetch invalid PR URLs");
+      const prevState = (mockContext.globalState.update as sinon.SinonStub).getCalls().find(call => call.args[0] === 'jules.previousSessionStates')?.args[1];
+      assert.strictEqual(prevState?.["s11"]?.isTerminated, false, "Session should not be terminated if PR URL is invalid");
+    });
+
+    test("should treat missing PR status lookup entries as open", async () => {
+      const prUrl = "https://github.com/owner/repo/pull/12";
+      const session: Session = {
+        name: "s12",
+        title: "title",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+        outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
+      };
+
+      // Simulate a case where checkPRStatus fails silently or returns false
+      const fetchStub = sandbox.stub(global, 'fetch').resolves({ ok: false, status: 404 } as any);
+
+      await updatePreviousStates([session], mockContext);
+
+      assert.strictEqual(fetchStub.callCount, 1, "Should attempt to fetch PR URL");
+      const prevState = (mockContext.globalState.update as sinon.SinonStub).getCalls().find(call => call.args[0] === 'jules.previousSessionStates')?.args[1];
+      assert.strictEqual(prevState?.["s12"]?.isTerminated, false, "Session should not be terminated if PR status lookup entry is missing/false");
+    });
   });
 
   suite("openInWebApp Command", () => {
