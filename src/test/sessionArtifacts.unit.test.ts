@@ -878,6 +878,35 @@ index 123..abc 100644`;
             assert.ok(getCachedSessionArtifacts('sessions/new'));
         });
 
+
+        test('復元時に同一savedAtの順序を維持したまま上限を適用すること', () => {
+            const state = new InMemoryGlobalState();
+            const persisted: Record<string, unknown> = {};
+            const sameSavedAt = Date.now();
+
+            for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE + 1; i += 1) {
+                persisted[`sessions/same-${i}`] = {
+                    latestDiff: `diff-${i}`,
+                    savedAt: sameSavedAt,
+                };
+            }
+
+            state.set(ARTIFACTS_CACHE_STATE_KEY, persisted);
+            initializeSessionArtifactsCacheFromGlobalState(state);
+
+            assert.strictEqual(getCachedSessionArtifacts('sessions/same-0'), undefined);
+            assert.ok(getCachedSessionArtifacts('sessions/same-1'));
+
+            updateSessionArtifactsCache('sessions/newest', [{
+                createTime: new Date().toISOString(),
+                gitPatch: { diff: 'new' },
+            }], undefined);
+
+            assert.strictEqual(getCachedSessionArtifacts('sessions/same-1'), undefined);
+            assert.ok(getCachedSessionArtifacts('sessions/same-2'));
+            assert.ok(getCachedSessionArtifacts('sessions/newest'));
+        });
+
         test('大きすぎるdiffは永続化されないこと', async () => {
             const state = new InMemoryGlobalState();
             initializeSessionArtifactsCacheFromGlobalState(state);
