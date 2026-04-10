@@ -31,7 +31,7 @@ suite('Performance Benchmark - Prefetch Blocking', () => {
         const configStub = {
             get: sandbox.stub().callsFake((key: string) => {
                 if (key === 'autoRefresh.enabled') {
-                  return true;
+                    return true;
                 }
                 return undefined;
             })

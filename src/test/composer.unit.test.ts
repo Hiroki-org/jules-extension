@@ -1,5 +1,11 @@
 import * as assert from "assert";
-import { getComposerHtml, escapeHtml, escapeAttribute } from "../composer";
+import * as sinon from "sinon";
+import {
+  getComposerHtml,
+  escapeHtml,
+  escapeAttribute,
+  showMessageComposer,
+} from "../composer";
 import * as vscode from "vscode";
 
 // Mock vscode.Webview
@@ -8,6 +14,103 @@ const mockWebview = {
 } as vscode.Webview;
 
 suite("Composer Test Suite", () => {
+  suite("showMessageComposer", () => {
+    let sandbox: sinon.SinonSandbox;
+    let originalCreateWebviewPanel: unknown;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      originalCreateWebviewPanel = (vscode.window as any).createWebviewPanel;
+    });
+
+    teardown(() => {
+      sandbox.restore();
+      if (originalCreateWebviewPanel === undefined) {
+        delete (vscode.window as any).createWebviewPanel;
+      } else {
+        (vscode.window as any).createWebviewPanel = originalCreateWebviewPanel;
+      }
+    });
+
+    function installPanelStub() {
+      let disposeHandler: (() => void) | undefined;
+      let messageHandler: ((message: unknown) => void) | undefined;
+      const panel = {
+        webview: {
+          cspSource: "https://example.com",
+          html: "",
+          onDidReceiveMessage: (callback: (message: unknown) => void) => {
+            messageHandler = callback;
+            return { dispose: () => {} };
+          },
+        },
+        onDidDispose: (callback: () => void) => {
+          disposeHandler = callback;
+          return { dispose: () => {} };
+        },
+        dispose: sandbox.stub().callsFake(() => {
+          disposeHandler?.();
+        }),
+      };
+
+      (vscode.window as any).createWebviewPanel = sandbox
+        .stub()
+        .returns(panel as any);
+
+      return {
+        panel,
+        emitMessage: (message: unknown) => messageHandler?.(message),
+        emitDispose: () => disposeHandler?.(),
+      };
+    }
+
+    test("should resolve submitted values and keep the first resolution", async () => {
+      const harness = installPanelStub();
+
+      const promise = showMessageComposer({
+        title: "Composer",
+        placeholder: "Describe task",
+      });
+
+      harness.emitMessage({
+        type: "submit",
+        value: "Ship it",
+        createPR: 1,
+        requireApproval: 0,
+      });
+
+      const result = await promise;
+      assert.deepStrictEqual(result, {
+        prompt: "Ship it",
+        createPR: true,
+        requireApproval: false,
+      });
+      assert.strictEqual(harness.panel.dispose.calledOnce, true);
+      assert.ok(harness.panel.webview.html.includes("<title>Composer</title>"));
+    });
+
+    test("should resolve undefined on cancel", async () => {
+      const harness = installPanelStub();
+
+      const promise = showMessageComposer({ title: "Composer" });
+      harness.emitMessage({ type: "cancel" });
+
+      const result = await promise;
+      assert.strictEqual(result, undefined);
+      assert.strictEqual(harness.panel.dispose.calledOnce, true);
+    });
+
+    test("should resolve undefined when the panel is disposed externally", async () => {
+      const harness = installPanelStub();
+
+      const promise = showMessageComposer({ title: "Composer" });
+      harness.emitDispose();
+
+      const result = await promise;
+      assert.strictEqual(result, undefined);
+    });
+  });
+
   suite("escapeHtml", () => {
     test("should escape essential HTML characters", () => {
       assert.strictEqual(escapeHtml("<script>"), "&lt;script&gt;");
