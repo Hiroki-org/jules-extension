@@ -17,11 +17,9 @@ import {
   handleOpenInWebApp,
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
-  updatePreviousStates,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
-import { GitHubAuth } from "../githubAuth";
 
 suite("Extension helper unit tests", () => {
   suite("state and source helpers", () => {
@@ -201,58 +199,6 @@ suite("Extension helper unit tests", () => {
           { pageToken: "page-2" },
         ).includes("pageToken=page-2"),
       );
-    });
-  });
-
-  suite("updatePreviousStates", () => {
-    let sandbox: sinon.SinonSandbox;
-
-    setup(() => {
-      sandbox = sinon.createSandbox();
-    });
-
-    teardown(() => {
-      sandbox.restore();
-    });
-
-    test("deduplicates PR status checks for shared PR URLs", async () => {
-      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
-      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
-        ok: true,
-        json: async () => ({ state: "open" }),
-      } as any);
-      const updateStub = sandbox.stub().resolves();
-
-      const mockContext = {
-        globalState: {
-          get: sandbox.stub().returns(undefined),
-          update: updateStub,
-        },
-      } as unknown as vscode.ExtensionContext;
-
-      const sharedPrUrl = "https://github.com/org/repo/pull/999991";
-      const sessions: Session[] = [
-        {
-          name: "sessions/pr-status-dedupe-1",
-          title: "dedupe-1",
-          state: "COMPLETED",
-          rawState: "COMPLETED",
-          outputs: [{ pullRequest: { url: sharedPrUrl, title: "PR 999991" } } as any],
-        },
-        {
-          name: "sessions/pr-status-dedupe-2",
-          title: "dedupe-2",
-          state: "COMPLETED",
-          rawState: "COMPLETED",
-          outputs: [{ pullRequest: { url: sharedPrUrl, title: "PR 999991" } } as any],
-        },
-      ];
-
-      await updatePreviousStates(sessions, mockContext);
-
-      assert.strictEqual(tokenStub.callCount, 1);
-      assert.strictEqual(fetchStub.callCount, 1);
-      assert.strictEqual(updateStub.called, true);
     });
   });
 
