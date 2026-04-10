@@ -13,7 +13,24 @@ suite("Extension Unit Tests - getLatestProgressActivity", () => {
     ];
     const result = getLatestProgressActivity(activities);
     assert.strictEqual(result?.name, "1");
+
+  test("should handle missing createTime in some elements", () => {
+    const activities: Activity[] = [
+      { id: "1", name: "1", progressUpdated: { title: "Missing Time" } } as unknown as Activity,
+      { id: "2", name: "2", createTime: "2026-02-28T10:00:00Z", progressUpdated: { title: "Has Time" } } as unknown as Activity,
+    ];
+    const result = getLatestProgressActivity(activities);
+    assert.strictEqual(result?.name, "2");
+
+  test("should handle invalid progress createTime returning NaN", () => {
+    const activities: Activity[] = [
+      { id: "1", name: "1", createTime: "bad-date", progressUpdated: { title: "x" } } as unknown as Activity,
+    ];
+    const result = getLatestProgressActivity(activities);
+    assert.strictEqual(result, undefined);
   });
+});
+});
 });
 
   test("should return undefined if no activities have progressUpdated", () => {

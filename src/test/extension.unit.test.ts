@@ -62,5 +62,33 @@ suite("Extension Unit Tests", () => {
       const result = getLatestActivityCreateTime(activities);
       assert.strictEqual(result, "2026-02-28T10:00:00Z");
     });
+
+    test("should skip non-progressUpdated activities correctly", () => {
+      const activities: Activity[] = [
+        { id: "1", name: "1", createTime: "2026-02-28T10:00:00Z" } as unknown as Activity, // Has no progressUpdated
+        { id: "2", name: "2", createTime: "2026-02-28T10:00:00Z", progressUpdated: { title: "Test" } } as unknown as Activity,
+      ];
+      // testing getLatestActivityCreateTime branch logic here as well
+      const result = getLatestActivityCreateTime(activities);
+      assert.strictEqual(result, "2026-02-28T10:00:00Z");
+    });
+
+    test("should handle invalid createTime returning NaN from Date.parse", () => {
+      const activities: Activity[] = [
+        { id: "1", name: "1", createTime: "not-a-date" } as unknown as Activity,
+      ];
+      // It hits the condition !Number.isNaN(parsed) returning false
+      const result = getLatestActivityCreateTime(activities);
+      assert.strictEqual(result, undefined);
+    });
+
+    test("should handle missing createTime branch", () => {
+      const activities: Activity[] = [
+        { id: "1", name: "1", createTime: "2026-02-28T10:00:00Z" } as unknown as Activity, // Has no progressUpdated
+        {} as unknown as Activity,
+      ];
+      const result = getLatestActivityCreateTime(activities);
+      assert.strictEqual(result, "2026-02-28T10:00:00Z");
+    });
   });
 });
