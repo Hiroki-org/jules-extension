@@ -64,7 +64,7 @@ jobs:
     steps:
       - name: "Extract command"
         id: "extract_command"
-        uses: "actions/github-script@v8"
+        uses: "actions/github-script@v9"
         env:
           EVENT_TYPE: "${{ github.event_name }}.${{ github.event.action }}"
           REQUEST: "${{ github.event.comment.body || github.event.review.body || github.event.issue.body }}"

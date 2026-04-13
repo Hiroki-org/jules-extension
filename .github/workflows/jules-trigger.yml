@@ -14,7 +14,7 @@ jobs:
     if: github.event.issue.user.login == github.repository_owner
     steps:
       - name: Check for @Jules mention and trigger Jules
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
         with:
