@@ -650,17 +650,17 @@ export function _findTargetRemote(
     let urlMatch: { remote: string; fetchUrl: string } | undefined;
     let originRemote: { remote: string; fetchUrl: string } | undefined;
 
-    const cleanHeadCloneUrl = headCloneUrl.replace('.git', '');
-    for (let i = 0; i < remotes.length; i += 1) {
-        const r = remotes[i];
+    const cleanHeadCloneUrl = headCloneUrl.replace(/\.git$/, '');
+    for (const r of remotes) {
+        const cleanFetchUrl = r.fetchUrl.replace(/\.git$/, '');
 
         // Exact match on both fetchUrl and remote name - return immediately
-        if ((r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl)) && r.remote === headOwner) {
+        if (cleanFetchUrl === cleanHeadCloneUrl && r.remote === headOwner) {
             return r;
         }
 
         // Store first matching URL as fallback
-        if (!urlMatch && (r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl))) {
+        if (!urlMatch && cleanFetchUrl === cleanHeadCloneUrl) {
             urlMatch = r;
         }
 
