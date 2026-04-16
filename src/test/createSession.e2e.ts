@@ -43,43 +43,69 @@ async function launchExtensionHost(): Promise<LaunchResult> {
     path.join(os.tmpdir(), "jules-e2e-ext-"),
   );
 
-  const app = await electron.launch({
-    executablePath,
-    args: [
-      workspaceRoot,
-      `--extensionDevelopmentPath=${workspaceRoot}`,
-      `--user-data-dir=${userDataDir}`,
-      `--extensions-dir=${extensionsDir}`,
-      "--disable-extensions",
-      "--disable-gpu",
-      "--disable-workspace-trust",
-      "--no-sandbox",
-      "--skip-release-notes",
-      "--skip-welcome",
-    ],
-    timeout: 60_000,
-  });
+  let app: ElectronApplication | undefined;
+  try {
+    app = await electron.launch({
+      executablePath,
+      args: [
+        workspaceRoot,
+        `--extensionDevelopmentPath=${workspaceRoot}`,
+        `--user-data-dir=${userDataDir}`,
+        `--extensions-dir=${extensionsDir}`,
+        "--disable-extensions",
+        "--disable-gpu",
+        "--disable-workspace-trust",
+        "--no-sandbox",
+        "--skip-release-notes",
+        "--skip-welcome",
+      ],
+      timeout: 60_000,
+    });
 
-  const page = await app.firstWindow();
-  await page.locator('[aria-label="Open Quick Access"]').waitFor({
-    state: "visible",
-    timeout: 30_000,
-  });
+    const page = await app.firstWindow();
+    await page.locator('[aria-label="Open Quick Access"]').waitFor({
+      state: "visible",
+      timeout: 30_000,
+    });
 
-  // Give the extension host time to finish activation so that all commands
-  // are registered before the test interacts with the command palette.
-  // The extension uses implicit activation (activationEvents: null), meaning
-  // VS Code activates it lazily on first command invocation. On slower CI
-  // runners the full activate() lifecycle can take several seconds, so we
-  // wait here to avoid a race where the notification never appears because
-  // the command handler has not yet been registered.
-  await page.waitForTimeout(10_000);
+    // Wait for the extension host to finish activation so that all commands
+    // are registered before the test interacts with the command palette.
+    // The extension uses implicit activation (activationEvents: null), meaning
+    // VS Code activates it lazily on the first contributed-command invocation.
+    // We first try a condition-based wait (Jules status bar item) which is
+    // faster when it works, then fall back to a fixed wait to guard against
+    // VS Code DOM changes across versions.
+    try {
+      await page
+        .locator(".statusbar-item")
+        .filter({ hasText: "Jules:" })
+        .first()
+        .waitFor({ state: "visible", timeout: 30_000 });
+    } catch {
+      // Status bar selector may differ across VS Code versions; fall back to
+      // a fixed delay that is sufficient for extension activation on CI.
+      await page.waitForTimeout(10_000);
+    }
 
-  return {
-    app,
-    page,
-    tempDirs: [userDataDir, extensionsDir],
-  };
+    return {
+      app,
+      page,
+      tempDirs: [userDataDir, extensionsDir],
+    };
+  } catch (err) {
+    // Clean up temp directories and the Electron process if launch fails so
+    // we do not leak resources when the test setup throws.
+    if (app) {
+      try {
+        await app.close();
+      } catch {
+        // ignore shutdown errors during cleanup
+      }
+    }
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+    fs.rmSync(extensionsDir, { recursive: true, force: true });
+    throw err;
+  }
 }
 
 async function openCommandPalette(
