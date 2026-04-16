@@ -549,16 +549,26 @@ async function fetchAndCheckoutFromPRInfo(
         const remotes: { remote: string; fetchUrl: string }[] = repository.state?.remotes || [];
 
         // headCloneUrlに一致するリモートを探す
-        let targetRemote = remotes.find(
-            (r: { fetchUrl?: string; pushUrl?: string }) =>
-                r.fetchUrl === headCloneUrl || r.fetchUrl?.replace('.git', '') === headCloneUrl.replace('.git', '')
-        );
+        let targetRemote: { remote: string; fetchUrl: string } | undefined;
+        let originRemote: { remote: string; fetchUrl: string } | undefined;
+
+        const cleanHeadCloneUrl = headCloneUrl.replace('.git', '');
+        for (let i = 0; i < remotes.length; i += 1) {
+            const r = remotes[i];
+
+            if (!targetRemote && (r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl))) {
+                targetRemote = r;
+            }
+            if (!originRemote && r.remote === 'origin') {
+                originRemote = r;
+            }
+            if (targetRemote && originRemote) {
+                break;
+            }
+        }
 
         // フォークからのPRで、対応するリモートがない場合
         if (!targetRemote) {
-            // origin/upstreamを確認
-            const originRemote = remotes.find((r: { remote: string }) => r.remote === 'origin');
-
             // originがheadCloneUrlと同じなら、originを使う
             if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {
                 targetRemote = originRemote;
