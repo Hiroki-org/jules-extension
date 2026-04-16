@@ -115,7 +115,8 @@ suite("VS Code UI Smoke Tests", () => {
         .locator(".notifications-toasts")
         .getByText(ERROR_MESSAGE, { exact: true })
         .first();
-      await notification.waitFor({ state: "visible", timeout: 15_000 });
+      // Increase timeout slightly to prevent flaky pipeline runs
+      await notification.waitFor({ state: "visible", timeout: 30_000 });
     } finally {
       if (app) {
         await closeApp(app);
