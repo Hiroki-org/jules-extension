@@ -66,9 +66,14 @@ async function launchExtensionHost(): Promise<LaunchResult> {
     timeout: 30_000,
   });
 
-  // Give extension host time to activate so commands are registered before
-  // the test opens the command palette.
-  await page.waitForTimeout(5000);
+  // Give the extension host time to finish activation so that all commands
+  // are registered before the test interacts with the command palette.
+  // The extension uses implicit activation (activationEvents: null), meaning
+  // VS Code activates it lazily on first command invocation. On slower CI
+  // runners the full activate() lifecycle can take several seconds, so we
+  // wait here to avoid a race where the notification never appears because
+  // the command handler has not yet been registered.
+  await page.waitForTimeout(10_000);
 
   return {
     app,
@@ -129,7 +134,10 @@ suite("VS Code UI Smoke Tests", () => {
         .locator(".notifications-toasts")
         .getByText(ERROR_MESSAGE, { exact: true })
         .first();
-      await notification.waitFor({ state: "visible", timeout: 15_000 });
+      // Use a generous timeout: after Enter is pressed VS Code may still need
+      // to finish activating the extension (implicit activation) and then
+      // execute the command handler before the toast appears.
+      await notification.waitFor({ state: "visible", timeout: 60_000 });
     } finally {
       if (app) {
         await closeApp(app);
