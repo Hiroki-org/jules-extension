@@ -910,8 +910,7 @@ export async function updatePreviousStates(
   const uniquePRUrls = new Set<string>();
   const sessionsToCheck: Session[] = [];
 
-  for (let i = 0; i < currentSessions.length; i += 1) {
-    const session = currentSessions[i];
+  for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
     if (prevState?.isTerminated) {
       continue;
@@ -923,8 +922,8 @@ export async function updatePreviousStates(
     if (prs.length > 0) {
       sessionsToCheck.push(session);
       sessionPRsMap.set(session.name, prs);
-      for (let j = 0; j < prs.length; j += 1) {
-        uniquePRUrls.add(prs[j].url);
+      for (const pr of prs) {
+        uniquePRUrls.add(pr.url);
       }
     }
   }
