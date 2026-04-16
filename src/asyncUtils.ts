@@ -39,7 +39,11 @@ export async function mapLimit<T, R>(
     executing.push(worker());
   }
 
-  await Promise.all(executing);
+  const settlements = await Promise.allSettled(executing);
+  const firstRejection = settlements.find((s): s is PromiseRejectedResult => s.status === 'rejected');
+  if (firstRejection) {
+    throw firstRejection.reason;
+  }
 
   return results;
 }
