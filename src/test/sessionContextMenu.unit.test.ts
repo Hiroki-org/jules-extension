@@ -39,6 +39,22 @@ suite('sessionContextMenu Test Suite', () => {
             const result = _findTargetRemote(remotes, 'https://github.com/unmatched/repo.git', 'fork', 'repo-different');
             assert.strictEqual(result?.remote, 'origin');
         });
+        test('should fallback to origin missing URL check but correctly returning origin with missing fetchUrl parts', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/fork/repo-different.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/unmatched/repo.git', 'fork', 'repo-different');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+        test('should fallback to origin when urlMatch is missing but origin matches fetchUrl via includes', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/fork/repo-different.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/unmatched/other.git', 'fork', 'repo-different');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+
+
 
         test('should handle completely missing url properties', () => {
             const remotes = [
@@ -47,6 +63,76 @@ suite('sessionContextMenu Test Suite', () => {
             const result = _findTargetRemote(remotes, 'https://github.com/unmatched/repo.git', 'fork', 'repo-different');
             assert.strictEqual(result, undefined);
         });
+        test('should skip and fallback to origin if urlMatch is empty', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/fork/repo.git' },
+                { remote: 'other', fetchUrl: '' as unknown as string }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/unmatched/other.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+        test('should fallback to origin with undefined fetchUrl', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: undefined as unknown as string }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/unmatched/other.git', 'fork', 'repo');
+            assert.strictEqual(result, undefined);
+        });
+        test('should fallback to origin if fetchUrl is undefined and urlMatch is fallback', () => {
+            const remotes = [
+                { remote: 'other', fetchUrl: 'https://github.com/fork/repo.git' },
+                { remote: 'origin', fetchUrl: undefined as unknown as string }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'other');
+        });
+
+        test('should fallback to origin with only remote owner match', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/different/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/different2/different2.git', 'different', 'different');
+            assert.strictEqual(result, undefined);
+        });
+
+        test('should completely fail to fallback if origin fetchUrl does not include owner repo', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/different/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/other/other.git', 'other', 'other');
+            assert.strictEqual(result, undefined);
+        });
+        test('should fallback to origin if fetchUrl is undefined, missing urlMatch, but missing owner string in fetchUrl fallback array', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: undefined as unknown as string }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result, undefined);
+        });
+
+        test('should ignore undefined origin in fallback when no urlMatch matches', () => {
+            const remotes = [
+                { remote: 'fork', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/unmatched/repo.git', 'unmatched', 'repo');
+            assert.strictEqual(result, undefined);
+        });
+        test('should fallback to origin if fetchUrl is missing and cleanUrl fallback matching url fails, but owner fallback works', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/unmatched/repo', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+
+
+
+
+
+
+
+
+
 
         test('should fallback to origin if it matches the head repo fully', () => {
             const remotes = [
@@ -55,6 +141,40 @@ suite('sessionContextMenu Test Suite', () => {
             const result = _findTargetRemote(remotes, 'https://github.com/unmatched/repo.git', 'fork', 'repo');
             assert.strictEqual(result?.remote, 'origin');
         });
+
+
+        test('should use only origin matched by url ignoring remote owner match when full remote is matched via substring', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/different/different.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo', 'different', 'different');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+        test('should fallback to urlMatch if no origin and target match is found', () => {
+            const remotes = [
+                { remote: 'something_else', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'something_else');
+        });
+
+
+        test('should use only origin matched by url ignoring remote owner match when full remote is matched', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/fork/repo' },
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo', 'different-owner', 'repo');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+
+        test('should immediately return if perfect match with .git suffix is found', () => {
+            const remotes = [
+                { remote: 'fork', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'fork');
+        });
+
 
 
         test('should return fetchUrl match when exact match is missing', () => {
@@ -92,6 +212,16 @@ suite('sessionContextMenu Test Suite', () => {
             const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
             assert.strictEqual(result?.remote, 'fork');
         });
+        test('should skip and correctly handle cleanHeadCloneUrl fallback logic when headCloneUrl does not contain .git', () => {
+            const remotes = [
+                { remote: 'fork', fetchUrl: 'https://github.com/fork/repo' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'fork');
+        });
+
+
+
     });
 
     suite('getBranchNameForSession', () => {
