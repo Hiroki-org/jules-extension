@@ -19,11 +19,18 @@ export async function mapLimit<T, R>(
   let nextIndex = 0;
   const executing: Promise<void>[] = [];
 
+  let hasError = false;
+
   const worker = async () => {
-    while (nextIndex < items.length) {
+    while (nextIndex < items.length && !hasError) {
       const index = nextIndex;
       nextIndex += 1;
-      results[index] = await iterator(items[index]);
+      try {
+        results[index] = await iterator(items[index]);
+      } catch (err) {
+        hasError = true;
+        throw err;
+      }
     }
   };
 
@@ -32,12 +39,7 @@ export async function mapLimit<T, R>(
     executing.push(worker());
   }
 
-  const settlements = await Promise.allSettled(executing);
-
-  const firstRejection = settlements.find(s => s.status === 'rejected');
-  if (firstRejection && firstRejection.status === 'rejected') {
-    throw firstRejection.reason;
-  }
+  await Promise.all(executing);
 
   return results;
 }
