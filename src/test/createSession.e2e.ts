@@ -2,10 +2,15 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { downloadAndUnzipVSCode } from "@vscode/test-electron";
-import { _electron as electron, ElectronApplication, Page } from "playwright-core";
+import {
+  _electron as electron,
+  ElectronApplication,
+  Page,
+} from "playwright-core";
 
 const COMMAND_LABEL = "Create Jules Session";
-const ERROR_MESSAGE = "No source selected. Please list and select a source first.";
+const ERROR_MESSAGE =
+  "No source selected. Please list and select a source first.";
 // Keep the default VS Code build pinned because this smoke test reaches into
 // workbench selectors such as `[aria-label="Open Quick Access"]`,
 // `input[aria-label="Type the name of a command to run."]`, and
@@ -34,39 +39,79 @@ async function launchExtensionHost(): Promise<LaunchResult> {
   const workspaceRoot = getWorkspaceRoot();
   const executablePath = await downloadAndUnzipVSCode(VSCODE_VERSION);
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "jules-e2e-user-"));
-  const extensionsDir = fs.mkdtempSync(path.join(os.tmpdir(), "jules-e2e-ext-"));
+  const extensionsDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "jules-e2e-ext-"),
+  );
 
-  const app = await electron.launch({
-    executablePath,
-    args: [
-      workspaceRoot,
-      `--extensionDevelopmentPath=${workspaceRoot}`,
-      `--user-data-dir=${userDataDir}`,
-      `--extensions-dir=${extensionsDir}`,
-      "--disable-extensions",
-      "--disable-gpu",
-      "--disable-workspace-trust",
-      "--no-sandbox",
-      "--skip-release-notes",
-      "--skip-welcome",
-    ],
-    timeout: 60_000,
-  });
+  let app: ElectronApplication | undefined;
+  try {
+    app = await electron.launch({
+      executablePath,
+      args: [
+        workspaceRoot,
+        `--extensionDevelopmentPath=${workspaceRoot}`,
+        `--user-data-dir=${userDataDir}`,
+        `--extensions-dir=${extensionsDir}`,
+        "--disable-extensions",
+        "--disable-gpu",
+        "--disable-workspace-trust",
+        "--no-sandbox",
+        "--skip-release-notes",
+        "--skip-welcome",
+      ],
+      timeout: 60_000,
+    });
 
-  const page = await app.firstWindow();
-  await page.locator('[aria-label="Open Quick Access"]').waitFor({
-    state: "visible",
-    timeout: 30_000,
-  });
+    const page = await app.firstWindow();
+    await page.locator('[aria-label="Open Quick Access"]').waitFor({
+      state: "visible",
+      timeout: 30_000,
+    });
 
-  return {
-    app,
-    page,
-    tempDirs: [userDataDir, extensionsDir],
-  };
+    // Wait for the extension host to finish activation so that all commands
+    // are registered before the test interacts with the command palette.
+    // The extension uses implicit activation (activationEvents: null), meaning
+    // VS Code activates it lazily on the first contributed-command invocation.
+    // We first try a condition-based wait (Jules status bar item) which is
+    // faster when it works, then fall back to a fixed wait to guard against
+    // VS Code DOM changes across versions.
+    try {
+      await page
+        .locator(".statusbar-item")
+        .filter({ hasText: "Jules:" })
+        .first()
+        .waitFor({ state: "visible", timeout: 30_000 });
+    } catch {
+      // Status bar selector may differ across VS Code versions; fall back to
+      // a fixed delay that is sufficient for extension activation on CI.
+      await page.waitForTimeout(10_000);
+    }
+
+    return {
+      app,
+      page,
+      tempDirs: [userDataDir, extensionsDir],
+    };
+  } catch (err) {
+    // Clean up temp directories and the Electron process if launch fails so
+    // we do not leak resources when the test setup throws.
+    if (app) {
+      try {
+        await app.close();
+      } catch {
+        // ignore shutdown errors during cleanup
+      }
+    }
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+    fs.rmSync(extensionsDir, { recursive: true, force: true });
+    throw err;
+  }
 }
 
-async function openCommandPalette(page: Page, commandLabel: string): Promise<void> {
+async function openCommandPalette(
+  page: Page,
+  commandLabel: string,
+): Promise<void> {
   await page.keyboard.press(getCommandPaletteShortcut());
 
   const quickInput = page.locator(
@@ -99,7 +144,11 @@ function cleanupTempDirs(tempDirs: string[]): void {
 
 suite("VS Code UI Smoke Tests", () => {
   test("Create Jules Session shows an error toast when no source is selected", async function () {
-    this.timeout(180_000);
+    // Budget: launch(60s) + workbench(30s) + statusbar/fallback(30s)
+    //       + palette ops(30s) + notification(60s) = 210s worst-case.
+    // Add 90 s headroom to avoid mocha killing the test before all
+    // sub-timeouts expire.
+    this.timeout(300_000);
 
     let app: ElectronApplication | undefined;
     let tempDirs: string[] = [];
@@ -115,7 +164,10 @@ suite("VS Code UI Smoke Tests", () => {
         .locator(".notifications-toasts")
         .getByText(ERROR_MESSAGE, { exact: true })
         .first();
-      await notification.waitFor({ state: "visible", timeout: 15_000 });
+      // Use a generous timeout: after Enter is pressed VS Code may still need
+      // to finish activating the extension (implicit activation) and then
+      // execute the command handler before the toast appears.
+      await notification.waitFor({ state: "visible", timeout: 60_000 });
     } finally {
       if (app) {
         await closeApp(app);
