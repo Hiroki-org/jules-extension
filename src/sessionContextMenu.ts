@@ -642,17 +642,17 @@ async function fetchAndCheckoutFromPRInfo(
 }
 
 export function _findTargetRemote(
-    remotes: { remote: string; fetchUrl: string }[],
+    remotes: { remote: string; fetchUrl?: string }[],
     headCloneUrl: string,
     headOwner: string,
     headRepo: string
-): { remote: string; fetchUrl: string } | undefined {
-    let urlMatch: { remote: string; fetchUrl: string } | undefined;
-    let originRemote: { remote: string; fetchUrl: string } | undefined;
+): { remote: string; fetchUrl?: string } | undefined {
+    let urlMatch: { remote: string; fetchUrl?: string } | undefined;
+    let originRemote: { remote: string; fetchUrl?: string } | undefined;
 
     const cleanHeadCloneUrl = headCloneUrl.replace(/\.git$/, '');
     for (const r of remotes) {
-        const cleanFetchUrl = r.fetchUrl.replace(/\.git$/, '');
+        const cleanFetchUrl = r.fetchUrl?.replace(/\.git$/, '');
 
         // Exact match on both fetchUrl and remote name - return immediately
         if (cleanFetchUrl === cleanHeadCloneUrl && r.remote === headOwner) {
@@ -668,9 +668,6 @@ export function _findTargetRemote(
             originRemote = r;
         }
 
-        if (urlMatch && originRemote) {
-            break;
-        }
     }
 
     // Fallbacks
