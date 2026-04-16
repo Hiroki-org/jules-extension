@@ -904,15 +904,29 @@ export async function updatePreviousStates(
   let hasChanged = false;
 
   // 1. Identify sessions that require PR status checks
-  // We only check for sessions that are COMPLETED, have a PR URL, and are NOT already terminated.
-  const sessionsToCheck = currentSessions.filter((session) => {
+  // Optimization: Extract all unique PR URLs in a single pass to avoid N+1 duplicate API calls
+  // and avoid filtering arrays or extracting PRs multiple times.
+  const sessionPRsMap = new Map<string, PullRequestOutput[]>();
+  const uniquePRUrls = new Set<string>();
+  const sessionsToCheck: Session[] = [];
+
+  for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
     if (prevState?.isTerminated) {
-      return false;
+      continue;
+    }
+    if (session.state !== "COMPLETED") {
+      continue;
     }
     const prs = extractPRs(session);
-    return session.state === "COMPLETED" && prs.length > 0;
-  });
+    if (prs.length > 0) {
+      sessionsToCheck.push(session);
+      sessionPRsMap.set(session.name, prs);
+      for (const pr of prs) {
+        uniquePRUrls.add(pr.url);
+      }
+    }
+  }
 
   // 2. Perform checks in parallel
   // This avoids sequential API calls (N+1 problem) when multiple sessions are completed.
@@ -922,17 +936,6 @@ export async function updatePreviousStates(
     // Optimization: Fetch token once for all parallel checks to avoid
     // hitting authentication provider or secure storage repeatedly.
     const token = await GitHubAuth.getToken();
-
-    // Optimization: Extract all unique PR URLs to avoid N+1 duplicate API calls
-    const sessionPRsMap = new Map<string, PullRequestOutput[]>();
-    const uniquePRUrls = new Set<string>();
-    for (const session of sessionsToCheck) {
-      const prs = extractPRs(session);
-      sessionPRsMap.set(session.name, prs);
-      for (const pr of prs) {
-        uniquePRUrls.add(pr.url);
-      }
-    }
 
     // Fetch all unique PR statuses in parallel with concurrency limit
     const uniquePRUrlsArray = Array.from(uniquePRUrls);
