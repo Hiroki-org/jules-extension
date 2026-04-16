@@ -196,6 +196,66 @@ suite('sessionContextMenu Test Suite', () => {
     });
 
     suite('getPullRequestUrlForSession (Session fallback scenarios)', () => {
+        test('should return null when session is null or undefined', () => {
+            assert.strictEqual(getPullRequestUrlForSession(null as any), null);
+            assert.strictEqual(getPullRequestUrlForSession(undefined as any), null);
+        });
+
+        test('should return null for non-object inputs without throwing', () => {
+            assert.strictEqual(getPullRequestUrlForSession(true as unknown as Session), null);
+        });
+
+        test('should cache and return the same result on subsequent calls', () => {
+            const session: Partial<Session> = {
+                name: 'test-session',
+                title: 'Test Session',
+                state: 'COMPLETED',
+                rawState: 'COMPLETED',
+                outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+            };
+            const result1 = getPullRequestUrlForSession(session as Session);
+            const result2 = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(result1, 'https://github.com/owner/repo/pull/123');
+            assert.strictEqual(result2, 'https://github.com/owner/repo/pull/123');
+
+            const sessionInvalidUrl: Partial<Session> = {
+                name: 'test-session2',
+                title: 'Test Session 2',
+                outputs: [{ pullRequest: { url: 'invalid-url' } } as any]
+            };
+
+            const resultInvalid1 = getPullRequestUrlForSession(sessionInvalidUrl as Session);
+            const resultInvalid2 = getPullRequestUrlForSession(sessionInvalidUrl as Session);
+            assert.strictEqual(resultInvalid1, null);
+            assert.strictEqual(resultInvalid2, null);
+        });
+
+        test('should not cache null results when session data becomes available later', () => {
+            const session: Partial<Session> = {
+                name: 'test-session3',
+                title: 'Test Session 3',
+                state: 'COMPLETED',
+                rawState: 'COMPLETED',
+                outputs: []
+            };
+
+            const initial = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(initial, null);
+
+            session.outputs = [{ pullRequest: { url: 'https://github.com/owner/repo/pull/456' } } as any];
+
+            const updated = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(updated, 'https://github.com/owner/repo/pull/456');
+        });
+
+        test('should handle exception during PR URL extraction and return null', () => {
+            const session: any = {
+                get outputs() {
+                    throw new Error("Simulated error");
+                }
+            };
+            assert.strictEqual(getPullRequestUrlForSession(session as Session), null);
+        });
         test('should return null when session has no outputs', () => {
             const session: Partial<Session> = {
                 name: 'test-session',
