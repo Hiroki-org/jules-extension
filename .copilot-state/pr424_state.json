@@ -1,0 +1,1578 @@
+{
+  "pr_view": {
+    "author": {
+      "id": "U_kgDOCBgyRg",
+      "is_bot": false,
+      "login": "is0692vs",
+      "name": "\u5411\u4e95 \u5927\u6a39"
+    },
+    "baseRefName": "main",
+    "commits": [
+      {
+        "authoredDate": "2026-03-22T13:36:23Z",
+        "authors": [
+          {
+            "email": "is0692vs@ed.ritsumei.ac.jp",
+            "id": "U_kgDOCBgyRg",
+            "login": "is0692vs",
+            "name": "is0692vs"
+          }
+        ],
+        "committedDate": "2026-03-22T13:36:23Z",
+        "messageBody": "Resolves #419",
+        "messageHeadline": "refactor: extract chat webview assets to separate file",
+        "oid": "a98463b68e1477a3a51134deed0d4657e5c38c83"
+      }
+    ],
+    "headRefName": "fix-issue-419",
+    "isDraft": false,
+    "latestReviews": [
+      {
+        "id": "",
+        "author": {
+          "login": "greptile-apps"
+        },
+        "authorAssociation": "CONTRIBUTOR",
+        "body": "",
+        "submittedAt": "2026-03-22T13:40:34Z",
+        "includesCreatedEdit": false,
+        "reactionGroups": [],
+        "state": "COMMENTED",
+        "commit": {
+          "oid": ""
+        }
+      },
+      {
+        "id": "",
+        "author": {
+          "login": "gemini-code-assist"
+        },
+        "authorAssociation": "CONTRIBUTOR",
+        "body": "## Code Review\n\nThis pull request refactors the chat webview's CSS and JavaScript assets out of minified string literals in `chatView.ts` and into a new, more maintainable `src/webview/chatAssets.ts` file. This is a positive change for code organization and readability. My review identified two minor regressions in the new CSS file: an accessibility issue with the copy button's focus visibility and a visual bug with the typing indicator animation. The rest of the changes are primarily code formatting, which improves readability. I've also suggested adding unit tests to prevent accessibility regressions.",
+        "submittedAt": "2026-03-22T13:40:37Z",
+        "includesCreatedEdit": false,
+        "reactionGroups": [],
+        "state": "COMMENTED",
+        "commit": {
+          "oid": ""
+        }
+      },
+      {
+        "id": "",
+        "author": {
+          "login": "chatgpt-codex-connector"
+        },
+        "authorAssociation": "NONE",
+        "body": "\n### \ud83d\udca1 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `a98463b68e`\n    \n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](http://chatgpt.com/codex/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with \ud83d\udc4d.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+        "submittedAt": "2026-03-22T13:40:20Z",
+        "includesCreatedEdit": false,
+        "reactionGroups": [],
+        "state": "COMMENTED",
+        "commit": {
+          "oid": ""
+        }
+      },
+      {
+        "id": "",
+        "author": {
+          "login": "coderabbitai"
+        },
+        "authorAssociation": "CONTRIBUTOR",
+        "body": "**Actionable comments posted: 4**\n\n<details>\n<summary>\ud83e\udd16 Prompt for all review comments with AI agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nInline comments:\nIn `@src/chatView.ts`:\n- Around line 318-336: The handler registered in\nwebviewView.webview.onDidReceiveMessage uses several single-line if statements\nwithout braces (e.g., the check for message?.type === \"requestInitialState\",\nmessage?.type !== \"sendMessage\", and the empty sessionId/text check), which\ntriggers static-analysis warnings; update those conditions in the\nonDidReceiveMessage callback to always use block braces { ... } around their\nbodies (so the call to this.postState(), the early return when type !==\n\"sendMessage\", and the early return when !sessionId || !text are wrapped in\nbraces) to satisfy the linter and make the control flow explicit while leaving\nthe try { await this.onSendMessage(sessionId, text); } catch (...) block\nunchanged.\n- Around line 120-125: The linter warns about a missing block after the if\nstatement in the isGeneratingSessionState function; update the function so the\nif (!rawState) branch uses braces (i.e., wrap the return false; in { ... }) to\nsatisfy the rule\u2014modify the isGeneratingSessionState implementation that\nreferences rawState and GENERATING_SESSION_STATES.has(rawState) accordingly.\n- Around line 208-236: Add missing block braces for every single-line if in\nchatView.ts so the parser stops warning; specifically wrap the bodies of if\n(activity.sessionFailed?.reason), if (activity.planGenerated?.plan), if\n((activity as any).gitPatch?.diff) and its inner if (typeof diff === \"string\" &&\ndiff.trim().length > 0), as well as if (activity.artifacts &&\nactivity.artifacts.length > 0) and the nested if (artifact.changeSet) and its\ninner if (diffData && typeof diffData === \"string\") with { ... } blocks; update\nthe surrounding code that builds detailsHtml in the functions/methods handling\nactivity rendering to use these braced blocks so the linter/CI warnings\ndisappear.\n\nIn `@src/webview/chatAssets.ts`:\n- Around line 39-121: Add a new unit test file specifically for this module that\nimports CHAT_JS and verifies the webview script behavior: mount a DOM with\nelements used by the script (chat, typing, messageInput, sendButton,\nsessionLabel, composer) then execute the CHAT_JS script in a jsdom environment\nand assert renderMessages/updateUI outcomes by posting a \"chatState\" message\n(check that messages with properties matching ChatMessageItem render correctly\nand timestamps are formatted), simulate input/submit and Ctrl/Cmd+Enter to\nensure vscode.postMessage is called with {type:\"sendMessage\"}, and test the\ncopy-button click flow (mock navigator.clipboard.writeText to succeed/fail and\nassert button text changes). Ensure tests also cover the fallback\nacquireVsCodeApi case by providing a fake acquireVsCodeApi absence and spying\nthe console fallback postMessage, and name the file e.g.\nsrc/webview/chatAssets.test.ts to satisfy module-level coverage.\n```\n\n</details>\n\n---\n\n<details>\n<summary>\u2139\ufe0f Review info</summary>\n\n<details>\n<summary>\u2699\ufe0f Run configuration</summary>\n\n**Configuration used**: Organization UI\n\n**Review profile**: ASSERTIVE\n\n**Plan**: Pro\n\n**Run ID**: `aa1f8d47-9ca9-48d8-8583-fe01680591fa`\n\n</details>\n\n<details>\n<summary>\ud83d\udce5 Commits</summary>\n\nReviewing files that changed from the base of the PR and between 92749e272afb5aa96acdff053f7f0aa21cdf91d3 and a98463b68e1477a3a51134deed0d4657e5c38c83.\n\n</details>\n\n<details>\n<summary>\ud83d\udcd2 Files selected for processing (2)</summary>\n\n* `src/chatView.ts`\n* `src/webview/chatAssets.ts`\n\n</details>\n\n</details>\n\n<!-- This is an auto-generated comment by CodeRabbit for review status -->",
+        "submittedAt": "2026-03-22T13:42:03Z",
+        "includesCreatedEdit": false,
+        "reactionGroups": [],
+        "state": "CHANGES_REQUESTED",
+        "commit": {
+          "oid": ""
+        }
+      }
+    ],
+    "mergeable": "MERGEABLE",
+    "number": 424,
+    "reviewDecision": "CHANGES_REQUESTED",
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:35Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080344946",
+        "name": "lint / lint",
+        "startedAt": "2026-03-22T13:37:14Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:02Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404229814/job/68080344171",
+        "name": "Analyze (javascript-typescript)",
+        "startedAt": "2026-03-22T13:37:12Z",
+        "status": "COMPLETED",
+        "workflowName": "CodeQL"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:20Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230473/job/68080344903",
+        "name": "Analyze",
+        "startedAt": "2026-03-22T13:37:13Z",
+        "status": "COMPLETED",
+        "workflowName": "CodeQL Analysis"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:20Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230475/job/68080344872",
+        "name": "label",
+        "startedAt": "2026-03-22T13:37:13Z",
+        "status": "COMPLETED",
+        "workflowName": "Label Non-Source PRs"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:18Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230465/job/68080344862",
+        "name": "make-ready",
+        "startedAt": "2026-03-22T13:37:13Z",
+        "status": "COMPLETED",
+        "workflowName": "Make Draft PR Ready"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:57Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230467/job/68080344895",
+        "name": "njsscan code scanning",
+        "startedAt": "2026-03-22T13:37:13Z",
+        "status": "COMPLETED",
+        "workflowName": "njsscan sarif"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:31Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404287984/job/68080491961",
+        "name": "debugger",
+        "startedAt": "2026-03-22T13:40:28Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:41Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404291093/job/68080499657",
+        "name": "debugger",
+        "startedAt": "2026-03-22T13:40:39Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:46Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404292579/job/68080503166",
+        "name": "debugger",
+        "startedAt": "2026-03-22T13:40:43Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:42:14Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567117",
+        "name": "debugger",
+        "startedAt": "2026-03-22T13:42:09Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:02Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230468/job/68080344850",
+        "name": "review",
+        "startedAt": "2026-03-22T13:37:13Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd0e Gemini PR Review"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:25Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404287984/job/68080492058",
+        "name": "dispatch",
+        "startedAt": "2026-03-22T13:40:25Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:36Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404291093/job/68080499716",
+        "name": "dispatch",
+        "startedAt": "2026-03-22T13:40:36Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:41Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404292579/job/68080503277",
+        "name": "dispatch",
+        "startedAt": "2026-03-22T13:40:41Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:42:06Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567412",
+        "name": "dispatch",
+        "startedAt": "2026-03-22T13:42:07Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:01Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364595",
+        "name": "test / test-unit (20)",
+        "startedAt": "2026-03-22T13:37:38Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:53Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364588",
+        "name": "test / test-unit (22)",
+        "startedAt": "2026-03-22T13:37:37Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:25Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404287984/job/68080492201",
+        "name": "review",
+        "startedAt": "2026-03-22T13:40:26Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:36Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404291093/job/68080499870",
+        "name": "review",
+        "startedAt": "2026-03-22T13:40:37Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:41Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404292579/job/68080503318",
+        "name": "review",
+        "startedAt": "2026-03-22T13:40:41Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:42:06Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567794",
+        "name": "review",
+        "startedAt": "2026-03-22T13:42:07Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:57Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364590",
+        "name": "test / build-check (20)",
+        "startedAt": "2026-03-22T13:37:37Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:04Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364589",
+        "name": "test / build-check (22)",
+        "startedAt": "2026-03-22T13:37:38Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:25Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404287984/job/68080492219",
+        "name": "triage",
+        "startedAt": "2026-03-22T13:40:26Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:36Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404291093/job/68080499858",
+        "name": "triage",
+        "startedAt": "2026-03-22T13:40:37Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:41Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404292579/job/68080503360",
+        "name": "triage",
+        "startedAt": "2026-03-22T13:40:41Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:42:06Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567862",
+        "name": "triage",
+        "startedAt": "2026-03-22T13:42:07Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:39:03Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384211",
+        "name": "test / integration (ubuntu-latest, 20)",
+        "startedAt": "2026-03-22T13:38:07Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:39:07Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384199",
+        "name": "test / integration (ubuntu-latest, 22)",
+        "startedAt": "2026-03-22T13:38:07Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:49Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384210",
+        "name": "test / integration (macos-latest, 20)",
+        "startedAt": "2026-03-22T13:38:07Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:49Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384209",
+        "name": "test / integration (macos-latest, 22)",
+        "startedAt": "2026-03-22T13:38:07Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:39:59Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384203",
+        "name": "test / integration (windows-latest, 20)",
+        "startedAt": "2026-03-22T13:38:15Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:39:43Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384206",
+        "name": "test / integration (windows-latest, 22)",
+        "startedAt": "2026-03-22T13:38:07Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:25Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404287984/job/68080492164",
+        "name": "invoke",
+        "startedAt": "2026-03-22T13:40:26Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:36Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404291093/job/68080499798",
+        "name": "invoke",
+        "startedAt": "2026-03-22T13:40:36Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:41Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404292579/job/68080503381",
+        "name": "invoke",
+        "startedAt": "2026-03-22T13:40:41Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:42:06Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567546",
+        "name": "invoke",
+        "startedAt": "2026-03-22T13:42:07Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:25Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404287984/job/68080492204",
+        "name": "fallthrough",
+        "startedAt": "2026-03-22T13:40:26Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:36Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404291093/job/68080499871",
+        "name": "fallthrough",
+        "startedAt": "2026-03-22T13:40:37Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:41Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404292579/job/68080503423",
+        "name": "fallthrough",
+        "startedAt": "2026-03-22T13:40:41Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:42:07Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567938",
+        "name": "fallthrough",
+        "startedAt": "2026-03-22T13:42:07Z",
+        "status": "COMPLETED",
+        "workflowName": "\ud83d\udd00 Gemini Dispatch"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:38:13Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/runs/68080389219",
+        "name": "CodeQL",
+        "startedAt": "2026-03-22T13:38:11Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:37:50Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Hiroki-org/jules-extension/runs/68080374028",
+        "name": "nodejsscan",
+        "startedAt": "2026-03-22T13:37:48Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "CodeRabbit",
+        "startedAt": "2026-03-22T13:42:27Z",
+        "state": "SUCCESS",
+        "targetUrl": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-03-22T13:40:36Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://greptile.com/",
+        "name": "Greptile Review",
+        "startedAt": "2026-03-22T13:37:12Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "title": "Refactor chat webview assets out of minified literals"
+  },
+  "checks": [
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567117",
+      "name": "debugger",
+      "state": "SUCCESS",
+      "workflow": "\ud83d\udd00 Gemini Dispatch"
+    },
+    {
+      "bucket": "skipping",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567938",
+      "name": "fallthrough",
+      "state": "SKIPPED",
+      "workflow": "\ud83d\udd00 Gemini Dispatch"
+    },
+    {
+      "bucket": "skipping",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567794",
+      "name": "review",
+      "state": "SKIPPED",
+      "workflow": "\ud83d\udd00 Gemini Dispatch"
+    },
+    {
+      "bucket": "skipping",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567862",
+      "name": "triage",
+      "state": "SKIPPED",
+      "workflow": "\ud83d\udd00 Gemini Dispatch"
+    },
+    {
+      "bucket": "skipping",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567412",
+      "name": "dispatch",
+      "state": "SKIPPED",
+      "workflow": "\ud83d\udd00 Gemini Dispatch"
+    },
+    {
+      "bucket": "skipping",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404318319/job/68080567546",
+      "name": "invoke",
+      "state": "SKIPPED",
+      "workflow": "\ud83d\udd00 Gemini Dispatch"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384203",
+      "name": "test / integration (windows-latest, 20)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/runs/68080389219",
+      "name": "CodeQL",
+      "state": "SUCCESS",
+      "workflow": ""
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384211",
+      "name": "test / integration (ubuntu-latest, 20)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384199",
+      "name": "test / integration (ubuntu-latest, 22)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384210",
+      "name": "test / integration (macos-latest, 20)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384209",
+      "name": "test / integration (macos-latest, 22)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080384206",
+      "name": "test / integration (windows-latest, 22)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/runs/68080374028",
+      "name": "nodejsscan",
+      "state": "SUCCESS",
+      "workflow": ""
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364595",
+      "name": "test / test-unit (20)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364589",
+      "name": "test / build-check (22)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364590",
+      "name": "test / build-check (20)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080364588",
+      "name": "test / test-unit (22)",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230495/job/68080344946",
+      "name": "lint / lint",
+      "state": "SUCCESS",
+      "workflow": "CI"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230465/job/68080344862",
+      "name": "make-ready",
+      "state": "SUCCESS",
+      "workflow": "Make Draft PR Ready"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230475/job/68080344872",
+      "name": "label",
+      "state": "SUCCESS",
+      "workflow": "Label Non-Source PRs"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230473/job/68080344903",
+      "name": "Analyze",
+      "state": "SUCCESS",
+      "workflow": "CodeQL Analysis"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230467/job/68080344895",
+      "name": "njsscan code scanning",
+      "state": "SUCCESS",
+      "workflow": "njsscan sarif"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404230468/job/68080344850",
+      "name": "review",
+      "state": "SUCCESS",
+      "workflow": "\ud83d\udd0e Gemini PR Review"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://github.com/Hiroki-org/jules-extension/actions/runs/23404229814/job/68080344171",
+      "name": "Analyze (javascript-typescript)",
+      "state": "SUCCESS",
+      "workflow": "CodeQL"
+    },
+    {
+      "bucket": "pass",
+      "link": "https://greptile.com/",
+      "name": "Greptile Review",
+      "state": "SUCCESS",
+      "workflow": ""
+    },
+    {
+      "bucket": "pass",
+      "link": "",
+      "name": "CodeRabbit",
+      "state": "SUCCESS",
+      "workflow": ""
+    }
+  ],
+  "review_threads": [
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kto",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 19,
+      "startLine": 19,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhk2",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Keep copy button visible when keyboard-focused**\n\nThe stylesheet now only reveals `.copy-code-button` on hover, but the button remains `opacity: 0` during keyboard navigation. In the webview this means keyboard-only users can tab to the copy control without any visible focus indication, so the copy action is effectively undiscoverable unless a mouse hover happens. Please include a focus-visible selector in the reveal rule (as before) so accessibility and keyboard usability are preserved.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971539766",
+            "createdAt": "2026-03-22T13:40:20Z",
+            "author": {
+              "login": "chatgpt-codex-connector"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kw6",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 27,
+      "startLine": 26,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhow",
+            "body": "<a href=\"#\"><img alt=\"P1\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7\" align=\"top\"></a> **\u30bf\u30a4\u30d4\u30f3\u30b0\u30c9\u30c3\u30c8\u306e\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u9045\u5ef6\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u4e00\u81f4\u3057\u306a\u3044**\n\n`typing` div \u306e HTML \u69cb\u9020\u306f\u4ee5\u4e0b\u306e\u3068\u304a\u308a\u3067\u3059\uff1a\n\n```html\n<div id=\"typing\" class=\"typing\" ...>\n  <span>Jules is working</span>   \u2190 nth-child(1)\uff08\u30c6\u30ad\u30b9\u30c8\u3001.typing-dot \u3067\u306f\u306a\u3044\uff09\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(2)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(3)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(4)\n</div>\n```\n\n`.typing-dot:nth-child(1)` \u306f\u30011\u756a\u76ee\u306e\u5b50\u8981\u7d20\uff08`<span>Jules is working</span>`\uff09\u304c `.typing-dot` \u30af\u30e9\u30b9\u3092\u6301\u305f\u306a\u3044\u305f\u3081\u3001**\u3069\u306e\u8981\u7d20\u306b\u3082\u4e00\u81f4\u3057\u307e\u305b\u3093**\u3002\u305d\u306e\u305f\u3081\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u3061\u6700\u521d\u306e\u30c9\u30c3\u30c8\uff08`nth-child(2)`\uff09\u306e\u307f\u306b `-0.16s` \u306e\u9045\u5ef6\u304c\u9069\u7528\u3055\u308c\u3001\u6b8b\u308a2\u3064\u306b\u306f\u9045\u5ef6\u304c\u8a2d\u5b9a\u3055\u308c\u307e\u305b\u3093\u3002\n\n\u4ee5\u524d\u306e CSS \u3067\u306f `nth-child(2)` \u3068 `nth-child(3)` \u3092\u4f7f\u7528\u3057\u3066\u304a\u308a\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u30612\u3064\u306b\u9045\u5ef6\u3092\u4ed8\u4e0e\u3057\u3066\u3044\u307e\u3057\u305f\u3002\u4fee\u6b63\u6848\uff1a\n\n```suggestion\n.typing-dot:nth-child(2) { animation-delay: -0.32s; }\n.typing-dot:nth-child(3) { animation-delay: -0.16s; }\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/webview/chatAssets.ts\nLine: 26-27\n\nComment:\n**\u30bf\u30a4\u30d4\u30f3\u30b0\u30c9\u30c3\u30c8\u306e\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u9045\u5ef6\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u4e00\u81f4\u3057\u306a\u3044**\n\n`typing` div \u306e HTML \u69cb\u9020\u306f\u4ee5\u4e0b\u306e\u3068\u304a\u308a\u3067\u3059\uff1a\n\n```html\n<div id=\"typing\" class=\"typing\" ...>\n  <span>Jules is working</span>   \u2190 nth-child(1)\uff08\u30c6\u30ad\u30b9\u30c8\u3001.typing-dot \u3067\u306f\u306a\u3044\uff09\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(2)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(3)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(4)\n</div>\n```\n\n`.typing-dot:nth-child(1)` \u306f\u30011\u756a\u76ee\u306e\u5b50\u8981\u7d20\uff08`<span>Jules is working</span>`\uff09\u304c `.typing-dot` \u30af\u30e9\u30b9\u3092\u6301\u305f\u306a\u3044\u305f\u3081\u3001**\u3069\u306e\u8981\u7d20\u306b\u3082\u4e00\u81f4\u3057\u307e\u305b\u3093**\u3002\u305d\u306e\u305f\u3081\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u3061\u6700\u521d\u306e\u30c9\u30c3\u30c8\uff08`nth-child(2)`\uff09\u306e\u307f\u306b `-0.16s` \u306e\u9045\u5ef6\u304c\u9069\u7528\u3055\u308c\u3001\u6b8b\u308a2\u3064\u306b\u306f\u9045\u5ef6\u304c\u8a2d\u5b9a\u3055\u308c\u307e\u305b\u3093\u3002\n\n\u4ee5\u524d\u306e CSS \u3067\u306f `nth-child(2)` \u3068 `nth-child(3)` \u3092\u4f7f\u7528\u3057\u3066\u304a\u308a\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u30612\u3064\u306b\u9045\u5ef6\u3092\u4ed8\u4e0e\u3057\u3066\u3044\u307e\u3057\u305f\u3002\u4fee\u6b63\u6848\uff1a\n\n```suggestion\n.typing-dot:nth-child(2) { animation-delay: -0.32s; }\n.typing-dot:nth-child(3) { animation-delay: -0.16s; }\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540016",
+            "createdAt": "2026-03-22T13:40:31Z",
+            "author": {
+              "login": "greptile-apps"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kxb",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 19,
+      "startLine": 19,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhpT",
+            "body": "<a href=\"#\"><img alt=\"P2\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7\" align=\"top\"></a> **\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306e\u30ad\u30fc\u30dc\u30fc\u30c9\u30d5\u30a9\u30fc\u30ab\u30b9\u6642\u306e\u8996\u8a8d\u6027\u304c\u5931\u308f\u308c\u305f\uff08\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u5f8c\u9000\uff09**\n\n\u65e7 CSS \u3067\u306f\u4ee5\u4e0b\u306e\u3088\u3046\u306a\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u5b58\u5728\u3057\u3066\u3044\u307e\u3057\u305f\uff1a\n\n```css\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n\u65b0\u3057\u3044 CSS \u3067\u306f `:focus-visible` \u306e\u90e8\u5206\u304c\u524a\u9664\u3055\u308c\u3066\u304a\u308a\u3001`.code-block:hover .copy-code-button` \u306e\u307f\u306b\u306a\u3063\u3066\u3044\u307e\u3059\u3002\u3053\u308c\u306b\u3088\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u3067\u30bf\u30d6\u79fb\u52d5\u3057\u3066\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306b\u30d5\u30a9\u30fc\u30ab\u30b9\u3057\u305f\u969b\u306b\u30dc\u30bf\u30f3\u304c\u8868\u793a\u3055\u308c\u306a\u304f\u306a\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u64cd\u4f5c\u306e\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u304c\u4f4e\u4e0b\u3057\u307e\u3059\u3002\n\n```suggestion\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/webview/chatAssets.ts\nLine: 19\n\nComment:\n**\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306e\u30ad\u30fc\u30dc\u30fc\u30c9\u30d5\u30a9\u30fc\u30ab\u30b9\u6642\u306e\u8996\u8a8d\u6027\u304c\u5931\u308f\u308c\u305f\uff08\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u5f8c\u9000\uff09**\n\n\u65e7 CSS \u3067\u306f\u4ee5\u4e0b\u306e\u3088\u3046\u306a\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u5b58\u5728\u3057\u3066\u3044\u307e\u3057\u305f\uff1a\n\n```css\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n\u65b0\u3057\u3044 CSS \u3067\u306f `:focus-visible` \u306e\u90e8\u5206\u304c\u524a\u9664\u3055\u308c\u3066\u304a\u308a\u3001`.code-block:hover .copy-code-button` \u306e\u307f\u306b\u306a\u3063\u3066\u3044\u307e\u3059\u3002\u3053\u308c\u306b\u3088\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u3067\u30bf\u30d6\u79fb\u52d5\u3057\u3066\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306b\u30d5\u30a9\u30fc\u30ab\u30b9\u3057\u305f\u969b\u306b\u30dc\u30bf\u30f3\u304c\u8868\u793a\u3055\u308c\u306a\u304f\u306a\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u64cd\u4f5c\u306e\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u304c\u4f4e\u4e0b\u3057\u307e\u3059\u3002\n\n```suggestion\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540051",
+            "createdAt": "2026-03-22T13:40:32Z",
+            "author": {
+              "login": "greptile-apps"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kxo",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 31,
+      "startLine": 31,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhpj",
+            "body": "<a href=\"#\"><img alt=\"P2\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7\" align=\"top\"></a> **`:focus-visible` \u304b\u3089 `:focus` \u3078\u306e\u5909\u66f4\u306b\u3088\u308b\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u306e\u5f8c\u9000**\n\n\u65e7 CSS \u3067\u306f `#messageInput:focus-visible` \u3092\u4f7f\u7528\u3057\u3066\u3044\u307e\u3057\u305f\u304c\u3001\u65b0 CSS \u3067\u306f `#messageInput:focus` \u306b\u5909\u308f\u3063\u3066\u3044\u307e\u3059\u3002`:focus` \u306f\u30de\u30a6\u30b9\u30af\u30ea\u30c3\u30af\u6642\u306b\u3082\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u8996\u899a\u7684\u306b\u30ce\u30a4\u30ba\u306b\u306a\u308a\u3084\u3059\u3044\u3067\u3059\u3002\u4e00\u65b9 `:focus-visible` \u306f\u30ad\u30fc\u30dc\u30fc\u30c9\u30ca\u30d3\u30b2\u30fc\u30b7\u30e7\u30f3\u6642\u306e\u307f\u306b\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u3068 UX \u306e\u30d0\u30e9\u30f3\u30b9\u304c\u53d6\u308c\u3066\u3044\u307e\u3059\u3002\n\n```suggestion\n#messageInput:focus-visible { border-color: var(--vscode-focusBorder); }\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/webview/chatAssets.ts\nLine: 31\n\nComment:\n**`:focus-visible` \u304b\u3089 `:focus` \u3078\u306e\u5909\u66f4\u306b\u3088\u308b\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u306e\u5f8c\u9000**\n\n\u65e7 CSS \u3067\u306f `#messageInput:focus-visible` \u3092\u4f7f\u7528\u3057\u3066\u3044\u307e\u3057\u305f\u304c\u3001\u65b0 CSS \u3067\u306f `#messageInput:focus` \u306b\u5909\u308f\u3063\u3066\u3044\u307e\u3059\u3002`:focus` \u306f\u30de\u30a6\u30b9\u30af\u30ea\u30c3\u30af\u6642\u306b\u3082\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u8996\u899a\u7684\u306b\u30ce\u30a4\u30ba\u306b\u306a\u308a\u3084\u3059\u3044\u3067\u3059\u3002\u4e00\u65b9 `:focus-visible` \u306f\u30ad\u30fc\u30dc\u30fc\u30c9\u30ca\u30d3\u30b2\u30fc\u30b7\u30e7\u30f3\u6642\u306e\u307f\u306b\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u3068 UX \u306e\u30d0\u30e9\u30f3\u30b9\u304c\u53d6\u308c\u3066\u3044\u307e\u3059\u3002\n\n```suggestion\n#messageInput:focus-visible { border-color: var(--vscode-focusBorder); }\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540067",
+            "createdAt": "2026-03-22T13:40:33Z",
+            "author": {
+              "login": "greptile-apps"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kyv",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 19,
+      "startLine": 19,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhq9",
+            "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nThe `:focus-visible` pseudo-class was removed from this rule, which is an accessibility regression. Without it, the copy button won't become visible when a user navigates to it using the keyboard (e.g., with the Tab key). Please add it back to ensure the button is accessible to all users. To prevent regressions, add unit tests to verify the presence of critical accessibility attributes like `aria-label` in webviews.\n\n```suggestion\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n<details>\n<summary>References</summary>\n\n1. To prevent regressions, add unit tests to verify the presence of critical accessibility attributes like `aria-label` in webviews.\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540157",
+            "createdAt": "2026-03-22T13:40:37Z",
+            "author": {
+              "login": "gemini-code-assist"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kyz",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 27,
+      "startLine": 26,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhrB",
+            "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nThe `nth-child` selectors for the typing indicator dots appear to be incorrect given the HTML structure in `chatView.ts`. The parent `div` contains a `<span>` with text as its first child, followed by the three dot `<span>` elements. This means the dots are actually the 2nd, 3rd, and 4th children. The current selectors will result in a broken animation. To fix this, the selectors should be adjusted to target the correct child elements.\n\n```suggestion\n.typing-dot:nth-child(2) { animation-delay: -0.32s; }\n.typing-dot:nth-child(3) { animation-delay: -0.16s; }\n```",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540161",
+            "createdAt": "2026-03-22T13:40:37Z",
+            "author": {
+              "login": "gemini-code-assist"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFU",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/chatView.ts",
+      "line": 125,
+      "startLine": 120,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCW",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n**\u9759\u7684\u89e3\u6790\u306e\u8b66\u544a: if\u6587\u306e\u5f8c\u306b\u30d6\u30ec\u30fc\u30b9\u304c\u5fc5\u8981\u3067\u3059\u3002**\n\nCI\u30d1\u30a4\u30d7\u30e9\u30a4\u30f3\u306e\u30ea\u30f3\u30bf\u30fc\u304c `Expected { after 'if' condition` \u306e\u8b66\u544a\u3092\u51fa\u3057\u3066\u3044\u307e\u3059\uff08Line 123\uff09\u3002\n\n\n\n<details>\n<summary>\ud83d\udd27 \u4fee\u6b63\u6848</summary>\n\n```diff\n export function isGeneratingSessionState(\n   rawState: string | undefined,\n ): boolean {\n-  if (!rawState) return false;\n+  if (!rawState) {\n+    return false;\n+  }\n   return GENERATING_SESSION_STATES.has(rawState);\n }\n```\n</details>\n\n<!-- suggestion_start -->\n\n<details>\n<summary>\ud83d\udcdd Committable suggestion</summary>\n\n> \u203c\ufe0f **IMPORTANT**\n> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.\n\n```suggestion\nexport function isGeneratingSessionState(\n  rawState: string | undefined,\n): boolean {\n  if (!rawState) {\n    return false;\n  }\n  return GENERATING_SESSION_STATES.has(rawState);\n}\n```\n\n</details>\n\n<!-- suggestion_end -->\n\n<details>\n<summary>\ud83e\uddf0 Tools</summary>\n\n<details>\n<summary>\ud83e\ude9b GitHub Check: lint / lint</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (20)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (22)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 20)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n---\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 22)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n---\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n\n</details>\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/chatView.ts` around lines 120 - 125, The linter warns about a missing\nblock after the if statement in the isGeneratingSessionState function; update\nthe function so the if (!rawState) branch uses braces (i.e., wrap the return\nfalse; in { ... }) to satisfy the rule\u2014modify the isGeneratingSessionState\nimplementation that references rawState and\nGENERATING_SESSION_STATES.has(rawState) accordingly.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541654",
+            "createdAt": "2026-03-22T13:42:01Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFV",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/chatView.ts",
+      "line": 236,
+      "startLine": 208,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCX",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n**\u9759\u7684\u89e3\u6790\u306e\u8b66\u544a: \u8907\u6570\u306eif\u6587\u3067\u30d6\u30ec\u30fc\u30b9\u304c\u4e0d\u8db3\u3057\u3066\u3044\u307e\u3059\u3002**\n\nLines 209, 214, 221, 231 \u3067 `Expected { after 'if' condition` \u306e\u8b66\u544a\u304c\u767a\u751f\u3057\u3066\u3044\u307e\u3059\u3002CI\u30d1\u30a4\u30d7\u30e9\u30a4\u30f3\u3092\u901a\u904e\u3055\u305b\u308b\u305f\u3081\u306b\u4fee\u6b63\u304c\u5fc5\u8981\u3067\u3059\u3002\n\n\n\n<details>\n<summary>\ud83d\udd27 \u4fee\u6b63\u6848\uff08\u4e00\u90e8\u629c\u7c8b\uff09</summary>\n\n```diff\n-    if (activity.sessionFailed?.reason)\n-      detailsHtml +=\n+    if (activity.sessionFailed?.reason) {\n+      detailsHtml +=\n         '<details class=\"activity-details\"><summary>View Error Details</summary><div class=\"details-content code-block\"><pre><code>' +\n         escapeHtml(activity.sessionFailed.reason) +\n         \"</code></pre></div></details>\";\n-    if (activity.planGenerated?.plan)\n-      detailsHtml +=\n+    }\n+    if (activity.planGenerated?.plan) {\n+      detailsHtml +=\n         '<details class=\"activity-details\"><summary>View Plan</summary><div class=\"details-content\">' +\n         renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) +\n         \"</div></details>\";\n+    }\n```\n\n\u540c\u69d8\u306e\u30d1\u30bf\u30fc\u30f3\u3067 Lines 220-224 \u3068 230-236 \u3082\u4fee\u6b63\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n</details>\n\n<!-- suggestion_start -->\n\n<details>\n<summary>\ud83d\udcdd Committable suggestion</summary>\n\n> \u203c\ufe0f **IMPORTANT**\n> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.\n\n```suggestion\nif (activity.sessionFailed?.reason) {\n      detailsHtml +=\n        '<details class=\"activity-details\"><summary>View Error Details</summary><div class=\"details-content code-block\"><pre><code>' +\n        escapeHtml(activity.sessionFailed.reason) +\n        \"</code></pre></div></details>\";\n    }\n    if (activity.planGenerated?.plan) {\n      detailsHtml +=\n        '<details class=\"activity-details\"><summary>View Plan</summary><div class=\"details-content\">' +\n        renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) +\n        \"</div></details>\";\n    }\n    if ((activity as any).gitPatch?.diff) {\n      const diff = (activity as any).gitPatch.diff;\n      if (typeof diff === \"string\" && diff.trim().length > 0) {\n        detailsHtml +=\n          '<details class=\"activity-details\"><summary>View Diff</summary><div class=\"details-content\">' +\n          renderChatMarkdown(\"\n```\n\n</details>\n\n<!-- suggestion_end -->\n\n<details>\n<summary>\ud83e\uddf0 Tools</summary>\n\n<details>\n<summary>\ud83e\ude9b GitHub Check: lint / lint</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (20)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (22)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 20)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n---\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 22)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n---\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n\n</details>\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/chatView.ts` around lines 208 - 236, Add missing block braces for every\nsingle-line if in chatView.ts so the parser stops warning; specifically wrap the\nbodies of if (activity.sessionFailed?.reason), if\n(activity.planGenerated?.plan), if ((activity as any).gitPatch?.diff) and its\ninner if (typeof diff === \"string\" && diff.trim().length > 0), as well as if\n(activity.artifacts && activity.artifacts.length > 0) and the nested if\n(artifact.changeSet) and its inner if (diffData && typeof diffData === \"string\")\nwith { ... } blocks; update the surrounding code that builds detailsHtml in the\nfunctions/methods handling activity rendering to use these braced blocks so the\nlinter/CI warnings disappear.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541655",
+            "createdAt": "2026-03-22T13:42:02Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFW",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/chatView.ts",
+      "line": 336,
+      "startLine": 318,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCY",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n**\u9759\u7684\u89e3\u6790\u306e\u8b66\u544a: if\u6587\u306e\u5f8c\u306b\u30d6\u30ec\u30fc\u30b9\u304c\u5fc5\u8981\u3067\u3059\u3002**\n\nLines 323, 327 \u3067 `Expected { after 'if' condition` \u306e\u8b66\u544a\u304c\u767a\u751f\u3057\u3066\u3044\u307e\u3059\u3002\n\n\n\n<details>\n<summary>\ud83d\udd27 \u4fee\u6b63\u6848</summary>\n\n```diff\n     webviewView.webview.onDidReceiveMessage(async (message) => {\n       if (message?.type === \"requestInitialState\") {\n         this.postState();\n         return;\n       }\n-      if (message?.type !== \"sendMessage\") return;\n+      if (message?.type !== \"sendMessage\") {\n+        return;\n+      }\n       const sessionId =\n         typeof message.sessionId === \"string\" ? message.sessionId : \"\";\n       const text = typeof message.text === \"string\" ? message.text.trim() : \"\";\n-      if (!sessionId || !text) return;\n+      if (!sessionId || !text) {\n+        return;\n+      }\n       try {\n```\n</details>\n\n<!-- suggestion_start -->\n\n<details>\n<summary>\ud83d\udcdd Committable suggestion</summary>\n\n> \u203c\ufe0f **IMPORTANT**\n> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.\n\n```suggestion\n    webviewView.webview.onDidReceiveMessage(async (message) => {\n      if (message?.type === \"requestInitialState\") {\n        this.postState();\n        return;\n      }\n      if (message?.type !== \"sendMessage\") {\n        return;\n      }\n      const sessionId =\n        typeof message.sessionId === \"string\" ? message.sessionId : \"\";\n      const text = typeof message.text === \"string\" ? message.text.trim() : \"\";\n      if (!sessionId || !text) {\n        return;\n      }\n      try {\n        await this.onSendMessage(sessionId, text);\n      } catch (error) {\n        vscode.window.showErrorMessage(\n          \"Failed to send message: \" +\n            (error instanceof Error ? error.message : \"Unknown error\"),\n        );\n      }\n    });\n```\n\n</details>\n\n<!-- suggestion_end -->\n\n<details>\n<summary>\ud83e\uddf0 Tools</summary>\n\n<details>\n<summary>\ud83e\ude9b GitHub Check: lint / lint</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (20)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (22)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 20)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n---\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 22)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n---\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n\n</details>\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/chatView.ts` around lines 318 - 336, The handler registered in\nwebviewView.webview.onDidReceiveMessage uses several single-line if statements\nwithout braces (e.g., the check for message?.type === \"requestInitialState\",\nmessage?.type !== \"sendMessage\", and the empty sessionId/text check), which\ntriggers static-analysis warnings; update those conditions in the\nonDidReceiveMessage callback to always use block braces { ... } around their\nbodies (so the call to this.postState(), the early return when type !==\n\"sendMessage\", and the early return when !sessionId || !text are wrapped in\nbraces) to satisfy the linter and make the control flow explicit while leaving\nthe try { await this.onSendMessage(sessionId, text); } catch (...) block\nunchanged.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541656",
+            "createdAt": "2026-03-22T13:42:02Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFX",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 121,
+      "startLine": 39,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCZ",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n<details>\n<summary>\ud83e\udde9 Analysis chain</summary>\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\n# Description: Search for existing tests covering chatAssets\n\n# Check for test files referencing the new module\nrg -l 'chatAssets' --glob '*test*'\n\n# Check for existing chatView tests that might need updating\nfd -g '*chatView*test*'\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 100\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Check if there are specific test files for chatAssets.ts\nfd -g '*chatAssets*test*' \n\n# Also check the full test directory structure\nfind src/test -type f -name '*.test.ts' -o -name '*.spec.ts' | head -20\n\n# Check git status to see if chatAssets.ts is new\ngit log --oneline -n 50 -- src/webview/chatAssets.ts\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 827\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Read the chatView.unit.test.ts file to see what it tests\nwc -l src/test/chatView.unit.test.ts\n\n# Check if it imports or tests chatAssets\nrg 'chatAssets|CHAT_JS' src/test/chatView.unit.test.ts -A 2 -B 2\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 103\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Read the full chatView.unit.test.ts file\ncat -n src/test/chatView.unit.test.ts\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 3464\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Check chatView.ts for imports and usage of chatAssets\nhead -30 src/chatView.ts\n\n# Search for chatAssets import and CHAT_JS usage\nrg 'chatAssets|CHAT_JS' src/chatView.ts -A 2 -B 2\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 1022\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Check what chatAssets.ts exports and its size\ncat -n src/webview/chatAssets.ts | head -50\n\n# Check if other modules that export constants have test files\nrg 'export const' src --glob '*.ts' -l | head -10 | while read f; do echo \"File: $f\"; test -f \"src/test/$(basename $f .ts).unit.test.ts\" && echo \"  Has test\" || echo \"  No test\"; done\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 5426\n\n---\n\n\n\n</details>\n\n**\u3053\u306e\u30e2\u30b8\u30e5\u30fc\u30eb\u5c02\u7528\u306e\u30c6\u30b9\u30c8\u30d5\u30a1\u30a4\u30eb\u3092\u4f5c\u6210\u3057\u3066\u304f\u3060\u3055\u3044\u3002**\n\n\u5b9f\u88c5\u306f\u9069\u5207\u3067\u3001`ChatMessageItem`\u30a4\u30f3\u30bf\u30fc\u30d5\u30a7\u30fc\u30b9\uff08`m.role`\u3001`m.html`\u3001`m.createTime`\uff09\u3068\u6b63\u3057\u304f\u6574\u5408\u3057\u3066\u3044\u307e\u3059\u3002VSCode API \u306e\u30d5\u30a9\u30fc\u30eb\u30d0\u30c3\u30af\u51e6\u7406\u3084\u30b3\u30d4\u30fc\u6a5f\u80fd\u306e\u30a8\u30e9\u30fc\u30cf\u30f3\u30c9\u30ea\u30f3\u30b0\u3082\u9069\u5207\u3067\u3059\u3002\n\n\u305f\u3060\u3057\u3001`src/**/*.ts`\u306e\u30b3\u30fc\u30c7\u30a3\u30f3\u30b0\u30ac\u30a4\u30c9\u30e9\u30a4\u30f3\u306b\u5f93\u3044\u3001`src/webview/chatAssets.ts`\u30e2\u30b8\u30e5\u30fc\u30eb\u5c02\u7528\u306e\u30c6\u30b9\u30c8\u30d5\u30a1\u30a4\u30eb\u304c\u5fc5\u8981\u3067\u3059\u3002\u73fe\u5728\u3001`getChatWebviewHtml`\u3092\u7d4c\u7531\u3057\u305f\u9593\u63a5\u7684\u306a\u30c6\u30b9\u30c8\u306e\u307f\u5b58\u5728\u3057\u307e\u3059\u304c\u3001\u62bd\u51fa\u3055\u308c\u305f\u3053\u306e\u30e2\u30b8\u30e5\u30fc\u30eb\u81ea\u4f53\u306e\u76f4\u63a5\u7684\u306a\u30c6\u30b9\u30c8\u30ab\u30d0\u30ec\u30c3\u30b8\u304c\u5fc5\u9808\u3067\u3059\u3002\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/webview/chatAssets.ts` around lines 39 - 121, Add a new unit test file\nspecifically for this module that imports CHAT_JS and verifies the webview\nscript behavior: mount a DOM with elements used by the script (chat, typing,\nmessageInput, sendButton, sessionLabel, composer) then execute the CHAT_JS\nscript in a jsdom environment and assert renderMessages/updateUI outcomes by\nposting a \"chatState\" message (check that messages with properties matching\nChatMessageItem render correctly and timestamps are formatted), simulate\ninput/submit and Ctrl/Cmd+Enter to ensure vscode.postMessage is called with\n{type:\"sendMessage\"}, and test the copy-button click flow (mock\nnavigator.clipboard.writeText to succeed/fail and assert button text changes).\nEnsure tests also cover the fallback acquireVsCodeApi case by providing a fake\nacquireVsCodeApi absence and spying the console fallback postMessage, and name\nthe file e.g. src/webview/chatAssets.test.ts to satisfy module-level coverage.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541657",
+            "createdAt": "2026-03-22T13:42:02Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    }
+  ],
+  "unresolved_threads": [
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kto",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 19,
+      "startLine": 19,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhk2",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Keep copy button visible when keyboard-focused**\n\nThe stylesheet now only reveals `.copy-code-button` on hover, but the button remains `opacity: 0` during keyboard navigation. In the webview this means keyboard-only users can tab to the copy control without any visible focus indication, so the copy action is effectively undiscoverable unless a mouse hover happens. Please include a focus-visible selector in the reveal rule (as before) so accessibility and keyboard usability are preserved.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971539766",
+            "createdAt": "2026-03-22T13:40:20Z",
+            "author": {
+              "login": "chatgpt-codex-connector"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kw6",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 27,
+      "startLine": 26,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhow",
+            "body": "<a href=\"#\"><img alt=\"P1\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=7\" align=\"top\"></a> **\u30bf\u30a4\u30d4\u30f3\u30b0\u30c9\u30c3\u30c8\u306e\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u9045\u5ef6\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u4e00\u81f4\u3057\u306a\u3044**\n\n`typing` div \u306e HTML \u69cb\u9020\u306f\u4ee5\u4e0b\u306e\u3068\u304a\u308a\u3067\u3059\uff1a\n\n```html\n<div id=\"typing\" class=\"typing\" ...>\n  <span>Jules is working</span>   \u2190 nth-child(1)\uff08\u30c6\u30ad\u30b9\u30c8\u3001.typing-dot \u3067\u306f\u306a\u3044\uff09\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(2)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(3)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(4)\n</div>\n```\n\n`.typing-dot:nth-child(1)` \u306f\u30011\u756a\u76ee\u306e\u5b50\u8981\u7d20\uff08`<span>Jules is working</span>`\uff09\u304c `.typing-dot` \u30af\u30e9\u30b9\u3092\u6301\u305f\u306a\u3044\u305f\u3081\u3001**\u3069\u306e\u8981\u7d20\u306b\u3082\u4e00\u81f4\u3057\u307e\u305b\u3093**\u3002\u305d\u306e\u305f\u3081\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u3061\u6700\u521d\u306e\u30c9\u30c3\u30c8\uff08`nth-child(2)`\uff09\u306e\u307f\u306b `-0.16s` \u306e\u9045\u5ef6\u304c\u9069\u7528\u3055\u308c\u3001\u6b8b\u308a2\u3064\u306b\u306f\u9045\u5ef6\u304c\u8a2d\u5b9a\u3055\u308c\u307e\u305b\u3093\u3002\n\n\u4ee5\u524d\u306e CSS \u3067\u306f `nth-child(2)` \u3068 `nth-child(3)` \u3092\u4f7f\u7528\u3057\u3066\u304a\u308a\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u30612\u3064\u306b\u9045\u5ef6\u3092\u4ed8\u4e0e\u3057\u3066\u3044\u307e\u3057\u305f\u3002\u4fee\u6b63\u6848\uff1a\n\n```suggestion\n.typing-dot:nth-child(2) { animation-delay: -0.32s; }\n.typing-dot:nth-child(3) { animation-delay: -0.16s; }\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/webview/chatAssets.ts\nLine: 26-27\n\nComment:\n**\u30bf\u30a4\u30d4\u30f3\u30b0\u30c9\u30c3\u30c8\u306e\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u9045\u5ef6\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u4e00\u81f4\u3057\u306a\u3044**\n\n`typing` div \u306e HTML \u69cb\u9020\u306f\u4ee5\u4e0b\u306e\u3068\u304a\u308a\u3067\u3059\uff1a\n\n```html\n<div id=\"typing\" class=\"typing\" ...>\n  <span>Jules is working</span>   \u2190 nth-child(1)\uff08\u30c6\u30ad\u30b9\u30c8\u3001.typing-dot \u3067\u306f\u306a\u3044\uff09\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(2)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(3)\n  <span class=\"typing-dot\"></span>  \u2190 nth-child(4)\n</div>\n```\n\n`.typing-dot:nth-child(1)` \u306f\u30011\u756a\u76ee\u306e\u5b50\u8981\u7d20\uff08`<span>Jules is working</span>`\uff09\u304c `.typing-dot` \u30af\u30e9\u30b9\u3092\u6301\u305f\u306a\u3044\u305f\u3081\u3001**\u3069\u306e\u8981\u7d20\u306b\u3082\u4e00\u81f4\u3057\u307e\u305b\u3093**\u3002\u305d\u306e\u305f\u3081\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u3061\u6700\u521d\u306e\u30c9\u30c3\u30c8\uff08`nth-child(2)`\uff09\u306e\u307f\u306b `-0.16s` \u306e\u9045\u5ef6\u304c\u9069\u7528\u3055\u308c\u3001\u6b8b\u308a2\u3064\u306b\u306f\u9045\u5ef6\u304c\u8a2d\u5b9a\u3055\u308c\u307e\u305b\u3093\u3002\n\n\u4ee5\u524d\u306e CSS \u3067\u306f `nth-child(2)` \u3068 `nth-child(3)` \u3092\u4f7f\u7528\u3057\u3066\u304a\u308a\u30013\u3064\u306e\u30c9\u30c3\u30c8\u306e\u3046\u30612\u3064\u306b\u9045\u5ef6\u3092\u4ed8\u4e0e\u3057\u3066\u3044\u307e\u3057\u305f\u3002\u4fee\u6b63\u6848\uff1a\n\n```suggestion\n.typing-dot:nth-child(2) { animation-delay: -0.32s; }\n.typing-dot:nth-child(3) { animation-delay: -0.16s; }\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540016",
+            "createdAt": "2026-03-22T13:40:31Z",
+            "author": {
+              "login": "greptile-apps"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kxb",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 19,
+      "startLine": 19,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhpT",
+            "body": "<a href=\"#\"><img alt=\"P2\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7\" align=\"top\"></a> **\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306e\u30ad\u30fc\u30dc\u30fc\u30c9\u30d5\u30a9\u30fc\u30ab\u30b9\u6642\u306e\u8996\u8a8d\u6027\u304c\u5931\u308f\u308c\u305f\uff08\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u5f8c\u9000\uff09**\n\n\u65e7 CSS \u3067\u306f\u4ee5\u4e0b\u306e\u3088\u3046\u306a\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u5b58\u5728\u3057\u3066\u3044\u307e\u3057\u305f\uff1a\n\n```css\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n\u65b0\u3057\u3044 CSS \u3067\u306f `:focus-visible` \u306e\u90e8\u5206\u304c\u524a\u9664\u3055\u308c\u3066\u304a\u308a\u3001`.code-block:hover .copy-code-button` \u306e\u307f\u306b\u306a\u3063\u3066\u3044\u307e\u3059\u3002\u3053\u308c\u306b\u3088\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u3067\u30bf\u30d6\u79fb\u52d5\u3057\u3066\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306b\u30d5\u30a9\u30fc\u30ab\u30b9\u3057\u305f\u969b\u306b\u30dc\u30bf\u30f3\u304c\u8868\u793a\u3055\u308c\u306a\u304f\u306a\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u64cd\u4f5c\u306e\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u304c\u4f4e\u4e0b\u3057\u307e\u3059\u3002\n\n```suggestion\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/webview/chatAssets.ts\nLine: 19\n\nComment:\n**\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306e\u30ad\u30fc\u30dc\u30fc\u30c9\u30d5\u30a9\u30fc\u30ab\u30b9\u6642\u306e\u8996\u8a8d\u6027\u304c\u5931\u308f\u308c\u305f\uff08\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u5f8c\u9000\uff09**\n\n\u65e7 CSS \u3067\u306f\u4ee5\u4e0b\u306e\u3088\u3046\u306a\u30bb\u30ec\u30af\u30bf\u30fc\u304c\u5b58\u5728\u3057\u3066\u3044\u307e\u3057\u305f\uff1a\n\n```css\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n\u65b0\u3057\u3044 CSS \u3067\u306f `:focus-visible` \u306e\u90e8\u5206\u304c\u524a\u9664\u3055\u308c\u3066\u304a\u308a\u3001`.code-block:hover .copy-code-button` \u306e\u307f\u306b\u306a\u3063\u3066\u3044\u307e\u3059\u3002\u3053\u308c\u306b\u3088\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u3067\u30bf\u30d6\u79fb\u52d5\u3057\u3066\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u306b\u30d5\u30a9\u30fc\u30ab\u30b9\u3057\u305f\u969b\u306b\u30dc\u30bf\u30f3\u304c\u8868\u793a\u3055\u308c\u306a\u304f\u306a\u308a\u3001\u30ad\u30fc\u30dc\u30fc\u30c9\u64cd\u4f5c\u306e\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u304c\u4f4e\u4e0b\u3057\u307e\u3059\u3002\n\n```suggestion\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540051",
+            "createdAt": "2026-03-22T13:40:32Z",
+            "author": {
+              "login": "greptile-apps"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kxo",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 31,
+      "startLine": 31,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhpj",
+            "body": "<a href=\"#\"><img alt=\"P2\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7\" align=\"top\"></a> **`:focus-visible` \u304b\u3089 `:focus` \u3078\u306e\u5909\u66f4\u306b\u3088\u308b\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u306e\u5f8c\u9000**\n\n\u65e7 CSS \u3067\u306f `#messageInput:focus-visible` \u3092\u4f7f\u7528\u3057\u3066\u3044\u307e\u3057\u305f\u304c\u3001\u65b0 CSS \u3067\u306f `#messageInput:focus` \u306b\u5909\u308f\u3063\u3066\u3044\u307e\u3059\u3002`:focus` \u306f\u30de\u30a6\u30b9\u30af\u30ea\u30c3\u30af\u6642\u306b\u3082\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u8996\u899a\u7684\u306b\u30ce\u30a4\u30ba\u306b\u306a\u308a\u3084\u3059\u3044\u3067\u3059\u3002\u4e00\u65b9 `:focus-visible` \u306f\u30ad\u30fc\u30dc\u30fc\u30c9\u30ca\u30d3\u30b2\u30fc\u30b7\u30e7\u30f3\u6642\u306e\u307f\u306b\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u3068 UX \u306e\u30d0\u30e9\u30f3\u30b9\u304c\u53d6\u308c\u3066\u3044\u307e\u3059\u3002\n\n```suggestion\n#messageInput:focus-visible { border-color: var(--vscode-focusBorder); }\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/webview/chatAssets.ts\nLine: 31\n\nComment:\n**`:focus-visible` \u304b\u3089 `:focus` \u3078\u306e\u5909\u66f4\u306b\u3088\u308b\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u306e\u5f8c\u9000**\n\n\u65e7 CSS \u3067\u306f `#messageInput:focus-visible` \u3092\u4f7f\u7528\u3057\u3066\u3044\u307e\u3057\u305f\u304c\u3001\u65b0 CSS \u3067\u306f `#messageInput:focus` \u306b\u5909\u308f\u3063\u3066\u3044\u307e\u3059\u3002`:focus` \u306f\u30de\u30a6\u30b9\u30af\u30ea\u30c3\u30af\u6642\u306b\u3082\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u8996\u899a\u7684\u306b\u30ce\u30a4\u30ba\u306b\u306a\u308a\u3084\u3059\u3044\u3067\u3059\u3002\u4e00\u65b9 `:focus-visible` \u306f\u30ad\u30fc\u30dc\u30fc\u30c9\u30ca\u30d3\u30b2\u30fc\u30b7\u30e7\u30f3\u6642\u306e\u307f\u306b\u30a2\u30a6\u30c8\u30e9\u30a4\u30f3\u3092\u8868\u793a\u3059\u308b\u305f\u3081\u3001\u30a2\u30af\u30bb\u30b7\u30d3\u30ea\u30c6\u30a3\u3068 UX \u306e\u30d0\u30e9\u30f3\u30b9\u304c\u53d6\u308c\u3066\u3044\u307e\u3059\u3002\n\n```suggestion\n#messageInput:focus-visible { border-color: var(--vscode-focusBorder); }\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540067",
+            "createdAt": "2026-03-22T13:40:33Z",
+            "author": {
+              "login": "greptile-apps"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kyv",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 19,
+      "startLine": 19,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhq9",
+            "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nThe `:focus-visible` pseudo-class was removed from this rule, which is an accessibility regression. Without it, the copy button won't become visible when a user navigates to it using the keyboard (e.g., with the Tab key). Please add it back to ensure the button is accessible to all users. To prevent regressions, add unit tests to verify the presence of critical accessibility attributes like `aria-label` in webviews.\n\n```suggestion\n.code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }\n```\n\n<details>\n<summary>References</summary>\n\n1. To prevent regressions, add unit tests to verify the presence of critical accessibility attributes like `aria-label` in webviews.\n</details>",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540157",
+            "createdAt": "2026-03-22T13:40:37Z",
+            "author": {
+              "login": "gemini-code-assist"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-Kyz",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 27,
+      "startLine": 26,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHhrB",
+            "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nThe `nth-child` selectors for the typing indicator dots appear to be incorrect given the HTML structure in `chatView.ts`. The parent `div` contains a `<span>` with text as its first child, followed by the three dot `<span>` elements. This means the dots are actually the 2nd, 3rd, and 4th children. The current selectors will result in a broken animation. To fix this, the selectors should be adjusted to target the correct child elements.\n\n```suggestion\n.typing-dot:nth-child(2) { animation-delay: -0.32s; }\n.typing-dot:nth-child(3) { animation-delay: -0.16s; }\n```",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971540161",
+            "createdAt": "2026-03-22T13:40:37Z",
+            "author": {
+              "login": "gemini-code-assist"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFU",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/chatView.ts",
+      "line": 125,
+      "startLine": 120,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCW",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n**\u9759\u7684\u89e3\u6790\u306e\u8b66\u544a: if\u6587\u306e\u5f8c\u306b\u30d6\u30ec\u30fc\u30b9\u304c\u5fc5\u8981\u3067\u3059\u3002**\n\nCI\u30d1\u30a4\u30d7\u30e9\u30a4\u30f3\u306e\u30ea\u30f3\u30bf\u30fc\u304c `Expected { after 'if' condition` \u306e\u8b66\u544a\u3092\u51fa\u3057\u3066\u3044\u307e\u3059\uff08Line 123\uff09\u3002\n\n\n\n<details>\n<summary>\ud83d\udd27 \u4fee\u6b63\u6848</summary>\n\n```diff\n export function isGeneratingSessionState(\n   rawState: string | undefined,\n ): boolean {\n-  if (!rawState) return false;\n+  if (!rawState) {\n+    return false;\n+  }\n   return GENERATING_SESSION_STATES.has(rawState);\n }\n```\n</details>\n\n<!-- suggestion_start -->\n\n<details>\n<summary>\ud83d\udcdd Committable suggestion</summary>\n\n> \u203c\ufe0f **IMPORTANT**\n> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.\n\n```suggestion\nexport function isGeneratingSessionState(\n  rawState: string | undefined,\n): boolean {\n  if (!rawState) {\n    return false;\n  }\n  return GENERATING_SESSION_STATES.has(rawState);\n}\n```\n\n</details>\n\n<!-- suggestion_end -->\n\n<details>\n<summary>\ud83e\uddf0 Tools</summary>\n\n<details>\n<summary>\ud83e\ude9b GitHub Check: lint / lint</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (20)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (22)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 20)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n---\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 22)</summary>\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n---\n\n[warning] 123-123: \nExpected { after 'if' condition\n\n</details>\n\n</details>\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/chatView.ts` around lines 120 - 125, The linter warns about a missing\nblock after the if statement in the isGeneratingSessionState function; update\nthe function so the if (!rawState) branch uses braces (i.e., wrap the return\nfalse; in { ... }) to satisfy the rule\u2014modify the isGeneratingSessionState\nimplementation that references rawState and\nGENERATING_SESSION_STATES.has(rawState) accordingly.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541654",
+            "createdAt": "2026-03-22T13:42:01Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFV",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/chatView.ts",
+      "line": 236,
+      "startLine": 208,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCX",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n**\u9759\u7684\u89e3\u6790\u306e\u8b66\u544a: \u8907\u6570\u306eif\u6587\u3067\u30d6\u30ec\u30fc\u30b9\u304c\u4e0d\u8db3\u3057\u3066\u3044\u307e\u3059\u3002**\n\nLines 209, 214, 221, 231 \u3067 `Expected { after 'if' condition` \u306e\u8b66\u544a\u304c\u767a\u751f\u3057\u3066\u3044\u307e\u3059\u3002CI\u30d1\u30a4\u30d7\u30e9\u30a4\u30f3\u3092\u901a\u904e\u3055\u305b\u308b\u305f\u3081\u306b\u4fee\u6b63\u304c\u5fc5\u8981\u3067\u3059\u3002\n\n\n\n<details>\n<summary>\ud83d\udd27 \u4fee\u6b63\u6848\uff08\u4e00\u90e8\u629c\u7c8b\uff09</summary>\n\n```diff\n-    if (activity.sessionFailed?.reason)\n-      detailsHtml +=\n+    if (activity.sessionFailed?.reason) {\n+      detailsHtml +=\n         '<details class=\"activity-details\"><summary>View Error Details</summary><div class=\"details-content code-block\"><pre><code>' +\n         escapeHtml(activity.sessionFailed.reason) +\n         \"</code></pre></div></details>\";\n-    if (activity.planGenerated?.plan)\n-      detailsHtml +=\n+    }\n+    if (activity.planGenerated?.plan) {\n+      detailsHtml +=\n         '<details class=\"activity-details\"><summary>View Plan</summary><div class=\"details-content\">' +\n         renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) +\n         \"</div></details>\";\n+    }\n```\n\n\u540c\u69d8\u306e\u30d1\u30bf\u30fc\u30f3\u3067 Lines 220-224 \u3068 230-236 \u3082\u4fee\u6b63\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n</details>\n\n<!-- suggestion_start -->\n\n<details>\n<summary>\ud83d\udcdd Committable suggestion</summary>\n\n> \u203c\ufe0f **IMPORTANT**\n> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.\n\n```suggestion\nif (activity.sessionFailed?.reason) {\n      detailsHtml +=\n        '<details class=\"activity-details\"><summary>View Error Details</summary><div class=\"details-content code-block\"><pre><code>' +\n        escapeHtml(activity.sessionFailed.reason) +\n        \"</code></pre></div></details>\";\n    }\n    if (activity.planGenerated?.plan) {\n      detailsHtml +=\n        '<details class=\"activity-details\"><summary>View Plan</summary><div class=\"details-content\">' +\n        renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) +\n        \"</div></details>\";\n    }\n    if ((activity as any).gitPatch?.diff) {\n      const diff = (activity as any).gitPatch.diff;\n      if (typeof diff === \"string\" && diff.trim().length > 0) {\n        detailsHtml +=\n          '<details class=\"activity-details\"><summary>View Diff</summary><div class=\"details-content\">' +\n          renderChatMarkdown(\"\n```\n\n</details>\n\n<!-- suggestion_end -->\n\n<details>\n<summary>\ud83e\uddf0 Tools</summary>\n\n<details>\n<summary>\ud83e\ude9b GitHub Check: lint / lint</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (20)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (22)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 20)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n---\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 22)</summary>\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n---\n\n[warning] 231-231: \nExpected { after 'if' condition\n\n---\n\n[warning] 221-221: \nExpected { after 'if' condition\n\n---\n\n[warning] 214-214: \nExpected { after 'if' condition\n\n---\n\n[warning] 209-209: \nExpected { after 'if' condition\n\n</details>\n\n</details>\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/chatView.ts` around lines 208 - 236, Add missing block braces for every\nsingle-line if in chatView.ts so the parser stops warning; specifically wrap the\nbodies of if (activity.sessionFailed?.reason), if\n(activity.planGenerated?.plan), if ((activity as any).gitPatch?.diff) and its\ninner if (typeof diff === \"string\" && diff.trim().length > 0), as well as if\n(activity.artifacts && activity.artifacts.length > 0) and the nested if\n(artifact.changeSet) and its inner if (diffData && typeof diffData === \"string\")\nwith { ... } blocks; update the surrounding code that builds detailsHtml in the\nfunctions/methods handling activity rendering to use these braced blocks so the\nlinter/CI warnings disappear.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541655",
+            "createdAt": "2026-03-22T13:42:02Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFW",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/chatView.ts",
+      "line": 336,
+      "startLine": 318,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCY",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n**\u9759\u7684\u89e3\u6790\u306e\u8b66\u544a: if\u6587\u306e\u5f8c\u306b\u30d6\u30ec\u30fc\u30b9\u304c\u5fc5\u8981\u3067\u3059\u3002**\n\nLines 323, 327 \u3067 `Expected { after 'if' condition` \u306e\u8b66\u544a\u304c\u767a\u751f\u3057\u3066\u3044\u307e\u3059\u3002\n\n\n\n<details>\n<summary>\ud83d\udd27 \u4fee\u6b63\u6848</summary>\n\n```diff\n     webviewView.webview.onDidReceiveMessage(async (message) => {\n       if (message?.type === \"requestInitialState\") {\n         this.postState();\n         return;\n       }\n-      if (message?.type !== \"sendMessage\") return;\n+      if (message?.type !== \"sendMessage\") {\n+        return;\n+      }\n       const sessionId =\n         typeof message.sessionId === \"string\" ? message.sessionId : \"\";\n       const text = typeof message.text === \"string\" ? message.text.trim() : \"\";\n-      if (!sessionId || !text) return;\n+      if (!sessionId || !text) {\n+        return;\n+      }\n       try {\n```\n</details>\n\n<!-- suggestion_start -->\n\n<details>\n<summary>\ud83d\udcdd Committable suggestion</summary>\n\n> \u203c\ufe0f **IMPORTANT**\n> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.\n\n```suggestion\n    webviewView.webview.onDidReceiveMessage(async (message) => {\n      if (message?.type === \"requestInitialState\") {\n        this.postState();\n        return;\n      }\n      if (message?.type !== \"sendMessage\") {\n        return;\n      }\n      const sessionId =\n        typeof message.sessionId === \"string\" ? message.sessionId : \"\";\n      const text = typeof message.text === \"string\" ? message.text.trim() : \"\";\n      if (!sessionId || !text) {\n        return;\n      }\n      try {\n        await this.onSendMessage(sessionId, text);\n      } catch (error) {\n        vscode.window.showErrorMessage(\n          \"Failed to send message: \" +\n            (error instanceof Error ? error.message : \"Unknown error\"),\n        );\n      }\n    });\n```\n\n</details>\n\n<!-- suggestion_end -->\n\n<details>\n<summary>\ud83e\uddf0 Tools</summary>\n\n<details>\n<summary>\ud83e\ude9b GitHub Check: lint / lint</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (20)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / build-check (22)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 20)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n---\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n<details>\n<summary>\ud83e\ude9b GitHub Check: test / integration (macos-latest, 22)</summary>\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n---\n\n[warning] 327-327: \nExpected { after 'if' condition\n\n---\n\n[warning] 323-323: \nExpected { after 'if' condition\n\n</details>\n\n</details>\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/chatView.ts` around lines 318 - 336, The handler registered in\nwebviewView.webview.onDidReceiveMessage uses several single-line if statements\nwithout braces (e.g., the check for message?.type === \"requestInitialState\",\nmessage?.type !== \"sendMessage\", and the empty sessionId/text check), which\ntriggers static-analysis warnings; update those conditions in the\nonDidReceiveMessage callback to always use block braces { ... } around their\nbodies (so the call to this.postState(), the early return when type !==\n\"sendMessage\", and the early return when !sessionId || !text are wrapped in\nbraces) to satisfy the linter and make the control flow explicit while leaving\nthe try { await this.onSendMessage(sessionId, text); } catch (...) block\nunchanged.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541656",
+            "createdAt": "2026-03-22T13:42:02Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "PRRT_kwDOQDjL4M51-LFX",
+      "isResolved": false,
+      "isOutdated": false,
+      "isCollapsed": false,
+      "path": "src/webview/chatAssets.ts",
+      "line": 121,
+      "startLine": 39,
+      "diffSide": "RIGHT",
+      "comments": {
+        "nodes": [
+          {
+            "id": "PRRC_kwDOQDjL4M6xHiCZ",
+            "body": "_\u26a0\ufe0f Potential issue_ | _\ud83d\udfe1 Minor_\n\n<details>\n<summary>\ud83e\udde9 Analysis chain</summary>\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\n# Description: Search for existing tests covering chatAssets\n\n# Check for test files referencing the new module\nrg -l 'chatAssets' --glob '*test*'\n\n# Check for existing chatView tests that might need updating\nfd -g '*chatView*test*'\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 100\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Check if there are specific test files for chatAssets.ts\nfd -g '*chatAssets*test*' \n\n# Also check the full test directory structure\nfind src/test -type f -name '*.test.ts' -o -name '*.spec.ts' | head -20\n\n# Check git status to see if chatAssets.ts is new\ngit log --oneline -n 50 -- src/webview/chatAssets.ts\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 827\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Read the chatView.unit.test.ts file to see what it tests\nwc -l src/test/chatView.unit.test.ts\n\n# Check if it imports or tests chatAssets\nrg 'chatAssets|CHAT_JS' src/test/chatView.unit.test.ts -A 2 -B 2\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 103\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Read the full chatView.unit.test.ts file\ncat -n src/test/chatView.unit.test.ts\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 3464\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Check chatView.ts for imports and usage of chatAssets\nhead -30 src/chatView.ts\n\n# Search for chatAssets import and CHAT_JS usage\nrg 'chatAssets|CHAT_JS' src/chatView.ts -A 2 -B 2\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 1022\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n# Check what chatAssets.ts exports and its size\ncat -n src/webview/chatAssets.ts | head -50\n\n# Check if other modules that export constants have test files\nrg 'export const' src --glob '*.ts' -l | head -10 | while read f; do echo \"File: $f\"; test -f \"src/test/$(basename $f .ts).unit.test.ts\" && echo \"  Has test\" || echo \"  No test\"; done\n```\n\nRepository: Hiroki-org/jules-extension\n\nLength of output: 5426\n\n---\n\n\n\n</details>\n\n**\u3053\u306e\u30e2\u30b8\u30e5\u30fc\u30eb\u5c02\u7528\u306e\u30c6\u30b9\u30c8\u30d5\u30a1\u30a4\u30eb\u3092\u4f5c\u6210\u3057\u3066\u304f\u3060\u3055\u3044\u3002**\n\n\u5b9f\u88c5\u306f\u9069\u5207\u3067\u3001`ChatMessageItem`\u30a4\u30f3\u30bf\u30fc\u30d5\u30a7\u30fc\u30b9\uff08`m.role`\u3001`m.html`\u3001`m.createTime`\uff09\u3068\u6b63\u3057\u304f\u6574\u5408\u3057\u3066\u3044\u307e\u3059\u3002VSCode API \u306e\u30d5\u30a9\u30fc\u30eb\u30d0\u30c3\u30af\u51e6\u7406\u3084\u30b3\u30d4\u30fc\u6a5f\u80fd\u306e\u30a8\u30e9\u30fc\u30cf\u30f3\u30c9\u30ea\u30f3\u30b0\u3082\u9069\u5207\u3067\u3059\u3002\n\n\u305f\u3060\u3057\u3001`src/**/*.ts`\u306e\u30b3\u30fc\u30c7\u30a3\u30f3\u30b0\u30ac\u30a4\u30c9\u30e9\u30a4\u30f3\u306b\u5f93\u3044\u3001`src/webview/chatAssets.ts`\u30e2\u30b8\u30e5\u30fc\u30eb\u5c02\u7528\u306e\u30c6\u30b9\u30c8\u30d5\u30a1\u30a4\u30eb\u304c\u5fc5\u8981\u3067\u3059\u3002\u73fe\u5728\u3001`getChatWebviewHtml`\u3092\u7d4c\u7531\u3057\u305f\u9593\u63a5\u7684\u306a\u30c6\u30b9\u30c8\u306e\u307f\u5b58\u5728\u3057\u307e\u3059\u304c\u3001\u62bd\u51fa\u3055\u308c\u305f\u3053\u306e\u30e2\u30b8\u30e5\u30fc\u30eb\u81ea\u4f53\u306e\u76f4\u63a5\u7684\u306a\u30c6\u30b9\u30c8\u30ab\u30d0\u30ec\u30c3\u30b8\u304c\u5fc5\u9808\u3067\u3059\u3002\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nIn `@src/webview/chatAssets.ts` around lines 39 - 121, Add a new unit test file\nspecifically for this module that imports CHAT_JS and verifies the webview\nscript behavior: mount a DOM with elements used by the script (chat, typing,\nmessageInput, sendButton, sessionLabel, composer) then execute the CHAT_JS\nscript in a jsdom environment and assert renderMessages/updateUI outcomes by\nposting a \"chatState\" message (check that messages with properties matching\nChatMessageItem render correctly and timestamps are formatted), simulate\ninput/submit and Ctrl/Cmd+Enter to ensure vscode.postMessage is called with\n{type:\"sendMessage\"}, and test the copy-button click flow (mock\nnavigator.clipboard.writeText to succeed/fail and assert button text changes).\nEnsure tests also cover the fallback acquireVsCodeApi case by providing a fake\nacquireVsCodeApi absence and spying the console fallback postMessage, and name\nthe file e.g. src/webview/chatAssets.test.ts to satisfy module-level coverage.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:medusa:ocelot -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+            "url": "https://github.com/Hiroki-org/jules-extension/pull/424#discussion_r2971541657",
+            "createdAt": "2026-03-22T13:42:02Z",
+            "author": {
+              "login": "coderabbitai"
+            },
+            "replyTo": null
+          }
+        ]
+      }
+    }
+  ],
+  "issue_comments": [
+    {
+      "url": "https://api.github.com/repos/Hiroki-org/jules-extension/issues/comments/4106274204",
+      "html_url": "https://github.com/Hiroki-org/jules-extension/pull/424#issuecomment-4106274204",
+      "issue_url": "https://api.github.com/repos/Hiroki-org/jules-extension/issues/424",
+      "id": 4106274204,
+      "node_id": "IC_kwDOQDjL4M70wMWc",
+      "user": {
+        "login": "coderabbitai[bot]",
+        "id": 136622811,
+        "node_id": "BOT_kgDOCCSy2w",
+        "avatar_url": "https://avatars.githubusercontent.com/in/347564?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/coderabbitai%5Bbot%5D",
+        "html_url": "https://github.com/apps/coderabbitai",
+        "followers_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/followers",
+        "following_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/following{/other_user}",
+        "gists_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/subscriptions",
+        "organizations_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/orgs",
+        "repos_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/repos",
+        "events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/received_events",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "created_at": "2026-03-22T13:37:23Z",
+      "updated_at": "2026-03-22T13:42:00Z",
+      "body": "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- walkthrough_start -->\n\n<details>\n<summary>\ud83d\udcdd Walkthrough</summary>\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n\n## Summary by CodeRabbit\n\n## \u30ea\u30ea\u30fc\u30b9\u30ce\u30fc\u30c8\n\n* **\u30ea\u30d5\u30a1\u30af\u30bf\u30ea\u30f3\u30b0**\n  * \u30c1\u30e3\u30c3\u30c8\u30a6\u30a3\u30f3\u30c9\u30a6\u306e\u5185\u90e8\u5b9f\u88c5\u3092\u6574\u7406\u3057\u3001\u30e2\u30b8\u30e5\u30fc\u30eb\u69cb\u9020\u3092\u6700\u9069\u5316\u3057\u307e\u3057\u305f\u3002\u30b9\u30bf\u30a4\u30eb\u3068\u30b9\u30af\u30ea\u30d7\u30c8\u51e6\u7406\u306e\u7ba1\u7406\u65b9\u5f0f\u3092\u6539\u5584\u3059\u308b\u3053\u3068\u3067\u3001\u30b7\u30b9\u30c6\u30e0\u306e\u4fdd\u5b88\u6027\u3068\u4eca\u5f8c\u306e\u62e1\u5f35\u6027\u304c\u5411\u4e0a\u3057\u307e\u3059\u3002\u30e6\u30fc\u30b6\u30fc\u304c\u4f53\u9a13\u3059\u308b\u6a5f\u80fd\u3068\u52d5\u4f5c\u306b\u5909\u66f4\u306f\u3042\u308a\u307e\u305b\u3093\u3002\n\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->\n## Walkthrough\n\nWebview \u306e CSS \u3068 JavaScript \u30a2\u30bb\u30c3\u30c8\u3092 `src/chatView.ts` \u304b\u3089\u65b0\u3057\u3044\u30e2\u30b8\u30e5\u30fc\u30eb `src/webview/chatAssets.ts` \u306b\u5206\u96e2\u3057\u307e\u3057\u305f\u3002\u65e2\u5b58\u306e CSS/JS \u306e\u52d5\u4f5c\u306f\u5909\u308f\u3089\u305a\u3001\u5358\u306b\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u5b9a\u6570\u3068\u3057\u3066\u30a4\u30f3\u30dd\u30fc\u30c8\u3055\u308c\u308b\u3088\u3046\u306b\u306a\u308a\u307e\u3057\u305f\u3002\u307e\u305f\u3001\u8907\u6570\u306e\u95a2\u6570\u306e\u30b3\u30fc\u30c9\u6574\u5f62\u304c\u884c\u308f\u308c\u307e\u3057\u305f\u3002\n\n## Changes\n\n|\u30b3\u30db\u30fc\u30c8 / \u30d5\u30a1\u30a4\u30eb|\u6982\u8981|\n|---|---|\n|**Webview \u30a2\u30bb\u30c3\u30c8\u5206\u96e2** <br> `src/webview/chatAssets.ts`|\u65b0\u898f\u30d5\u30a1\u30a4\u30eb\u3002`CHAT_CSS` \u3068 `CHAT_JS` \u3092\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u5b9a\u6570\u3068\u3057\u3066\u30a8\u30af\u30b9\u30dd\u30fc\u30c8\u3002chat UI \u306e\u30b9\u30bf\u30a4\u30ea\u30f3\u30b0\u3001\u30e1\u30c3\u30bb\u30fc\u30b8\u8868\u793a\u3001\u30b3\u30d4\u30fc\u30dc\u30bf\u30f3\u3001\u578b\u6307\u793a\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3001Webview API \u521d\u671f\u5316\u3001\u30e1\u30c3\u30bb\u30fc\u30b8\u30cf\u30f3\u30c9\u30ea\u30f3\u30b0\u3092\u542b\u3080\u3002|\n|**\u30c1\u30e3\u30c3\u30c8\u30d3\u30e5\u30fc\u7d71\u5408** <br> `src/chatView.ts`|`CHAT_CSS` \u3068 `CHAT_JS` \u306e\u30a4\u30f3\u30dd\u30fc\u30c8\u3092\u8ffd\u52a0\u3057\u3001`getChatWebviewHtml` \u3067\u30a2\u30bb\u30c3\u30c8\u5b9a\u6570\u3092\u4f7f\u7528\u3059\u308b\u3088\u3046\u306b\u66f4\u65b0\u3002`buildChatMessagesFromActivities`\u3001`JulesChatViewProvider` \u30e1\u30bd\u30c3\u30c9\u3001`getNonce` \u95a2\u6570\u306e\u30b3\u30fc\u30c9\u6574\u5f62\u3002\u95a2\u6570\u7f72\u540d\u306f\u5909\u66f4\u306a\u3057\uff08\u30d5\u30a9\u30fc\u30de\u30c3\u30c8\u306e\u307f\uff09\u3002|\n\n## Estimated code review effort\n\n\ud83c\udfaf 2 (Simple) | \u23f1\ufe0f ~10 minutes\n\n## Possibly related PRs\n\n- **PR `#370`**: Chat UI \u306e\u30c6\u30ad\u30b9\u30c8\uff08\u30b3\u30f3\u30dd\u30fc\u30b6\u30fc\u30d7\u30ec\u30fc\u30b9\u30db\u30eb\u30c0\u30fc\u3001\u30bb\u30c3\u30b7\u30e7\u30f3\u30e9\u30d9\u30eb\u3001\u9001\u4fe1\u30dc\u30bf\u30f3\uff09\u3092\u4fee\u6b63\u3057\u3066\u304a\u308a\u3001\u540c\u3058 chat UI \u9818\u57df\u306e\u5909\u66f4\u3067\u3042\u308b\u305f\u3081\u95a2\u9023\u6027\u304c\u3042\u308b\u3002\n\n## Poem\n\n> \ud83d\udc30 *CSS \u3068 JS \u3092\u5206\u3051\u3066\u6574\u7406\u3057\u3066\u3001*  \n> *\u65b0\u3057\u3044\u30d5\u30a1\u30a4\u30eb\u3078\u5f15\u3063\u8d8a\u3055\u305b\u3066\u3001*  \n> *Chat view \u306f\u3059\u3063\u304d\u308a\u3001\u304d\u308c\u3044\u306b\u306a\u308a\u3001*  \n> *\u30ec\u30d3\u30e5\u30fc\u3082\u697d\u306b\u3001\u4fdd\u5b88\u3082\u5b09\u3057\u3044\uff01*  \n> \u2728\n\n</details>\n\n<!-- walkthrough_end -->\n\n\n<!-- pre_merge_checks_walkthrough_start -->\n\n<details>\n<summary>\ud83d\udea5 Pre-merge checks | \u2705 4 | \u274c 1</summary>\n\n### \u274c Failed checks (1 warning)\n\n|     Check name     | Status     | Explanation                                                                          | Resolution                                                                         |\n| :----------------: | :--------- | :----------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |\n| Docstring Coverage | \u26a0\ufe0f Warning | Docstring coverage is 0.00% which is insufficient. The required threshold is 80.00%. | Write docstrings for the functions missing them to satisfy the coverage threshold. |\n\n<details>\n<summary>\u2705 Passed checks (4 passed)</summary>\n\n|         Check name         | Status   | Explanation                                                              |\n| :------------------------: | :------- | :----------------------------------------------------------------------- |\n|         Title check        | \u2705 Passed | PR \u30bf\u30a4\u30c8\u30eb\u306f\u4e3b\u8981\u306a\u5909\u66f4\u3092\u6b63\u78ba\u306b\u53cd\u6620\u3057\u3066\u304a\u308a\u3001\u30c1\u30e3\u30c3\u30c8Webview\u30a2\u30bb\u30c3\u30c8\u3092minified \u30ea\u30c6\u30e9\u30eb\u304b\u3089\u5206\u96e2\u3059\u308b\u3053\u3068\u306e\u672c\u8cea\u3092\u6349\u3048\u3066\u3044\u307e\u3059\u3002 |\n|      Description check     | \u2705 Passed | PR\u8aac\u660e\u306f\u95a2\u9023\u3059\u308b issue `#419` \u3092\u53c2\u7167\u3057\u3066\u304a\u308a\u3001\u5909\u66f4\u5185\u5bb9\u306b\u95a2\u9023\u3057\u3066\u3044\u307e\u3059\u3002                               |\n|     Linked Issues check    | \u2705 Passed | \u30b3\u30fc\u30c9\u5909\u66f4\u306fissue `#419` \u306e\u5168\u3066\u306e\u8981\u4ef6\u3092\u6e80\u305f\u3057\u3066\u3044\u307e\u3059\u3002CSS/JS\u3092\u8aad\u307f\u3084\u3059\u3044\u5f62\u5f0f\u306b\u5206\u96e2\u3057\u3001runtime \u52d5\u4f5c\u3092\u4fdd\u6301\u3057\u3066\u3044\u307e\u3059\u3002   |\n| Out of Scope Changes check | \u2705 Passed | PR \u3067\u884c\u308f\u308c\u305f\u5909\u66f4\u306f\u3059\u3079\u3066issue `#419` \u306e\u7bc4\u56f2\u5185\u3067\u3059\u3002\u8ffd\u52a0\u306e\u30b3\u30fc\u30c9\u5909\u66f4\u3084\u30d5\u30a1\u30a4\u30eb\u4fee\u6b63\u306f\u78ba\u8a8d\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002               |\n\n</details>\n\n<sub>\u270f\ufe0f Tip: You can configure your own custom pre-merge checks in the settings.</sub>\n\n</details>\n\n<!-- pre_merge_checks_walkthrough_end -->\n\n<!-- issue_planner_start -->\n\n<details>\n<summary>\ud83d\udccb Issue Planner</summary>\n\nLet us write the prompt for your AI agent so you can ship faster (with fewer bugs).\n\nView plan for ticket: [`#419`](https://github.com/Hiroki-org/jules-extension/issues/419)\n\n</details>\n\n<!-- issue_planner_end -->\n\n<!-- finishing_touch_checkbox_start -->\n\n<details>\n<summary>\u2728 Finishing Touches</summary>\n\n<details>\n<summary>\ud83d\udcdd Generate docstrings</summary>\n\n- [ ] <!-- {\"checkboxId\": \"7962f53c-55bc-4827-bfbf-6a18da830691\"} --> Create stacked PR\n- [ ] <!-- {\"checkboxId\": \"3e1879ae-f29b-4d0d-8e06-d12b7ba33d98\"} --> Commit on current branch\n\n</details>\n<details>\n<summary>\ud83e\uddea Generate unit tests (beta)</summary>\n\n- [ ] <!-- {\"checkboxId\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\", \"radioGroupId\": \"utg-output-choice-group-unknown_comment_id\"} -->   Create PR with unit tests\n- [ ] <!-- {\"checkboxId\": \"6ba7b810-9dad-11d1-80b4-00c04fd430c8\", \"radioGroupId\": \"utg-output-choice-group-unknown_comment_id\"} -->   Commit unit tests in branch `fix-issue-419`\n\n</details>\n\n</details>\n\n<!-- finishing_touch_checkbox_end -->\n\n<!-- tips_start -->\n\n---\n\nThanks for using [CodeRabbit](https://coderabbit.ai?utm_source=oss&utm_medium=github&utm_campaign=Hiroki-org/jules-extension&utm_content=424)! It's free for OSS, and your support helps us grow. If you like it, consider giving us a shout-out.\n\n<details>\n<summary>\u2764\ufe0f Share</summary>\n\n- [X](https://twitter.com/intent/tweet?text=I%20just%20used%20%40coderabbitai%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20the%20proprietary%20code.%20Check%20it%20out%3A&url=https%3A//coderabbit.ai)\n- [Mastodon](https://mastodon.social/share?text=I%20just%20used%20%40coderabbitai%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20the%20proprietary%20code.%20Check%20it%20out%3A%20https%3A%2F%2Fcoderabbit.ai)\n- [Reddit](https://www.reddit.com/submit?title=Great%20tool%20for%20code%20review%20-%20CodeRabbit&text=I%20just%20used%20CodeRabbit%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20proprietary%20code.%20Check%20it%20out%3A%20https%3A//coderabbit.ai)\n- [LinkedIn](https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fcoderabbit.ai&mini=true&title=Great%20tool%20for%20code%20review%20-%20CodeRabbit&summary=I%20just%20used%20CodeRabbit%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20proprietary%20code)\n\n</details>\n\n<sub>Comment `@coderabbitai help` to get the list of available commands and usage tips.</sub>\n\n<!-- tips_end -->\n\n<!-- internal state start -->\n\n\n<!-- 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 -->\n\n<!-- internal state end -->",
+      "author_association": "CONTRIBUTOR",
+      "reactions": {
+        "url": "https://api.github.com/repos/Hiroki-org/jules-extension/issues/comments/4106274204/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "performed_via_github_app": {
+        "id": 347564,
+        "client_id": "Iv1.6aaafe4fe882736b",
+        "slug": "coderabbitai",
+        "node_id": "A_kwHOB96YWc4ABU2s",
+        "owner": {
+          "login": "coderabbitai",
+          "id": 132028505,
+          "node_id": "O_kgDOB96YWQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/132028505?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/coderabbitai",
+          "html_url": "https://github.com/coderabbitai",
+          "followers_url": "https://api.github.com/users/coderabbitai/followers",
+          "following_url": "https://api.github.com/users/coderabbitai/following{/other_user}",
+          "gists_url": "https://api.github.com/users/coderabbitai/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/coderabbitai/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/coderabbitai/subscriptions",
+          "organizations_url": "https://api.github.com/users/coderabbitai/orgs",
+          "repos_url": "https://api.github.com/users/coderabbitai/repos",
+          "events_url": "https://api.github.com/users/coderabbitai/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/coderabbitai/received_events",
+          "type": "Organization",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "name": "coderabbitai",
+        "description": "# Transforming Code Reviews with AI\r\n\r\n## Features\r\n\r\n**Automated Reviews**: Continuous reviews of the pull requests including incremental commits. \r\n\r\n**Summarization**: Generates high-level summary and a technical walkthrough of the PR changes.\u00a0\r\n\r\n**Line-by-line review**: Provides line-by-line suggestions committable with one click.\r\n\r\n**Codebase verification**:  Verifies the impact on the overall codebase and identifies missing changes.\r\n\r\n**Insights into your code**:  Ask any questions on your codebase within the pull request \r\n\r\n**Chat about your code** : Chat with the bot around your code.\u00a0The more you chat, the smarter it gets.\r\n\r\n**Issue Validation**:  Validates the PR against the linked issues and identifies other related issues\u00a0\r\n\r\n\r\n\r\n",
+        "external_url": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
+        "html_url": "https://github.com/apps/coderabbitai",
+        "created_at": "2023-06-14T15:47:27Z",
+        "updated_at": "2026-03-14T07:58:44Z",
+        "permissions": {
+          "actions": "read",
+          "checks": "write",
+          "contents": "write",
+          "discussions": "read",
+          "issues": "write",
+          "members": "read",
+          "metadata": "read",
+          "pull_requests": "write",
+          "statuses": "write"
+        },
+        "events": [
+          "issues",
+          "issue_comment",
+          "label",
+          "organization",
+          "pull_request",
+          "pull_request_review",
+          "pull_request_review_comment",
+          "pull_request_review_thread",
+          "release",
+          "repository"
+        ]
+      }
+    },
+    {
+      "url": "https://api.github.com/repos/Hiroki-org/jules-extension/issues/comments/4106275365",
+      "html_url": "https://github.com/Hiroki-org/jules-extension/pull/424#issuecomment-4106275365",
+      "issue_url": "https://api.github.com/repos/Hiroki-org/jules-extension/issues/424",
+      "id": 4106275365,
+      "node_id": "IC_kwDOQDjL4M70wMol",
+      "user": {
+        "login": "gemini-code-assist[bot]",
+        "id": 176961590,
+        "node_id": "BOT_kgDOCow4Ng",
+        "avatar_url": "https://avatars.githubusercontent.com/in/956858?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D",
+        "html_url": "https://github.com/apps/gemini-code-assist",
+        "followers_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/followers",
+        "following_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/following{/other_user}",
+        "gists_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/subscriptions",
+        "organizations_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/orgs",
+        "repos_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/repos",
+        "events_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/received_events",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "created_at": "2026-03-22T13:38:16Z",
+      "updated_at": "2026-03-22T13:38:16Z",
+      "body": "## Summary of Changes\n\nHello, I'm Gemini Code Assist[^1]! I'm currently reviewing this pull request and will post my feedback shortly. In the meantime, here's a summary to help you and other reviewers quickly get up to speed!\n\nThis pull request addresses issue #419 by refactoring the chat webview assets. It moves the CSS and JavaScript code from the `chatView.ts` file into a dedicated `chatAssets.ts` file. This change enhances code organization and maintainability by separating concerns and improving readability.\n\n### Highlights\n\n* **Refactoring**: This PR refactors the chat webview code by extracting the CSS and JavaScript from the `chatView.ts` file into a new file `chatAssets.ts`.\n* **Modularity**: By moving the CSS and JavaScript into a separate module, the code becomes more modular and easier to maintain.\n* **Readability**: The change improves the readability of `chatView.ts` by removing large string literals.\n\n<details>\n<summary><b>Using Gemini Code Assist</b></summary>\n<br>\n\nThe full guide for Gemini Code Assist can be found on our [documentation page](https://developers.google.com/gemini-code-assist/docs/review-github-code), here are some quick tips.\n\n<b>Invoking Gemini</b>\n\nYou can request assistance from Gemini at any point by creating a comment using either `/gemini <command>` or `@gemini-code-assist <command>`. Below is a summary of the supported commands on the current page.\n\nFeature | Command | Description\n--- | --- | ---\nCode Review | `/gemini review` | Performs a code review for the current pull request in its current state.\nPull Request Summary | `/gemini summary` | Provides a summary of the current pull request in its current state.\nComment | @gemini-code-assist | Responds in comments when explicitly tagged, both in pull request comments and review comments.\nHelp | `/gemini help` | Displays a list of available commands.\n\n<b>Customization</b>\n\nTo customize Gemini Code Assist for GitHub experience, repository maintainers can create a configuration file and/or provide a custom code review style guide (such as PEP-8 for Python) by creating and adding files to a `.gemini/` folder in the base of the repository. Detailed instructions can be found [here](https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github).\n\n<b>Limitations & Feedback</b>\n\nGemini Code Assist may make mistakes. Please leave feedback on any instances where its feedback is incorrect or counter productive. You can react with :thumbsup: and :thumbsdown: on @gemini-code-assist comments. If you're interested in giving your feedback about your experience with Gemini Code Assist for GitHub and other Google products, sign up [here](https://google.qualtrics.com/jfe/form/SV_2cyuGuTWsEw84yG).\n</details>\n\n\n[^1]: Review the [Privacy Notices](https://policies.google.com/privacy), [Generative AI Prohibited Use Policy](https://policies.google.com/terms/generative-ai/use-policy), [Terms of Service](https://policies.google.com/terms), and learn how to configure Gemini Code Assist in GitHub [here](https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github). Gemini can make mistakes, so double check it and [use code with caution](https://support.google.com/legal/answer/13505487).\n",
+      "author_association": "CONTRIBUTOR",
+      "reactions": {
+        "url": "https://api.github.com/repos/Hiroki-org/jules-extension/issues/comments/4106275365/reactions",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "performed_via_github_app": {
+        "id": 956858,
+        "client_id": "Iv23ctcJt9oWoM6OPLsw",
+        "slug": "gemini-code-assist",
+        "node_id": "A_kwHOABR6NM4ADpm6",
+        "owner": {
+          "login": "google",
+          "id": 1342004,
+          "node_id": "MDEyOk9yZ2FuaXphdGlvbjEzNDIwMDQ=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/1342004?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/google",
+          "html_url": "https://github.com/google",
+          "followers_url": "https://api.github.com/users/google/followers",
+          "following_url": "https://api.github.com/users/google/following{/other_user}",
+          "gists_url": "https://api.github.com/users/google/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/google/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/google/subscriptions",
+          "organizations_url": "https://api.github.com/users/google/orgs",
+          "repos_url": "https://api.github.com/users/google/repos",
+          "events_url": "https://api.github.com/users/google/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/google/received_events",
+          "type": "Organization",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "name": "Gemini Code Assist",
+        "description": "**Accelerate code reviews and improve code quality**\r\n\r\nBring the power of [Gemini](https://gemini.google.com/) directly to GitHub, providing AI-powered code reviews on your pull requests, with automatic pull request summaries, ready-to-commit code suggestions and the ability to invoke Gemini for assistance at any point on the PR.\r\n",
+        "external_url": "https://developers.google.com/gemini-code-assist/docs/review-github-code",
+        "html_url": "https://github.com/apps/gemini-code-assist",
+        "created_at": "2024-07-29T20:55:46Z",
+        "updated_at": "2026-03-13T17:12:48Z",
+        "permissions": {
+          "contents": "read",
+          "issues": "write",
+          "members": "read",
+          "metadata": "read",
+          "pull_requests": "write"
+        },
+        "events": [
+          "commit_comment",
+          "issue_comment",
+          "pull_request",
+          "pull_request_review",
+          "pull_request_review_comment",
+          "pull_request_review_thread",
+          "push"
+        ]
+      }
+    }
+  ],
+  "reviews": [
+    {
+      "id": 3988150520,
+      "node_id": "PRR_kwDOQDjL4M7ttlj4",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "id": 199175422,
+        "node_id": "BOT_kgDOC98s_g",
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D",
+        "html_url": "https://github.com/apps/chatgpt-codex-connector",
+        "followers_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/followers",
+        "following_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/following{/other_user}",
+        "gists_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/subscriptions",
+        "organizations_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/orgs",
+        "repos_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/repos",
+        "events_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/chatgpt-codex-connector%5Bbot%5D/received_events",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "body": "\n### \ud83d\udca1 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `a98463b68e`\n    \n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](http://chatgpt.com/codex/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with \ud83d\udc4d.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+      "state": "COMMENTED",
+      "html_url": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988150520",
+      "pull_request_url": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424",
+      "author_association": "NONE",
+      "_links": {
+        "html": {
+          "href": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988150520"
+        },
+        "pull_request": {
+          "href": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424"
+        }
+      },
+      "submitted_at": "2026-03-22T13:40:20Z",
+      "commit_id": "a98463b68e1477a3a51134deed0d4657e5c38c83"
+    },
+    {
+      "id": 3988150667,
+      "node_id": "PRR_kwDOQDjL4M7ttlmL",
+      "user": {
+        "login": "greptile-apps[bot]",
+        "id": 165735046,
+        "node_id": "BOT_kgDOCeDqhg",
+        "avatar_url": "https://avatars.githubusercontent.com/in/867647?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/greptile-apps%5Bbot%5D",
+        "html_url": "https://github.com/apps/greptile-apps",
+        "followers_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/followers",
+        "following_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/following{/other_user}",
+        "gists_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/subscriptions",
+        "organizations_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/orgs",
+        "repos_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/repos",
+        "events_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/greptile-apps%5Bbot%5D/received_events",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "body": "",
+      "state": "COMMENTED",
+      "html_url": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988150667",
+      "pull_request_url": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424",
+      "author_association": "CONTRIBUTOR",
+      "_links": {
+        "html": {
+          "href": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988150667"
+        },
+        "pull_request": {
+          "href": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424"
+        }
+      },
+      "submitted_at": "2026-03-22T13:40:34Z",
+      "commit_id": "a98463b68e1477a3a51134deed0d4657e5c38c83"
+    },
+    {
+      "id": 3988150791,
+      "node_id": "PRR_kwDOQDjL4M7ttloH",
+      "user": {
+        "login": "gemini-code-assist[bot]",
+        "id": 176961590,
+        "node_id": "BOT_kgDOCow4Ng",
+        "avatar_url": "https://avatars.githubusercontent.com/in/956858?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D",
+        "html_url": "https://github.com/apps/gemini-code-assist",
+        "followers_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/followers",
+        "following_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/following{/other_user}",
+        "gists_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/subscriptions",
+        "organizations_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/orgs",
+        "repos_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/repos",
+        "events_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/gemini-code-assist%5Bbot%5D/received_events",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "body": "## Code Review\n\nThis pull request refactors the chat webview's CSS and JavaScript assets out of minified string literals in `chatView.ts` and into a new, more maintainable `src/webview/chatAssets.ts` file. This is a positive change for code organization and readability. My review identified two minor regressions in the new CSS file: an accessibility issue with the copy button's focus visibility and a visual bug with the typing indicator animation. The rest of the changes are primarily code formatting, which improves readability. I've also suggested adding unit tests to prevent accessibility regressions.",
+      "state": "COMMENTED",
+      "html_url": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988150791",
+      "pull_request_url": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424",
+      "author_association": "CONTRIBUTOR",
+      "_links": {
+        "html": {
+          "href": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988150791"
+        },
+        "pull_request": {
+          "href": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424"
+        }
+      },
+      "submitted_at": "2026-03-22T13:40:37Z",
+      "commit_id": "a98463b68e1477a3a51134deed0d4657e5c38c83"
+    },
+    {
+      "id": 3988151949,
+      "node_id": "PRR_kwDOQDjL4M7ttl6N",
+      "user": {
+        "login": "coderabbitai[bot]",
+        "id": 136622811,
+        "node_id": "BOT_kgDOCCSy2w",
+        "avatar_url": "https://avatars.githubusercontent.com/in/347564?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/coderabbitai%5Bbot%5D",
+        "html_url": "https://github.com/apps/coderabbitai",
+        "followers_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/followers",
+        "following_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/following{/other_user}",
+        "gists_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/subscriptions",
+        "organizations_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/orgs",
+        "repos_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/repos",
+        "events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/received_events",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "body": "**Actionable comments posted: 4**\n\n<details>\n<summary>\ud83e\udd16 Prompt for all review comments with AI agents</summary>\n\n```\nVerify each finding against the current code and only fix it if needed.\n\nInline comments:\nIn `@src/chatView.ts`:\n- Around line 318-336: The handler registered in\nwebviewView.webview.onDidReceiveMessage uses several single-line if statements\nwithout braces (e.g., the check for message?.type === \"requestInitialState\",\nmessage?.type !== \"sendMessage\", and the empty sessionId/text check), which\ntriggers static-analysis warnings; update those conditions in the\nonDidReceiveMessage callback to always use block braces { ... } around their\nbodies (so the call to this.postState(), the early return when type !==\n\"sendMessage\", and the early return when !sessionId || !text are wrapped in\nbraces) to satisfy the linter and make the control flow explicit while leaving\nthe try { await this.onSendMessage(sessionId, text); } catch (...) block\nunchanged.\n- Around line 120-125: The linter warns about a missing block after the if\nstatement in the isGeneratingSessionState function; update the function so the\nif (!rawState) branch uses braces (i.e., wrap the return false; in { ... }) to\nsatisfy the rule\u2014modify the isGeneratingSessionState implementation that\nreferences rawState and GENERATING_SESSION_STATES.has(rawState) accordingly.\n- Around line 208-236: Add missing block braces for every single-line if in\nchatView.ts so the parser stops warning; specifically wrap the bodies of if\n(activity.sessionFailed?.reason), if (activity.planGenerated?.plan), if\n((activity as any).gitPatch?.diff) and its inner if (typeof diff === \"string\" &&\ndiff.trim().length > 0), as well as if (activity.artifacts &&\nactivity.artifacts.length > 0) and the nested if (artifact.changeSet) and its\ninner if (diffData && typeof diffData === \"string\") with { ... } blocks; update\nthe surrounding code that builds detailsHtml in the functions/methods handling\nactivity rendering to use these braced blocks so the linter/CI warnings\ndisappear.\n\nIn `@src/webview/chatAssets.ts`:\n- Around line 39-121: Add a new unit test file specifically for this module that\nimports CHAT_JS and verifies the webview script behavior: mount a DOM with\nelements used by the script (chat, typing, messageInput, sendButton,\nsessionLabel, composer) then execute the CHAT_JS script in a jsdom environment\nand assert renderMessages/updateUI outcomes by posting a \"chatState\" message\n(check that messages with properties matching ChatMessageItem render correctly\nand timestamps are formatted), simulate input/submit and Ctrl/Cmd+Enter to\nensure vscode.postMessage is called with {type:\"sendMessage\"}, and test the\ncopy-button click flow (mock navigator.clipboard.writeText to succeed/fail and\nassert button text changes). Ensure tests also cover the fallback\nacquireVsCodeApi case by providing a fake acquireVsCodeApi absence and spying\nthe console fallback postMessage, and name the file e.g.\nsrc/webview/chatAssets.test.ts to satisfy module-level coverage.\n```\n\n</details>\n\n---\n\n<details>\n<summary>\u2139\ufe0f Review info</summary>\n\n<details>\n<summary>\u2699\ufe0f Run configuration</summary>\n\n**Configuration used**: Organization UI\n\n**Review profile**: ASSERTIVE\n\n**Plan**: Pro\n\n**Run ID**: `aa1f8d47-9ca9-48d8-8583-fe01680591fa`\n\n</details>\n\n<details>\n<summary>\ud83d\udce5 Commits</summary>\n\nReviewing files that changed from the base of the PR and between 92749e272afb5aa96acdff053f7f0aa21cdf91d3 and a98463b68e1477a3a51134deed0d4657e5c38c83.\n\n</details>\n\n<details>\n<summary>\ud83d\udcd2 Files selected for processing (2)</summary>\n\n* `src/chatView.ts`\n* `src/webview/chatAssets.ts`\n\n</details>\n\n</details>\n\n<!-- This is an auto-generated comment by CodeRabbit for review status -->",
+      "state": "CHANGES_REQUESTED",
+      "html_url": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988151949",
+      "pull_request_url": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424",
+      "author_association": "CONTRIBUTOR",
+      "_links": {
+        "html": {
+          "href": "https://github.com/Hiroki-org/jules-extension/pull/424#pullrequestreview-3988151949"
+        },
+        "pull_request": {
+          "href": "https://api.github.com/repos/Hiroki-org/jules-extension/pulls/424"
+        }
+      },
+      "submitted_at": "2026-03-22T13:42:03Z",
+      "commit_id": "a98463b68e1477a3a51134deed0d4657e5c38c83"
+    }
+  ]
+}

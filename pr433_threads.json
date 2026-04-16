@@ -1,0 +1,158 @@
+[
+  {
+    "id": "PRRT_kwDOQDjL4M52r3n3",
+    "isResolved": false,
+    "isOutdated": false,
+    "isCollapsed": false,
+    "path": "src/branchUtils.ts",
+    "line": 197,
+    "startLine": 197,
+    "comments": {
+      "nodes": [
+        {
+          "id": "PRRC_kwDOQDjL4M6yEWy_",
+          "databaseId": 2987486399,
+          "author": {
+            "login": "github-code-quality"
+          },
+          "body": "## Useless conditional\n\nThis use of variable 'cachedData' always evaluates to true.\n\n---\n\nIn general, to fix a \"useless conditional\" where a variable is always truthy at a given point, you should either (a) remove the redundant conditional and use the variable directly, or (b) refactor the code so that the conditional genuinely protects against an invalid state (e.g., by making the variable nullable earlier). Here the intended logic is: \"if there is valid cache data, use it; otherwise fetch and cache it, then use it.\" The simplest way to express this without a potentially useless <code>if (cachedData)</code> is to ensure <code>cachedData</code> is always a non\u2011undefined object with the required shape before we proceed, and then drop the conditional guard.</p>\n<p>Concretely for <code>src/branchUtils.ts</code>, within the <code>fetchBranchesLogic</code> function, we can initialize <code>cachedData</code> with a default object before the cache lookup, then always assign a real object in the branch where we refresh (<code>forceRefresh</code> or expired or missing). After that, <code>cachedData</code> is guaranteed to be non\u2011undefined, so we can remove the <code>if (cachedData)</code> and directly compute <code>remoteBranches</code>, <code>branches</code>, and <code>defaultBranch</code> from it. To avoid changing behaviour, the default object should match the existing fallback semantics: empty <code>branches</code> array and <code>undefined</code> <code>defaultBranch</code> so that <code>cachedData.defaultBranch || DEFAULT_FALLBACK_BRANCH</code> still yields the same default. The key modifications are: (1) change the declaration of <code>cachedData</code> at line 187 to include a default object with empty branches and <code>undefined</code> defaultBranch/timestamp, and (2) remove the <code>if (cachedData)</code> wrapping lines 198\u2013201, replacing it with unconditional assignments.",
+          "url": "https://github.com/Hiroki-org/jules-extension/pull/433#discussion_r2987486399",
+          "createdAt": "2026-03-25T11:12:28Z",
+          "path": "src/branchUtils.ts",
+          "outdated": false,
+          "diffHunk": "@@ -177,11 +184,20 @@ export async function getBranchesForSession(\n             if (!sourceName) {\n                 throw new Error(\"Selected source is missing a name.\");\n             }\n-            const sourceDetail = await apiClient.getSource(sourceName);\n-            if (sourceDetail.githubRepo?.branches) {\n-                remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);\n+            let cachedData = remoteBranchesCache.get(sourceName);\n+            if (forceRefresh || !cachedData || (Date.now() - cachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {\n+                const sourceDetail = await apiClient.getSource(sourceName);\n+                cachedData = {\n+                    branches: sourceDetail.githubRepo?.branches || [],\n+                    defaultBranch: sourceDetail.githubRepo?.defaultBranch?.displayName,\n+                    timestamp: Date.now()\n+                };\n+                remoteBranchesCache.set(sourceName, cachedData);\n+            }\n+            if (cachedData) {"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PRRT_kwDOQDjL4M52r5mB",
+    "isResolved": false,
+    "isOutdated": false,
+    "isCollapsed": false,
+    "path": "src/branchUtils.ts",
+    "line": 12,
+    "startLine": 12,
+    "comments": {
+      "nodes": [
+        {
+          "id": "PRRC_kwDOQDjL4M6yEZac",
+          "databaseId": 2987497116,
+          "author": {
+            "login": "greptile-apps"
+          },
+          "body": "<a href=\"#\"><img alt=\"P2\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7\" align=\"top\"></a> **`any[]` \u578b\u3067\u30bf\u30a4\u30d7\u30bb\u30fc\u30d5\u30c6\u30a3\u304c\u4f4e\u4e0b\u3057\u3066\u3044\u308b**\n\n`branches: any[]` \u3068\u3059\u308b\u3053\u3068\u3067\u3001`sourceDetail.githubRepo?.branches` \u304c\u672c\u6765\u6301\u3063\u3066\u3044\u308b\u3079\u304d\u578b\u60c5\u5831\u304c\u5931\u308f\u308c\u3066\u3044\u307e\u3059\u3002`(b: any) => b.displayName` \u3067\u306e\u30de\u30c3\u30d4\u30f3\u30b0\u6642\u306b\u578b\u30c1\u30a7\u30c3\u30af\u304c\u52b9\u304b\u305a\u3001`displayName` \u30d7\u30ed\u30d1\u30c6\u30a3\u304c\u5b58\u5728\u3057\u306a\u3044\u5834\u5408\u3067\u3082\u30b3\u30f3\u30d1\u30a4\u30eb\u30a8\u30e9\u30fc\u306b\u306a\u308a\u307e\u305b\u3093\u3002\n\n\u65e2\u5b58\u306e `SourceType` \u3084 API \u30af\u30e9\u30a4\u30a2\u30f3\u30c8\u306e\u30ec\u30b9\u30dd\u30f3\u30b9\u578b\u304c\u3042\u308c\u3070\u3001\u305d\u308c\u3092\u53c2\u7167\u3057\u3066\u30ad\u30e3\u30c3\u30b7\u30e5\u578b\u3092\u9069\u5207\u306b\u5b9a\u7fa9\u3059\u308b\u3053\u3068\u3092\u691c\u8a0e\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n\n```suggestion\nconst remoteBranchesCache = new Map<string, { branches: { displayName: string }[], defaultBranch: string | undefined, timestamp: number }>();\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/branchUtils.ts\nLine: 12\n\nComment:\n**`any[]` \u578b\u3067\u30bf\u30a4\u30d7\u30bb\u30fc\u30d5\u30c6\u30a3\u304c\u4f4e\u4e0b\u3057\u3066\u3044\u308b**\n\n`branches: any[]` \u3068\u3059\u308b\u3053\u3068\u3067\u3001`sourceDetail.githubRepo?.branches` \u304c\u672c\u6765\u6301\u3063\u3066\u3044\u308b\u3079\u304d\u578b\u60c5\u5831\u304c\u5931\u308f\u308c\u3066\u3044\u307e\u3059\u3002`(b: any) => b.displayName` \u3067\u306e\u30de\u30c3\u30d4\u30f3\u30b0\u6642\u306b\u578b\u30c1\u30a7\u30c3\u30af\u304c\u52b9\u304b\u305a\u3001`displayName` \u30d7\u30ed\u30d1\u30c6\u30a3\u304c\u5b58\u5728\u3057\u306a\u3044\u5834\u5408\u3067\u3082\u30b3\u30f3\u30d1\u30a4\u30eb\u30a8\u30e9\u30fc\u306b\u306a\u308a\u307e\u305b\u3093\u3002\n\n\u65e2\u5b58\u306e `SourceType` \u3084 API \u30af\u30e9\u30a4\u30a2\u30f3\u30c8\u306e\u30ec\u30b9\u30dd\u30f3\u30b9\u578b\u304c\u3042\u308c\u3070\u3001\u305d\u308c\u3092\u53c2\u7167\u3057\u3066\u30ad\u30e3\u30c3\u30b7\u30e5\u578b\u3092\u9069\u5207\u306b\u5b9a\u7fa9\u3059\u308b\u3053\u3068\u3092\u691c\u8a0e\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n\n```suggestion\nconst remoteBranchesCache = new Map<string, { branches: { displayName: string }[], defaultBranch: string | undefined, timestamp: number }>();\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+          "url": "https://github.com/Hiroki-org/jules-extension/pull/433#discussion_r2987497116",
+          "createdAt": "2026-03-25T11:14:29Z",
+          "path": "src/branchUtils.ts",
+          "outdated": false,
+          "diffHunk": "@@ -8,6 +8,13 @@ import { sanitizeForLogging } from './securityUtils';\n const DEFAULT_FALLBACK_BRANCH = 'main';\n const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;\n \n+// Cache for remote branches to optimize API calls\n+const remoteBranchesCache = new Map<string, { branches: any[], defaultBranch: string | undefined, timestamp: number }>();"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PRRT_kwDOQDjL4M52r5m2",
+    "isResolved": false,
+    "isOutdated": false,
+    "isCollapsed": false,
+    "path": "src/branchUtils.ts",
+    "line": 197,
+    "startLine": 197,
+    "comments": {
+      "nodes": [
+        {
+          "id": "PRRC_kwDOQDjL4M6yEZbj",
+          "databaseId": 2987497187,
+          "author": {
+            "login": "greptile-apps"
+          },
+          "body": "<a href=\"#\"><img alt=\"P2\" src=\"https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=7\" align=\"top\"></a> **`if (cachedData)` \u306e\u30ac\u30fc\u30c9\u6761\u4ef6\u304c\u5e38\u306b\u771f**\n\n\u3053\u306e `if (cachedData)` \u30c1\u30a7\u30c3\u30af\u306f\u3053\u306e\u6642\u70b9\u3067\u5e38\u306b `true` \u3067\u3059\u3002\n\n- `cachedData` \u304c\u6700\u521d\u304b\u3089\u5b9a\u7fa9\u6e08\u307f\uff08\u30ad\u30e3\u30c3\u30b7\u30e5\u30d2\u30c3\u30c8\uff09\u3067\u3042\u308c\u3070\u3001\u4e0a\u306e `if` \u30d6\u30ed\u30c3\u30af\u3092\u30b9\u30ad\u30c3\u30d7\u3057\u3001\u5f15\u304d\u7d9a\u304d\u5b9a\u7fa9\u6e08\u307f\u3067\u3059\u3002\n- `cachedData` \u304c\u672a\u5b9a\u7fa9\u3060\u3063\u305f\u5834\u5408\uff08\u30ad\u30e3\u30c3\u30b7\u30e5\u30df\u30b9\uff09\u3001\u4e0a\u306e `if` \u30d6\u30ed\u30c3\u30af\u306b\u5165\u3063\u3066\u5fc5\u305a\u4ee3\u5165\u3055\u308c\u307e\u3059\u3002  \n- `apiClient.getSource()` \u304c\u4f8b\u5916\u3092\u30b9\u30ed\u30fc\u3057\u305f\u5834\u5408\u3001`catch` \u30d6\u30ed\u30c3\u30af\u306b\u98db\u3076\u305f\u3081\u3001\u3053\u306e\u884c\u306b\u306f\u5230\u9054\u3057\u307e\u305b\u3093\u3002\n\n\u8aad\u307f\u624b\u306e\u6df7\u4e71\u3092\u907f\u3051\u308b\u305f\u3081\u3001\u5197\u9577\u306a\u30ac\u30fc\u30c9\u306f\u524a\u9664\u3067\u304d\u307e\u3059\u3002\n\n```suggestion\n            remoteBranches = cachedData.branches.map((b: any) => b.displayName);\n```\n\n<details><summary>Prompt To Fix With AI</summary>\n\n`````markdown\nThis is a comment left during a code review.\nPath: src/branchUtils.ts\nLine: 197\n\nComment:\n**`if (cachedData)` \u306e\u30ac\u30fc\u30c9\u6761\u4ef6\u304c\u5e38\u306b\u771f**\n\n\u3053\u306e `if (cachedData)` \u30c1\u30a7\u30c3\u30af\u306f\u3053\u306e\u6642\u70b9\u3067\u5e38\u306b `true` \u3067\u3059\u3002\n\n- `cachedData` \u304c\u6700\u521d\u304b\u3089\u5b9a\u7fa9\u6e08\u307f\uff08\u30ad\u30e3\u30c3\u30b7\u30e5\u30d2\u30c3\u30c8\uff09\u3067\u3042\u308c\u3070\u3001\u4e0a\u306e `if` \u30d6\u30ed\u30c3\u30af\u3092\u30b9\u30ad\u30c3\u30d7\u3057\u3001\u5f15\u304d\u7d9a\u304d\u5b9a\u7fa9\u6e08\u307f\u3067\u3059\u3002\n- `cachedData` \u304c\u672a\u5b9a\u7fa9\u3060\u3063\u305f\u5834\u5408\uff08\u30ad\u30e3\u30c3\u30b7\u30e5\u30df\u30b9\uff09\u3001\u4e0a\u306e `if` \u30d6\u30ed\u30c3\u30af\u306b\u5165\u3063\u3066\u5fc5\u305a\u4ee3\u5165\u3055\u308c\u307e\u3059\u3002  \n- `apiClient.getSource()` \u304c\u4f8b\u5916\u3092\u30b9\u30ed\u30fc\u3057\u305f\u5834\u5408\u3001`catch` \u30d6\u30ed\u30c3\u30af\u306b\u98db\u3076\u305f\u3081\u3001\u3053\u306e\u884c\u306b\u306f\u5230\u9054\u3057\u307e\u305b\u3093\u3002\n\n\u8aad\u307f\u624b\u306e\u6df7\u4e71\u3092\u907f\u3051\u308b\u305f\u3081\u3001\u5197\u9577\u306a\u30ac\u30fc\u30c9\u306f\u524a\u9664\u3067\u304d\u307e\u3059\u3002\n\n```suggestion\n            remoteBranches = cachedData.branches.map((b: any) => b.displayName);\n```\n\nHow can I resolve this? If you propose a fix, please make it concise.\n`````\n</details>",
+          "url": "https://github.com/Hiroki-org/jules-extension/pull/433#discussion_r2987497187",
+          "createdAt": "2026-03-25T11:14:30Z",
+          "path": "src/branchUtils.ts",
+          "outdated": false,
+          "diffHunk": "@@ -177,11 +184,20 @@ export async function getBranchesForSession(\n             if (!sourceName) {\n                 throw new Error(\"Selected source is missing a name.\");\n             }\n-            const sourceDetail = await apiClient.getSource(sourceName);\n-            if (sourceDetail.githubRepo?.branches) {\n-                remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);\n+            let cachedData = remoteBranchesCache.get(sourceName);\n+            if (forceRefresh || !cachedData || (Date.now() - cachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {\n+                const sourceDetail = await apiClient.getSource(sourceName);\n+                cachedData = {\n+                    branches: sourceDetail.githubRepo?.branches || [],\n+                    defaultBranch: sourceDetail.githubRepo?.defaultBranch?.displayName,\n+                    timestamp: Date.now()\n+                };\n+                remoteBranchesCache.set(sourceName, cachedData);\n+            }\n+            if (cachedData) {"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PRRT_kwDOQDjL4M52r5vr",
+    "isResolved": false,
+    "isOutdated": false,
+    "isCollapsed": false,
+    "path": "src/branchUtils.ts",
+    "line": 12,
+    "startLine": 12,
+    "comments": {
+      "nodes": [
+        {
+          "id": "PRRC_kwDOQDjL4M6yEZm_",
+          "databaseId": 2987497919,
+          "author": {
+            "login": "gemini-code-assist"
+          },
+          "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nFor better type safety and maintainability, it's best to avoid using `any`. You can define a more specific type for the cache value by defining the object shape explicitly.\n\n```suggestion\nconst remoteBranchesCache = new Map<string, { branches: { displayName: string }[], defaultBranch: string | undefined, timestamp: number }>();\n```",
+          "url": "https://github.com/Hiroki-org/jules-extension/pull/433#discussion_r2987497919",
+          "createdAt": "2026-03-25T11:14:38Z",
+          "path": "src/branchUtils.ts",
+          "outdated": false,
+          "diffHunk": "@@ -8,6 +8,13 @@ import { sanitizeForLogging } from './securityUtils';\n const DEFAULT_FALLBACK_BRANCH = 'main';\n const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;\n \n+// Cache for remote branches to optimize API calls\n+const remoteBranchesCache = new Map<string, { branches: any[], defaultBranch: string | undefined, timestamp: number }>();"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PRRT_kwDOQDjL4M52r5vw",
+    "isResolved": false,
+    "isOutdated": false,
+    "isCollapsed": false,
+    "path": "src/branchUtils.ts",
+    "line": 198,
+    "startLine": 198,
+    "comments": {
+      "nodes": [
+        {
+          "id": "PRRC_kwDOQDjL4M6yEZnI",
+          "databaseId": 2987497928,
+          "author": {
+            "login": "gemini-code-assist"
+          },
+          "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nFollowing the suggestion to add a more specific type to `remoteBranchesCache`, this explicit `any` type is no longer necessary. TypeScript can infer the type of `b`, which makes the code cleaner.\n\n```suggestion\n                remoteBranches = cachedData.branches.map(b => b.displayName);\n```",
+          "url": "https://github.com/Hiroki-org/jules-extension/pull/433#discussion_r2987497928",
+          "createdAt": "2026-03-25T11:14:38Z",
+          "path": "src/branchUtils.ts",
+          "outdated": false,
+          "diffHunk": "@@ -177,11 +184,20 @@ export async function getBranchesForSession(\n             if (!sourceName) {\n                 throw new Error(\"Selected source is missing a name.\");\n             }\n-            const sourceDetail = await apiClient.getSource(sourceName);\n-            if (sourceDetail.githubRepo?.branches) {\n-                remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);\n+            let cachedData = remoteBranchesCache.get(sourceName);\n+            if (forceRefresh || !cachedData || (Date.now() - cachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {\n+                const sourceDetail = await apiClient.getSource(sourceName);\n+                cachedData = {\n+                    branches: sourceDetail.githubRepo?.branches || [],\n+                    defaultBranch: sourceDetail.githubRepo?.defaultBranch?.displayName,\n+                    timestamp: Date.now()\n+                };\n+                remoteBranchesCache.set(sourceName, cachedData);\n+            }\n+            if (cachedData) {\n+                remoteBranches = cachedData.branches.map((b: any) => b.displayName);"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PRRT_kwDOQDjL4M52r6Pz",
+    "isResolved": false,
+    "isOutdated": false,
+    "isCollapsed": false,
+    "path": "src/branchUtils.ts",
+    "line": 188,
+    "startLine": 187,
+    "comments": {
+      "nodes": [
+        {
+          "id": "PRRC_kwDOQDjL4M6yEaRW",
+          "databaseId": 2987500630,
+          "author": {
+            "login": "chatgpt-codex-connector"
+          },
+          "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Clear in-memory branch cache when cache-clear is invoked**\n\n`getBranchesForSession` now reads `remoteBranchesCache` before calling `apiClient.getSource`, so stale entries can be reused for up to 5 minutes. I checked `src/extension.ts` (`jules-extension.clearCache` at lines 3389-3405), and that command only clears `context.globalState` keys, not this new in-memory map, so \u201cclear cache\u201d no longer guarantees a fresh branch fetch immediately after the command. Please invalidate `remoteBranchesCache` during the clear-cache flow (e.g., via `clearRemoteBranchesCache()`).\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.",
+          "url": "https://github.com/Hiroki-org/jules-extension/pull/433#discussion_r2987500630",
+          "createdAt": "2026-03-25T11:15:08Z",
+          "path": "src/branchUtils.ts",
+          "outdated": false,
+          "diffHunk": "@@ -177,11 +184,20 @@ export async function getBranchesForSession(\n             if (!sourceName) {\n                 throw new Error(\"Selected source is missing a name.\");\n             }\n-            const sourceDetail = await apiClient.getSource(sourceName);\n-            if (sourceDetail.githubRepo?.branches) {\n-                remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);\n+            let cachedData = remoteBranchesCache.get(sourceName);\n+            if (forceRefresh || !cachedData || (Date.now() - cachedData.timestamp) > REMOTE_BRANCHES_CACHE_TTL_MS) {"
+        }
+      ]
+    }
+  }
+]
