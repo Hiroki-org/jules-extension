@@ -144,7 +144,11 @@ function cleanupTempDirs(tempDirs: string[]): void {
 
 suite("VS Code UI Smoke Tests", () => {
   test("Create Jules Session shows an error toast when no source is selected", async function () {
-    this.timeout(180_000);
+    // Budget: launch(60s) + workbench(30s) + statusbar/fallback(30s)
+    //       + palette ops(30s) + notification(60s) = 210s worst-case.
+    // Add 90 s headroom to avoid mocha killing the test before all
+    // sub-timeouts expire.
+    this.timeout(300_000);
 
     let app: ElectronApplication | undefined;
     let tempDirs: string[] = [];
