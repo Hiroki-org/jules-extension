@@ -2,10 +2,15 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { downloadAndUnzipVSCode } from "@vscode/test-electron";
-import { _electron as electron, ElectronApplication, Page } from "playwright-core";
+import {
+  _electron as electron,
+  ElectronApplication,
+  Page,
+} from "playwright-core";
 
 const COMMAND_LABEL = "Create Jules Session";
-const ERROR_MESSAGE = "No source selected. Please list and select a source first.";
+const ERROR_MESSAGE =
+  "No source selected. Please list and select a source first.";
 // Keep the default VS Code build pinned because this smoke test reaches into
 // workbench selectors such as `[aria-label="Open Quick Access"]`,
 // `input[aria-label="Type the name of a command to run."]`, and
@@ -34,7 +39,9 @@ async function launchExtensionHost(): Promise<LaunchResult> {
   const workspaceRoot = getWorkspaceRoot();
   const executablePath = await downloadAndUnzipVSCode(VSCODE_VERSION);
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "jules-e2e-user-"));
-  const extensionsDir = fs.mkdtempSync(path.join(os.tmpdir(), "jules-e2e-ext-"));
+  const extensionsDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "jules-e2e-ext-"),
+  );
 
   const app = await electron.launch({
     executablePath,
@@ -59,6 +66,10 @@ async function launchExtensionHost(): Promise<LaunchResult> {
     timeout: 30_000,
   });
 
+  // Give extension host time to activate so commands are registered before
+  // the test opens the command palette.
+  await page.waitForTimeout(5000);
+
   return {
     app,
     page,
@@ -66,7 +77,10 @@ async function launchExtensionHost(): Promise<LaunchResult> {
   };
 }
 
-async function openCommandPalette(page: Page, commandLabel: string): Promise<void> {
+async function openCommandPalette(
+  page: Page,
+  commandLabel: string,
+): Promise<void> {
   await page.keyboard.press(getCommandPaletteShortcut());
 
   const quickInput = page.locator(
