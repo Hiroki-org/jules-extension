@@ -1,8 +1,56 @@
 import * as assert from 'assert';
-import { getBranchNameForSession, parsePullRequestUrl, getPullRequestUrlForSession } from '../sessionContextMenu';
+import { getBranchNameForSession, parsePullRequestUrl, getPullRequestUrlForSession, _findTargetRemote } from '../sessionContextMenu';
 import type { Session } from '../types';
 
 suite('sessionContextMenu Test Suite', () => {
+    suite('_findTargetRemote', () => {
+        test('should return exactly matching fetchUrl and remote', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/origin/repo.git' },
+                { remote: 'other', fetchUrl: 'https://github.com/fork/repo.git' },
+                { remote: 'fork', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'fork');
+        });
+
+        test('should return fetchUrl match when exact match is missing', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/origin/repo.git' },
+                { remote: 'other', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'other');
+        });
+
+        test('should fallback to origin if fetchUrl contains owner/repo', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/fork/repo.git' },
+                { remote: 'other', fetchUrl: 'https://github.com/other/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo-different.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'origin');
+        });
+
+        test('should return undefined when no matches found', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/origin/repo.git' },
+                { remote: 'other', fetchUrl: 'https://github.com/other/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result, undefined);
+        });
+
+        test('should handle .git suffix matching correctly', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/origin/repo' },
+                { remote: 'fork', fetchUrl: 'https://github.com/fork/repo' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'fork');
+        });
+    });
+
     suite('getBranchNameForSession', () => {
         test('should return branch name when sourceContext.githubRepoContext.startingBranch is present', () => {
             const session: Partial<Session> = {

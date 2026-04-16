@@ -549,27 +549,12 @@ async function fetchAndCheckoutFromPRInfo(
         const remotes: { remote: string; fetchUrl: string }[] = repository.state?.remotes || [];
 
         // headCloneUrlに一致するリモートを探す
-        let targetRemote: { remote: string; fetchUrl: string } | undefined;
-        let originRemote: { remote: string; fetchUrl: string } | undefined;
-
-        const cleanHeadCloneUrl = headCloneUrl.replace('.git', '');
-        for (let i = 0; i < remotes.length; i += 1) {
-            const r = remotes[i];
-
-            if (!targetRemote && (r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl))) {
-                targetRemote = r;
-            }
-            if (!originRemote && r.remote === 'origin') {
-                originRemote = r;
-            }
-            if (targetRemote && originRemote) {
-                break;
-            }
-        }
+        let targetRemote = _findTargetRemote(remotes, headCloneUrl, headOwner, headRepo);
 
         // フォークからのPRで、対応するリモートがない場合
         if (!targetRemote) {
             // originがheadCloneUrlと同じなら、originを使う
+            const originRemote = remotes.find(r => r.remote === 'origin');
             if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {
                 targetRemote = originRemote;
             } else {
@@ -654,4 +639,44 @@ async function fetchAndCheckoutFromPRInfo(
         log(`fetchAndCheckoutFromPRInfo failed: ${msg}`);
         return false;
     }
+}
+
+export function _findTargetRemote(
+    remotes: { remote: string; fetchUrl: string }[],
+    headCloneUrl: string,
+    headOwner: string,
+    headRepo: string
+): { remote: string; fetchUrl: string } | undefined {
+    let urlMatch: { remote: string; fetchUrl: string } | undefined;
+    let originRemote: { remote: string; fetchUrl: string } | undefined;
+
+    const cleanHeadCloneUrl = headCloneUrl.replace('.git', '');
+    for (let i = 0; i < remotes.length; i += 1) {
+        const r = remotes[i];
+
+        // Exact match on both fetchUrl and remote name - return immediately
+        if ((r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl)) && r.remote === headOwner) {
+            return r;
+        }
+
+        // Store first matching URL as fallback
+        if (!urlMatch && (r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl))) {
+            urlMatch = r;
+        }
+
+        if (!originRemote && r.remote === 'origin') {
+            originRemote = r;
+        }
+    }
+
+    // Fallbacks
+    if (urlMatch) {
+        return urlMatch;
+    }
+
+    if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {
+        return originRemote;
+    }
+
+    return undefined;
 }
