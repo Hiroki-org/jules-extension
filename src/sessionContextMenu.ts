@@ -642,32 +642,31 @@ async function fetchAndCheckoutFromPRInfo(
 }
 
 export function _findTargetRemote(
-    remotes: { remote: string; fetchUrl?: string }[],
+    remotes: { remote: string; fetchUrl: string }[],
     headCloneUrl: string,
     headOwner: string,
     headRepo: string
-): { remote: string; fetchUrl?: string } | undefined {
-    let urlMatch: { remote: string; fetchUrl?: string } | undefined;
-    let originRemote: { remote: string; fetchUrl?: string } | undefined;
+): { remote: string; fetchUrl: string } | undefined {
+    let urlMatch: { remote: string; fetchUrl: string } | undefined;
+    let originRemote: { remote: string; fetchUrl: string } | undefined;
 
-    const cleanHeadCloneUrl = headCloneUrl.replace(/\.git$/, '');
-    for (const r of remotes) {
-        const cleanFetchUrl = r.fetchUrl?.replace(/\.git$/, '');
+    const cleanHeadCloneUrl = headCloneUrl.replace('.git', '');
+    for (let i = 0; i < remotes.length; i += 1) {
+        const r = remotes[i];
 
         // Exact match on both fetchUrl and remote name - return immediately
-        if (cleanFetchUrl === cleanHeadCloneUrl && r.remote === headOwner) {
+        if ((r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl)) && r.remote === headOwner) {
             return r;
         }
 
         // Store first matching URL as fallback
-        if (!urlMatch && cleanFetchUrl === cleanHeadCloneUrl) {
+        if (!urlMatch && (r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace('.git', '') === cleanHeadCloneUrl))) {
             urlMatch = r;
         }
 
         if (!originRemote && r.remote === 'origin') {
             originRemote = r;
         }
-
     }
 
     // Fallbacks

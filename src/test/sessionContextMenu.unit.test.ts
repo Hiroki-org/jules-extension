@@ -14,6 +14,16 @@ suite('sessionContextMenu Test Suite', () => {
             assert.strictEqual(result?.remote, 'fork');
         });
 
+        test('should return exactly matching fetchUrl and remote', () => {
+            const remotes = [
+                { remote: 'origin', fetchUrl: 'https://github.com/origin/repo.git' },
+                { remote: 'other', fetchUrl: 'https://github.com/fork/repo.git' },
+                { remote: 'fork', fetchUrl: 'https://github.com/fork/repo.git' }
+            ];
+            const result = _findTargetRemote(remotes, 'https://github.com/fork/repo.git', 'fork', 'repo');
+            assert.strictEqual(result?.remote, 'fork');
+        });
+
         test('should return fetchUrl match when exact match is missing', () => {
             const remotes = [
                 { remote: 'origin', fetchUrl: 'https://github.com/origin/repo.git' },
