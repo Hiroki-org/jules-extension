@@ -667,6 +667,10 @@ export function _findTargetRemote(
         if (!originRemote && r.remote === 'origin') {
             originRemote = r;
         }
+
+        if (urlMatch && originRemote) {
+            break;
+        }
     }
 
     // Fallbacks
