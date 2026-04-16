@@ -201,6 +201,10 @@ suite('sessionContextMenu Test Suite', () => {
             assert.strictEqual(getPullRequestUrlForSession(undefined as any), null);
         });
 
+        test('should return null for non-object inputs without throwing', () => {
+            assert.strictEqual(getPullRequestUrlForSession(true as unknown as Session), null);
+        });
+
         test('should cache and return the same result on subsequent calls', () => {
             const session: Partial<Session> = {
                 name: 'test-session',
@@ -224,6 +228,24 @@ suite('sessionContextMenu Test Suite', () => {
             const resultInvalid2 = getPullRequestUrlForSession(sessionInvalidUrl as Session);
             assert.strictEqual(resultInvalid1, null);
             assert.strictEqual(resultInvalid2, null);
+        });
+
+        test('should not cache null results when session data becomes available later', () => {
+            const session: Partial<Session> = {
+                name: 'test-session3',
+                title: 'Test Session 3',
+                state: 'COMPLETED',
+                rawState: 'COMPLETED',
+                outputs: []
+            };
+
+            const initial = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(initial, null);
+
+            session.outputs = [{ pullRequest: { url: 'https://github.com/owner/repo/pull/456' } } as any];
+
+            const updated = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(updated, 'https://github.com/owner/repo/pull/456');
         });
 
         test('should handle exception during PR URL extraction and return null', () => {

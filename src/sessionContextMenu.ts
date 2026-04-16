@@ -355,43 +355,23 @@ async function performCheckout(
  * - Canonical form is returned (without query strings or fragments)
  */
 // Cache for PR URL extraction (improves performance by avoiding repeated string parsing/regex)
-const prUrlCache = new WeakMap<Session, string | null>();
+const prUrlCache = new WeakMap<Session, string>();
 
 export function getPullRequestUrlForSession(session: Session): string | null {
-    if (!session) {
-        return null;
-    }
-
-    const cached = prUrlCache.get(session);
-    if (cached !== undefined) {
-        return cached;
-    }
-
     try {
-        if (!session.outputs) {
-            prUrlCache.set(session, null);
+        if (typeof session !== "object" || session === null) {
             return null;
         }
 
-        // Extract PR URL from outputs using an optimized loop
-        let raw: string | null = null;
-        for (let j = 0; j < session.outputs.length; j += 1) {
-            const pr = session.outputs[j]?.pullRequest;
-            if (pr) {
-                raw = pr.url;
-                break;
-            }
+        const cached = prUrlCache.get(session);
+        if (cached !== undefined) {
+            return cached;
         }
+
+        // Extract PR URL from outputs
+        const raw = session.outputs?.find((o) => o.pullRequest)?.pullRequest?.url;
 
         if (!raw) {
-            prUrlCache.set(session, null);
-            return null;
-        }
-
-        // Validate: Must be a string
-        if (typeof raw !== "string") {
-            console.warn(`[Jules] PR URL type validation failed: expected string, got ${typeof raw}`);
-            prUrlCache.set(session, null);
             return null;
         }
 
@@ -401,20 +381,17 @@ export function getPullRequestUrlForSession(session: Session): string | null {
             u = new URL(raw);
         } catch (e) {
             console.warn(`[Jules] PR URL parsing failed: invalid URL format`);
-            prUrlCache.set(session, null);
             return null;
         }
 
         // Validate protocol and hostname
         if (u.protocol !== "https:") {
             console.warn(`[Jules] PR URL protocol validation failed: expected https:, got ${u.protocol}`);
-            prUrlCache.set(session, null);
             return null;
         }
 
         if (u.hostname !== "github.com") {
             console.warn(`[Jules] PR URL hostname validation failed: expected github.com, got ${u.hostname}`);
-            prUrlCache.set(session, null);
             return null;
         }
 
@@ -422,7 +399,6 @@ export function getPullRequestUrlForSession(session: Session): string | null {
         const match = PR_PATH_REGEX.exec(u.pathname);
         if (!match) {
             console.warn(`[Jules] PR URL pathname validation failed: path ${u.pathname} does not match expected format /owner/repo/pull/number`);
-            prUrlCache.set(session, null);
             return null;
         }
 
@@ -434,7 +410,6 @@ export function getPullRequestUrlForSession(session: Session): string | null {
         const prNumber = parseInt(numberStr, 10);
         if (isNaN(prNumber) || prNumber <= 0) {
             console.warn(`[Jules] PR URL number validation failed: expected positive PR number, got '${numberStr}'`);
-            prUrlCache.set(session, null);
             return null;
         }
 
@@ -444,7 +419,6 @@ export function getPullRequestUrlForSession(session: Session): string | null {
         return canonical;
     } catch (error) {
         console.warn(`[Jules] Unexpected error extracting PR URL from session`);
-        prUrlCache.set(session, null);
         return null;
     }
 }
