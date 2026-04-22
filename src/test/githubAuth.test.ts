@@ -18,6 +18,7 @@ suite('GitHubAuth Test Suite', () => {
     setup(() => {
         sandbox = sinon.createSandbox();
         getSessionStub = sandbox.stub(vscode.authentication, 'getSession');
+        GitHubAuth.clearCache();
         showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage');
     });
 
@@ -57,8 +58,8 @@ suite('GitHubAuth Test Suite', () => {
 
             assert.strictEqual(session, FAKE_SESSION);
             assert.strictEqual(getSessionStub.calledOnce, true);
-            const args = getSessionStub.firstCall.args;
-            assert.deepStrictEqual(args[2], { createIfNone: false });
+            const args = getSessionStub.firstCall?.args;
+            assert.deepStrictEqual(args?.[2], { createIfNone: false });
         });
 
         test('should return undefined when error occurs', async () => {
