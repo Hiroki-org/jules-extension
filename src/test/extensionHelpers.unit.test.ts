@@ -258,6 +258,19 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(fetchStub.callCount, 1); // Not incremented, served from error cache
     });
 
+    test("should return false for invalid GitHub PR URLs without fetching", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+
+      const isClosed = await checkPRStatus("not-a-github-pr-url", undefined);
+
+      assert.strictEqual(isClosed, false);
+      assert.strictEqual(fetchStub.called, false);
+
+      const cachedResult = await checkPRStatus("not-a-github-pr-url", undefined);
+      assert.strictEqual(cachedResult, false);
+      assert.strictEqual(fetchStub.called, false);
+    });
+
     test("should handle fetch exceptions and cache as error", async () => {
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").rejects(new Error("Network failure"));
       const isClosed = await checkPRStatus("https://github.com/org/repo/pull/888", undefined);
