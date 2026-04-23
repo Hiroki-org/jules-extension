@@ -64,6 +64,7 @@ const mockVscode = {
     },
     authentication: {
         getSession: async () => undefined,
+        onDidChangeSessions: () => ({ dispose: () => { } }),
     },
     extensions: {
         getExtension: () => undefined,

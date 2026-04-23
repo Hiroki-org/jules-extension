@@ -318,7 +318,8 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(fetchStub.callCount, 1);
       const stateUpdate = updateStub
         .getCalls()
-        .find((call) => call.args[0] === "jules.previousSessionStates");
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
       assert.ok(stateUpdate);
       const savedStates = stateUpdate?.args[1] as Record<
         string,
@@ -373,7 +374,8 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(fetchStub.callCount, 2);
       const stateUpdate = updateStub
         .getCalls()
-        .find((call) => call.args[0] === "jules.previousSessionStates");
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
       assert.ok(stateUpdate);
       const savedStates = stateUpdate?.args[1] as Record<
         string,
@@ -471,7 +473,8 @@ suite("Extension helper unit tests", () => {
       
       const stateUpdate = updateStub
         .getCalls()
-        .find((call) => call.args[0] === "jules.previousSessionStates");
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
       const savedStates = stateUpdate?.args[1] as Record<string, { isTerminated?: boolean }>;
       assert.strictEqual(savedStates["sessions/error-cache"].isTerminated, true);
       
@@ -501,7 +504,8 @@ suite("Extension helper unit tests", () => {
 
       const stateUpdate = updateStub
         .getCalls()
-        .find((call) => call.args[0] === "jules.previousSessionStates");
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
       assert.ok(stateUpdate);
       const savedStates = stateUpdate?.args[1] as Record<string, { isTerminated?: boolean }>;
       assert.strictEqual(savedStates["sessions/no-pr"].isTerminated, false);

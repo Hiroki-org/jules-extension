@@ -15,21 +15,19 @@ export class GitHubAuth {
             return;
         }
 
-        const onDidChangeSessions = (vscode.authentication as unknown as {
-            onDidChangeSessions?: (listener: (event: unknown) => void) => vscode.Disposable;
-        }).onDidChangeSessions;
-
-        if (typeof onDidChangeSessions !== 'function') {
-            return;
-        }
-
-        GitHubAuth.authChangeListenerDisposable = onDidChangeSessions((event: unknown) => {
-            const providerId = (event as { provider?: { id?: string } }).provider?.id;
-            if (providerId && providerId !== 'github') {
-                return;
+        const disposable = (vscode.authentication as any).onDidChangeSessions?.call(
+            vscode.authentication,
+            (event: unknown) => {
+                const providerId = (event as { provider?: { id?: string } }).provider?.id;
+                if (providerId && providerId !== 'github') {
+                    return;
+                }
+                GitHubAuth.clearCache();
             }
-            GitHubAuth.clearCache();
-        });
+        );
+        if (disposable) {
+            GitHubAuth.authChangeListenerDisposable = disposable;
+        }
     }
 
     private static cacheSession(

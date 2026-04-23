@@ -87,10 +87,10 @@ gha-creds-*.json
 # Copilot/AI agent state and temporary artifacts
 .copilot-state/
 patch_*.diff
-pr*_state.json
-pr*_cycle_state.json
-pr*_checks.json
-pr*_comments.json
-pr*_reviews.json
-pr*_threads.json
-pr*_view.json
+pr[0-9]*_state.json
+pr[0-9]*_cycle_state.json
+pr[0-9]*_checks.json
+pr[0-9]*_comments.json
+pr[0-9]*_reviews.json
+pr[0-9]*_threads.json
+pr[0-9]*_view.json
