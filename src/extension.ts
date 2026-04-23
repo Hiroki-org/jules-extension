@@ -588,7 +588,7 @@ export function extractPRs(
 async function checkPRStatus(
   prUrl: string,
   context: vscode.ExtensionContext,
-  token?: string,
+  token: string | undefined,
 ): Promise<boolean> {
   // Check cache first
   const cached = prStatusCache[prUrl];
@@ -614,17 +614,11 @@ async function checkPRStatus(
     const [, owner, repo, prNumber] = match;
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
 
-    // Prefer OAuth token
-    let authToken = token;
-    if (!authToken) {
-      authToken = await GitHubAuth.getToken();
-    }
-
     const headers: Record<string, string> = {
       Accept: "application/vnd.github.v3+json",
     };
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const response = await fetchWithTimeout(apiUrl, { headers });
@@ -933,18 +927,32 @@ export async function updatePreviousStates(
   const prStatusMap = new Map<string, boolean>();
 
   if (sessionsToCheck.length > 0) {
-    // Optimization: Fetch token once for all parallel checks to avoid
-    // hitting authentication provider or secure storage repeatedly.
-    const token = await GitHubAuth.getToken();
-
-    // Fetch all unique PR statuses in parallel with concurrency limit
-    const uniquePRUrlsArray = Array.from(uniquePRUrls);
     const prStatusLookup = new Map<string, boolean>();
+    const urlsToFetch: string[] = [];
+    const now = Date.now();
 
-    await mapLimit(uniquePRUrlsArray, 5, async (url) => {
-      const isClosed = await checkPRStatus(url, context, token);
-      prStatusLookup.set(url, isClosed);
-    });
+    // Identification of PRs that actually need to be fetched (missing or expired in cache)
+    for (const url of uniquePRUrls) {
+      const cached = prStatusCache[url];
+      const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
+      if (cached && now - cached.lastChecked < ttl) {
+        prStatusLookup.set(url, cached.isClosed);
+      } else {
+        urlsToFetch.push(url);
+      }
+    }
+
+    // Optimization: Fetch token once only if there are PRs to fetch
+    const token =
+      urlsToFetch.length > 0 ? await GitHubAuth.getToken() : undefined;
+
+    // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
+    if (urlsToFetch.length > 0) {
+      await mapLimit(urlsToFetch, 5, async (url) => {
+        const isClosed = await checkPRStatus(url, context, token);
+        prStatusLookup.set(url, isClosed);
+      });
+    }
 
     // Populate session statuses based on the fetched unique PR statuses
     for (const session of sessionsToCheck) {
@@ -984,7 +992,7 @@ export async function updatePreviousStates(
 
     let isTerminated = false;
     if (session.state === "COMPLETED") {
-      const prs = extractPRs(session);
+      const prs = sessionPRsMap.get(session.name) ?? [];
       if (prs.length > 0) {
         // Use pre-fetched status
         const isClosed = prStatusMap.get(session.name) ?? false;
