@@ -20,6 +20,8 @@ import {
   Session,
   SessionOutput,
   createRemoteBranch,
+  resetUpdatePreviousStatesCachesForTests,
+  setPRStatusCacheForTests,
 } from "../extension";
 import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
@@ -1052,9 +1054,11 @@ suite("Extension Test Suite", () => {
           keys: sandbox.stub().returns([]),
         },
       } as any;
+      resetUpdatePreviousStatesCachesForTests();
     });
 
     teardown(() => {
+      resetUpdatePreviousStatesCachesForTests();
       sandbox.restore();
     });
 
@@ -1122,7 +1126,7 @@ suite("Extension Test Suite", () => {
         [prUrlError]: { isClosed: false, lastChecked: now - 40 * 1000, isError: true },
       };
 
-      (mockContext.globalState.get as sinon.SinonStub).withArgs("jules.prStatusCache").returns(initialCache);
+      setPRStatusCacheForTests(initialCache);
 
       const sessions: Session[] = [
         {

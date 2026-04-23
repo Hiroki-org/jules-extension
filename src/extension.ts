@@ -161,6 +161,10 @@ export function resetUpdatePreviousStatesCachesForTests(): void {
   prStatusCache = {};
 }
 
+export function setPRStatusCacheForTests(cache: PRStatusCache): void {
+  prStatusCache = cache;
+}
+
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
   name: "Jules Logs (Fallback)",
@@ -938,7 +942,6 @@ export async function updatePreviousStates(
   if (sessionsToCheck.length > 0) {
     const prStatusLookup = new Map<string, boolean>();
     const urlsToFetch: string[] = [];
-    const now = Date.now();
 
     // Identification of PRs that actually need to be fetched (missing or expired in cache)
     for (const url of uniquePRUrls) {
