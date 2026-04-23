@@ -3,6 +3,10 @@ import * as vscode from 'vscode';
 export class GitHubAuth {
     private static readonly SCOPES = ['repo'];
 
+    private static cachedSession: vscode.AuthenticationSession | undefined = undefined;
+    private static sessionExpiry: number = 0;
+    private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
     static async signIn(): Promise<string | undefined> {
         try {
             const session = await vscode.authentication.getSession(
@@ -10,6 +14,11 @@ export class GitHubAuth {
                 GitHubAuth.SCOPES,
                 { createIfNone: true }
             );
+
+            if (session) {
+                GitHubAuth.cachedSession = session;
+                GitHubAuth.sessionExpiry = Date.now() + GitHubAuth.CACHE_TTL;
+            }
 
             return session?.accessToken;
         } catch (error) {
@@ -19,13 +28,28 @@ export class GitHubAuth {
     }
 
     static async getSession(): Promise<vscode.AuthenticationSession | undefined> {
+        const now = Date.now();
+        if (GitHubAuth.cachedSession && now < GitHubAuth.sessionExpiry) {
+            return GitHubAuth.cachedSession;
+        }
+
         try {
-            return await vscode.authentication.getSession(
+            const session = await vscode.authentication.getSession(
                 'github',
                 GitHubAuth.SCOPES,
                 { createIfNone: false }
             );
+
+            if (session) {
+                GitHubAuth.cachedSession = session;
+                GitHubAuth.sessionExpiry = now + GitHubAuth.CACHE_TTL;
+            } else {
+                GitHubAuth.clearCache();
+            }
+
+            return session;
         } catch (error) {
+            GitHubAuth.clearCache();
             return undefined;
         }
     }
@@ -50,5 +74,10 @@ export class GitHubAuth {
     static async isSignedIn(): Promise<boolean> {
         const session = await GitHubAuth.getSession();
         return session !== undefined;
+    }
+
+    static clearCache(): void {
+        GitHubAuth.cachedSession = undefined;
+        GitHubAuth.sessionExpiry = 0;
     }
 }
