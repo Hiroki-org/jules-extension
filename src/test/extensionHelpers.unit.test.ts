@@ -263,6 +263,9 @@ suite("Extension helper unit tests", () => {
       const isClosed = await checkPRStatus("https://github.com/org/repo/pull/888", undefined);
       assert.strictEqual(isClosed, false);
       assert.strictEqual(fetchStub.callCount, 1);
+      const isClosedCached = await checkPRStatus("https://github.com/org/repo/pull/888", undefined);
+      assert.strictEqual(isClosedCached, false);
+      assert.strictEqual(fetchStub.callCount, 1);
     });
   });
 

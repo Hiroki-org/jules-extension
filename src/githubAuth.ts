@@ -34,9 +34,6 @@ export class GitHubAuth {
         session: vscode.AuthenticationSession,
         requestVersion: number
     ): void {
-        if (requestVersion !== GitHubAuth.sessionRequestVersion) {
-            return;
-        }
 
         GitHubAuth.cachedSession = session;
         GitHubAuth.sessionExpiry = Date.now() + GitHubAuth.CACHE_TTL;
@@ -86,6 +83,9 @@ export class GitHubAuth {
             GitHubAuth.SCOPES,
             { createIfNone: false }
         )).then((session) => {
+            if (requestVersion !== GitHubAuth.sessionRequestVersion) {
+                return undefined;
+            }
             if (session) {
                 GitHubAuth.cacheSession(session, requestVersion);
             } else {
