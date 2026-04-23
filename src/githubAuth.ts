@@ -93,8 +93,10 @@ export class GitHubAuth {
             }
 
             return session;
-        }).catch((error) => {
-            GitHubAuth.clearCache();
+        }).catch((error) => { 
+            if (requestVersion === GitHubAuth.sessionRequestVersion) {
+                GitHubAuth.clearCache();
+            }
             return undefined;
         }).finally(() => {
             if (GitHubAuth.pendingSessionPromise === promise) {
