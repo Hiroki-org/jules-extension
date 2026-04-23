@@ -83,7 +83,7 @@ export class GitHubAuth {
         }
 
         const requestVersion = GitHubAuth.sessionRequestVersion;
-        GitHubAuth.pendingSessionPromise = Promise.resolve(vscode.authentication.getSession(
+        const promise = (GitHubAuth.pendingSessionPromise = Promise.resolve(vscode.authentication.getSession(
             'github',
             GitHubAuth.SCOPES,
             { createIfNone: false }
@@ -99,11 +99,13 @@ export class GitHubAuth {
             GitHubAuth.clearCache();
             return undefined;
         }).finally(() => {
-            GitHubAuth.pendingSessionPromise = undefined;
-        });
+            if (GitHubAuth.pendingSessionPromise === promise) {
+                GitHubAuth.pendingSessionPromise = undefined;
+            }
+        }));
 
         try {
-            return await GitHubAuth.pendingSessionPromise;
+            return await promise;
         } catch (error) {
             GitHubAuth.clearCache();
             return undefined;
@@ -137,5 +139,13 @@ export class GitHubAuth {
         GitHubAuth.cachedSession = undefined;
         GitHubAuth.sessionExpiry = 0;
         GitHubAuth.pendingSessionPromise = undefined;
+    }
+
+    static dispose(): void {
+        if (GitHubAuth.authChangeListenerDisposable) {
+            GitHubAuth.authChangeListenerDisposable.dispose();
+            GitHubAuth.authChangeListenerDisposable = undefined;
+        }
+        GitHubAuth.clearCache();
     }
 }

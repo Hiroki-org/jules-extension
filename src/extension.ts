@@ -3825,4 +3825,5 @@ export function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() {
   stopAutoRefresh();
+  GitHubAuth.dispose();
 }
