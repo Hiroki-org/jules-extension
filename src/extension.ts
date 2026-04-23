@@ -597,7 +597,6 @@ function getPRStatusFromCache(prUrl: string): boolean | undefined {
 
 async function checkPRStatus(
   prUrl: string,
-  context: vscode.ExtensionContext,
   token: string | undefined,
 ): Promise<boolean> {
   // Check cache first
@@ -605,6 +604,8 @@ async function checkPRStatus(
   if (cachedStatus !== undefined) {
     return cachedStatus;
   }
+
+  const now = Date.now();
 
   try {
     // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
@@ -956,7 +957,7 @@ export async function updatePreviousStates(
     // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
     if (urlsToFetch.length > 0) {
       await mapLimit(urlsToFetch, 5, async (url) => {
-        const isClosed = await checkPRStatus(url, context, token);
+        const isClosed = await checkPRStatus(url, token);
         prStatusLookup.set(url, isClosed);
       });
     }

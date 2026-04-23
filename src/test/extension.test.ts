@@ -25,6 +25,7 @@ import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
+import { GitHubAuth } from "../githubAuth";
 import { activate } from "../extension";
 
 suite("Extension Test Suite", () => {
@@ -1126,24 +1127,28 @@ suite("Extension Test Suite", () => {
       const sessions: Session[] = [
         {
           name: "s-valid",
+          title: "s-valid",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrlValid, title: "PR1", description: "" } }]
         },
         {
           name: "s-expired",
+          title: "s-expired",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrlExpired, title: "PR2", description: "" } }]
         },
         {
           name: "s-error",
+          title: "s-error",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrlError, title: "PR3", description: "" } }]
         },
         {
           name: "s-new",
+          title: "s-new",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrlNew, title: "PR4", description: "" } }]
@@ -1166,10 +1171,10 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(fetchStub.callCount, 3);
 
       const fetchedUrls = fetchStub.getCalls().map(c => c.args[0]);
-      assert.ok(fetchedUrls.some(u => u.includes("pulls/2")));
-      assert.ok(fetchedUrls.some(u => u.includes("pulls/3")));
-      assert.ok(fetchedUrls.some(u => u.includes("pulls/4")));
-      assert.ok(!fetchedUrls.some(u => u.includes("pulls/1")));
+      assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/2")));
+      assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/3")));
+      assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/4")));
+      assert.ok(!fetchedUrls.some(u => (u as string).includes("pulls/1")));
     });
 
     test("updatePreviousStates should not fetch token if everything is cached and valid", async () => {
@@ -1186,12 +1191,14 @@ suite("Extension Test Suite", () => {
       const sessions: Session[] = [
         {
           name: "s-valid",
+          title: "s-valid",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrl, title: "PR1", description: "" } }]
         },
         {
           name: "s-error-valid",
+          title: "s-error-valid",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrlErrorValid, title: "PR5", description: "" } }]
@@ -1210,6 +1217,7 @@ suite("Extension Test Suite", () => {
       const sessions: Session[] = [
         {
           name: "s1",
+          title: "s1",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
@@ -1226,8 +1234,8 @@ suite("Extension Test Suite", () => {
       await updatePreviousStates(sessions, mockContext);
 
       assert.ok(fetchStub.calledOnce);
-      const headers = fetchStub.getCall(0).args[1].headers;
-      assert.strictEqual(headers.Authorization, undefined);
+      const headers = fetchStub.getCall(0).args[1]?.headers as Record<string, string>;
+      assert.strictEqual(headers?.Authorization, undefined);
     });
   });
 
