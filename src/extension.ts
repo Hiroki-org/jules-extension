@@ -88,12 +88,14 @@ const SESSION_STATE = {
 };
 
 // GitHub PR status cache to avoid excessive API calls
+interface PRStatusCacheEntry {
+  isClosed: boolean;
+  lastChecked: number;
+  isError?: boolean;
+}
+
 interface PRStatusCache {
-  [prUrl: string]: {
-    isClosed: boolean;
-    lastChecked: number;
-    isError?: boolean;
-  };
+  [prUrl: string]: PRStatusCacheEntry;
 }
 
 let prStatusCache: PRStatusCache = {};
@@ -585,16 +587,14 @@ export function extractPRs(
   return Array.from(prMap.values());
 }
 
-async function checkPRStatus(
+export async function checkPRStatus(
   prUrl: string,
-  context: vscode.ExtensionContext,
   token: string | undefined,
 ): Promise<boolean> {
   // Check cache first
   const cached = prStatusCache[prUrl];
   const now = Date.now();
-  const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
-  if (cached && now - cached.lastChecked < ttl) {
+  if (isPRCacheEntryFresh(cached, now)) {
     return cached.isClosed;
   }
 
@@ -654,6 +654,18 @@ async function checkPRStatus(
     prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
     return false;
   }
+}
+
+function isPRCacheEntryFresh(
+  cached: PRStatusCacheEntry | undefined,
+  now: number,
+): cached is PRStatusCacheEntry {
+  if (!cached) {
+    return false;
+  }
+
+  const ttl = cached.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
+  return now - cached.lastChecked < ttl;
 }
 
 async function notifyPRCreated(
@@ -934,8 +946,7 @@ export async function updatePreviousStates(
     // Identification of PRs that actually need to be fetched (missing or expired in cache)
     for (const url of uniquePRUrls) {
       const cached = prStatusCache[url];
-      const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
-      if (cached && now - cached.lastChecked < ttl) {
+      if (isPRCacheEntryFresh(cached, now)) {
         prStatusLookup.set(url, cached.isClosed);
       } else {
         urlsToFetch.push(url);
@@ -949,7 +960,7 @@ export async function updatePreviousStates(
     // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
     if (urlsToFetch.length > 0) {
       await mapLimit(urlsToFetch, 5, async (url) => {
-        const isClosed = await checkPRStatus(url, context, token);
+        const isClosed = await checkPRStatus(url, token);
         prStatusLookup.set(url, isClosed);
       });
     }

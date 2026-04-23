@@ -6,6 +6,8 @@ import { GitHubAuth } from "../githubAuth";
 suite("GitHubAuth Unit Test Suite", () => {
   let sandbox: sinon.SinonSandbox;
   let getSessionStub: sinon.SinonStub;
+  let onDidChangeSessionsStub: sinon.SinonStub;
+  let onDidChangeSessionsListener: ((event: unknown) => void) | undefined;
 
   const fakeSession = {
     accessToken: "fake-token",
@@ -17,6 +19,14 @@ suite("GitHubAuth Unit Test Suite", () => {
   setup(() => {
     sandbox = sinon.createSandbox();
     getSessionStub = sandbox.stub((vscode as any).authentication, "getSession");
+    onDidChangeSessionsStub = sandbox.stub(
+      (vscode as any).authentication,
+      "onDidChangeSessions",
+    );
+    onDidChangeSessionsStub.callsFake((listener: (event: unknown) => void) => {
+      onDidChangeSessionsListener = listener;
+      return { dispose: () => undefined };
+    });
     GitHubAuth.clearCache();
     sandbox.stub(vscode.window, "showErrorMessage");
   });
@@ -62,6 +72,44 @@ suite("GitHubAuth Unit Test Suite", () => {
       ["repo"],
       { createIfNone: false },
     ]);
+  });
+
+  test("getSession should dedupe concurrent session fetches", async () => {
+    let resolveSession: ((value: typeof fakeSession | undefined) => void) | undefined;
+    const pendingSession = new Promise<typeof fakeSession | undefined>((resolve) => {
+      resolveSession = resolve;
+    });
+    getSessionStub.onFirstCall().returns(pendingSession);
+
+    const p1 = GitHubAuth.getToken();
+    const p2 = GitHubAuth.getToken();
+
+    assert.strictEqual(getSessionStub.calledOnce, true);
+    resolveSession?.(fakeSession);
+
+    const [token1, token2] = await Promise.all([p1, p2]);
+    assert.strictEqual(token1, "fake-token");
+    assert.strictEqual(token2, "fake-token");
+  });
+
+  test("getSession should clear cache when GitHub sessions change", async () => {
+    const refreshedSession = {
+      ...fakeSession,
+      accessToken: "new-token",
+      id: "session-2",
+    };
+    getSessionStub.onFirstCall().resolves(fakeSession);
+    getSessionStub.onSecondCall().resolves(refreshedSession);
+
+    const first = await GitHubAuth.getSession();
+    assert.strictEqual(first?.accessToken, "fake-token");
+    assert.strictEqual(getSessionStub.calledOnce, true);
+
+    onDidChangeSessionsListener?.({ provider: { id: "github" } });
+
+    const second = await GitHubAuth.getSession();
+    assert.strictEqual(second?.accessToken, "new-token");
+    assert.strictEqual(getSessionStub.calledTwice, true);
   });
 
   test("getToken should return undefined when no session exists", async () => {

@@ -6,8 +6,49 @@ export class GitHubAuth {
     private static cachedSession: vscode.AuthenticationSession | undefined = undefined;
     private static sessionExpiry: number = 0;
     private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+    private static pendingSessionPromise: Promise<vscode.AuthenticationSession | undefined> | undefined = undefined;
+    private static authChangeListenerDisposable: vscode.Disposable | undefined = undefined;
+    private static sessionRequestVersion = 0;
+
+    private static ensureAuthSessionListener(): void {
+        if (GitHubAuth.authChangeListenerDisposable) {
+            return;
+        }
+
+        const onDidChangeSessions = (vscode.authentication as unknown as {
+            onDidChangeSessions?: (listener: (event: unknown) => void) => vscode.Disposable;
+        }).onDidChangeSessions;
+
+        if (typeof onDidChangeSessions !== 'function') {
+            return;
+        }
+
+        GitHubAuth.authChangeListenerDisposable = onDidChangeSessions((event: unknown) => {
+            const providerId = (event as { provider?: { id?: string } }).provider?.id;
+            if (providerId && providerId !== 'github') {
+                return;
+            }
+            GitHubAuth.clearCache();
+        });
+    }
+
+    private static cacheSession(
+        session: vscode.AuthenticationSession,
+        requestVersion: number
+    ): void {
+        if (requestVersion !== GitHubAuth.sessionRequestVersion) {
+            return;
+        }
+
+        GitHubAuth.cachedSession = session;
+        GitHubAuth.sessionExpiry = Date.now() + GitHubAuth.CACHE_TTL;
+    }
 
     static async signIn(): Promise<string | undefined> {
+        GitHubAuth.ensureAuthSessionListener();
+        GitHubAuth.clearCache();
+        const requestVersion = GitHubAuth.sessionRequestVersion;
+
         try {
             const session = await vscode.authentication.getSession(
                 'github',
@@ -16,38 +57,53 @@ export class GitHubAuth {
             );
 
             if (session) {
-                GitHubAuth.cachedSession = session;
-                GitHubAuth.sessionExpiry = Date.now() + GitHubAuth.CACHE_TTL;
+                GitHubAuth.cacheSession(session, requestVersion);
+            } else {
+                GitHubAuth.clearCache();
             }
 
             return session?.accessToken;
         } catch (error) {
+            GitHubAuth.clearCache();
             vscode.window.showErrorMessage('Failed to sign in to GitHub');
             return undefined;
         }
     }
 
     static async getSession(): Promise<vscode.AuthenticationSession | undefined> {
+        GitHubAuth.ensureAuthSessionListener();
+
         const now = Date.now();
         if (GitHubAuth.cachedSession && now < GitHubAuth.sessionExpiry) {
             return GitHubAuth.cachedSession;
         }
 
-        try {
-            const session = await vscode.authentication.getSession(
-                'github',
-                GitHubAuth.SCOPES,
-                { createIfNone: false }
-            );
+        if (GitHubAuth.pendingSessionPromise) {
+            return GitHubAuth.pendingSessionPromise;
+        }
 
+        const requestVersion = GitHubAuth.sessionRequestVersion;
+        GitHubAuth.pendingSessionPromise = Promise.resolve(vscode.authentication.getSession(
+            'github',
+            GitHubAuth.SCOPES,
+            { createIfNone: false }
+        )).then((session) => {
             if (session) {
-                GitHubAuth.cachedSession = session;
-                GitHubAuth.sessionExpiry = now + GitHubAuth.CACHE_TTL;
+                GitHubAuth.cacheSession(session, requestVersion);
             } else {
                 GitHubAuth.clearCache();
             }
 
             return session;
+        }).catch((error) => {
+            GitHubAuth.clearCache();
+            return undefined;
+        }).finally(() => {
+            GitHubAuth.pendingSessionPromise = undefined;
+        });
+
+        try {
+            return await GitHubAuth.pendingSessionPromise;
         } catch (error) {
             GitHubAuth.clearCache();
             return undefined;
@@ -77,7 +133,9 @@ export class GitHubAuth {
     }
 
     static clearCache(): void {
+        GitHubAuth.sessionRequestVersion += 1;
         GitHubAuth.cachedSession = undefined;
         GitHubAuth.sessionExpiry = 0;
+        GitHubAuth.pendingSessionPromise = undefined;
     }
 }
