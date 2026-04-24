@@ -20,6 +20,7 @@ suite('GitHubAuth Test Suite', () => {
     setup(() => {
         GitHubAuth.dispose();
         sandbox = sinon.createSandbox();
+        onDidChangeSessionsListener = undefined;
         getSessionStub = sandbox.stub(vscode.authentication, 'getSession');
         onDidChangeSessionsStub = sandbox.stub(
             (vscode.authentication as unknown as { onDidChangeSessions: (listener: (event: unknown) => void) => vscode.Disposable }),
@@ -35,6 +36,7 @@ suite('GitHubAuth Test Suite', () => {
 
     teardown(() => {
         GitHubAuth.dispose();
+        onDidChangeSessionsListener = undefined;
         sandbox.restore();
     });
 
@@ -112,8 +114,12 @@ suite('GitHubAuth Test Suite', () => {
             const first = await GitHubAuth.getSession();
             assert.strictEqual(first?.accessToken, 'fake-token');
             assert.strictEqual(getSessionStub.calledOnce, true);
+            assert.strictEqual(onDidChangeSessionsStub.calledOnce, true);
 
-            onDidChangeSessionsListener?.({ provider: { id: 'github' } });
+            const authChangeListener = onDidChangeSessionsStub.firstCall?.args[0] as
+                | ((event: unknown) => void)
+                | undefined;
+            authChangeListener?.({ provider: { id: 'github' } });
 
             const second = await GitHubAuth.getSession();
             assert.strictEqual(second?.accessToken, 'new-token');
