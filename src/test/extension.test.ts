@@ -603,6 +603,157 @@ suite("Extension Test Suite", () => {
     });
   });
 
+  suite("Proxy detection", () => {
+    const proxyEnvKeys = [
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "http_proxy",
+      "https_proxy",
+      "ALL_PROXY",
+      "all_proxy",
+    ] as const;
+
+    let localSandbox: sinon.SinonSandbox;
+    let savedEnv: Partial<Record<(typeof proxyEnvKeys)[number], string | undefined>>;
+
+    const createProxyActivationContext = (): vscode.ExtensionContext => ({
+      globalState: {
+        get: localSandbox.stub().returns({}),
+        update: localSandbox.stub().resolves(),
+        keys: localSandbox.stub().returns([]),
+      },
+      subscriptions: [],
+      extensionUri: vscode.Uri.file("/tmp/jules-extension"),
+      extensionPath: "/tmp/jules-extension",
+      workspaceState: {
+        get: localSandbox.stub(),
+        update: localSandbox.stub().resolves(),
+        keys: localSandbox.stub().returns([]),
+      } as any,
+      environmentVariableCollection: {
+        get: localSandbox.stub(),
+        replace: localSandbox.stub(),
+        append: localSandbox.stub(),
+        prepend: localSandbox.stub(),
+        delete: localSandbox.stub(),
+        clear: localSandbox.stub(),
+        forEach: localSandbox.stub(),
+        persistent: false,
+        description: undefined,
+        __brand: undefined,
+      } as any,
+      logUri: vscode.Uri.file("/tmp/jules-extension.log"),
+      storageUri: vscode.Uri.file("/tmp/jules-extension-storage"),
+      storagePath: "/tmp/jules-extension-storage",
+      secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() },
+      asAbsolutePath: (relativePath: string) => `/tmp/jules-extension/${relativePath}`,
+    } as any as vscode.ExtensionContext);
+
+    setup(() => {
+      localSandbox = sinon.createSandbox();
+      savedEnv = {};
+
+      for (const key of proxyEnvKeys) {
+        savedEnv[key] = process.env[key];
+        delete process.env[key];
+      }
+
+      const originalGetConfiguration = vscode.workspace.getConfiguration.bind(vscode.workspace);
+      localSandbox.stub(vscode.workspace, "getConfiguration").callsFake((section?: string) => {
+        if (section === "http") {
+          return {
+            get: () => undefined,
+          } as any;
+        }
+
+        return originalGetConfiguration(section as any);
+      });
+
+      localSandbox.stub(vscode.window, "createTreeView").callsFake(() => ({
+        onDidChangeSelection: () => ({ dispose: () => { } }),
+        dispose: () => { },
+      } as any));
+      localSandbox.stub(vscode.window, "registerWebviewViewProvider").callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.window, "createStatusBarItem").returns({
+        show: () => { },
+        hide: () => { },
+        dispose: () => { },
+        name: "",
+      } as any);
+      localSandbox.stub(vscode.window, "createOutputChannel").returns({
+        appendLine: () => { },
+        clear: () => { },
+        show: () => { },
+        hide: () => { },
+        dispose: () => { },
+      } as any);
+      localSandbox.stub(vscode.languages, "registerCodeActionsProvider").callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, "registerCodeLensProvider").callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.workspace, "registerTextDocumentContentProvider").callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.workspace, "onDidChangeConfiguration").callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.commands, "registerCommand").callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.commands, "executeCommand").resolves();
+      localSandbox.stub(fetchUtils, "setHttpProxy").callsFake(() => undefined);
+      localSandbox.stub(fetchUtils, "setSocksProxy").callsFake(() => undefined);
+      localSandbox.stub(fetchUtils, "fetchWithTimeout").resolves({ ok: true, json: async () => ({}) } as any);
+    });
+
+    teardown(() => {
+      for (const key of proxyEnvKeys) {
+        const value = savedEnv[key];
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+
+      localSandbox.restore();
+    });
+
+    test("should stop activation when proxy URL is invalid", () => {
+      process.env.HTTP_PROXY = "http://";
+      const errorStub = localSandbox.stub(console, "error");
+
+      const mockContext = createProxyActivationContext();
+      activate(mockContext);
+
+      assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
+      assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
+      if (errorStub.called) {
+        assert.ok(errorStub.args.some((args) => String(args[0]).includes("Invalid proxy URL")));
+      }
+    });
+
+    test("should configure HTTP proxy when HTTP_PROXY is set", () => {
+      process.env.HTTP_PROXY = "http://proxy.example.com:8080";
+      const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
+
+      const mockContext = createProxyActivationContext();
+      activate(mockContext);
+
+      assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).calledOnce, true);
+      assert.deepStrictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).firstCall.args, ["http://proxy.example.com:8080"]);
+      assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
+      assert.ok(infoStub.called);
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPSプロキシ")));
+    });
+
+    test("should configure SOCKS proxy when ALL_PROXY is a socks URL", () => {
+      process.env.ALL_PROXY = "socks5://proxy.example.com:1080";
+      const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
+
+      const mockContext = createProxyActivationContext();
+      activate(mockContext);
+
+      assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).calledOnce, true);
+      assert.deepStrictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).firstCall.args, ["socks5://proxy.example.com:1080"]);
+      assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
+      assert.ok(infoStub.called);
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("SOCKSプロキシ")));
+    });
+  });
+
   // Integration tests for caching logic
   suite("Caching Integration Tests", () => {
     let sandbox: sinon.SinonSandbox;
