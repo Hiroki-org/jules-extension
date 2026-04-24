@@ -35,7 +35,7 @@ suite("GitHubAuth Unit Test Suite", () => {
   };
 
   setup(() => {
-    resetGitHubAuthState();
+    GitHubAuth.dispose();
     sandbox = sinon.createSandbox();
     onDidChangeSessionsListener = undefined;
     getSessionStub = sandbox.stub((vscode as any).authentication, "getSession");
@@ -48,12 +48,11 @@ suite("GitHubAuth Unit Test Suite", () => {
       listenerDisposeSpy = sandbox.spy();
       return { dispose: listenerDisposeSpy };
     });
-    GitHubAuth.clearCache();
     sandbox.stub(vscode.window, "showErrorMessage");
   });
 
   teardown(() => {
-    resetGitHubAuthState();
+    GitHubAuth.dispose();
     onDidChangeSessionsListener = undefined;
     sandbox.restore();
   });
