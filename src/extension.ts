@@ -162,7 +162,7 @@ export function resetUpdatePreviousStatesCachesForTests(): void {
 }
 
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
-  prStatusCache = cache;
+  prStatusCache = { ...cache };
 }
 
 // Initialize with dummy to support usage before activate (e.g. in tests)
@@ -909,6 +909,7 @@ export async function updatePreviousStates(
   context: vscode.ExtensionContext,
 ): Promise<boolean> {
   let hasChanged = false;
+  let prStatusCacheChanged = false;
 
   // 1. Identify sessions that require PR status checks
   // Optimization: Extract all unique PR URLs in a single pass to avoid N+1 duplicate API calls
@@ -961,6 +962,7 @@ export async function updatePreviousStates(
     if (urlsToFetch.length > 0) {
       await mapLimit(urlsToFetch, 5, async (url) => {
         const isClosed = await checkPRStatus(url, token);
+        prStatusCacheChanged = true;
         prStatusLookup.set(url, isClosed);
       });
     }
@@ -1048,12 +1050,13 @@ export async function updatePreviousStates(
       "jules.previousSessionStates",
       Object.fromEntries(previousSessionStates),
     );
-    // Also persist PR status cache to save API calls on next reload
-    await context.globalState.update("jules.prStatusCache", prStatusCache);
 
     console.log(
       `Jules: Saved ${previousSessionStates.size} session states to global state.`,
     );
+  }
+  if (hasChanged || prStatusCacheChanged) {
+    await context.globalState.update("jules.prStatusCache", prStatusCache);
   }
   return hasChanged;
 }

@@ -29,6 +29,7 @@ import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { GitHubAuth } from "../githubAuth";
 import { activate } from "../extension";
+import { GitHubAuth } from "../githubAuth";
 
 suite("Extension Test Suite", () => {
   vscode.window.showInformationMessage("Start all tests.");
@@ -1046,6 +1047,7 @@ suite("Extension Test Suite", () => {
 
     setup(() => {
       sandbox = sinon.createSandbox();
+      resetUpdatePreviousStatesCachesForTests();
       updateStub = sandbox.stub().resolves();
       mockContext = {
         globalState: {
@@ -1180,7 +1182,6 @@ suite("Extension Test Suite", () => {
       assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/4")));
       assert.ok(!fetchedUrls.some(u => (u as string).includes("pulls/1")));
     });
-
     test("updatePreviousStates should not fetch token if everything is cached and valid", async () => {
       const now = Date.now();
       const prUrl = "https://github.com/owner/repo/pull/1";
@@ -1190,7 +1191,8 @@ suite("Extension Test Suite", () => {
         [prUrlErrorValid]: { isClosed: false, lastChecked: now - 1000, isError: true },
       };
 
-      (mockContext.globalState.get as sinon.SinonStub).withArgs("jules.prStatusCache").returns(initialCache);
+      setPRStatusCacheForTests(initialCache);
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
 
       const sessions: Session[] = [
         {
@@ -1214,6 +1216,7 @@ suite("Extension Test Suite", () => {
       await updatePreviousStates(sessions, mockContext);
 
       assert.ok(getTokenStub.notCalled);
+      assert.ok(fetchStub.notCalled);
     });
 
     test("updatePreviousStates handles getToken returning undefined", async () => {
