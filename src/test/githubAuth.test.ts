@@ -7,6 +7,25 @@ suite('GitHubAuth Test Suite', () => {
     let sandbox: sinon.SinonSandbox;
     let getSessionStub: sinon.SinonStub;
     let showErrorMessageStub: sinon.SinonStub;
+    let onDidChangeSessionsStub: sinon.SinonStub;
+    let onDidChangeSessionsListener: ((event: unknown) => void) | undefined;
+
+    const resetGitHubAuthState = () => {
+        const authState = GitHubAuth as unknown as {
+            authChangeListenerDisposable?: { dispose?: () => void };
+            cachedSession?: vscode.AuthenticationSession;
+            sessionExpiry?: number;
+            pendingSessionPromise?: Promise<vscode.AuthenticationSession | undefined>;
+            sessionRequestVersion?: number;
+        };
+
+        authState.authChangeListenerDisposable?.dispose?.();
+        authState.authChangeListenerDisposable = undefined;
+        authState.cachedSession = undefined;
+        authState.sessionExpiry = 0;
+        authState.pendingSessionPromise = undefined;
+        authState.sessionRequestVersion = 0;
+    };
 
     const FAKE_SESSION = {
         accessToken: 'fake-token',
@@ -16,13 +35,24 @@ suite('GitHubAuth Test Suite', () => {
     };
 
     setup(() => {
+        GitHubAuth.dispose();
         sandbox = sinon.createSandbox();
+        onDidChangeSessionsListener = undefined;
         getSessionStub = sandbox.stub(vscode.authentication, 'getSession');
-        GitHubAuth.clearCache();
+        onDidChangeSessionsStub = sandbox.stub(
+            (vscode.authentication as unknown as { onDidChangeSessions: (listener: (event: unknown) => void) => vscode.Disposable }),
+            'onDidChangeSessions'
+        );
+        onDidChangeSessionsStub.callsFake((listener: (event: unknown) => void) => {
+            onDidChangeSessionsListener = listener;
+            return { dispose: () => undefined };
+        });
         showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage');
     });
 
     teardown(() => {
+        GitHubAuth.dispose();
+        onDidChangeSessionsListener = undefined;
         sandbox.restore();
     });
 
@@ -68,6 +98,44 @@ suite('GitHubAuth Test Suite', () => {
             const session = await GitHubAuth.getSession();
 
             assert.strictEqual(session, undefined);
+        });
+
+        test('should dedupe concurrent session fetches', async () => {
+            let resolveSession: ((value: typeof FAKE_SESSION | undefined) => void) | undefined;
+            const pendingSession = new Promise<typeof FAKE_SESSION | undefined>((resolve) => {
+                resolveSession = resolve;
+            });
+            getSessionStub.onFirstCall().returns(pendingSession);
+
+            const p1 = GitHubAuth.getToken();
+            const p2 = GitHubAuth.getToken();
+
+            assert.strictEqual(getSessionStub.calledOnce, true);
+            resolveSession?.(FAKE_SESSION);
+
+            const [token1, token2] = await Promise.all([p1, p2]);
+            assert.strictEqual(token1, 'fake-token');
+            assert.strictEqual(token2, 'fake-token');
+        });
+
+        test('should clear cache when GitHub sessions change', async () => {
+            const refreshedSession = {
+                ...FAKE_SESSION,
+                accessToken: 'new-token',
+                id: 's2'
+            };
+            getSessionStub.onFirstCall().resolves(FAKE_SESSION);
+            getSessionStub.onSecondCall().resolves(refreshedSession);
+
+            const first = await GitHubAuth.getSession();
+            assert.strictEqual(first?.accessToken, 'fake-token');
+            assert.strictEqual(getSessionStub.calledOnce, true);
+
+            GitHubAuth.handleAuthChange({ provider: { id: 'github' } });
+
+            const second = await GitHubAuth.getSession();
+            assert.strictEqual(second?.accessToken, 'new-token');
+            assert.strictEqual(getSessionStub.calledTwice, true);
         });
     });
 

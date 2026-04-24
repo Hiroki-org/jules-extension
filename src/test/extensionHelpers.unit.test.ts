@@ -19,6 +19,7 @@ import {
   mergeActivitiesByIdentity,
   resetUpdatePreviousStatesCachesForTests,
   updatePreviousStates,
+  checkPRStatus,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -205,6 +206,82 @@ suite("Extension helper unit tests", () => {
     });
   });
 
+  suite("checkPRStatus", () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      resetUpdatePreviousStatesCachesForTests();
+    });
+
+    teardown(() => {
+      sandbox.restore();
+      resetUpdatePreviousStatesCachesForTests();
+    });
+
+    test("should use token if provided and check github status without token if undefined", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "closed" }),
+      } as any);
+
+      // With token
+      const isClosedToken = await checkPRStatus("https://github.com/org/repo/pull/123", "dummy-token");
+      assert.strictEqual(isClosedToken, true);
+      assert.strictEqual(fetchStub.callCount, 1);
+      const headersToken = fetchStub.firstCall.args[1]?.headers as Record<string, string>;
+      assert.strictEqual(headersToken?.Authorization, "Bearer dummy-token");
+
+      resetUpdatePreviousStatesCachesForTests();
+
+      // Without token
+      const isClosedNoToken = await checkPRStatus("https://github.com/org/repo/pull/124", undefined);
+      assert.strictEqual(isClosedNoToken, true);
+      assert.strictEqual(fetchStub.callCount, 2);
+      const headersNoToken = fetchStub.secondCall.args[1]?.headers as Record<string, string>;
+      assert.strictEqual(headersNoToken?.Authorization, undefined);
+    });
+
+    test("should handle 4xx/5xx API errors properly and cache as error", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as any);
+
+      const isClosed = await checkPRStatus("https://github.com/org/repo/pull/999", undefined);
+      assert.strictEqual(isClosed, false);
+      
+      // The second call should use cache and not fetch again immediately
+      const isClosedCached = await checkPRStatus("https://github.com/org/repo/pull/999", undefined);
+      assert.strictEqual(isClosedCached, false);
+      assert.strictEqual(fetchStub.callCount, 1); // Not incremented, served from error cache
+    });
+
+    test("should return false for invalid GitHub PR URLs without fetching", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+
+      const isClosed = await checkPRStatus("not-a-github-pr-url", undefined);
+
+      assert.strictEqual(isClosed, false);
+      assert.strictEqual(fetchStub.called, false);
+
+      const cachedResult = await checkPRStatus("not-a-github-pr-url", undefined);
+      assert.strictEqual(cachedResult, false);
+      assert.strictEqual(fetchStub.called, false);
+    });
+
+    test("should handle fetch exceptions and cache as error", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").rejects(new Error("Network failure"));
+      const isClosed = await checkPRStatus("https://github.com/org/repo/pull/888", undefined);
+      assert.strictEqual(isClosed, false);
+      assert.strictEqual(fetchStub.callCount, 1);
+      const isClosedCached = await checkPRStatus("https://github.com/org/repo/pull/888", undefined);
+      assert.strictEqual(isClosedCached, false);
+      assert.strictEqual(fetchStub.callCount, 1);
+    });
+  });
+
   suite("updatePreviousStates", () => {
     let sandbox: sinon.SinonSandbox;
 
@@ -257,7 +334,8 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(fetchStub.callCount, 1);
       const stateUpdate = updateStub
         .getCalls()
-        .find((call) => call.args[0] === "jules.previousSessionStates");
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
       assert.ok(stateUpdate);
       const savedStates = stateUpdate?.args[1] as Record<
         string,
@@ -312,7 +390,8 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(fetchStub.callCount, 2);
       const stateUpdate = updateStub
         .getCalls()
-        .find((call) => call.args[0] === "jules.previousSessionStates");
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
       assert.ok(stateUpdate);
       const savedStates = stateUpdate?.args[1] as Record<
         string,
@@ -320,6 +399,130 @@ suite("Extension helper unit tests", () => {
       >;
       assert.strictEqual(savedStates["sessions/pr-status-closed-1"].isTerminated, true);
       assert.strictEqual(savedStates["sessions/pr-status-closed-2"].isTerminated, true);
+    });
+
+    test("skips token fetch when all PRs are freshly cached", async () => {
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "open" }),
+      } as any);
+      const updateStub = sandbox.stub().resolves();
+
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessions: Session[] = [
+        {
+          name: "sessions/fresh-cache",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: "https://github.com/org/repo/pull/111" } } as any],
+        } as Session,
+      ];
+
+      // First call to populate cache
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+
+      // Second call should hit cache and NOT fetch token or PR
+      tokenStub.resetHistory();
+      fetchStub.resetHistory();
+      await updatePreviousStates(sessions, mockContext);
+      
+      assert.strictEqual(tokenStub.callCount, 0, "getToken should not be called when cache is fresh");
+      assert.strictEqual(fetchStub.callCount, 0, "fetchWithTimeout should not be called when cache is fresh");
+    });
+
+    test("re-fetches error cached entries after PR_ERROR_CACHE_DURATION", async () => {
+      const clock = sandbox.useFakeTimers(Date.now());
+      
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+      
+      // First fetch returns an error
+      fetchStub.onFirstCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as any);
+      
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessions: Session[] = [
+        {
+          name: "sessions/error-cache",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: "https://github.com/org/repo/pull/222" } } as any],
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(fetchStub.callCount, 1);
+      
+      // Fast forward 31 seconds (past PR_ERROR_CACHE_DURATION of 30s)
+      clock.tick(31000);
+      
+      // Second fetch should succeed
+      fetchStub.onSecondCall().resolves({
+        ok: true,
+        json: async () => ({ state: "closed" }),
+      } as any);
+      
+      tokenStub.resetHistory();
+      await updatePreviousStates(sessions, mockContext);
+      
+      assert.strictEqual(tokenStub.callCount, 1, "getToken should be called after error cache expires");
+      assert.strictEqual(fetchStub.callCount, 2, "fetchWithTimeout should be called after error cache expires");
+      
+      const stateUpdate = updateStub
+        .getCalls()
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
+      const savedStates = stateUpdate?.args[1] as Record<string, { isTerminated?: boolean }>;
+      assert.strictEqual(savedStates["sessions/error-cache"].isTerminated, true);
+    });
+
+    test("does not terminate COMPLETED session with no PRs", async () => {
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessions: Session[] = [
+        {
+          name: "sessions/no-pr",
+          title: "no-pr",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [], // No PRs
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+
+      const stateUpdate = updateStub
+        .getCalls()
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
+      assert.ok(stateUpdate);
+      const savedStates = stateUpdate?.args[1] as Record<string, { isTerminated?: boolean }>;
+      assert.strictEqual(savedStates["sessions/no-pr"].isTerminated, false);
     });
   });
 

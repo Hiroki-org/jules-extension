@@ -88,12 +88,14 @@ const SESSION_STATE = {
 };
 
 // GitHub PR status cache to avoid excessive API calls
+interface PRStatusCacheEntry {
+  isClosed: boolean;
+  lastChecked: number;
+  isError?: boolean;
+}
+
 interface PRStatusCache {
-  [prUrl: string]: {
-    isClosed: boolean;
-    lastChecked: number;
-    isError?: boolean;
-  };
+  [prUrl: string]: PRStatusCacheEntry;
 }
 
 let prStatusCache: PRStatusCache = {};
@@ -589,27 +591,16 @@ export function extractPRs(
   return Array.from(prMap.values());
 }
 
-function getPRStatusFromCache(prUrl: string): boolean | undefined {
-  const cached = prStatusCache[prUrl];
-  const now = Date.now();
-  const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
-  if (cached && now - cached.lastChecked < ttl) {
-    return cached.isClosed;
-  }
-  return undefined;
-}
-
-async function checkPRStatus(
+export async function checkPRStatus(
   prUrl: string,
   token: string | undefined,
 ): Promise<boolean> {
   // Check cache first
-  const cachedStatus = getPRStatusFromCache(prUrl);
-  if (cachedStatus !== undefined) {
-    return cachedStatus;
-  }
-
+  const cached = prStatusCache[prUrl];
   const now = Date.now();
+  if (isPRCacheEntryFresh(cached, now)) {
+    return cached.isClosed;
+  }
 
   try {
     // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
@@ -667,6 +658,18 @@ async function checkPRStatus(
     prStatusCache[prUrl] = { isClosed: false, lastChecked: now, isError: true };
     return false;
   }
+}
+
+function isPRCacheEntryFresh(
+  cached: PRStatusCacheEntry | undefined,
+  now: number,
+): cached is PRStatusCacheEntry {
+  if (!cached) {
+    return false;
+  }
+
+  const ttl = cached.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
+  return now - cached.lastChecked < ttl;
 }
 
 async function notifyPRCreated(
@@ -943,12 +946,13 @@ export async function updatePreviousStates(
   if (sessionsToCheck.length > 0) {
     const prStatusLookup = new Map<string, boolean>();
     const urlsToFetch: string[] = [];
+    const now = Date.now();
 
     // Identification of PRs that actually need to be fetched (missing or expired in cache)
     for (const url of uniquePRUrls) {
-      const cachedStatus = getPRStatusFromCache(url);
-      if (cachedStatus !== undefined) {
-        prStatusLookup.set(url, cachedStatus);
+      const cached = prStatusCache[url];
+      if (isPRCacheEntryFresh(cached, now)) {
+        prStatusLookup.set(url, cached.isClosed);
       } else {
         urlsToFetch.push(url);
       }
@@ -3828,4 +3832,5 @@ export function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() {
   stopAutoRefresh();
+  GitHubAuth.dispose();
 }
