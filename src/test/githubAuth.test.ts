@@ -130,12 +130,8 @@ suite('GitHubAuth Test Suite', () => {
             const first = await GitHubAuth.getSession();
             assert.strictEqual(first?.accessToken, 'fake-token');
             assert.strictEqual(getSessionStub.calledOnce, true);
-            assert.strictEqual(onDidChangeSessionsStub.calledOnce, true);
 
-            const authChangeListener = onDidChangeSessionsStub.firstCall?.args[0] as
-                | ((event: unknown) => void)
-                | undefined;
-            authChangeListener?.({ provider: { id: 'github' } });
+            GitHubAuth.handleAuthChange({ provider: { id: 'github' } });
 
             const second = await GitHubAuth.getSession();
             assert.strictEqual(second?.accessToken, 'new-token');

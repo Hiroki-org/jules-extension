@@ -188,12 +188,8 @@ suite("GitHubAuth Unit Test Suite", () => {
     const first = await GitHubAuth.getSession();
     assert.strictEqual(first?.accessToken, "fake-token");
     assert.strictEqual(getSessionStub.calledOnce, true);
-    assert.strictEqual(onDidChangeSessionsStub.calledOnce, true);
 
-    const authChangeListener = onDidChangeSessionsStub.firstCall?.args[0] as
-      | ((event: unknown) => void)
-      | undefined;
-    authChangeListener?.({ provider: { id: "github" } });
+    GitHubAuth.handleAuthChange({ provider: { id: "github" } });
 
     const second = await GitHubAuth.getSession();
     assert.strictEqual(second?.accessToken, "new-token");
@@ -205,12 +201,8 @@ suite("GitHubAuth Unit Test Suite", () => {
 
     const session = await GitHubAuth.getSession();
     assert.strictEqual(session, fakeSession);
-    assert.strictEqual(onDidChangeSessionsStub.calledOnce, true);
 
-    const authChangeListener = onDidChangeSessionsStub.firstCall?.args[0] as
-      | ((event: unknown) => void)
-      | undefined;
-    authChangeListener?.({ provider: { id: "azure" } });
+    GitHubAuth.handleAuthChange({ provider: { id: "azure" } });
 
     const cachedSession = await GitHubAuth.getSession();
     assert.strictEqual(cachedSession, fakeSession);

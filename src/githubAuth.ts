@@ -10,6 +10,14 @@ export class GitHubAuth {
     private static authChangeListenerDisposable: vscode.Disposable | undefined = undefined;
     private static sessionRequestVersion = 0;
 
+    public static handleAuthChange(event: unknown): void {
+        const providerId = (event as { provider?: { id?: string } }).provider?.id;
+        if (providerId && providerId !== 'github') {
+            return;
+        }
+        GitHubAuth.clearCache();
+    }
+
     private static ensureAuthSessionListener(): void {
         if (GitHubAuth.authChangeListenerDisposable) {
             return;
@@ -17,13 +25,7 @@ export class GitHubAuth {
 
         const disposable = (vscode.authentication as any).onDidChangeSessions?.call(
             vscode.authentication,
-            (event: unknown) => {
-                const providerId = (event as { provider?: { id?: string } }).provider?.id;
-                if (providerId && providerId !== 'github') {
-                    return;
-                }
-                GitHubAuth.clearCache();
-            }
+            GitHubAuth.handleAuthChange
         );
         if (disposable) {
             GitHubAuth.authChangeListenerDisposable = disposable;
