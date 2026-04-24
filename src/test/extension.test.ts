@@ -20,11 +20,14 @@ import {
   Session,
   SessionOutput,
   createRemoteBranch,
+  resetUpdatePreviousStatesCachesForTests,
+  setPRStatusCacheForTests,
 } from "../extension";
 import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
+import { GitHubAuth } from "../githubAuth";
 import { activate } from "../extension";
 
 suite("Extension Test Suite", () => {
@@ -1043,6 +1046,7 @@ suite("Extension Test Suite", () => {
 
     setup(() => {
       sandbox = sinon.createSandbox();
+      resetUpdatePreviousStatesCachesForTests();
       updateStub = sandbox.stub().resolves();
       mockContext = {
         globalState: {
@@ -1051,9 +1055,11 @@ suite("Extension Test Suite", () => {
           keys: sandbox.stub().returns([]),
         },
       } as any;
+      resetUpdatePreviousStatesCachesForTests();
     });
 
     teardown(() => {
+      resetUpdatePreviousStatesCachesForTests();
       sandbox.restore();
     });
 
@@ -1106,6 +1112,136 @@ suite("Extension Test Suite", () => {
         }
       }
       assert.ok(prCacheUpdateCalled, "Should have attempted to save PR status cache");
+    });
+
+    test("updatePreviousStates cache logic coverage", async () => {
+      const now = Date.now();
+      const prUrlValid = "https://github.com/owner/repo/pull/1";
+      const prUrlExpired = "https://github.com/owner/repo/pull/2";
+      const prUrlError = "https://github.com/owner/repo/pull/3";
+      const prUrlNew = "https://github.com/owner/repo/pull/4";
+
+      const initialCache = {
+        [prUrlValid]: { isClosed: false, lastChecked: now - 1000, isError: false },
+        [prUrlExpired]: { isClosed: false, lastChecked: now - 10 * 60 * 1000, isError: false },
+        [prUrlError]: { isClosed: false, lastChecked: now - 40 * 1000, isError: true },
+      };
+
+      setPRStatusCacheForTests(initialCache);
+
+      const sessions: Session[] = [
+        {
+          name: "s-valid",
+          title: "s-valid",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrlValid, title: "PR1", description: "" } }]
+        },
+        {
+          name: "s-expired",
+          title: "s-expired",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrlExpired, title: "PR2", description: "" } }]
+        },
+        {
+          name: "s-error",
+          title: "s-error",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrlError, title: "PR3", description: "" } }]
+        },
+        {
+          name: "s-new",
+          title: "s-new",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrlNew, title: "PR4", description: "" } }]
+        }
+      ];
+
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "closed" })
+      } as any);
+
+      const getTokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("dummy-token");
+
+      await updatePreviousStates(sessions, mockContext);
+
+      // getToken should be called because there are URLs to fetch (expired, error-expired, new)
+      assert.ok(getTokenStub.calledOnce);
+
+      // fetch should be called for expired, error-expired, and new
+      assert.strictEqual(fetchStub.callCount, 3);
+
+      const fetchedUrls = fetchStub.getCalls().map(c => c.args[0]);
+      assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/2")));
+      assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/3")));
+      assert.ok(fetchedUrls.some(u => (u as string).includes("pulls/4")));
+      assert.ok(!fetchedUrls.some(u => (u as string).includes("pulls/1")));
+    });
+    test("updatePreviousStates should not fetch token if everything is cached and valid", async () => {
+      const now = Date.now();
+      const prUrl = "https://github.com/owner/repo/pull/1";
+      const prUrlErrorValid = "https://github.com/owner/repo/pull/5";
+      const initialCache = {
+        [prUrl]: { isClosed: false, lastChecked: now - 1000, isError: false },
+        [prUrlErrorValid]: { isClosed: false, lastChecked: now - 1000, isError: true },
+      };
+
+      setPRStatusCacheForTests(initialCache);
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+
+      const sessions: Session[] = [
+        {
+          name: "s-valid",
+          title: "s-valid",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrl, title: "PR1", description: "" } }]
+        },
+        {
+          name: "s-error-valid",
+          title: "s-error-valid",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrlErrorValid, title: "PR5", description: "" } }]
+        }
+      ];
+
+      const getTokenStub = sandbox.stub(GitHubAuth, "getToken");
+
+      await updatePreviousStates(sessions, mockContext);
+
+      assert.ok(getTokenStub.notCalled);
+      assert.ok(fetchStub.notCalled);
+    });
+
+    test("updatePreviousStates handles getToken returning undefined", async () => {
+      const prUrl = "https://github.com/owner/repo/pull/1";
+      const sessions: Session[] = [
+        {
+          name: "s1",
+          title: "s1",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: prUrl, title: "PR", description: "" } }]
+        }
+      ];
+
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "open" })
+      } as any);
+
+      sandbox.stub(GitHubAuth, "getToken").resolves(undefined);
+
+      await updatePreviousStates(sessions, mockContext);
+
+      assert.ok(fetchStub.calledOnce);
+      const headers = fetchStub.getCall(0).args[1]?.headers as Record<string, string>;
+      assert.strictEqual(headers?.Authorization, undefined);
     });
   });
 

@@ -161,6 +161,10 @@ export function resetUpdatePreviousStatesCachesForTests(): void {
   prStatusCache = {};
 }
 
+export function setPRStatusCacheForTests(cache: PRStatusCache): void {
+  prStatusCache = { ...cache };
+}
+
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
   name: "Jules Logs (Fallback)",
@@ -585,18 +589,27 @@ export function extractPRs(
   return Array.from(prMap.values());
 }
 
-async function checkPRStatus(
-  prUrl: string,
-  context: vscode.ExtensionContext,
-  token: string | undefined,
-): Promise<boolean> {
-  // Check cache first
+function getPRStatusFromCache(prUrl: string): boolean | undefined {
   const cached = prStatusCache[prUrl];
   const now = Date.now();
   const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
   if (cached && now - cached.lastChecked < ttl) {
     return cached.isClosed;
   }
+  return undefined;
+}
+
+async function checkPRStatus(
+  prUrl: string,
+  token: string | undefined,
+): Promise<boolean> {
+  // Check cache first
+  const cachedStatus = getPRStatusFromCache(prUrl);
+  if (cachedStatus !== undefined) {
+    return cachedStatus;
+  }
+
+  const now = Date.now();
 
   try {
     // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
@@ -896,6 +909,7 @@ export async function updatePreviousStates(
   context: vscode.ExtensionContext,
 ): Promise<boolean> {
   let hasChanged = false;
+  let prStatusCacheChanged = false;
 
   // 1. Identify sessions that require PR status checks
   // Optimization: Extract all unique PR URLs in a single pass to avoid N+1 duplicate API calls
@@ -929,14 +943,12 @@ export async function updatePreviousStates(
   if (sessionsToCheck.length > 0) {
     const prStatusLookup = new Map<string, boolean>();
     const urlsToFetch: string[] = [];
-    const now = Date.now();
 
     // Identification of PRs that actually need to be fetched (missing or expired in cache)
     for (const url of uniquePRUrls) {
-      const cached = prStatusCache[url];
-      const ttl = cached?.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
-      if (cached && now - cached.lastChecked < ttl) {
-        prStatusLookup.set(url, cached.isClosed);
+      const cachedStatus = getPRStatusFromCache(url);
+      if (cachedStatus !== undefined) {
+        prStatusLookup.set(url, cachedStatus);
       } else {
         urlsToFetch.push(url);
       }
@@ -949,7 +961,8 @@ export async function updatePreviousStates(
     // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
     if (urlsToFetch.length > 0) {
       await mapLimit(urlsToFetch, 5, async (url) => {
-        const isClosed = await checkPRStatus(url, context, token);
+        const isClosed = await checkPRStatus(url, token);
+        prStatusCacheChanged = true;
         prStatusLookup.set(url, isClosed);
       });
     }
@@ -1037,12 +1050,13 @@ export async function updatePreviousStates(
       "jules.previousSessionStates",
       Object.fromEntries(previousSessionStates),
     );
-    // Also persist PR status cache to save API calls on next reload
-    await context.globalState.update("jules.prStatusCache", prStatusCache);
 
     console.log(
       `Jules: Saved ${previousSessionStates.size} session states to global state.`,
     );
+  }
+  if (hasChanged || prStatusCacheChanged) {
+    await context.globalState.update("jules.prStatusCache", prStatusCache);
   }
   return hasChanged;
 }
