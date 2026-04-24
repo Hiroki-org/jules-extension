@@ -140,6 +140,15 @@ suite('GitHubAuth Test Suite', () => {
     });
 
     suite('getToken', () => {
+        test('should return cached token if fresh', async () => {
+            getSessionStub.resolves(FAKE_SESSION);
+            await GitHubAuth.getSession();
+            getSessionStub.resetHistory();
+            const token = await GitHubAuth.getToken();
+            assert.strictEqual(token, 'fake-token');
+            assert.strictEqual(getSessionStub.called, false);
+        });
+
         test('should return token when session exists', async () => {
             getSessionStub.resolves(FAKE_SESSION);
 

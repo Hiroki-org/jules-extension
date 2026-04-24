@@ -216,6 +216,15 @@ suite("GitHubAuth Unit Test Suite", () => {
     assert.strictEqual(listenerDisposeSpy?.calledOnce ?? false, false);
   });
 
+  test("getToken should return cached token if fresh", async () => {
+    getSessionStub.resolves(fakeSession);
+    await GitHubAuth.getSession(); // populate cache
+    getSessionStub.resetHistory();
+    const token = await GitHubAuth.getToken();
+    assert.strictEqual(token, "fake-token");
+    assert.strictEqual(getSessionStub.called, false);
+  });
+
   test("getToken should return undefined when no session exists", async () => {
     getSessionStub.resolves(undefined);
 
