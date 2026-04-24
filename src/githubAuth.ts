@@ -112,6 +112,10 @@ export class GitHubAuth {
     }
 
     static async getToken(): Promise<string | undefined> {
+        const now = Date.now();
+        if (GitHubAuth.cachedSession && now < GitHubAuth.sessionExpiry) {
+            return GitHubAuth.cachedSession.accessToken;
+        }
         const session = await GitHubAuth.getSession();
         return session?.accessToken;
     }
