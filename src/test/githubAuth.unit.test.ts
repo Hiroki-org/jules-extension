@@ -196,7 +196,7 @@ suite("GitHubAuth Unit Test Suite", () => {
     assert.strictEqual(getSessionStub.calledTwice, true);
   });
 
-  test("getSession should ignore auth change events for other providers", async () => {
+  test("getSession should ignore auth change events for other providers or missing providers", async () => {
     getSessionStub.resolves(fakeSession);
 
     const session = await GitHubAuth.getSession();
@@ -204,7 +204,13 @@ suite("GitHubAuth Unit Test Suite", () => {
 
     GitHubAuth.handleAuthChange({ provider: { id: "azure" } });
 
-    const cachedSession = await GitHubAuth.getSession();
+    let cachedSession = await GitHubAuth.getSession();
+    assert.strictEqual(cachedSession, fakeSession);
+    assert.strictEqual(getSessionStub.calledOnce, true);
+
+    GitHubAuth.handleAuthChange({});
+
+    cachedSession = await GitHubAuth.getSession();
     assert.strictEqual(cachedSession, fakeSession);
     assert.strictEqual(getSessionStub.calledOnce, true);
     assert.strictEqual(listenerDisposeSpy?.calledOnce ?? false, false);

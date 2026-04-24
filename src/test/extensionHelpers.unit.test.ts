@@ -440,7 +440,7 @@ suite("Extension helper unit tests", () => {
     });
 
     test("re-fetches error cached entries after PR_ERROR_CACHE_DURATION", async () => {
-      let clock = sandbox.useFakeTimers(Date.now());
+      const clock = sandbox.useFakeTimers(Date.now());
       
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
@@ -493,8 +493,6 @@ suite("Extension helper unit tests", () => {
         .at(-1);
       const savedStates = stateUpdate?.args[1] as Record<string, { isTerminated?: boolean }>;
       assert.strictEqual(savedStates["sessions/error-cache"].isTerminated, true);
-      
-      clock.restore();
     });
 
     test("does not terminate COMPLETED session with no PRs", async () => {

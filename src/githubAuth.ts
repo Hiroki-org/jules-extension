@@ -12,7 +12,7 @@ export class GitHubAuth {
 
     public static handleAuthChange(event: unknown): void {
         const providerId = (event as { provider?: { id?: string } }).provider?.id;
-        if (providerId && providerId !== 'github') {
+        if (providerId !== 'github') {
             return;
         }
         GitHubAuth.clearCache();
@@ -108,12 +108,7 @@ export class GitHubAuth {
             }
         }));
 
-        try {
-            return await promise;
-        } catch (error) {
-            GitHubAuth.clearCache();
-            return undefined;
-        }
+        return await promise;
     }
 
     static async getToken(): Promise<string | undefined> {

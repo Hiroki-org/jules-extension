@@ -87,6 +87,7 @@ gha-creds-*.json
 # Copilot/AI agent state and temporary artifacts
 .copilot-state/
 patch_*.diff
+*_patch.sed
 pr[0-9]*_state.json
 pr[0-9]*_cycle_state.json
 pr[0-9]*_checks.json
