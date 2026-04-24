@@ -29,7 +29,6 @@ import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import { GitHubAuth } from "../githubAuth";
 import { activate } from "../extension";
-import { GitHubAuth } from "../githubAuth";
 
 suite("Extension Test Suite", () => {
   vscode.window.showInformationMessage("Start all tests.");
