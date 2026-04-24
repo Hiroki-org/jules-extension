@@ -18,6 +18,7 @@ suite('GitHubAuth Test Suite', () => {
     };
 
     setup(() => {
+        GitHubAuth.dispose();
         sandbox = sinon.createSandbox();
         getSessionStub = sandbox.stub(vscode.authentication, 'getSession');
         onDidChangeSessionsStub = sandbox.stub(
@@ -33,6 +34,7 @@ suite('GitHubAuth Test Suite', () => {
     });
 
     teardown(() => {
+        GitHubAuth.dispose();
         sandbox.restore();
     });
 

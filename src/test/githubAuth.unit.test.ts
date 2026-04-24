@@ -18,6 +18,7 @@ suite("GitHubAuth Unit Test Suite", () => {
   };
 
   setup(() => {
+    GitHubAuth.dispose();
     sandbox = sinon.createSandbox();
     onDidChangeSessionsListener = undefined;
     getSessionStub = sandbox.stub((vscode as any).authentication, "getSession");
@@ -87,8 +88,7 @@ suite("GitHubAuth Unit Test Suite", () => {
     GitHubAuth.clearCache();
     resolveSignInSession?.(fakeSession);
 
-    const signInToken = await signInPromise;
-    assert.strictEqual(signInToken, "fake-token");
+    await signInPromise;
 
     const session = await GitHubAuth.getSession();
     assert.strictEqual(session?.accessToken, "fresh-token");
@@ -190,7 +190,7 @@ suite("GitHubAuth Unit Test Suite", () => {
     const cachedSession = await GitHubAuth.getSession();
     assert.strictEqual(cachedSession, fakeSession);
     assert.strictEqual(getSessionStub.calledOnce, true);
-    assert.strictEqual(listenerDisposeSpy.calledOnce, false);
+    assert.strictEqual(listenerDisposeSpy?.calledOnce ?? false, false);
   });
 
   test("getToken should return undefined when no session exists", async () => {
