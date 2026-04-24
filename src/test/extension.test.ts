@@ -708,7 +708,7 @@ suite("Extension Test Suite", () => {
       localSandbox.restore();
     });
 
-    test("should stop activation when proxy URL is invalid", async () => {
+    test("should stop activation when proxy URL is invalid", () => {
       process.env.HTTP_PROXY = "http://[invalid";
       const errorStub = localSandbox.stub(console, "error");
 
@@ -721,7 +721,7 @@ suite("Extension Test Suite", () => {
       assert.ok(errorStub.args.some((args) => String(args[0]).includes("Invalid proxy URL")));
     });
 
-    test("should configure HTTP proxy when HTTP_PROXY is set", async () => {
+    test("should configure HTTP proxy when HTTP_PROXY is set", () => {
       process.env.HTTP_PROXY = "http://proxy.example.com:8080";
       const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
 
@@ -733,6 +733,20 @@ suite("Extension Test Suite", () => {
       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
       assert.ok(infoStub.called);
       assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPSプロキシ")));
+    });
+
+    test("should configure SOCKS proxy when ALL_PROXY is a socks URL", () => {
+      process.env.ALL_PROXY = "socks5://proxy.example.com:1080";
+      const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
+
+      const mockContext = createProxyActivationContext();
+      activate(mockContext);
+
+      assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).calledOnce, true);
+      assert.deepStrictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).firstCall.args, ["socks5://proxy.example.com:1080"]);
+      assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
+      assert.ok(infoStub.called);
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("SOCKSプロキシ")));
     });
   });
 
