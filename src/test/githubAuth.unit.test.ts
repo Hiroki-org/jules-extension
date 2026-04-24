@@ -65,6 +65,41 @@ suite("GitHubAuth Unit Test Suite", () => {
     );
   });
 
+  test("signIn should ignore stale session for cache after cache clear", async () => {
+    const refreshedSession = {
+      ...fakeSession,
+      accessToken: "fresh-token",
+      id: "session-2",
+    };
+    let resolveSignInSession:
+      | ((value: typeof fakeSession | undefined) => void)
+      | undefined;
+    const pendingSignInSession = new Promise<typeof fakeSession | undefined>(
+      (resolve) => {
+        resolveSignInSession = resolve;
+      },
+    );
+
+    getSessionStub.onFirstCall().returns(pendingSignInSession);
+    getSessionStub.onSecondCall().resolves(refreshedSession);
+
+    const signInPromise = GitHubAuth.signIn();
+    GitHubAuth.clearCache();
+    resolveSignInSession?.(fakeSession);
+
+    const signInToken = await signInPromise;
+    assert.strictEqual(signInToken, "fake-token");
+
+    const session = await GitHubAuth.getSession();
+    assert.strictEqual(session?.accessToken, "fresh-token");
+    assert.strictEqual(getSessionStub.calledTwice, true);
+    assert.deepStrictEqual(getSessionStub.secondCall.args, [
+      "github",
+      ["repo"],
+      { createIfNone: false },
+    ]);
+  });
+
   test("getSession should request a non-creating session", async () => {
     getSessionStub.resolves(fakeSession);
 
