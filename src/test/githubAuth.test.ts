@@ -10,6 +10,23 @@ suite('GitHubAuth Test Suite', () => {
     let onDidChangeSessionsStub: sinon.SinonStub;
     let onDidChangeSessionsListener: ((event: unknown) => void) | undefined;
 
+    const resetGitHubAuthState = () => {
+        const authState = GitHubAuth as unknown as {
+            authChangeListenerDisposable?: { dispose?: () => void };
+            cachedSession?: vscode.AuthenticationSession;
+            sessionExpiry?: number;
+            pendingSessionPromise?: Promise<vscode.AuthenticationSession | undefined>;
+            sessionRequestVersion?: number;
+        };
+
+        authState.authChangeListenerDisposable?.dispose?.();
+        authState.authChangeListenerDisposable = undefined;
+        authState.cachedSession = undefined;
+        authState.sessionExpiry = 0;
+        authState.pendingSessionPromise = undefined;
+        authState.sessionRequestVersion = 0;
+    };
+
     const FAKE_SESSION = {
         accessToken: 'fake-token',
         account: { label: 'testuser', id: '1' },
@@ -18,7 +35,7 @@ suite('GitHubAuth Test Suite', () => {
     };
 
     setup(() => {
-        GitHubAuth.dispose();
+        resetGitHubAuthState();
         sandbox = sinon.createSandbox();
         onDidChangeSessionsListener = undefined;
         getSessionStub = sandbox.stub(vscode.authentication, 'getSession');
@@ -35,7 +52,7 @@ suite('GitHubAuth Test Suite', () => {
     });
 
     teardown(() => {
-        GitHubAuth.dispose();
+        resetGitHubAuthState();
         onDidChangeSessionsListener = undefined;
         sandbox.restore();
     });
