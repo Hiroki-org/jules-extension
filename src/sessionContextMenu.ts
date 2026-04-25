@@ -210,7 +210,7 @@ export async function checkoutToBranchForSession(
 /**
  * リポジトリを選択するヘルパー関数
  */
-async function selectRepository(
+export async function selectRepository(
     repositories: any[],
     log: (msg: string) => void
 ): Promise<any | null> {
@@ -239,7 +239,7 @@ async function selectRepository(
 /**
  * 未コミット変更のハンドリング
  */
-async function handleUncommittedChanges(
+export async function handleUncommittedChanges(
     repository: any,
     branchName: string,
     log: (msg: string) => void

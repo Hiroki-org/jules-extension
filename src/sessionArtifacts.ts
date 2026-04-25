@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "./fetchUtils";
-import { ActivitiesResponse } from "./types";
+import type { ActivitiesResponse, Artifact, GitPatch } from "./types";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
@@ -21,10 +21,6 @@ interface Activity {
     artifacts?: Artifact[];
 }
 
-interface Artifact {
-    changeSet?: Record<string, unknown>;
-}
-
 export interface ChangeSetFile {
     path: string;
     status?: string;
@@ -33,11 +29,29 @@ export interface ChangeSetFile {
 export interface ChangeSetSummary {
     files: ChangeSetFile[];
     raw: Record<string, unknown>;
+    baseCommitId?: string;
+    suggestedCommitMessage?: string;
 }
 
 export interface SessionArtifacts {
     latestDiff?: string;
     latestChangeSet?: ChangeSetSummary;
+}
+
+export function getChangeSetGitPatch(changeSet?: ChangeSetSummary): GitPatch | undefined {
+    const gitPatch = changeSet?.raw?.gitPatch;
+    if (!gitPatch || typeof gitPatch !== "object") {
+        return undefined;
+    }
+    return gitPatch as GitPatch;
+}
+
+export function getChangeSetUnidiffPatch(changeSet?: ChangeSetSummary): string | undefined {
+    const unidiffPatch = getChangeSetGitPatch(changeSet)?.unidiffPatch;
+    if (typeof unidiffPatch !== "string" || unidiffPatch.trim().length === 0) {
+        return undefined;
+    }
+    return unidiffPatch;
 }
 
 interface CachedSessionArtifacts {
@@ -430,7 +444,7 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
 
                     // Check for Diff from artifact (Priority 2)
                     if (!latestDiff) {
-                        const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                        const uniDiff = artifact.changeSet?.gitPatch?.unidiffPatch;
                         if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
                             latestDiff = uniDiff;
                         }
@@ -451,9 +465,21 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
 
     let latestChangeSet: ChangeSetSummary | undefined;
     if (latestChangeSetRaw) {
+        const rawGitPatch = latestChangeSetRaw.gitPatch;
+        const gitPatch = rawGitPatch && typeof rawGitPatch === "object"
+            ? (rawGitPatch as Record<string, unknown>)
+            : undefined;
+        const baseCommitId = typeof gitPatch?.baseCommitId === "string"
+            ? gitPatch.baseCommitId
+            : undefined;
+        const suggestedCommitMessage = typeof gitPatch?.suggestedCommitMessage === "string"
+            ? gitPatch.suggestedCommitMessage
+            : undefined;
         latestChangeSet = {
             files: extractChangeSetFiles(latestChangeSetRaw, latestDiff),
             raw: latestChangeSetRaw,
+            baseCommitId,
+            suggestedCommitMessage,
         };
     }
 
@@ -488,6 +514,15 @@ function areChangeSetFilesEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boo
     return true;
 }
 
+function areChangeSetsEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boolean {
+    if (!areChangeSetFilesEqual(a, b)) {
+        return false;
+    }
+    return getChangeSetUnidiffPatch(a) === getChangeSetUnidiffPatch(b)
+        && a?.baseCommitId === b?.baseCommitId
+        && a?.suggestedCommitMessage === b?.suggestedCommitMessage;
+}
+
 export function updateSessionArtifactsCache(sessionId: string, activities: Activity[], updateTime?: string): boolean {
     const latest = extractLatestArtifactsFromActivities(activities);
     const previousEntry = artifactsCache.get(sessionId);
@@ -496,7 +531,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     const nextSavedAt = Date.now();
 
     const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
-    const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
+    const changeSetChanged = !areChangeSetsEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
     const timeChanged = updateTime !== previousEntry?.updateTime;
 
     if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {
