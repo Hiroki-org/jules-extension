@@ -1,13 +1,17 @@
 import * as vscode from "vscode";
 import { sanitizeForLogging } from "./securityUtils";
 
+type Logger = Pick<vscode.OutputChannel, "appendLine">;
+
+function resolveLogger(outputChannel?: vscode.OutputChannel): Logger {
+    return outputChannel ?? { appendLine: (s: string) => console.log(s) };
+}
+
 /**
  * Get and activate the VS Code Git Extension API
  */
 export async function getGitApi(outputChannel?: vscode.OutputChannel): Promise<any> {
-    const logger =
-        outputChannel ??
-        ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
+    const logger = resolveLogger(outputChannel);
     const gitExtension = vscode.extensions.getExtension("vscode.git");
     if (!gitExtension) {
         logger.appendLine("[Jules] vscode.git extension not found");
@@ -31,9 +35,7 @@ export function getRepositoryForWorkspaceFolder(
     workspaceFolder: vscode.WorkspaceFolder,
     outputChannel?: vscode.OutputChannel,
 ): any {
-    const logger =
-        outputChannel ??
-        ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
+    const logger = resolveLogger(outputChannel);
     const repository = git.repositories.find(
         (repo: any) => repo.rootUri?.fsPath === workspaceFolder.uri.fsPath,
     );
@@ -58,9 +60,7 @@ export function getRemoteUrl(
     preferredRemoteName: string = "origin",
     outputChannel?: vscode.OutputChannel,
 ): string | null {
-    const logger =
-        outputChannel ??
-        ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
+    const logger = resolveLogger(outputChannel);
 
     if (!repository.state.remotes || repository.state.remotes.length === 0) {
         logger.appendLine("[Jules] No remotes found in repository");
@@ -108,9 +108,7 @@ export function getRemoteUrl(
  * @param outputChannel Optional destination for diagnostics; console is used as a fallback.
  */
 export async function getCurrentBranchSha(outputChannel?: vscode.OutputChannel): Promise<string | null> {
-    const logger =
-        outputChannel ??
-        ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
+    const logger = resolveLogger(outputChannel);
     try {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {

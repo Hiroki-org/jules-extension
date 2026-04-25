@@ -119,6 +119,28 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(showWarningMessageStub.calledOnce, true);
+        assert.match(showWarningMessageStub.firstCall.args[0], /Base commit base-sha not found/);
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'main',
+        ]);
+    });
+
+    test('baseCommitId が未指定の場合は未指定メッセージで startingBranch フォールバック確認を出すこと', async () => {
+        const changeSet = createChangeSet();
+        delete changeSet.baseCommitId;
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet,
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getCommit.called, false);
+        assert.strictEqual(showWarningMessageStub.calledOnce, true);
+        assert.match(showWarningMessageStub.firstCall.args[0], /Base commit not specified/);
         assert.deepStrictEqual(repository.createBranch.firstCall.args, [
             'jules-patch-abc',
             true,
@@ -185,24 +207,27 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             return {} as childProcess.ChildProcess;
         }) as any);
 
-        await applyPatchLocallyForSession({
-            session: createSession(),
-            changeSet: createChangeSet(),
-            outputChannel,
-        });
+        try {
+            await applyPatchLocallyForSession({
+                session: createSession(),
+                changeSet: createChangeSet(),
+                outputChannel,
+            });
 
-        assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
-        assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
-        assert.match(showErrorMessageStub.firstCall.args[0], /Restored original branch "main"/);
-        assert.ok(
-            showErrorMessageStub.firstCall.args[0].includes(expectedPath),
-            'エラーメッセージに patch ファイルの保存先を含めるべき',
-        );
-        const patchStats = await fs.stat(expectedPath);
-        if (process.platform !== 'win32') {
-            assert.strictEqual(patchStats.mode & 0o777, 0o600);
+            assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
+            assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
+            assert.match(showErrorMessageStub.firstCall.args[0], /Restored original branch "main"/);
+            assert.ok(
+                showErrorMessageStub.firstCall.args[0].includes(expectedPath),
+                'エラーメッセージに patch ファイルの保存先を含めるべき',
+            );
+            const patchStats = await fs.stat(expectedPath);
+            if (process.platform !== 'win32') {
+                assert.strictEqual(patchStats.mode & 0o777, 0o600);
+            }
+        } finally {
+            await fs.rm(expectedPath, { force: true });
         }
-        await fs.rm(expectedPath, { force: true });
     });
 
     test('Git repository がない場合はエラーを表示して止めること', async () => {
@@ -279,7 +304,24 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             outputChannel,
         });
 
-        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit not found/);
+        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit base-sha not found/);
+        assert.strictEqual(repository.createBranch.called, false);
+    });
+
+    test('baseCommitId 未指定かつ startingBranch もない場合は未指定エラーを表示すること', async () => {
+        const session = createSession();
+        session.sourceContext = undefined;
+        const changeSet = createChangeSet();
+        delete changeSet.baseCommitId;
+
+        await applyPatchLocallyForSession({
+            session,
+            changeSet,
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit not specified and no starting branch specified/);
+        assert.strictEqual(repository.getCommit.called, false);
         assert.strictEqual(repository.createBranch.called, false);
     });
 
@@ -294,7 +336,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             outputChannel,
         });
 
-        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit not found/);
+        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit base-sha not found/);
         assert.strictEqual(repository.createBranch.called, false);
     });
 
@@ -349,6 +391,19 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
+
+    test('getBranch の構造化 ENOENT はブランチ不在として扱わないこと', async () => {
+        repository.getBranch.rejects(Object.assign(new Error('missing binary'), { code: 'ENOENT' }));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /An error occurred: missing binary/);
+        assert.strictEqual(repository.createBranch.called, false);
     });
 
     test('getBranch の日本語 not found メッセージをブランチ不在として扱うこと', async () => {

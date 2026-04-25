@@ -90,9 +90,12 @@ export async function applyPatchLocallyForSession(options: {
 
         if (!commitToBranchFrom) {
             const startingBranch = session.sourceContext?.githubRepoContext?.startingBranch?.trim();
+            const baseCommitStatusMessage = baseCommitId
+                ? `Base commit ${baseCommitId} not found`
+                : "Base commit not specified";
             if (startingBranch) {
                 const action = await vscode.window.showWarningMessage(
-                    `Base commit ${baseCommitId ?? 'unknown'} not found. Fallback to starting branch "${startingBranch}"?`,
+                    `${baseCommitStatusMessage}. Fallback to starting branch "${startingBranch}"?`,
                     { modal: true },
                     "Fallback",
                     "Cancel"
@@ -105,7 +108,7 @@ export async function applyPatchLocallyForSession(options: {
                     log(`Resolved starting branch "${startingBranch}" to "${commitToBranchFrom}".`);
                 }
             } else {
-                vscode.window.showErrorMessage("Base commit not found and no starting branch specified.");
+                vscode.window.showErrorMessage(`${baseCommitStatusMessage} and no starting branch specified.`);
                 return;
             }
         }
@@ -186,7 +189,7 @@ function isBranchNotFoundError(error: unknown): boolean {
     const structuredValues = ["code", "gitErrorCode", "name"]
         .map((key) => readErrorStringProperty(error, key))
         .filter((value): value is string => typeof value === "string");
-    if (structuredValues.some((value) => /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref|enoent/i.test(value))) {
+    if (structuredValues.some((value) => /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref/i.test(value))) {
         return true;
     }
 
