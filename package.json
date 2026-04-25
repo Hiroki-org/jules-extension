@@ -366,11 +366,11 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "pretest:unit": "npm run compile-tests",
-    "test:unit": "mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\"",
+    "test:unit": "mocha --reporter mocha-multi-reporters --reporter-options configFile=reporter-config.json --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\"",
     "pretest:e2e": "npm run compile-tests && npm run compile",
     "test:e2e": "mocha --ui tdd --timeout 180000 --require source-map-support/register \"out/test/*.e2e.js\"",
     "pretest:coverage": "npm run pretest:unit",
-    "test:coverage": "c8 --all --src src --exclude \"src/test/**\" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
+    "test:coverage": "c8 --all --src src --exclude \"src/test/**\" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --reporter mocha-multi-reporters --reporter-options configFile=reporter-config.json --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
@@ -386,6 +386,8 @@
     "esbuild": "^0.25.10",
     "eslint": "^9.36.0",
     "mocha": "^11.7.5",
+    "mocha-junit-reporter": "^2.2.1",
+    "mocha-multi-reporters": "^1.5.1",
     "npm-run-all": "^4.1.5",
     "playwright-core": "^1.58.2",
     "sinon": "^17.0.0",
