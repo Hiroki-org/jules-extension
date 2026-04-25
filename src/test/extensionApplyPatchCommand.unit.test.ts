@@ -93,7 +93,7 @@ suite('applyPatchLocally command ユニットテスト', () => {
 
     test('cached ChangeSet に patch がない場合は最新 artifacts を再取得してから適用すること', async () => {
         const changeSet = createChangeSet();
-        sandbox.stub(sessionArtifacts, 'fetchLatestSessionArtifacts').resolves({
+        const fetchArtifactsStub = sandbox.stub(sessionArtifacts, 'fetchLatestSessionArtifacts').resolves({
             latestChangeSet: changeSet,
         });
         const applyStub = sandbox.stub(applyPatch, 'applyPatchLocallyForSession').resolves();
@@ -106,6 +106,7 @@ suite('applyPatchLocally command ユニットテスト', () => {
         await handler(item);
 
         assert.strictEqual(applyStub.calledOnce, true);
+        assert.strictEqual(fetchArtifactsStub.firstCall.args.length, 3);
         assert.strictEqual(applyStub.firstCall.args[0].changeSet, changeSet);
         assert.strictEqual(applyStub.firstCall.args[0].session, item.session);
     });

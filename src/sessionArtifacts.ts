@@ -505,6 +505,15 @@ function areChangeSetFilesEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boo
     return true;
 }
 
+function areChangeSetsEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boolean {
+    if (!areChangeSetFilesEqual(a, b)) {
+        return false;
+    }
+    return getChangeSetUnidiffPatch(a) === getChangeSetUnidiffPatch(b)
+        && a?.baseCommitId === b?.baseCommitId
+        && a?.suggestedCommitMessage === b?.suggestedCommitMessage;
+}
+
 export function updateSessionArtifactsCache(sessionId: string, activities: Activity[], updateTime?: string): boolean {
     const latest = extractLatestArtifactsFromActivities(activities);
     const previousEntry = artifactsCache.get(sessionId);
@@ -513,7 +522,7 @@ export function updateSessionArtifactsCache(sessionId: string, activities: Activ
     const nextSavedAt = Date.now();
 
     const diffChanged = previousArtifacts?.latestDiff !== latest.latestDiff;
-    const changeSetChanged = !areChangeSetFilesEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
+    const changeSetChanged = !areChangeSetsEqual(previousArtifacts?.latestChangeSet, latest.latestChangeSet);
     const timeChanged = updateTime !== previousEntry?.updateTime;
 
     if (diffChanged || changeSetChanged || (!!updateTime && timeChanged)) {

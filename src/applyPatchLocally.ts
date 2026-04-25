@@ -96,7 +96,10 @@ export async function applyPatchLocallyForSession(options: {
                 if (action !== "Fallback") {
                     return;
                 }
-                commitToBranchFrom = startingBranch;
+                commitToBranchFrom = await resolveStartingBranchRef(repository, startingBranch);
+                if (commitToBranchFrom !== startingBranch) {
+                    log(`Resolved starting branch "${startingBranch}" to "${commitToBranchFrom}".`);
+                }
             } else {
                 vscode.window.showErrorMessage("Base commit not found and no starting branch specified.");
                 return;
@@ -167,6 +170,50 @@ export async function applyPatchLocallyForSession(options: {
 function isBranchNotFoundError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
     return /branch.*not found|not found.*branch|no such branch|does not exist|unknown revision|could not find ref/i.test(message);
+}
+
+async function branchExists(repository: any, branchRef: string): Promise<boolean> {
+    try {
+        return !!(await repository.getBranch(branchRef));
+    } catch (error) {
+        if (isBranchNotFoundError(error)) {
+            return false;
+        }
+        throw error;
+    }
+}
+
+async function resolveStartingBranchRef(repository: any, startingBranch: string): Promise<string> {
+    const branchRef = startingBranch.trim();
+    if (branchRef.length === 0) {
+        return startingBranch;
+    }
+    if (await branchExists(repository, branchRef)) {
+        return branchRef;
+    }
+
+    const remotes = Array.isArray(repository.state?.remotes) ? repository.state.remotes : [];
+    const remoteNames = remotes
+        .map((remote: { name?: unknown }) => typeof remote.name === "string" ? remote.name.trim() : "")
+        .filter((name: string) => name.length > 0)
+        .sort((a: string, b: string) => {
+            if (a === "origin") {
+                return -1;
+            }
+            if (b === "origin") {
+                return 1;
+            }
+            return a.localeCompare(b);
+        });
+
+    for (const remoteName of remoteNames) {
+        const remoteRef = `${remoteName}/${branchRef}`;
+        if (await branchExists(repository, remoteRef)) {
+            return remoteRef;
+        }
+    }
+
+    return branchRef;
 }
 
 async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {

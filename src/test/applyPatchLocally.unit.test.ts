@@ -124,6 +124,32 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         ]);
     });
 
+    test('startingBranch のローカル branch がない場合は origin の追跡 ref にフォールバックすること', async () => {
+        repository.state = { remotes: [{ name: 'upstream' }, { name: 'origin' }] };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            if (branchRef === 'origin/main') {
+                return { name: 'origin/main' };
+            }
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranch.calledWith('main'), true);
+        assert.strictEqual(repository.getBranch.calledWith('origin/main'), true);
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'origin/main',
+        ]);
+    });
+
     test('gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること', async () => {
         await applyPatchLocallyForSession({
             session: createSession(),

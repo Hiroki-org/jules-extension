@@ -758,6 +758,51 @@ index 123..abc 100644`;
 
             assert.strictEqual(updated, true);
         });
+
+        test('changeSet のファイルが同じでも gitPatch が復元された場合は true を返すこと', () => {
+            const sessionId = 'session-007-gitpatch';
+            const diff = 'diff --git a/file1.ts b/file1.ts';
+            const activitiesWithoutRawPatch = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    gitPatch: { diff },
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'file1.ts', status: 'modified' }],
+                            },
+                        },
+                    ],
+                },
+            ];
+            const activitiesWithRawPatch = [
+                {
+                    createTime: '2024-01-02T00:00:00Z',
+                    gitPatch: { diff },
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'file1.ts', status: 'modified' }],
+                                gitPatch: {
+                                    unidiffPatch: diff,
+                                    baseCommitId: 'base-sha',
+                                    suggestedCommitMessage: 'feat: patch',
+                                },
+                            },
+                        },
+                    ],
+                },
+            ];
+
+            updateSessionArtifactsCache(sessionId, activitiesWithoutRawPatch);
+            const updated = updateSessionArtifactsCache(sessionId, activitiesWithRawPatch);
+
+            assert.strictEqual(updated, true);
+            assert.strictEqual(
+                getCachedSessionArtifacts(sessionId)?.latestChangeSet?.baseCommitId,
+                'base-sha',
+            );
+        });
     });
 
     // =========================================================================
