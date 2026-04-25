@@ -199,6 +199,7 @@
       {
         "command": "jules-extension.applyPatchLocally",
         "title": "Jules: Apply Patch Locally",
+        "category": "Jules",
         "icon": "$(git-pull-request-go-to-changes)"
       },
       {

@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "./fetchUtils";
-import { ActivitiesResponse } from "./types";
+import type { ActivitiesResponse, Artifact, GitPatch } from "./types";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
 
 export const ARTIFACTS_CACHE_STATE_KEY = "jules.artifacts.cache";
@@ -21,17 +21,6 @@ interface Activity {
     artifacts?: Artifact[];
 }
 
-interface Artifact {
-    changeSet?: {
-        gitPatch?: {
-            unidiffPatch?: string;
-            baseCommitId?: string;
-            suggestedCommitMessage?: string;
-        };
-        [key: string]: unknown;
-    };
-}
-
 export interface ChangeSetFile {
     path: string;
     status?: string;
@@ -47,6 +36,22 @@ export interface ChangeSetSummary {
 export interface SessionArtifacts {
     latestDiff?: string;
     latestChangeSet?: ChangeSetSummary;
+}
+
+export function getChangeSetGitPatch(changeSet?: ChangeSetSummary): GitPatch | undefined {
+    const gitPatch = changeSet?.raw?.gitPatch;
+    if (!gitPatch || typeof gitPatch !== "object") {
+        return undefined;
+    }
+    return gitPatch as GitPatch;
+}
+
+export function getChangeSetUnidiffPatch(changeSet?: ChangeSetSummary): string | undefined {
+    const unidiffPatch = getChangeSetGitPatch(changeSet)?.unidiffPatch;
+    if (typeof unidiffPatch !== "string" || unidiffPatch.trim().length === 0) {
+        return undefined;
+    }
+    return unidiffPatch;
 }
 
 interface CachedSessionArtifacts {

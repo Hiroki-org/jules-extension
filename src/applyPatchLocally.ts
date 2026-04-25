@@ -4,15 +4,16 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { Session } from './types';
-import { ChangeSetSummary } from './sessionArtifacts';
+import { ChangeSetSummary, getChangeSetGitPatch, getChangeSetUnidiffPatch } from './sessionArtifacts';
 import { getGitApi } from './gitUtils';
 import { selectRepository, handleUncommittedChanges } from './sessionContextMenu';
+
+const MAX_BRANCH_NAME_ATTEMPTS = 20;
 
 export async function applyPatchLocallyForSession(options: {
     session: Session;
     changeSet: ChangeSetSummary;
     outputChannel: vscode.OutputChannel;
-    context: vscode.ExtensionContext;
 }): Promise<void> {
     const { session, changeSet, outputChannel } = options;
 
@@ -22,15 +23,15 @@ export async function applyPatchLocallyForSession(options: {
     };
 
     // 1. Premise check
-    const gitPatch = changeSet.raw?.gitPatch as Record<string, unknown> | undefined;
+    const gitPatch = getChangeSetGitPatch(changeSet);
     if (!gitPatch) {
         vscode.window.showErrorMessage("This session's ChangeSet does not contain a gitPatch.");
         return;
     }
 
-    const unidiffPatch = gitPatch.unidiffPatch as string | undefined;
-    const baseCommitId = gitPatch.baseCommitId as string | undefined;
-    const suggestedCommitMessage = gitPatch.suggestedCommitMessage as string | undefined;
+    const unidiffPatch = getChangeSetUnidiffPatch(changeSet);
+    const baseCommitId = changeSet.baseCommitId;
+    const suggestedCommitMessage = changeSet.suggestedCommitMessage;
 
     if (!unidiffPatch) {
         vscode.window.showErrorMessage("This session's ChangeSet does not contain a unidiffPatch.");
@@ -45,6 +46,9 @@ export async function applyPatchLocallyForSession(options: {
             vscode.window.showErrorMessage("No Git repository found in the workspace.");
             return;
         }
+        const gitExecutable = typeof gitApi.git?.path === "string" && gitApi.git.path.trim().length > 0
+            ? gitApi.git.path
+            : "git";
 
         const repository = await selectRepository(repositories, log);
         if (!repository) {
@@ -102,20 +106,7 @@ export async function applyPatchLocallyForSession(options: {
         // 6. Create new branch
         log(`Creating branch ${branchName} from ${commitToBranchFrom}...`);
         
-        // Find a unique branch name
-        let finalBranchName = branchName;
-        let suffix = 2;
-        while (true) {
-            try {
-                await repository.getBranch(finalBranchName);
-                // Branch exists, increment suffix
-                finalBranchName = `${branchName}-${suffix}`;
-                suffix++;
-            } catch (e) {
-                // Branch does not exist, we can use it
-                break;
-            }
-        }
+        const finalBranchName = await findAvailableBranchName(repository, branchName);
 
         try {
             await repository.createBranch(finalBranchName, true, commitToBranchFrom);
@@ -136,7 +127,7 @@ export async function applyPatchLocallyForSession(options: {
         try {
             await new Promise<void>((resolve, reject) => {
                 childProcess.execFile(
-                    "git", 
+                    gitExecutable,
                     ["apply", "--3way", patchFilePath], 
                     { cwd: repository.rootUri.fsPath }, 
                     (error, stdout, stderr) => {
@@ -171,4 +162,27 @@ export async function applyPatchLocallyForSession(options: {
         log(`Error applying patch locally: ${err.message}`);
         vscode.window.showErrorMessage(`An error occurred: ${err.message}`);
     }
+}
+
+function isBranchNotFoundError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /branch.*not found|not found.*branch|no such branch|does not exist|unknown revision|could not find ref/i.test(message);
+}
+
+async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
+    for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
+        const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
+        try {
+            const branch = await repository.getBranch(candidate);
+            if (!branch) {
+                return candidate;
+            }
+        } catch (error) {
+            if (isBranchNotFoundError(error)) {
+                return candidate;
+            }
+            throw error;
+        }
+    }
+    throw new Error(`Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`);
 }

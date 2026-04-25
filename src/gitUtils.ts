@@ -5,9 +5,6 @@ import { sanitizeForLogging } from "./securityUtils";
  * Get and activate the VS Code Git Extension API
  */
 export async function getGitApi(outputChannel?: vscode.OutputChannel): Promise<any> {
-    const logger =
-        outputChannel ??
-        ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
     const gitExtension = vscode.extensions.getExtension("vscode.git");
     if (!gitExtension) {
         throw new Error("Git extension not found");

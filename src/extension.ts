@@ -42,6 +42,7 @@ import {
   updateSessionArtifactsCache,
   fetchLatestSessionArtifacts,
   initializeSessionArtifactsCacheFromGlobalState,
+  getChangeSetUnidiffPatch,
 } from "./sessionArtifacts";
 import {
   JulesDiffDocumentProvider,
@@ -3642,16 +3643,36 @@ export function activate(context: vscode.ExtensionContext) {
       if (!item) {
         return;
       }
-      const cached = getCachedSessionArtifacts(item.session.name);
-      if (!cached?.latestChangeSet) {
+      let changeSet = getCachedSessionArtifacts(item.session.name)?.latestChangeSet;
+      if (!getChangeSetUnidiffPatch(changeSet)) {
+        const apiKey = await getStoredApiKey(context);
+        if (!apiKey) {
+          return;
+        }
+        try {
+          const fresh = await fetchLatestSessionArtifacts(
+            apiKey,
+            item.session.name,
+            JULES_API_BASE_URL,
+          );
+          changeSet = fresh.latestChangeSet;
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to fetch latest ChangeSet artifact: ${sanitizeError(error)}`);
+          return;
+        }
+      }
+      if (!changeSet) {
         vscode.window.showErrorMessage("This session has no ChangeSet artifact.");
+        return;
+      }
+      if (!getChangeSetUnidiffPatch(changeSet)) {
+        vscode.window.showErrorMessage("This session has no applicable patch artifact.");
         return;
       }
       await applyPatchLocallyForSession({
         session: item.session,
-        changeSet: cached.latestChangeSet,
+        changeSet,
         outputChannel: logChannel,
-        context,
       });
     },
   );

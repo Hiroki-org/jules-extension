@@ -1480,8 +1480,6 @@ index 123..abc 100644`;
             assert.ok(fetchStub.calledTwice, 'エラー時はフォールバックすべき');
         });
     });
-});
-
     suite('Phase 5-2: ChangeSetSummary extraction of baseCommitId and suggestedCommitMessage', () => {
         test('extractLatestArtifactsFromActivities extracts baseCommitId and suggestedCommitMessage', () => {
             const activities = [
@@ -1548,3 +1546,4 @@ index 123..abc 100644`;
             assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, undefined);
         });
     });
+});
