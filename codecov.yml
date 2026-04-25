@@ -5,9 +5,9 @@ coverage:
   status:
     project:
       default:
-        target: 50.5%
+        target: auto
         threshold: 0.5%
     patch:
       default:
-        target: 83%
-        threshold: 0.5%
+        target: 90%
+        threshold: 1%
