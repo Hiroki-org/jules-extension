@@ -46,9 +46,13 @@ export async function applyPatchLocallyForSession(options: {
             vscode.window.showErrorMessage("No Git repository found in the workspace.");
             return;
         }
-        const gitExecutable = typeof gitApi.git?.path === "string" && gitApi.git.path.trim().length > 0
+        const resolvedGitPath = typeof gitApi.git?.path === "string" && gitApi.git.path.trim().length > 0
             ? gitApi.git.path
-            : "git";
+            : undefined;
+        if (!resolvedGitPath) {
+            log("VS Code Git API did not expose git.path; falling back to 'git' on PATH.");
+        }
+        const gitExecutable = resolvedGitPath ?? "git";
 
         const repository = await selectRepository(repositories, log);
         if (!repository) {
@@ -85,7 +89,7 @@ export async function applyPatchLocallyForSession(options: {
         }
 
         if (!commitToBranchFrom) {
-            const startingBranch = session.sourceContext?.githubRepoContext?.startingBranch;
+            const startingBranch = session.sourceContext?.githubRepoContext?.startingBranch?.trim();
             if (startingBranch) {
                 const action = await vscode.window.showWarningMessage(
                     `Base commit ${baseCommitId ?? 'unknown'} not found. Fallback to starting branch "${startingBranch}"?`,
@@ -110,6 +114,9 @@ export async function applyPatchLocallyForSession(options: {
         log(`Creating branch ${branchName} from ${commitToBranchFrom}...`);
         
         const finalBranchName = await findAvailableBranchName(repository, branchName);
+        const originalBranch = typeof repository.state?.HEAD?.name === "string" && repository.state.HEAD.name.trim().length > 0
+            ? repository.state.HEAD.name
+            : undefined;
 
         try {
             await repository.createBranch(finalBranchName, true, commitToBranchFrom);
@@ -123,7 +130,7 @@ export async function applyPatchLocallyForSession(options: {
         const patchFileName = `jules-${sessionIdValue}-${Date.now()}.patch`;
         const patchFilePath = path.join(os.tmpdir(), patchFileName);
         
-        await fs.writeFile(patchFilePath, unidiffPatch, "utf8");
+        await fs.writeFile(patchFilePath, unidiffPatch, { encoding: "utf8", mode: 0o600 });
 
         log(`Applying patch from ${patchFilePath}...`);
         
@@ -135,7 +142,8 @@ export async function applyPatchLocallyForSession(options: {
                     { cwd: repository.rootUri.fsPath }, 
                     (error, stdout, stderr) => {
                         if (error) {
-                            log(`Git apply failed: ${stderr || error.message}`);
+                            const failureDetails = stderr || error.message;
+                            log(`Git apply failed for ${patchFilePath}: ${failureDetails}`);
                             reject(new Error(`git apply failed. Check Jules output channel for details.`));
                         } else {
                             resolve();
@@ -147,7 +155,14 @@ export async function applyPatchLocallyForSession(options: {
             // Clean up patch file on success
             await fs.unlink(patchFilePath).catch(() => {});
         } catch (applyError: any) {
-            vscode.window.showErrorMessage(`Failed to apply patch: ${applyError.message}\nPatch file saved at: ${patchFilePath}`);
+            const branchStateMessage = await restoreOriginalBranchAfterApplyFailure(
+                repository,
+                originalBranch,
+                finalBranchName,
+                log,
+            );
+            log(`Patch file saved at: ${patchFilePath}`);
+            vscode.window.showErrorMessage(`Failed to apply patch: ${applyError.message}\n${branchStateMessage}\nPatch file saved at: ${patchFilePath}`);
             return;
         }
 
@@ -168,8 +183,47 @@ export async function applyPatchLocallyForSession(options: {
 }
 
 function isBranchNotFoundError(error: unknown): boolean {
+    const structuredValues = ["code", "gitErrorCode", "name"]
+        .map((key) => readErrorStringProperty(error, key))
+        .filter((value): value is string => typeof value === "string");
+    if (structuredValues.some((value) => /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref|enoent/i.test(value))) {
+        return true;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
-    return /branch.*not found|not found.*branch|no such branch|does not exist|unknown revision|could not find ref/i.test(message);
+    return /branch.*not found|not found.*branch|no such branch|does not exist|unknown revision|could not find ref|ブランチ.*(見つかりません|見つからない|存在しません|存在しない)|存在しない.*ブランチ|参照.*(見つかりません|見つからない)|リビジョン.*不明/i.test(message);
+}
+
+function readErrorStringProperty(error: unknown, propertyName: string): string | undefined {
+    if (!error || typeof error !== "object") {
+        return undefined;
+    }
+    const value = (error as Record<string, unknown>)[propertyName];
+    return typeof value === "string" ? value : undefined;
+}
+
+async function restoreOriginalBranchAfterApplyFailure(
+    repository: any,
+    originalBranch: string | undefined,
+    failedBranchName: string,
+    log: (msg: string) => void,
+): Promise<string> {
+    if (!originalBranch || typeof repository.checkout !== "function") {
+        const message = `Current branch may remain "${failedBranchName}".`;
+        log(`Patch apply failed on ${failedBranchName}; original branch is unavailable for automatic restore.`);
+        return message;
+    }
+
+    try {
+        await repository.checkout(originalBranch);
+        const message = `Restored original branch "${originalBranch}" after patch failure. Failed branch "${failedBranchName}" remains for inspection.`;
+        log(message);
+        return message;
+    } catch (checkoutError: any) {
+        const message = `Could not restore original branch "${originalBranch}". Current branch may remain "${failedBranchName}".`;
+        log(`${message} Checkout error: ${checkoutError?.message ?? checkoutError}`);
+        return message;
+    }
 }
 
 async function branchExists(repository: any, branchRef: string): Promise<boolean> {

@@ -5,14 +5,19 @@ import { sanitizeForLogging } from "./securityUtils";
  * Get and activate the VS Code Git Extension API
  */
 export async function getGitApi(outputChannel?: vscode.OutputChannel): Promise<any> {
+    const logger =
+        outputChannel ??
+        ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
     const gitExtension = vscode.extensions.getExtension("vscode.git");
     if (!gitExtension) {
+        logger.appendLine("[Jules] vscode.git extension not found");
         throw new Error("Git extension not found");
     }
     // Ensure the Git extension is activated
     await gitExtension.activate();
     const git = gitExtension.exports.getAPI(1);
     if (!git) {
+        logger.appendLine("[Jules] vscode.git extension did not return a Git API");
         throw new Error("Git API not available");
     }
     return git;
@@ -93,9 +98,16 @@ export function getRemoteUrl(
     return remoteUrl;
 }
 
-export async function getCurrentBranchSha(
-    outputChannel?: vscode.OutputChannel,
-): Promise<string | null> {
+/**
+ * Get the HEAD commit SHA for the primary workspace folder.
+ *
+ * This helper intentionally reads only `vscode.workspace.workspaceFolders?.[0]`.
+ * Current callers use the same first-folder convention for branch creation, so
+ * this does not provide multi-root workspace support.
+ *
+ * @param outputChannel Optional destination for diagnostics; console is used as a fallback.
+ */
+export async function getCurrentBranchSha(outputChannel?: vscode.OutputChannel): Promise<string | null> {
     const logger =
         outputChannel ??
         ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);

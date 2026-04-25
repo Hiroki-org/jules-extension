@@ -465,12 +465,21 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
 
     let latestChangeSet: ChangeSetSummary | undefined;
     if (latestChangeSetRaw) {
-        const gitPatch = latestChangeSetRaw.gitPatch as any;
+        const rawGitPatch = latestChangeSetRaw.gitPatch;
+        const gitPatch = rawGitPatch && typeof rawGitPatch === "object"
+            ? (rawGitPatch as Record<string, unknown>)
+            : undefined;
+        const baseCommitId = typeof gitPatch?.baseCommitId === "string"
+            ? gitPatch.baseCommitId
+            : undefined;
+        const suggestedCommitMessage = typeof gitPatch?.suggestedCommitMessage === "string"
+            ? gitPatch.suggestedCommitMessage
+            : undefined;
         latestChangeSet = {
             files: extractChangeSetFiles(latestChangeSetRaw, latestDiff),
             raw: latestChangeSetRaw,
-            baseCommitId: gitPatch?.baseCommitId,
-            suggestedCommitMessage: gitPatch?.suggestedCommitMessage,
+            baseCommitId,
+            suggestedCommitMessage,
         };
     }
 

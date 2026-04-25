@@ -1566,6 +1566,29 @@ index 123..abc 100644`;
             assert.strictEqual(result.latestChangeSet?.baseCommitId, undefined);
             assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, undefined);
         });
+
+        test('baseCommitId と suggestedCommitMessage が文字列でない場合は無視すること', () => {
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'src/file.ts', status: 'modified' }],
+                                gitPatch: {
+                                    unidiffPatch: 'diff --git a/src/file.ts b/src/file.ts',
+                                    baseCommitId: 123456,
+                                    suggestedCommitMessage: { message: 'Fix bug in file.ts' },
+                                }
+                            }
+                        }
+                    ]
+                }
+            ];
+            const result = extractLatestArtifactsFromActivities(activities as any);
+            assert.strictEqual(result.latestChangeSet?.baseCommitId, undefined);
+            assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, undefined);
+        });
         
         test('old cache format (re-extracted from raw)', () => {
             // Note: Since extractLatestArtifactsFromActivities handles raw data directly from the activity,

@@ -27,8 +27,10 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             getCommit: sandbox.stub().resolves({ hash: 'base-sha' }),
             getBranch: sandbox.stub().rejects(new Error('branch not found')),
             createBranch: sandbox.stub().resolves(),
+            checkout: sandbox.stub().resolves(),
             inputBox: { value: '' },
             rootUri: { fsPath: '/repo' },
+            state: { HEAD: { name: 'main' }, remotes: [] },
         };
         outputChannel = {
             appendLine: sandbox.spy(),
@@ -174,8 +176,10 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.strictEqual(getGitApiStub.called, false);
     });
 
-    test('git apply 失敗時は保存済み patch パスをエラーに含めること', async () => {
+    test('git apply 失敗時は元ブランチへ戻し、保存済み patch パスをエラーに含めること', async () => {
         sandbox.stub(Date, 'now').returns(1234);
+        const expectedPath = path.join(os.tmpdir(), 'jules-abc-1234.patch');
+        await fs.rm(expectedPath, { force: true });
         execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
             callback(new Error('apply failed'), '', 'fatal: patch failed');
             return {} as childProcess.ChildProcess;
@@ -187,12 +191,15 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             outputChannel,
         });
 
-        const expectedPath = path.join(os.tmpdir(), 'jules-abc-1234.patch');
         assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
+        assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
+        assert.match(showErrorMessageStub.firstCall.args[0], /Restored original branch "main"/);
         assert.ok(
             showErrorMessageStub.firstCall.args[0].includes(expectedPath),
             'エラーメッセージに patch ファイルの保存先を含めるべき',
         );
+        const patchStats = await fs.stat(expectedPath);
+        assert.strictEqual(patchStats.mode & 0o777, 0o600);
         await fs.rm(expectedPath, { force: true });
     });
 
@@ -274,6 +281,21 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.strictEqual(repository.createBranch.called, false);
     });
 
+    test('startingBranch が空白だけの場合はエラーを表示すること', async () => {
+        repository.getCommit.rejects(new Error('commit not found'));
+        const session = createSession();
+        session.sourceContext!.githubRepoContext!.startingBranch = '   ';
+
+        await applyPatchLocallyForSession({
+            session,
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit not found/);
+        assert.strictEqual(repository.createBranch.called, false);
+    });
+
     test('createBranch が失敗した場合はエラーを表示すること', async () => {
         repository.createBranch.rejects(new Error('branch create failed'));
 
@@ -297,10 +319,38 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(execFileStub.firstCall.args[0], 'git');
+        assert.strictEqual(
+            (outputChannel.appendLine as sinon.SinonSpy).calledWithMatch(/falling back to 'git'/),
+            true,
+        );
     });
 
     test('getBranch が undefined を返す場合はそのブランチ名を使うこと', async () => {
         repository.getBranch.resolves(undefined);
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
+
+    test('getBranch の構造化された not found コードをブランチ不在として扱うこと', async () => {
+        repository.getBranch.rejects(Object.assign(new Error('missing ref'), { code: 'BranchNotFound' }));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
+
+    test('getBranch の日本語 not found メッセージをブランチ不在として扱うこと', async () => {
+        repository.getBranch.rejects(new Error('ブランチが見つかりません'));
 
         await applyPatchLocallyForSession({
             session: createSession(),

@@ -52,6 +52,7 @@ suite('gitUtils ユニットテスト', () => {
             async () => await getGitApi(outputChannel as any),
             /Git extension not found/,
         );
+        assert.match(outputChannel.appendLine.firstCall.args[0], /vscode\.git extension not found/);
     });
 
     test('getGitApi は Git API が取得できない場合にエラーを投げること', async () => {
@@ -64,6 +65,7 @@ suite('gitUtils ユニットテスト', () => {
             async () => await getGitApi(outputChannel as any),
             /Git API not available/,
         );
+        assert.match(outputChannel.appendLine.firstCall.args[0], /did not return a Git API/);
     });
 
     test('getRepositoryForWorkspaceFolder は一致する repository を返すこと', () => {
@@ -206,6 +208,9 @@ suite('gitUtils ユニットテスト', () => {
         const result = await getCurrentBranchSha(outputChannel as any);
 
         assert.strictEqual(result, null);
-        assert.match(outputChannel.appendLine.firstCall.args[0], /Error getting current branch sha/);
+        assert.strictEqual(
+            outputChannel.appendLine.calledWithMatch(/Error getting current branch sha/),
+            true,
+        );
     });
 });
