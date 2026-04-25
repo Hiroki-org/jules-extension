@@ -226,8 +226,8 @@ suite('branchUtils Unit Tests', () => {
                 { forceRefresh: true, showProgress: false }
             );
 
-            assert.strictEqual(result.branches.length >= 3, true);
-            assert.strictEqual(result.branches.includes('main'), true);
+            assert.ok(result.branches.length >= 3, 'Should have at least 3 branches');
+            assert.deepStrictEqual(result.branches.sort(), ['develop', 'feature/new', 'main'].sort(), 'Should have all expected branches');
             assert.strictEqual(result.defaultBranch, 'main');
         });
 
@@ -253,8 +253,8 @@ suite('branchUtils Unit Tests', () => {
                 { forceRefresh: true, showProgress: false }
             );
 
-            assert.strictEqual(result.defaultBranch, 'main');
-            assert.strictEqual(result.branches.includes('main'), true);
+            assert.strictEqual(result.defaultBranch, 'main', 'Should fall back to main branch');
+            assert.ok(result.branches.includes('main'), 'Main branch should be in list');
         });
 
         test('should add current branch to list if not in remote branches', async () => {
@@ -301,7 +301,7 @@ suite('branchUtils Unit Tests', () => {
                 { forceRefresh: true, showProgress: false }
             );
 
-            assert.strictEqual(result.branches.includes('feature/local-only'), true);
+            assert.ok(result.branches.includes('feature/local-only'), 'Should include local-only branch in the list');
         });
 
         test('should handle case when source has no name', async () => {
