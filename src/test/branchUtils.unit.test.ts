@@ -2,7 +2,6 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { getCurrentBranch, getBranchesForSession } from '../branchUtils';
-import { JulesApiClient } from '../julesApiClient';
 import type { Source as SourceType } from '../types';
 
 suite('branchUtils Unit Tests', () => {
