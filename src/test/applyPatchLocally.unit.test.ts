@@ -169,4 +169,146 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         );
         await fs.rm(expectedPath, { force: true });
     });
+
+    test('Git repository がない場合はエラーを表示して止めること', async () => {
+        getGitApiStub.resolves({ repositories: [], git: { path: '/custom/git' } });
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /No Git repository/);
+        assert.strictEqual(repository.fetch.called, false);
+    });
+
+    test('repository 選択がキャンセルされた場合は処理を止めること', async () => {
+        (sessionContextMenu.selectRepository as sinon.SinonStub).resolves(undefined);
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.fetch.called, false);
+    });
+
+    test('未コミット変更チェックで進行不可の場合は処理を止めること', async () => {
+        (sessionContextMenu.handleUncommittedChanges as sinon.SinonStub).resolves(false);
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.fetch.called, false);
+    });
+
+    test('fetch が失敗した場合はエラーを表示して止めること', async () => {
+        repository.fetch.rejects(new Error('fetch failed'));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /Failed to fetch from remote: fetch failed/);
+        assert.strictEqual(repository.createBranch.called, false);
+    });
+
+    test('fallback 確認でキャンセルされた場合は処理を止めること', async () => {
+        repository.getCommit.rejects(new Error('commit not found'));
+        showWarningMessageStub.resolves('Cancel');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.createBranch.called, false);
+    });
+
+    test('baseCommitId も startingBranch もない場合はエラーを表示すること', async () => {
+        repository.getCommit.rejects(new Error('commit not found'));
+        const session = createSession();
+        session.sourceContext = undefined;
+
+        await applyPatchLocallyForSession({
+            session,
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit not found/);
+        assert.strictEqual(repository.createBranch.called, false);
+    });
+
+    test('createBranch が失敗した場合はエラーを表示すること', async () => {
+        repository.createBranch.rejects(new Error('branch create failed'));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /Failed to create branch: branch create failed/);
+        assert.strictEqual(execFileStub.called, false);
+    });
+
+    test('Git API に git.path がない場合は git コマンド名へフォールバックすること', async () => {
+        getGitApiStub.resolves({ repositories: [repository], git: {} });
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(execFileStub.firstCall.args[0], 'git');
+    });
+
+    test('getBranch が undefined を返す場合はそのブランチ名を使うこと', async () => {
+        repository.getBranch.resolves(undefined);
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
+
+    test('getBranch が branch not found 以外のエラーを返す場合は全体エラーにすること', async () => {
+        repository.getBranch.rejects(new Error('repository is locked'));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /An error occurred: repository is locked/);
+        assert.strictEqual(repository.createBranch.called, false);
+    });
+
+    test('利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること', async () => {
+        repository.getBranch.resolves({ name: 'existing' });
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.match(showErrorMessageStub.firstCall.args[0], /Could not find an available branch name/);
+        assert.strictEqual(repository.createBranch.called, false);
+        assert.strictEqual(repository.getBranch.callCount, 20);
+    });
 });

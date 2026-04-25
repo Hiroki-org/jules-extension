@@ -73,6 +73,7 @@ export interface Session {
 // Convenience type alias
 export type SourceType = Source;
 
+/* c8 ignore start */
 export interface GitPatch {
     unidiffPatch?: string;
     baseCommitId?: string;
@@ -90,6 +91,7 @@ export interface Artifact {
     bashOutput?: Record<string, unknown>;
     media?: Record<string, unknown>;
 }
+/* c8 ignore stop */
 
 export interface Activity {
     name: string;
