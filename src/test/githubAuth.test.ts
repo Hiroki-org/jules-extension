@@ -70,6 +70,17 @@ suite('GitHubAuth Test Suite', () => {
             assert.deepStrictEqual(args[2], { createIfNone: true });
         });
 
+
+        test('should clear cache and return undefined when session is falsy', async () => {
+            getSessionStub.resolves(undefined);
+            const clearCacheSpy = sandbox.spy(GitHubAuth, 'clearCache');
+
+            const token = await GitHubAuth.signIn();
+
+            assert.strictEqual(token, undefined);
+            assert.strictEqual(clearCacheSpy.called, true);
+        });
+
         test('should return undefined and show error on failure', async () => {
             getSessionStub.rejects(new Error('Auth failed'));
 
@@ -140,6 +151,15 @@ suite('GitHubAuth Test Suite', () => {
     });
 
     suite('getToken', () => {
+        test('should return cached token if fresh', async () => {
+            getSessionStub.resolves(FAKE_SESSION);
+            await GitHubAuth.getSession();
+            getSessionStub.resetHistory();
+            const token = await GitHubAuth.getToken();
+            assert.strictEqual(token, 'fake-token');
+            assert.strictEqual(getSessionStub.called, false);
+        });
+
         test('should return token when session exists', async () => {
             getSessionStub.resolves(FAKE_SESSION);
 
