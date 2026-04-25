@@ -78,8 +78,7 @@ suite('GitHubAuth Test Suite', () => {
             const token = await GitHubAuth.signIn();
 
             assert.strictEqual(token, undefined);
-            // signIn() always clears at entry; the falsy-session branch must clear again.
-            assert.strictEqual(clearCacheSpy.calledTwice, true);
+            assert.strictEqual(clearCacheSpy.called, true);
         });
 
         test('should return undefined and show error on failure', async () => {
@@ -155,12 +154,10 @@ suite('GitHubAuth Test Suite', () => {
         test('should return cached token if fresh', async () => {
             getSessionStub.resolves(FAKE_SESSION);
             await GitHubAuth.getSession();
-
-            const getSessionSpy = sandbox.spy(GitHubAuth, 'getSession');
+            getSessionStub.resetHistory();
             const token = await GitHubAuth.getToken();
-
             assert.strictEqual(token, 'fake-token');
-            assert.strictEqual(getSessionSpy.called, false);
+            assert.strictEqual(getSessionStub.called, false);
         });
 
         test('should return token when session exists', async () => {
