@@ -42,7 +42,7 @@ This extension was created to take your development experience to the next level
 | **Checkout to branch**   | Checkout the branch associated with the current session.                                                                                                                                                           | `Jules: Checkout to branch`              |
 | **Review Plan**          | Review the plan proposed by Jules before execution.                                                                                                                                                                | `Jules: Review Plan...`                  |
 | **Filter Activities**    | Filter the activities shown in the activities view.                                                                                                                                                                | `Jules: Filter Activities`               |
-| **Show Failure Reason**  | Show the reason why a session failed.                                                                                                                                                                              | `Jules: Jules: Show Failure Reason`      |
+| **Show Failure Reason**  | Show the reason why a session failed.                                                                                                                                                                              | Jules: Show Failure Reason             |
 
 ## 📦 Installation
 
