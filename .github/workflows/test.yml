@@ -86,7 +86,7 @@ jobs:
         if: matrix.node-version == 20
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: npx @codecov/bundle-analyzer dist --bundle-name="jules-extension"
+        run: npx @codecov/bundle-analyzer dist --bundle-name="jules-extension" --upload-token="${{ secrets.CODECOV_TOKEN }}"
 
   integration:
     needs: [test-unit, build-check]
