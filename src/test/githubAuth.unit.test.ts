@@ -71,6 +71,16 @@ suite("GitHubAuth Unit Test Suite", () => {
     ]);
   });
 
+  test("signIn should clear cache when returning no session", async () => {
+    getSessionStub.resolves(undefined);
+    const clearCacheSpy = sandbox.spy(GitHubAuth, "clearCache");
+
+    const token = await GitHubAuth.signIn();
+
+    assert.strictEqual(token, undefined);
+    assert.strictEqual(clearCacheSpy.called, true);
+  });
+
   test("signIn should show an error and return undefined on failure", async () => {
     getSessionStub.rejects(new Error("Auth failed"));
 
@@ -231,6 +241,13 @@ suite("GitHubAuth Unit Test Suite", () => {
     const token = await GitHubAuth.getToken();
 
     assert.strictEqual(token, undefined);
+  });
+
+
+  test("getUserInfo should return undefined when session is falsy", async () => {
+    getSessionStub.resolves(undefined);
+    const info = await GitHubAuth.getUserInfo();
+    assert.strictEqual(info, undefined);
   });
 
   test("getUserInfo and isSignedIn should reflect the active session", async () => {
