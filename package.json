@@ -384,6 +384,7 @@
     "test:coverage": "c8 --all --src src --exclude \"src/test/**\" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --reporter mocha-multi-reporters --reporter-options configFile=reporter-config.json --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
+    "@codecov/bundle-analyzer": "^2.0.1",
     "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",

@@ -37,6 +37,7 @@ async function main() {
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
 		logLevel: 'silent',
+		metafile: true,
 		plugins: [
 			/* add to the end of plugins array */
 			esbuildProblemMatcherPlugin,
@@ -45,7 +46,10 @@ async function main() {
 	if (watch) {
 		await ctx.watch();
 	} else {
-		await ctx.rebuild();
+		const result = await ctx.rebuild();
+		if (result.metafile) {
+			require('fs').writeFileSync('dist/metafile.json', JSON.stringify(result.metafile));
+		}
 		await ctx.dispose();
 	}
 }
