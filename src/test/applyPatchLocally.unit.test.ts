@@ -199,7 +199,9 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             'エラーメッセージに patch ファイルの保存先を含めるべき',
         );
         const patchStats = await fs.stat(expectedPath);
-        assert.strictEqual(patchStats.mode & 0o777, 0o600);
+        if (process.platform !== 'win32') {
+            assert.strictEqual(patchStats.mode & 0o777, 0o600);
+        }
         await fs.rm(expectedPath, { force: true });
     });
 
