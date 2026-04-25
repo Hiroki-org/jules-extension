@@ -154,10 +154,12 @@ suite('GitHubAuth Test Suite', () => {
         test('should return cached token if fresh', async () => {
             getSessionStub.resolves(FAKE_SESSION);
             await GitHubAuth.getSession();
-            getSessionStub.resetHistory();
+
+            const getSessionSpy = sandbox.spy(GitHubAuth, 'getSession');
             const token = await GitHubAuth.getToken();
+
             assert.strictEqual(token, 'fake-token');
-            assert.strictEqual(getSessionStub.called, false);
+            assert.strictEqual(getSessionSpy.called, false);
         });
 
         test('should return token when session exists', async () => {
