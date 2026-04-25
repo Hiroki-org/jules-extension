@@ -2,7 +2,8 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
 import * as path from "path";
-import { resolveWorkspaceFile, JulesDiffDocumentProvider } from "../sessionContextMenuArtifacts";
+import * as sessionArtifacts from "../sessionArtifacts";
+import { openChangesetForSession, openLatestDiffForSession, resolveWorkspaceFile, JulesDiffDocumentProvider } from "../sessionContextMenuArtifacts";
 
 suite("Session Context Menu Artifacts Security Suite", () => {
     let sandbox: sinon.SinonSandbox;
@@ -233,5 +234,180 @@ suite("JulesDiffDocumentProvider", () => {
         
         provider.setContent(uri, "updated");
         assert.strictEqual(provider.provideTextDocumentContent(uri), "updated");
+    });
+});
+
+suite("Session Context Menu Artifacts Openers", () => {
+    let sandbox: sinon.SinonSandbox;
+    let showErrorMessageStub: sinon.SinonStub;
+    let showQuickPickStub: sinon.SinonStub;
+    let withProgressStub: sinon.SinonStub;
+    let executeCommandStub: sinon.SinonStub;
+    let openTextDocumentStub: sinon.SinonStub;
+    let showTextDocumentStub: sinon.SinonStub;
+    let workspaceFoldersStub: sinon.SinonStub;
+    let fsStatStub: sinon.SinonStub;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        showErrorMessageStub = sandbox.stub(vscode.window, "showErrorMessage");
+        showQuickPickStub = sandbox.stub(vscode.window, "showQuickPick");
+        withProgressStub = sandbox.stub(vscode.window, "withProgress");
+        executeCommandStub = sandbox.stub(vscode.commands, "executeCommand");
+        openTextDocumentStub = sandbox.stub(vscode.workspace, "openTextDocument");
+        showTextDocumentStub = sandbox.stub(vscode.window, "showTextDocument");
+        workspaceFoldersStub = sandbox.stub(vscode.workspace, "workspaceFolders").value([]);
+        fsStatStub = sandbox.stub();
+        sandbox.stub(vscode.workspace, "fs").value({
+            stat: fsStatStub,
+            readDirectory: sandbox.stub(),
+            readFile: sandbox.stub(),
+            writeFile: sandbox.stub(),
+            delete: sandbox.stub(),
+            rename: sandbox.stub(),
+            copy: sandbox.stub(),
+            createDirectory: sandbox.stub(),
+            isWritableFileSystem: sandbox.stub()
+        });
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    function createLogChannel() {
+        return {
+            appendLine: sandbox.stub(),
+            append: sandbox.stub(),
+            clear: sandbox.stub(),
+            replace: sandbox.stub(),
+            dispose: sandbox.stub(),
+            show: sandbox.stub(),
+            hide: sandbox.stub(),
+            name: "test"
+        } as unknown as vscode.OutputChannel;
+    }
+
+    test("openLatestDiffForSession rejects invalid session IDs", async () => {
+        await openLatestDiffForSession({
+            sessionId: "bad id",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel(),
+            diffProvider: new JulesDiffDocumentProvider()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("Invalid session ID."), true);
+        assert.strictEqual(withProgressStub.called, false);
+    });
+
+    test("openLatestDiffForSession opens a cached diff document", async () => {
+        const diffProvider = new JulesDiffDocumentProvider();
+        const leftUri = diffProvider.buildUri("sessions/test-123", "before");
+        const rightUri = diffProvider.buildUri("sessions/test-123", "after");
+        const artifacts = { latestDiff: "diff --git a/file.ts b/file.ts" };
+
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<typeof artifacts>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns(artifacts as any);
+
+        await openLatestDiffForSession({
+            sessionId: "sessions/test-123",
+            sessionTitle: "Test Session",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel(),
+            diffProvider
+        });
+
+        assert.strictEqual(executeCommandStub.calledOnce, true);
+        assert.strictEqual(executeCommandStub.firstCall.args[0], "vscode.diff");
+        assert.strictEqual((executeCommandStub.firstCall.args[1] as vscode.Uri).toString(), leftUri.toString());
+        assert.strictEqual((executeCommandStub.firstCall.args[2] as vscode.Uri).toString(), rightUri.toString());
+        assert.strictEqual(executeCommandStub.firstCall.args[3], "Latest Diff: Test Session");
+    });
+
+    test("openLatestDiffForSession shows an error when no diff is available", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({ latestDiff: undefined } as any);
+        sandbox.stub(sessionArtifacts, "fetchLatestSessionArtifacts").resolves({ latestDiff: undefined } as any);
+
+        await openLatestDiffForSession({
+            sessionId: "sessions/test-456",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel(),
+            diffProvider: new JulesDiffDocumentProvider()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("No diff available for this session."), true);
+        assert.strictEqual(executeCommandStub.called, false);
+    });
+
+    test("openChangesetForSession shows an error when no files exist", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({ latestChangeSet: { files: [] } } as any);
+
+        await openChangesetForSession({
+            sessionId: "sessions/test-789",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("No files found in changeset."), true);
+    });
+
+    test("openChangesetForSession opens a selected file from the workspace", async () => {
+        const rootPath = path.resolve("/Users/hirokimukai/Cloudprojects/jules-extension");
+        workspaceFoldersStub.value([
+            { uri: vscode.Uri.file(rootPath), name: "workspace", index: 0 }
+        ]);
+        fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === path.resolve(rootPath, "src/sessionContextMenu.ts"))).resolves({ type: vscode.FileType.File });
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({
+            latestChangeSet: {
+                files: [
+                    { path: "src/sessionContextMenu.ts", status: "modified" }
+                ]
+            }
+        } as any);
+        showQuickPickStub.resolves({ label: "src/sessionContextMenu.ts", description: "modified", filePath: "src/sessionContextMenu.ts" } as any);
+        openTextDocumentStub.resolves({ uri: vscode.Uri.file(path.resolve(rootPath, "src/sessionContextMenu.ts")) } as any);
+        showTextDocumentStub.resolves(undefined);
+
+        await openChangesetForSession({
+            sessionId: "sessions/test-999",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel(),
+            sessionTitle: "Test Session"
+        });
+
+        assert.strictEqual(showQuickPickStub.calledOnce, true);
+        assert.strictEqual(openTextDocumentStub.calledOnce, true);
+        assert.strictEqual(showTextDocumentStub.calledOnce, true);
+        assert.strictEqual(showErrorMessageStub.called, false);
+    });
+
+    test("openChangesetForSession shows an error when the selected file is missing", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({
+            latestChangeSet: {
+                files: [
+                    { path: "src/does-not-exist.ts", status: "modified" }
+                ]
+            }
+        } as any);
+        showQuickPickStub.resolves({ label: "src/does-not-exist.ts", description: "modified", filePath: "src/does-not-exist.ts" } as any);
+
+        await openChangesetForSession({
+            sessionId: "sessions/test-1000",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("File not found in workspace (or invalid path)."), true);
+        assert.strictEqual(openTextDocumentStub.called, false);
     });
 });
