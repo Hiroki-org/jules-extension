@@ -1,6 +1,7 @@
 # Jules Extension for VSCode
 
 [![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
+[![Built with Jules](https://img.shields.io/badge/Built%20with-Jules-715cd7?link=https://jules.google)](https://jules.google)
 [![CI](https://img.shields.io/github/actions/workflow/status/Hiroki-org/jules-extension/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/Hiroki-org/jules-extension/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Hiroki-org/jules-extension/branch/main/graph/badge.svg)](https://codecov.io/gh/Hiroki-org/jules-extension)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat-square)](https://github.com/Hiroki-org/jules-extension/issues)
@@ -42,7 +43,7 @@ This extension was created to take your development experience to the next level
 | **Checkout to branch**   | Checkout the branch associated with the current session.                                                                                                                                                           | `Jules: Checkout to branch`              |
 | **Review Plan**          | Review the plan proposed by Jules before execution.                                                                                                                                                                | `Jules: Review Plan...`                  |
 | **Filter Activities**    | Filter the activities shown in the activities view.                                                                                                                                                                | `Jules: Filter Activities`               |
-| **Show Failure Reason**  | Show the reason why a session failed.                                                                                                                                                                              | Jules: Show Failure Reason             |
+| **Show Failure Reason**  | Show the reason why a session failed.                                                                                                                                                                              | Jules: Show Failure Reason               |
 
 ## 📦 Installation
 
