@@ -358,7 +358,7 @@ suite("Session Context Menu Artifacts Openers", () => {
     });
 
     test("openChangesetForSession opens a selected file from the workspace", async () => {
-        const rootPath = path.resolve("/Users/hirokimukai/Cloudprojects/jules-extension");
+        const rootPath = path.resolve("/tmp/test-workspace");
         workspaceFoldersStub.value([
             { uri: vscode.Uri.file(rootPath), name: "workspace", index: 0 }
         ]);
@@ -390,6 +390,11 @@ suite("Session Context Menu Artifacts Openers", () => {
     });
 
     test("openChangesetForSession shows an error when the selected file is missing", async () => {
+        const rootPath = path.resolve("/tmp/test-workspace");
+        workspaceFoldersStub.value([
+            { uri: vscode.Uri.file(rootPath), name: "workspace", index: 0 }
+        ]);
+        fsStatStub.rejects(vscode.FileSystemError.FileNotFound());
         withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
         sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({
             latestChangeSet: {
