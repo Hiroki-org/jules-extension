@@ -37,6 +37,11 @@ jobs:
         if: matrix.node-version == 20
         run: pnpm run test:coverage
 
+      - name: Upload test results to Codecov
+        if: always()
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload coverage to Codecov
         if: matrix.node-version == 20
         uses: codecov/codecov-action@v6
