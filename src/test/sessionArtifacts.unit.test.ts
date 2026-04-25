@@ -1481,3 +1481,70 @@ index 123..abc 100644`;
         });
     });
 });
+
+    suite('Phase 5-2: ChangeSetSummary extraction of baseCommitId and suggestedCommitMessage', () => {
+        test('extractLatestArtifactsFromActivities extracts baseCommitId and suggestedCommitMessage', () => {
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'src/file.ts', status: 'modified' }],
+                                gitPatch: {
+                                    unidiffPatch: 'diff --git a/src/file.ts b/src/file.ts',
+                                    baseCommitId: 'abcdef123456',
+                                    suggestedCommitMessage: 'Fix bug in file.ts',
+                                }
+                            }
+                        }
+                    ]
+                }
+            ];
+            const result = extractLatestArtifactsFromActivities(activities as any);
+            assert.strictEqual(result.latestChangeSet?.baseCommitId, 'abcdef123456');
+            assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, 'Fix bug in file.ts');
+        });
+
+        test('gitPatch itself is missing', () => {
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'src/file.ts', status: 'modified' }],
+                            }
+                        }
+                    ]
+                }
+            ];
+            const result = extractLatestArtifactsFromActivities(activities as any);
+            assert.strictEqual(result.latestChangeSet?.baseCommitId, undefined);
+            assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, undefined);
+        });
+        
+        test('old cache format (re-extracted from raw)', () => {
+            // Note: Since extractLatestArtifactsFromActivities handles raw data directly from the activity,
+            // we simulate what happens when it processes an old payload that still has gitPatch inside changeSet.
+            const activities = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [{ path: 'src/file.ts', status: 'modified' }],
+                                gitPatch: {
+                                    unidiffPatch: 'diff --git a/src/file.ts b/src/file.ts',
+                                    baseCommitId: '123456abcdef',
+                                }
+                            }
+                        }
+                    ]
+                }
+            ];
+            const result = extractLatestArtifactsFromActivities(activities as any);
+            assert.strictEqual(result.latestChangeSet?.baseCommitId, '123456abcdef');
+            assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, undefined);
+        });
+    });

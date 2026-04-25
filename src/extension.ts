@@ -31,6 +31,13 @@ import {
   checkoutToBranchForSession,
 } from "./sessionContextMenu";
 import {
+  getGitApi,
+  getRepositoryForWorkspaceFolder,
+  getRemoteUrl,
+  getCurrentBranchSha,
+} from "./gitUtils";
+import { applyPatchLocallyForSession } from "./applyPatchLocally";
+import {
   getCachedSessionArtifacts,
   updateSessionArtifactsCache,
   fetchLatestSessionArtifacts,
@@ -234,101 +241,6 @@ async function getGitHubUrl(): Promise<string | undefined> {
 }
 
 /**
- * Get and activate the VS Code Git Extension API
- */
-async function getGitApi(outputChannel?: vscode.OutputChannel): Promise<any> {
-  const logger =
-    outputChannel ??
-    ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
-  const gitExtension = vscode.extensions.getExtension("vscode.git");
-  if (!gitExtension) {
-    throw new Error("Git extension not found");
-  }
-  // Ensure the Git extension is activated
-  await gitExtension.activate();
-  const git = gitExtension.exports.getAPI(1);
-  if (!git) {
-    throw new Error("Git API not available");
-  }
-  return git;
-}
-
-/**
- * Find the Git repository that corresponds to the given workspace folder
- */
-function getRepositoryForWorkspaceFolder(
-  git: any,
-  workspaceFolder: vscode.WorkspaceFolder,
-  outputChannel?: vscode.OutputChannel,
-): any {
-  const logger =
-    outputChannel ??
-    ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
-  const repository = git.repositories.find(
-    (repo: any) => repo.rootUri?.fsPath === workspaceFolder.uri.fsPath,
-  );
-  if (!repository) {
-    const safeWsPath = sanitizeForLogging(workspaceFolder.uri.fsPath);
-    logger.appendLine(
-      `[Jules] No Git repository found for workspace folder ${safeWsPath}`,
-    );
-    return null;
-  }
-  return repository;
-}
-
-/**
- * Get the remote URL from a repository, with fallback strategy:
- * 1. Try 'origin' remote
- * 2. Fall back to first remote with fetchUrl or pushUrl
- * 3. Return null if none found
- */
-function getRemoteUrl(
-  repository: any,
-  preferredRemoteName: string = "origin",
-  outputChannel?: vscode.OutputChannel,
-): string | null {
-  const logger =
-    outputChannel ??
-    ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
-
-  if (!repository.state.remotes || repository.state.remotes.length === 0) {
-    logger.appendLine("[Jules] No remotes found in repository");
-    return null;
-  }
-
-  // Try to find the preferred remote (default: 'origin')
-  let remote = repository.state.remotes.find(
-    (r: any) => r.name === preferredRemoteName,
-  );
-
-  // Fallback: find first remote with a URL
-  if (!remote) {
-    remote = repository.state.remotes.find((r: any) => r.fetchUrl || r.pushUrl);
-    if (remote) {
-      logger.appendLine(
-        `[Jules] Preferred remote '${preferredRemoteName}' not found, using '${remote.name}'`,
-      );
-    }
-  }
-
-  if (!remote) {
-    logger.appendLine(`[Jules] No remote URL found in repository`);
-    return null;
-  }
-
-  const remoteUrl = remote.fetchUrl || remote.pushUrl;
-  if (!remoteUrl) {
-    logger.appendLine(
-      `[Jules] Remote '${remote.name}' has no fetchUrl or pushUrl`,
-    );
-    return null;
-  }
-
-  return remoteUrl;
-}
-
-/**
  * リモートブランチ作成に必要なリポジトリ情報を取得
  */
 async function getRepoInfoForBranchCreation(
@@ -466,37 +378,6 @@ export async function createRemoteBranch(
   }
 }
 
-export async function getCurrentBranchSha(
-  outputChannel?: vscode.OutputChannel,
-): Promise<string | null> {
-  const logger =
-    outputChannel ??
-    ({ appendLine: (s: string) => console.log(s) } as vscode.OutputChannel);
-  try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-      logger.appendLine(
-        "[Jules] No workspace folder found to get current branch SHA.",
-      );
-      return null;
-    }
-
-    const git = await getGitApi(outputChannel);
-    const repository = getRepositoryForWorkspaceFolder(
-      git,
-      workspaceFolder,
-      outputChannel,
-    );
-    if (!repository) {
-      return null;
-    }
-
-    return repository.state.HEAD?.commit || null;
-  } catch (error) {
-    logger.appendLine(`[Jules] Error getting current branch sha: ${error}`);
-    return null;
-  }
-}
 
 /**
  * Get privacy icon for a source
@@ -3755,6 +3636,26 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
+  const applyPatchLocallyDisposable = vscode.commands.registerCommand(
+    "jules-extension.applyPatchLocally",
+    async (item?: SessionTreeItem) => {
+      if (!item) {
+        return;
+      }
+      const cached = getCachedSessionArtifacts(item.session.name);
+      if (!cached?.latestChangeSet) {
+        vscode.window.showErrorMessage("This session has no ChangeSet artifact.");
+        return;
+      }
+      await applyPatchLocallyForSession({
+        session: item.session,
+        changeSet: cached.latestChangeSet,
+        outputChannel: logChannel,
+        context,
+      });
+    },
+  );
+
   // Plan review provider for displaying plan content in virtual documents
   const planProvider = new JulesPlanDocumentProvider();
   const planProviderDisposable =
@@ -3823,6 +3724,7 @@ export function activate(context: vscode.ExtensionContext) {
     diffProviderDisposable,
     openLatestDiffDisposable,
     openChangesetDisposable,
+    applyPatchLocallyDisposable,
     planProviderDisposable,
     reviewPlanDisposable,
     chatViewProviderDisposable,

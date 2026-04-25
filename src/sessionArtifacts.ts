@@ -22,7 +22,14 @@ interface Activity {
 }
 
 interface Artifact {
-    changeSet?: Record<string, unknown>;
+    changeSet?: {
+        gitPatch?: {
+            unidiffPatch?: string;
+            baseCommitId?: string;
+            suggestedCommitMessage?: string;
+        };
+        [key: string]: unknown;
+    };
 }
 
 export interface ChangeSetFile {
@@ -33,6 +40,8 @@ export interface ChangeSetFile {
 export interface ChangeSetSummary {
     files: ChangeSetFile[];
     raw: Record<string, unknown>;
+    baseCommitId?: string;
+    suggestedCommitMessage?: string;
 }
 
 export interface SessionArtifacts {
@@ -430,7 +439,7 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
 
                     // Check for Diff from artifact (Priority 2)
                     if (!latestDiff) {
-                        const uniDiff = (artifact.changeSet?.gitPatch as any)?.unidiffPatch;
+                        const uniDiff = artifact.changeSet?.gitPatch?.unidiffPatch;
                         if (typeof uniDiff === "string" && uniDiff.trim().length > 0) {
                             latestDiff = uniDiff;
                         }
@@ -451,9 +460,12 @@ export function extractLatestArtifactsFromActivities(activities: Activity[]): Se
 
     let latestChangeSet: ChangeSetSummary | undefined;
     if (latestChangeSetRaw) {
+        const gitPatch = latestChangeSetRaw.gitPatch as any;
         latestChangeSet = {
             files: extractChangeSetFiles(latestChangeSetRaw, latestDiff),
             raw: latestChangeSetRaw,
+            baseCommitId: gitPatch?.baseCommitId,
+            suggestedCommitMessage: gitPatch?.suggestedCommitMessage,
         };
     }
 

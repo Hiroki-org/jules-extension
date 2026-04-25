@@ -197,6 +197,11 @@
         "category": "Jules"
       },
       {
+        "command": "jules-extension.applyPatchLocally",
+        "title": "Jules: Apply Patch Locally",
+        "icon": "$(git-pull-request-go-to-changes)"
+      },
+      {
         "command": "jules-extension.reviewPlan",
         "title": "Review Plan...",
         "category": "Jules",
@@ -324,6 +329,11 @@
         },
         {
           "command": "jules-extension.openChangeset",
+          "when": "view == julesSessionsView && viewItem =~ /jules-session-with-changeset/",
+          "group": "navigation"
+        },
+        {
+          "command": "jules-extension.applyPatchLocally",
           "when": "view == julesSessionsView && viewItem =~ /jules-session-with-changeset/",
           "group": "navigation"
         },
