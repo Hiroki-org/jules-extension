@@ -2,7 +2,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
 import * as path from "path";
-import { resolveWorkspaceFile } from "../sessionContextMenuArtifacts";
+import { resolveWorkspaceFile, JulesDiffDocumentProvider } from "../sessionContextMenuArtifacts";
 
 suite("Session Context Menu Artifacts Security Suite", () => {
     let sandbox: sinon.SinonSandbox;
@@ -138,5 +138,100 @@ suite("Session Context Menu Artifacts Security Suite", () => {
 
         assert.ok(result, "Should verify existence in second folder");
         assert.strictEqual(result.fsPath, uri2.fsPath);
+    });
+});
+
+suite("JulesDiffDocumentProvider", () => {
+    let provider: JulesDiffDocumentProvider;
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        provider = new JulesDiffDocumentProvider();
+        sandbox = sinon.createSandbox();
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test("should return empty string for unknown URI", () => {
+        const uri = vscode.Uri.parse("jules-diff://sessions/unknown/after.patch");
+        const content = provider.provideTextDocumentContent(uri);
+        assert.strictEqual(content, "");
+    });
+
+    test("should store and retrieve content for URI", () => {
+        const uri = vscode.Uri.parse("jules-diff://sessions/test-123/after.patch");
+        const testContent = "diff --git a/file.ts b/file.ts";
+        
+        provider.setContent(uri, testContent);
+        const retrieved = provider.provideTextDocumentContent(uri);
+        
+        assert.strictEqual(retrieved, testContent);
+    });
+
+    test("should build correct URI for before patch", () => {
+        const sessionId = "sessions/test-456";
+        const uri = provider.buildUri(sessionId, "before");
+        
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-diff://"), "URI should have 'jules-diff' scheme");
+        assert.ok(uriString.includes("test-456"), "URI should include normalized session ID");
+        assert.ok(uriString.endsWith("before.patch"), "URI should end with 'before.patch'");
+    });
+
+    test("should build correct URI for after patch", () => {
+        const sessionId = "sessions/test-789";
+        const uri = provider.buildUri(sessionId, "after");
+        
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-diff://"), "URI should have 'jules-diff' scheme");
+        assert.ok(uriString.includes("test-789"), "URI should include normalized session ID");
+        assert.ok(uriString.endsWith("after.patch"), "URI should end with 'after.patch'");
+    });
+
+    test("should normalize session ID by removing 'sessions/' prefix", () => {
+        const sessionIdWithPrefix = "sessions/abc-123-def";
+        const uri = provider.buildUri(sessionIdWithPrefix, "after");
+        
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-diff://"), "URI should have 'jules-diff' scheme");
+        assert.ok(uriString.includes("abc-123-def"), "URI should include normalized session ID");
+        // Verify no double 'sessions/' prefix in the final URI
+        assert.ok(uriString.match(/sessions\/.*abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
+    });
+
+    test("should handle session ID without 'sessions/' prefix", () => {
+        const sessionIdWithoutPrefix = "abc-123-def";
+        const uri = provider.buildUri(sessionIdWithoutPrefix, "before");
+        
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-diff://"), "URI should have 'jules-diff' scheme");
+        assert.ok(uriString.includes("abc-123-def"), "URI should include session ID");
+        assert.ok(uriString.endsWith("before.patch"), "URI should end with 'before.patch'");
+    });
+
+    test("should maintain separate content for different URIs", () => {
+        const uri1 = vscode.Uri.parse("jules-diff://sessions/session1/before.patch");
+        const uri2 = vscode.Uri.parse("jules-diff://sessions/session1/after.patch");
+        const uri3 = vscode.Uri.parse("jules-diff://sessions/session2/after.patch");
+        
+        provider.setContent(uri1, "content1");
+        provider.setContent(uri2, "content2");
+        provider.setContent(uri3, "content3");
+        
+        assert.strictEqual(provider.provideTextDocumentContent(uri1), "content1");
+        assert.strictEqual(provider.provideTextDocumentContent(uri2), "content2");
+        assert.strictEqual(provider.provideTextDocumentContent(uri3), "content3");
+    });
+
+    test("should overwrite existing content", () => {
+        const uri = vscode.Uri.parse("jules-diff://sessions/test/after.patch");
+        
+        provider.setContent(uri, "original");
+        assert.strictEqual(provider.provideTextDocumentContent(uri), "original");
+        
+        provider.setContent(uri, "updated");
+        assert.strictEqual(provider.provideTextDocumentContent(uri), "updated");
     });
 });
