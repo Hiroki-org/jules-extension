@@ -78,7 +78,8 @@ suite('GitHubAuth Test Suite', () => {
             const token = await GitHubAuth.signIn();
 
             assert.strictEqual(token, undefined);
-            assert.strictEqual(clearCacheSpy.called, true);
+            // signIn() always clears at entry; the falsy-session branch must clear again.
+            assert.strictEqual(clearCacheSpy.calledTwice, true);
         });
 
         test('should return undefined and show error on failure', async () => {
