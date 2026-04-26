@@ -63,7 +63,7 @@ jobs:
           files: ./coverage/lcov.info
           flags: unittests
           name: unit-node20
-          fail_ci_if_error: false
+          fail_ci_if_error: true
 
   build-check:
     runs-on: ubuntu-latest
