@@ -417,12 +417,14 @@
   },
   "overrides": {
     "serialize-javascript": "^7.0.5",
-    "diff": "^8.0.3"
+    "diff": "^8.0.3",
+    "debug": "4.4.3"
   },
   "pnpm": {
     "overrides": {
       "serialize-javascript": "^7.0.5",
-      "diff": "^8.0.3"
+      "diff": "^8.0.3",
+      "debug": "4.4.3"
     }
   }
 }
