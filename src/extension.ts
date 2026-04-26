@@ -3096,6 +3096,8 @@ export function activate(context: vscode.ExtensionContext) {
             showPaginationProgress: true,
           },
         );
+        // TODO(issue-485): ページング取得で欠損/破損した activity がある場合、
+        // fetchSingleActivity(apiKey, sessionId, activityId) で対象のみ再取得して回復できる。
 
         const mergedActivities = shouldMergeWithCache
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)

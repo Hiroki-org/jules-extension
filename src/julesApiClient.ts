@@ -1,4 +1,5 @@
 import { Source as SourceType } from './types';
+import type { Activity } from './types';
 import { fetchWithTimeout } from './fetchUtils';
 
 interface SourcesListResponse {
@@ -41,6 +42,10 @@ export class JulesApiClient {
 
     async getSource(sourceName: string): Promise<SourceType> {
         return this.request<SourceType>(`/${sourceName}`);
+    }
+
+    async getActivity(sessionId: string, activityId: string): Promise<Activity> {
+        return this.request<Activity>(`/${sessionId}/activities/${activityId}`);
     }
 
     async listSources(options: ListSourcesOptions = {}): Promise<SourcesListResponse> {

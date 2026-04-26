@@ -53,6 +53,54 @@ suite('JulesApiClient Test Suite', () => {
         });
     });
 
+    suite('getActivity', () => {
+        test('should make correct request', async () => {
+            const sessionId = 'sessions/abc123';
+            const activityId = 'activity-1';
+            const mockResponse = {
+                ok: true,
+                json: async () => ({
+                    name: `${sessionId}/activities/${activityId}`,
+                    createTime: '2026-01-01T00:00:00Z',
+                    id: activityId,
+                    description: 'activity detail'
+                })
+            };
+            fetchStub.resolves(mockResponse);
+
+            const result = await client.getActivity(sessionId, activityId);
+
+            assert.strictEqual(fetchStub.calledOnce, true);
+            const [url, options] = fetchStub.firstCall.args;
+            assert.strictEqual(url, `${baseUrl}/${sessionId}/activities/${activityId}`);
+            assert.strictEqual(options.headers['X-Goog-Api-Key'], apiKey);
+            assert.strictEqual(options.headers['Content-Type'], 'application/json');
+            assert.strictEqual(result.id, activityId);
+        });
+
+        test('should throw error on API failure', async () => {
+            fetchStub.resolves({
+                ok: false,
+                status: 404,
+                statusText: 'Not Found'
+            });
+
+            await assert.rejects(
+                client.getActivity('sessions/missing', 'activity-404'),
+                new Error('API request failed: 404 Not Found')
+            );
+        });
+
+        test('should throw error on network failure', async () => {
+            fetchStub.rejects(new Error('Network failure'));
+
+            await assert.rejects(
+                client.getActivity('sessions/abc123', 'activity-1'),
+                new Error('Network failure')
+            );
+        });
+    });
+
     suite('listAllSources', () => {
         test('should paginate through all sources with pageSize=100', async () => {
             fetchStub.onFirstCall().resolves({
