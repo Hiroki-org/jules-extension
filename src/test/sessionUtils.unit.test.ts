@@ -147,4 +147,23 @@ suite("sessionUtils Test Suite", () => {
             /Failed to fetch activity: API request failed: 404 Not Found/
         );
     });
+
+    test("fetchSingleActivity preserves original error as cause", async () => {
+        fetchStub.resolves({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: async () => ({}),
+        } as Response);
+
+        await assert.rejects(
+            async () => fetchSingleActivity("dummy-key", "sessions/missing", "a500"),
+            (error: Error & { cause?: unknown }) => {
+                assert.ok(error.message.includes("Failed to fetch activity:"));
+                assert.ok(error.cause instanceof Error);
+                assert.ok((error.cause as Error).message.includes("API request failed: 500 Internal Server Error"));
+                return true;
+            }
+        );
+    });
 });

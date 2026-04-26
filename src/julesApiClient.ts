@@ -44,8 +44,13 @@ export class JulesApiClient {
         return this.request<SourceType>(`/${sourceName}`);
     }
 
-    async getActivity(sessionId: string, activityId: string): Promise<Activity> {
-        return this.request<Activity>(`/${sessionId}/activities/${activityId}`);
+    /**
+     * Fetch a single activity detail.
+     * @param sessionName Full session resource name in the form `sessions/{id}`.
+     * @param activityId Activity identifier as a single raw path segment; encoded by this client.
+     */
+    async getActivity(sessionName: string, activityId: string): Promise<Activity> {
+        return this.request<Activity>(`/${sessionName}/activities/${encodeURIComponent(activityId)}`);
     }
 
     async listSources(options: ListSourcesOptions = {}): Promise<SourcesListResponse> {

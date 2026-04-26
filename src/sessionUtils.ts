@@ -151,15 +151,15 @@ export async function sendMessage(
  */
 export async function fetchSingleActivity(
   apiKey: string,
-  sessionId: string,
+  sessionName: string,
   activityId: string,
 ): Promise<Activity> {
   const client = new JulesApiClient(apiKey, JULES_API_BASE_URL);
 
   try {
-    return await client.getActivity(sessionId, activityId);
+    return await client.getActivity(sessionName, activityId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to fetch activity: ${message}`);
+    throw new Error(`Failed to fetch activity: ${message}`, { cause: error });
   }
 }

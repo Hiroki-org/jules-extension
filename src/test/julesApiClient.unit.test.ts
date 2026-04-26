@@ -55,12 +55,12 @@ suite('JulesApiClient Test Suite', () => {
 
     suite('getActivity', () => {
         test('should make correct request', async () => {
-            const sessionId = 'sessions/abc123';
+            const sessionName = 'sessions/abc123';
             const activityId = 'activity-1';
             const mockResponse = {
                 ok: true,
                 json: async () => ({
-                    name: `${sessionId}/activities/${activityId}`,
+                    name: `${sessionName}/activities/${activityId}`,
                     createTime: '2026-01-01T00:00:00Z',
                     id: activityId,
                     description: 'activity detail'
@@ -68,14 +68,32 @@ suite('JulesApiClient Test Suite', () => {
             };
             fetchStub.resolves(mockResponse);
 
-            const result = await client.getActivity(sessionId, activityId);
+            const result = await client.getActivity(sessionName, activityId);
 
             assert.strictEqual(fetchStub.calledOnce, true);
             const [url, options] = fetchStub.firstCall.args;
-            assert.strictEqual(url, `${baseUrl}/${sessionId}/activities/${activityId}`);
+            assert.strictEqual(url, `${baseUrl}/${sessionName}/activities/${activityId}`);
             assert.strictEqual(options.headers['X-Goog-Api-Key'], apiKey);
             assert.strictEqual(options.headers['Content-Type'], 'application/json');
             assert.strictEqual(result.id, activityId);
+        });
+
+        test('should encode activity ID path segment', async () => {
+            const sessionName = 'sessions/abc123';
+            const activityId = 'activity with/slash';
+            fetchStub.resolves({
+                ok: true,
+                json: async () => ({
+                    name: `${sessionName}/activities/${activityId}`,
+                    createTime: '2026-01-01T00:00:00Z',
+                    id: activityId,
+                })
+            });
+
+            await client.getActivity(sessionName, activityId);
+
+            const [url] = fetchStub.firstCall.args;
+            assert.strictEqual(url, `${baseUrl}/${sessionName}/activities/activity%20with%2Fslash`);
         });
 
         test('should throw error on API failure', async () => {
