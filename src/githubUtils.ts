@@ -1,3 +1,4 @@
+
 import * as vscode from 'vscode';
 
 export interface GitHubUrlInfo {
@@ -29,7 +30,7 @@ export async function createRemoteBranch(
     repo: string,
     branchName: string
 ): Promise<void> {
-    const { Octokit } = require('@octokit/rest');
+    const { Octokit } = await import('@octokit/rest');
     const octokit = new Octokit({ auth: pat });
 
     // デフォルトブランチのSHAを取得
@@ -86,7 +87,7 @@ export async function getPullRequestBranchInfo(
     prNumber: number
 ): Promise<PullRequestBranchInfo | null> {
     try {
-        const { Octokit } = require('@octokit/rest');
+        const { Octokit } = await import('@octokit/rest');
         const octokit = new Octokit({ auth: token });
 
         const { data: pr } = await octokit.pulls.get({

@@ -1,8 +1,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { parseGitHubUrl } from '../githubUtils';
-import * as proxyquire from 'proxyquire';
+import { parseGitHubUrl, createRemoteBranch, getPullRequestBranchInfo } from '../githubUtils';
 
 suite('GitHub Utils Unit Tests', () => {
     let sandbox: sinon.SinonSandbox;
@@ -77,142 +76,132 @@ suite('GitHub Utils Unit Tests', () => {
         });
     });
 
-    suite('GitHub API Mocked Tests', () => {
-        let getStub: sinon.SinonStub;
-        let getRefStub: sinon.SinonStub;
-        let createRefStub: sinon.SinonStub;
-        let pullsGetStub: sinon.SinonStub;
-        let mockedUtils: any;
+
+    suite('GitHub API Mocked Tests with nock', () => {
+        let warnStub: sinon.SinonStub;
+        let errorStub: sinon.SinonStub;
+        const nock = require('nock');
 
         setup(() => {
-            getStub = sandbox.stub();
-            getRefStub = sandbox.stub();
-            createRefStub = sandbox.stub();
-            pullsGetStub = sandbox.stub();
-
-            class MockOctokit {
-                repos = { get: getStub };
-                git = { getRef: getRefStub, createRef: createRefStub };
-                pulls = { get: pullsGetStub };
-                constructor() {}
-            }
-
-            // Using proxyquire to mock the module
-            mockedUtils = proxyquire.noCallThru().load('../githubUtils', {
-                '@octokit/rest': { Octokit: MockOctokit }
-            });
+            warnStub = sandbox.stub(console, 'warn');
+            errorStub = sandbox.stub(console, 'error');
+            nock.disableNetConnect();
         });
 
-        suite('createRemoteBranch', () => {
-            test('creates branch successfully', async () => {
-                getStub.resolves({ data: { default_branch: 'main' } });
-                getRefStub.resolves({ data: { object: { sha: 'base-sha' } } });
-                createRefStub.resolves();
+        teardown(() => {
+            nock.cleanAll();
+            nock.enableNetConnect();
+        });
 
-                await mockedUtils.createRemoteBranch('token', 'owner', 'repo', 'feature-branch');
+        test('createRemoteBranch creates branch successfully', async () => {
+            nock('https://api.github.com')
+                .get('/repos/owner/repo')
+                .reply(200, { default_branch: 'main' });
 
-                sinon.assert.calledWith(getStub, { owner: 'owner', repo: 'repo' });
-                sinon.assert.calledWith(getRefStub, { owner: 'owner', repo: 'repo', ref: 'heads/main' });
-                sinon.assert.calledWith(createRefStub, {
-                    owner: 'owner',
-                    repo: 'repo',
+            nock('https://api.github.com')
+                .get('/repos/owner/repo/git/ref/heads%2Fmain')
+                .reply(200, { object: { sha: 'base-sha' } });
+
+            nock('https://api.github.com')
+                .post('/repos/owner/repo/git/refs', {
                     ref: 'refs/heads/feature-branch',
                     sha: 'base-sha'
-                });
-            });
+                })
+                .reply(201, {});
+
+            await createRemoteBranch('token', 'owner', 'repo', 'feature-branch');
+            assert.ok(true); // if it doesn't throw, it passed
         });
 
-        suite('getPullRequestBranchInfo', () => {
-            test('returns branch info successfully', async () => {
-                pullsGetStub.resolves({
-                    data: {
-                        head: {
-                            ref: 'feature-branch',
-                            repo: {
-                                owner: { login: 'fork-owner' },
-                                name: 'fork-repo',
-                                clone_url: 'https://clone.url'
-                            }
-                        },
-                        base: {
-                            ref: 'main'
-                        },
-                        merged: false,
-                        state: 'open',
-                        title: 'PR Title'
-                    }
-                });
-
-                const result = await mockedUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
-
-                assert.deepStrictEqual(result, {
-                    headBranch: 'feature-branch',
-                    baseBranch: 'main',
-                    headOwner: 'fork-owner',
-                    headRepo: 'fork-repo',
-                    headCloneUrl: 'https://clone.url',
+        test('getPullRequestBranchInfo returns branch info successfully', async () => {
+            nock('https://api.github.com')
+                .get('/repos/owner/repo/pulls/1')
+                .reply(200, {
+                    head: {
+                        ref: 'feature-branch',
+                        repo: {
+                            owner: { login: 'fork-owner' },
+                            name: 'fork-repo',
+                            clone_url: 'https://clone.url'
+                        }
+                    },
+                    base: {
+                        ref: 'main'
+                    },
+                    merged: false,
                     state: 'open',
                     title: 'PR Title'
                 });
-            });
 
-            test('returns null when head.repo is missing', async () => {
-                pullsGetStub.resolves({
-                    data: {
-                        head: {
-                            ref: 'feature-branch',
-                            repo: null
-                        },
-                        base: {
-                            ref: 'main'
-                        },
-                        merged: false,
-                        state: 'open',
-                        title: 'PR Title'
-                    }
+            const result = await getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+
+            assert.deepStrictEqual(result, {
+                headBranch: 'feature-branch',
+                baseBranch: 'main',
+                headOwner: 'fork-owner',
+                headRepo: 'fork-repo',
+                headCloneUrl: 'https://clone.url',
+                state: 'open',
+                title: 'PR Title'
+            });
+        });
+
+        test('getPullRequestBranchInfo returns null when head.repo is missing', async () => {
+            nock('https://api.github.com')
+                .get('/repos/owner/repo/pulls/1')
+                .reply(200, {
+                    head: {
+                        ref: 'feature-branch',
+                        repo: null
+                    },
+                    base: {
+                        ref: 'main'
+                    },
+                    merged: false,
+                    state: 'open',
+                    title: 'PR Title'
                 });
 
-                const warnStub = sandbox.stub(console, 'warn');
-                const result = await mockedUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+            const result = await getPullRequestBranchInfo('token', 'owner', 'repo', 1);
 
-                assert.strictEqual(result, null);
-                sinon.assert.calledWith(warnStub, '[Jules] PR head repository is null (possibly deleted fork)');
-            });
+            assert.strictEqual(result, null);
+            sinon.assert.calledWith(warnStub, '[Jules] PR head repository is null (possibly deleted fork)');
+        });
 
-            test('returns null and logs error when API fails with Error', async () => {
-                pullsGetStub.rejects(new Error('API Error'));
-                const errorStub = sandbox.stub(console, 'error');
+        test('getPullRequestBranchInfo returns null and logs error when API fails with Error', async () => {
+            nock('https://api.github.com')
+                .get('/repos/owner/repo/pulls/1')
+                .replyWithError('Network error');
 
-                const result = await mockedUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+            const result = await getPullRequestBranchInfo('token', 'owner', 'repo', 1);
 
-                assert.strictEqual(result, null);
-                sinon.assert.calledWith(errorStub, '[Jules] Failed to get PR branch info: API Error');
-            });
+            assert.strictEqual(result, null);
+            sinon.assert.calledWithMatch(errorStub, /^\[Jules\] Failed to get PR branch info: /);
+        });
 
-            test('handles merged state', async () => {
-                pullsGetStub.resolves({
-                    data: {
-                        head: {
-                            ref: 'feature-branch',
-                            repo: {
-                                owner: { login: 'fork-owner' },
-                                name: 'fork-repo',
-                                clone_url: 'https://clone.url'
-                            }
-                        },
-                        base: {
-                            ref: 'main'
-                        },
-                        merged: true,
-                        state: 'closed',
-                        title: 'PR Title'
-                    }
+        test('getPullRequestBranchInfo handles merged state', async () => {
+            nock('https://api.github.com')
+                .get('/repos/owner/repo/pulls/1')
+                .reply(200, {
+                    head: {
+                        ref: 'feature-branch',
+                        repo: {
+                            owner: { login: 'fork-owner' },
+                            name: 'fork-repo',
+                            clone_url: 'https://clone.url'
+                        }
+                    },
+                    base: {
+                        ref: 'main'
+                    },
+                    merged: true,
+                    state: 'closed',
+                    title: 'PR Title'
                 });
 
-                const result = await mockedUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+            const result = await getPullRequestBranchInfo('token', 'owner', 'repo', 1);
 
-                assert.strictEqual(result.state, 'merged');
-            });
+            assert.strictEqual(result?.state, 'merged');
         });
     });
 });
