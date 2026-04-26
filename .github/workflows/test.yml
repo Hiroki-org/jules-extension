@@ -37,6 +37,16 @@ jobs:
         if: matrix.node-version == 20
         run: pnpm run test:coverage
 
+      - name: Verify JUnit report exists for Codecov
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -f ./test-results/junit.xml ]]; then
+            echo "Expected JUnit report was not found at ./test-results/junit.xml"
+            ls -la ./test-results || true
+            exit 1
+          fi
+
       - name: Upload test results to Codecov
         if: always()
         uses: codecov/codecov-action@v6
