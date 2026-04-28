@@ -193,6 +193,11 @@ suite('sessionContextMenu Test Suite', () => {
             const result = parsePullRequestUrl('https://github.com/owner/repo/pull/-1');
             assert.strictEqual(result, null);
         });
+
+        test('should handle exception during parsePullRequestUrl', () => {
+            const result = parsePullRequestUrl({} as string); // Causes u = new URL(prUrl) to throw TypeError
+            assert.strictEqual(result, null);
+        });
     });
 
     suite('getPullRequestUrlForSession (Session fallback scenarios)', () => {

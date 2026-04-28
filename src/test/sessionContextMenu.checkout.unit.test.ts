@@ -375,11 +375,13 @@ suite('sessionContextMenu checkout coverage suite', () => {
     test('openPullRequestInBrowser handles success and failure paths', async () => {
         openExternalStub.onFirstCall().resolves(true);
         openExternalStub.onSecondCall().resolves(false);
+        openExternalStub.onThirdCall().rejects(new Error('Network error'));
 
         await sessionContextMenu.openPullRequestInBrowser('https://github.com/owner/repo/pull/123');
         await sessionContextMenu.openPullRequestInBrowser('https://github.com/owner/repo/pull/456');
+        await sessionContextMenu.openPullRequestInBrowser('https://github.com/owner/repo/pull/789');
 
-        assert.strictEqual(openExternalStub.callCount, 2);
-        assert.strictEqual(showErrorMessageStub.calledOnce, true);
+        assert.strictEqual(openExternalStub.callCount, 3);
+        assert.strictEqual(showErrorMessageStub.calledTwice, true);
     });
 });
