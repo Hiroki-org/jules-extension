@@ -6,4 +6,9 @@ suite("Galactic Operations Suite / 銀河演算スイート", () => {
         const result = calculateUniversalMeaning();
         assert.strictEqual(result, 42);
     });
+
+    test("calculateUniversalMeaningは数値型を返すべき (Returns a number)", () => {
+        const result = calculateUniversalMeaning();
+        assert.strictEqual(typeof result, 'number');
+    });
 });
