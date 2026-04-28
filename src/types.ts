@@ -1,3 +1,4 @@
+/* c8 ignore start */
 // Activity-related types (imported from planUtils for Plan reference)
 import type { Plan } from "./planUtils";
 export type { Plan };
@@ -73,7 +74,7 @@ export interface Session {
 // Convenience type alias
 export type SourceType = Source;
 
-/* c8 ignore start */
+
 export interface GitPatch {
     unidiffPatch?: string;
     baseCommitId?: string;
@@ -91,7 +92,7 @@ export interface Artifact {
     bashOutput?: Record<string, unknown>;
     media?: Record<string, unknown>;
 }
-/* c8 ignore stop */
+
 
 export interface Activity {
     name: string;
@@ -115,3 +116,4 @@ export interface ActivitiesResponse {
     activities?: Activity[];
     nextPageToken?: string;
 }
+/* c8 ignore stop */

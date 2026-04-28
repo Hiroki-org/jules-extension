@@ -400,6 +400,7 @@
     "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
+    "nock": "^14.0.13",
     "npm-run-all": "^4.1.5",
     "playwright-core": "^1.58.2",
     "sinon": "^17.0.0",
@@ -409,9 +410,11 @@
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "@shikijs/markdown-it": "^4.0.2",
+    "@types/proxyquire": "^1.3.31",
     "https-proxy-agent": "^7.0.6",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
+    "proxyquire": "^2.1.3",
     "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
   },

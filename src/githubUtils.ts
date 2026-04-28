@@ -1,3 +1,4 @@
+
 import * as vscode from 'vscode';
 
 export interface GitHubUrlInfo {
