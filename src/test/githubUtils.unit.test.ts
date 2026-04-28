@@ -35,6 +35,15 @@ suite('githubUtils', () => {
         });
     });
 
+    suite('getOctokitInstance', () => {
+        test('should return an Octokit instance', async () => {
+            const instance = await githubUtils.getOctokitInstance('dummy-token');
+            assert.strictEqual(typeof instance, 'object');
+            // Since it's a real Octokit object, we just ensure it exists
+            assert.ok(instance.request);
+        });
+    });
+
     suite('getPullRequestBranchInfo', () => {
         test('should return null if API request fails', async () => {
             sandbox.stub(githubUtils, 'getOctokitInstance').rejects(new Error('API error'));
@@ -153,6 +162,11 @@ suite('githubUtils', () => {
                  ref: 'refs/heads/new-branch',
                  sha: '1234567890abcdef'
             });
+        });
+
+        test('should throw error if getOctokitInstance throws', async () => {
+            sandbox.stub(githubUtils, 'getOctokitInstance').rejects(new Error('Auth failed'));
+            await assert.rejects(githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'), /Auth failed/);
         });
     });
 });
