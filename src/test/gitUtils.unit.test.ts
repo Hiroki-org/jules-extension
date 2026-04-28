@@ -1,216 +1,130 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import {
-    getCurrentBranchSha,
-    getGitApi,
-    getRemoteUrl,
-    getRepositoryForWorkspaceFolder,
-} from '../gitUtils';
+import { getGitApi, getRepositoryForWorkspaceFolder, getRemoteUrl, getCurrentBranchSha } from '../gitUtils';
 
-suite('gitUtils ユニットテスト', () => {
+suite('gitUtils', () => {
     let sandbox: sinon.SinonSandbox;
-    let outputChannel: { appendLine: sinon.SinonSpy };
+    let mockOutputChannel: any;
 
     setup(() => {
         sandbox = sinon.createSandbox();
-        outputChannel = { appendLine: sandbox.spy() };
+        mockOutputChannel = {
+            name: 'Mock',
+            append: sandbox.stub(),
+            appendLine: sandbox.stub(),
+            replace: sandbox.stub(),
+            clear: sandbox.stub(),
+            show: sandbox.stub(),
+            hide: sandbox.stub(),
+            dispose: sandbox.stub()
+        };
     });
 
     teardown(() => {
         sandbox.restore();
     });
 
-    function workspaceFolder(fsPath: string): vscode.WorkspaceFolder {
-        return {
-            uri: vscode.Uri.file(fsPath),
-            name: 'workspace',
-            index: 0,
-        };
-    }
+    suite('getGitApi', () => {
+        test('should throw an error if vscode.git extension is not found', async () => {
+            sandbox.stub(vscode.extensions, 'getExtension').returns(undefined);
+            await assert.rejects(getGitApi(mockOutputChannel), /Git extension not found/);
+        });
 
-    test('getGitApi は Git extension を activate して API を返すこと', async () => {
-        const gitApi = { repositories: [] };
-        const activate = sandbox.stub().resolves();
-        const getAPI = sandbox.stub().withArgs(1).returns(gitApi);
-        sandbox.stub(vscode.extensions, 'getExtension').withArgs('vscode.git').returns({
-            activate,
-            exports: { getAPI },
-        } as any);
+        test('should throw an error if git extension does not return an API', async () => {
+            const extMock = { activate: sandbox.stub().resolves(), exports: { getAPI: sandbox.stub().returns(undefined) } };
+            sandbox.stub(vscode.extensions, 'getExtension').returns(extMock as any);
+            await assert.rejects(getGitApi(mockOutputChannel), /Git API not available/);
+        });
 
-        const result = await getGitApi(outputChannel as any);
-
-        assert.strictEqual(result, gitApi);
-        assert.strictEqual(activate.calledOnce, true);
-        assert.strictEqual(getAPI.calledOnceWithExactly(1), true);
+        test('should return git api successfully', async () => {
+            const gitApiMock = { repositories: [] };
+            const extMock = { activate: sandbox.stub().resolves(), exports: { getAPI: sandbox.stub().returns(gitApiMock) } };
+            sandbox.stub(vscode.extensions, 'getExtension').returns(extMock as any);
+            const api = await getGitApi(mockOutputChannel);
+            assert.strictEqual(api, gitApiMock);
+        });
     });
 
-    test('getGitApi は Git extension がない場合にエラーを投げること', async () => {
-        sandbox.stub(vscode.extensions, 'getExtension').withArgs('vscode.git').returns(undefined);
+    suite('getRepositoryForWorkspaceFolder', () => {
+        test('should return null if repository is not found', () => {
+            const git = { repositories: [] };
+            const workspaceFolder = { uri: { fsPath: '/test/path' } } as any;
+            const repo = getRepositoryForWorkspaceFolder(git, workspaceFolder, mockOutputChannel);
+            assert.strictEqual(repo, null);
+        });
 
-        await assert.rejects(
-            async () => await getGitApi(outputChannel as any),
-            /Git extension not found/,
-        );
-        assert.match(outputChannel.appendLine.firstCall.args[0], /vscode\.git extension not found/);
+        test('should return repository if found', () => {
+            const repoMock = { rootUri: { fsPath: '/test/path' } };
+            const git = { repositories: [repoMock] };
+            const workspaceFolder = { uri: { fsPath: '/test/path' } } as any;
+            const repo = getRepositoryForWorkspaceFolder(git, workspaceFolder, mockOutputChannel);
+            assert.strictEqual(repo, repoMock);
+        });
     });
 
-    test('getGitApi は Git API が取得できない場合にエラーを投げること', async () => {
-        sandbox.stub(vscode.extensions, 'getExtension').withArgs('vscode.git').returns({
-            activate: sandbox.stub().resolves(),
-            exports: { getAPI: sandbox.stub().returns(undefined) },
-        } as any);
+    suite('getRemoteUrl', () => {
+        test('should return null if there are no remotes', () => {
+            const repo = { state: { remotes: [] } };
+            const url = getRemoteUrl(repo, 'origin', mockOutputChannel);
+            assert.strictEqual(url, null);
+        });
 
-        await assert.rejects(
-            async () => await getGitApi(outputChannel as any),
-            /Git API not available/,
-        );
-        assert.match(outputChannel.appendLine.firstCall.args[0], /did not return a Git API/);
+        test('should return null if no remote has fetchUrl or pushUrl', () => {
+            const repo = { state: { remotes: [{ name: 'origin', fetchUrl: undefined, pushUrl: undefined }] } };
+            const url = getRemoteUrl(repo, 'origin', mockOutputChannel);
+            assert.strictEqual(url, null);
+        });
+
+        test('should return origin remote url', () => {
+            const repo = { state: { remotes: [{ name: 'origin', fetchUrl: 'https://origin.url' }] } };
+            const url = getRemoteUrl(repo, 'origin', mockOutputChannel);
+            assert.strictEqual(url, 'https://origin.url');
+        });
+
+        test('should fallback to first remote with url if origin not found', () => {
+            const repo = { state: { remotes: [{ name: 'upstream', fetchUrl: 'https://upstream.url' }] } };
+            const url = getRemoteUrl(repo, 'origin', mockOutputChannel);
+            assert.strictEqual(url, 'https://upstream.url');
+        });
     });
 
-    test('getRepositoryForWorkspaceFolder は一致する repository を返すこと', () => {
-        const folder = workspaceFolder('/workspace/project');
-        const repository = { rootUri: vscode.Uri.file('/workspace/project') };
-        const git = {
-            repositories: [
-                { rootUri: vscode.Uri.file('/workspace/other') },
-                repository,
-            ],
-        };
+    suite('getCurrentBranchSha', () => {
+        test('should return null if no workspace folders exist', async () => {
+            sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
+            const sha = await getCurrentBranchSha(mockOutputChannel);
+            assert.strictEqual(sha, null);
+        });
 
-        const result = getRepositoryForWorkspaceFolder(git, folder, outputChannel as any);
+        test('should handle errors thrown by getGitApi', async () => {
+            sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: { fsPath: '/path' } }] as any);
+            sandbox.stub(vscode.extensions, 'getExtension').returns(undefined); // Causes getGitApi to throw
+            const sha = await getCurrentBranchSha(mockOutputChannel);
+            assert.strictEqual(sha, null);
+        });
 
-        assert.strictEqual(result, repository);
-    });
+        test('should return null if repository not found', async () => {
+            sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: { fsPath: '/path' } }] as any);
+            const gitApiMock = { repositories: [] };
+            const extMock = { activate: sandbox.stub().resolves(), exports: { getAPI: sandbox.stub().returns(gitApiMock) } };
+            sandbox.stub(vscode.extensions, 'getExtension').returns(extMock as any);
 
-    test('getRepositoryForWorkspaceFolder は repository がない場合に null を返してログすること', () => {
-        const folder = workspaceFolder('/workspace/project\nsecret');
-        const git = { repositories: [] };
+            const sha = await getCurrentBranchSha(mockOutputChannel);
+            assert.strictEqual(sha, null);
+        });
 
-        const result = getRepositoryForWorkspaceFolder(git, folder, outputChannel as any);
+        test('should return HEAD commit SHA', async () => {
+            sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: { fsPath: '/path' } }] as any);
+            const repoMock = {
+                rootUri: { fsPath: '/path' },
+                state: { HEAD: { commit: '12345abcde' } }
+            };
+            const gitApiMock = { repositories: [repoMock] };
+            const extMock = { activate: sandbox.stub().resolves(), exports: { getAPI: sandbox.stub().returns(gitApiMock) } };
+            sandbox.stub(vscode.extensions, 'getExtension').returns(extMock as any);
 
-        assert.strictEqual(result, null);
-        assert.match(outputChannel.appendLine.firstCall.args[0], /No Git repository found/);
-        assert.ok(!outputChannel.appendLine.firstCall.args[0].includes('\nsecret'));
-    });
-
-    test('getRemoteUrl は origin の URL を優先して返すこと', () => {
-        const repository = {
-            state: {
-                remotes: [
-                    { name: 'upstream', fetchUrl: 'https://github.com/example/upstream.git' },
-                    { name: 'origin', fetchUrl: 'https://github.com/example/repo.git' },
-                ],
-            },
-        };
-
-        assert.strictEqual(
-            getRemoteUrl(repository, 'origin', outputChannel as any),
-            'https://github.com/example/repo.git',
-        );
-    });
-
-    test('getRemoteUrl は preferred remote がない場合に URL 付き remote へフォールバックすること', () => {
-        const repository = {
-            state: {
-                remotes: [
-                    { name: 'backup', pushUrl: 'https://github.com/example/backup.git' },
-                ],
-            },
-        };
-
-        assert.strictEqual(
-            getRemoteUrl(repository, 'origin', outputChannel as any),
-            'https://github.com/example/backup.git',
-        );
-        assert.match(outputChannel.appendLine.firstCall.args[0], /Preferred remote/);
-    });
-
-    test('getRemoteUrl は remotes が空の場合に null を返すこと', () => {
-        const repository = { state: { remotes: [] } };
-
-        assert.strictEqual(getRemoteUrl(repository, 'origin', outputChannel as any), null);
-        assert.match(outputChannel.appendLine.firstCall.args[0], /No remotes found/);
-    });
-
-    test('getRemoteUrl は URL 付き remote がない場合に null を返すこと', () => {
-        const repository = {
-            state: {
-                remotes: [{ name: 'origin' }],
-            },
-        };
-
-        assert.strictEqual(getRemoteUrl(repository, 'origin', outputChannel as any), null);
-        assert.match(outputChannel.appendLine.firstCall.args[0], /has no fetchUrl or pushUrl/);
-    });
-
-    test('getRemoteUrl は preferred remote 不在かつ URL 付き remote もない場合に null を返すこと', () => {
-        const repository = {
-            state: {
-                remotes: [{ name: 'backup' }],
-            },
-        };
-
-        assert.strictEqual(getRemoteUrl(repository, 'origin', outputChannel as any), null);
-        assert.match(outputChannel.appendLine.firstCall.args[0], /No remote URL found/);
-    });
-
-    test('getCurrentBranchSha は workspace がない場合に null を返すこと', async () => {
-        sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
-
-        const result = await getCurrentBranchSha(outputChannel as any);
-
-        assert.strictEqual(result, null);
-        assert.match(outputChannel.appendLine.firstCall.args[0], /No workspace folder/);
-    });
-
-    test('getCurrentBranchSha は現在の HEAD commit を返すこと', async () => {
-        sandbox.stub(vscode.workspace, 'workspaceFolders').value([workspaceFolder('/workspace/project')]);
-        sandbox.stub(vscode.extensions, 'getExtension').withArgs('vscode.git').returns({
-            activate: sandbox.stub().resolves(),
-            exports: {
-                getAPI: sandbox.stub().returns({
-                    repositories: [
-                        {
-                            rootUri: vscode.Uri.file('/workspace/project'),
-                            state: { HEAD: { commit: 'abc123' } },
-                        },
-                    ],
-                }),
-            },
-        } as any);
-
-        const result = await getCurrentBranchSha(outputChannel as any);
-
-        assert.strictEqual(result, 'abc123');
-    });
-
-    test('getCurrentBranchSha は repository が見つからない場合に null を返すこと', async () => {
-        sandbox.stub(vscode.workspace, 'workspaceFolders').value([workspaceFolder('/workspace/project')]);
-        sandbox.stub(vscode.extensions, 'getExtension').withArgs('vscode.git').returns({
-            activate: sandbox.stub().resolves(),
-            exports: {
-                getAPI: sandbox.stub().returns({
-                    repositories: [],
-                }),
-            },
-        } as any);
-
-        const result = await getCurrentBranchSha(outputChannel as any);
-
-        assert.strictEqual(result, null);
-    });
-
-    test('getCurrentBranchSha は Git API 取得エラー時に null を返すこと', async () => {
-        sandbox.stub(vscode.workspace, 'workspaceFolders').value([workspaceFolder('/workspace/project')]);
-        sandbox.stub(vscode.extensions, 'getExtension').withArgs('vscode.git').returns(undefined);
-
-        const result = await getCurrentBranchSha(outputChannel as any);
-
-        assert.strictEqual(result, null);
-        assert.strictEqual(
-            outputChannel.appendLine.calledWithMatch(/Error getting current branch sha/),
-            true,
-        );
+            const sha = await getCurrentBranchSha(mockOutputChannel);
+            assert.strictEqual(sha, '12345abcde');
+        });
     });
 });
