@@ -23,14 +23,20 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
         repo: match[2],
     };
 }
+// Helper factory function to abstract dynamic Octokit import and instantiation.
+// This makes it easy to stub in unit tests without complex module mocking or proxyquire.
+export async function getOctokitInstance(token: string): Promise<any> {
+    const { Octokit } = await import('@octokit/rest');
+    return new Octokit({ auth: token });
+}
+
 export async function createRemoteBranch(
     pat: string,
     owner: string,
     repo: string,
     branchName: string
 ): Promise<void> {
-    const { Octokit } = await import('@octokit/rest');
-    const octokit = new Octokit({ auth: pat });
+    const octokit = await exports.getOctokitInstance(pat);
 
     // デフォルトブランチのSHAを取得
     const { data: repoData } = await octokit.repos.get({ owner, repo });
@@ -86,8 +92,7 @@ export async function getPullRequestBranchInfo(
     prNumber: number
 ): Promise<PullRequestBranchInfo | null> {
     try {
-        const { Octokit } = await import('@octokit/rest');
-        const octokit = new Octokit({ auth: token });
+        const octokit = await exports.getOctokitInstance(token);
 
         const { data: pr } = await octokit.pulls.get({
             owner,
