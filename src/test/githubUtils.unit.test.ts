@@ -194,7 +194,7 @@ suite('githubUtils', () => {
                     createRef: sandbox.stub().resolves()
                 }
             };
-            githubUtils.setOctokitFactoryForTesting(async () => mockOctokit as any);
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
 
             await assert.rejects(
                 githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
@@ -212,7 +212,7 @@ suite('githubUtils', () => {
                     createRef: sandbox.stub().resolves()
                 }
             };
-            githubUtils.setOctokitFactoryForTesting(async () => mockOctokit as any);
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
 
             await assert.rejects(
                 githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
@@ -230,7 +230,7 @@ suite('githubUtils', () => {
                     createRef: sandbox.stub().rejects(new Error('Failed to create ref'))
                 }
             };
-            githubUtils.setOctokitFactoryForTesting(async () => mockOctokit as any);
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
 
             await assert.rejects(
                 githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
