@@ -183,5 +183,59 @@ suite('githubUtils', () => {
             githubUtils.setOctokitFactory(async () => Promise.reject(new Error('Auth failed')));
             await assert.rejects(githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'), /Auth failed/);
         });
+
+        test('should throw error if repos.get rejects', async () => {
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().rejects(new Error('Failed to get repository'))
+                },
+                git: {
+                    getRef: sandbox.stub().resolves({ data: { object: { sha: '1234567890abcdef' } } }),
+                    createRef: sandbox.stub().resolves()
+                }
+            };
+            githubUtils.setOctokitFactoryForTesting(async () => mockOctokit as any);
+
+            await assert.rejects(
+                githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
+                /Failed to get repository/
+            );
+        });
+
+        test('should throw error if git.getRef rejects', async () => {
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().resolves({ data: { default_branch: 'main' } })
+                },
+                git: {
+                    getRef: sandbox.stub().rejects(new Error('Failed to get ref')),
+                    createRef: sandbox.stub().resolves()
+                }
+            };
+            githubUtils.setOctokitFactoryForTesting(async () => mockOctokit as any);
+
+            await assert.rejects(
+                githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
+                /Failed to get ref/
+            );
+        });
+
+        test('should throw error if git.createRef rejects', async () => {
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().resolves({ data: { default_branch: 'main' } })
+                },
+                git: {
+                    getRef: sandbox.stub().resolves({ data: { object: { sha: '1234567890abcdef' } } }),
+                    createRef: sandbox.stub().rejects(new Error('Failed to create ref'))
+                }
+            };
+            githubUtils.setOctokitFactoryForTesting(async () => mockOctokit as any);
+
+            await assert.rejects(
+                githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
+                /Failed to create ref/
+            );
+        });
     });
 });
