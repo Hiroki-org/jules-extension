@@ -213,8 +213,8 @@ export function buildChatMessagesFromActivities(
       getActivityLabelPrefix(activity) +
       getActivitySummaryText(activity);
     let detailsHtml = "";
-    // TODO(issue-485): detailsはUI上で折りたたまれているが、HTML自体はここで先に生成している。
-    // 大きなplan/diff/bashOutputは展開時に個別取得する遅延読み込みへ移行可能。
+    // We lazy load large details: plan, diff, artifacts
+    const actId = escapeHtml(activity.id ?? activity.name);
     if (activity.sessionFailed?.reason) {
       detailsHtml +=
         '<details class="activity-details"><summary>View Error Details</summary><div class="details-content code-block"><pre><code>' +
@@ -223,17 +223,13 @@ export function buildChatMessagesFromActivities(
     }
     if (activity.planGenerated?.plan) {
       detailsHtml +=
-        '<details class="activity-details"><summary>View Plan</summary><div class="details-content">' +
-        renderChatMarkdown(formatFullPlan(activity.planGenerated.plan)) +
-        "</div></details>";
+        '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="plan"><summary>View Plan</summary><div class="details-content">Loading...</div></details>';
     }
     if ((activity as any).gitPatch?.diff) {
       const diff = (activity as any).gitPatch.diff;
       if (typeof diff === "string" && diff.trim().length > 0) {
         detailsHtml +=
-          '<details class="activity-details"><summary>View Diff</summary><div class="details-content">' +
-          renderChatMarkdown("```diff\n" + diff + "\n```") +
-          "</div></details>";
+          '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="diff"><summary>View Diff</summary><div class="details-content">Loading...</div></details>';
       }
     }
     if (activity.artifacts && activity.artifacts.length > 0) {
@@ -242,24 +238,14 @@ export function buildChatMessagesFromActivities(
           const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
           if (diffData && typeof diffData === "string") {
             detailsHtml +=
-              '<details class="activity-details"><summary>View ChangeSet (' +
+              '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="changeset" data-index="' + i + '"><summary>View ChangeSet (' +
               (i + 1) +
-              ')</summary><div class="details-content">' +
-              renderChatMarkdown("```diff\n" + diffData + "\n```") +
-              "</div></details>";
+              ')</summary><div class="details-content">Loading...</div></details>';
           } else {
-            let raw = "";
-            try {
-              raw = JSON.stringify(artifact.changeSet, null, 2);
-            } catch {
-              raw = String(artifact.changeSet);
-            }
             detailsHtml +=
-              '<details class="activity-details"><summary>View ChangeSet Details (' +
+              '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="changeset-raw" data-index="' + i + '"><summary>View ChangeSet Details (' +
               (i + 1) +
-              ')</summary><div class="details-content">' +
-              renderChatMarkdown("```json\n" + raw + "\n```") +
-              "</div></details>";
+              ')</summary><div class="details-content">Loading...</div></details>';
           }
         }
         if (artifact.bashOutput) {
@@ -272,20 +258,10 @@ export function buildChatMessagesFromActivities(
           const stdout = outRec.stdout;
           const stderr = outRec.stderr;
           if (commandLine || stdout || stderr) {
-            const out = (
-              "> " +
-              (commandLine || "Command") +
-              "\n" +
-              (stdout || "") +
-              "\n" +
-              (stderr || "")
-            ).trim();
             detailsHtml +=
-              '<details class="activity-details"><summary>View Bash Output (' +
+              '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="bash" data-index="' + i + '"><summary>View Bash Output (' +
               (i + 1) +
-              ')</summary><div class="details-content">' +
-              renderChatMarkdown("```bash\n" + out + "\n```") +
-              "</div></details>";
+              ')</summary><div class="details-content">Loading...</div></details>';
           }
         }
       });
@@ -331,6 +307,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message?.type === "requestInitialState") {
         this.postState();
+        return;
+      }
+      if (message?.type === "requestDetails") {
+        this.handleRequestDetails(message);
         return;
       }
       if (message?.type !== "sendMessage") {
@@ -381,6 +361,74 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     };
     this.postState();
   }
+  private handleRequestDetails(message: any): void {
+    if (!this.view || !message.activityId || !message.detailType) {
+      return;
+    }
+    const activity = this.activities.find(
+      (a) => (a.id ?? a.name) === message.activityId,
+    );
+    if (!activity) {
+      return;
+    }
+    let html = "Not found";
+    if (message.detailType === "plan" && activity.planGenerated?.plan) {
+      html = renderChatMarkdown(formatFullPlan(activity.planGenerated.plan));
+    } else if (message.detailType === "diff" && (activity as any).gitPatch?.diff) {
+      const diff = (activity as any).gitPatch.diff;
+      if (typeof diff === "string") {
+        html = renderChatMarkdown("```diff\n" + diff + "\n```");
+      }
+    } else if (activity.artifacts && typeof message.index === "number") {
+      const artifact = activity.artifacts[message.index];
+      if (artifact) {
+        if (message.detailType === "changeset" && artifact.changeSet) {
+          const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
+          if (diffData && typeof diffData === "string") {
+            html = renderChatMarkdown("```diff\n" + diffData + "\n```");
+          }
+        } else if (message.detailType === "changeset-raw" && artifact.changeSet) {
+          let raw = "";
+          try {
+            raw = JSON.stringify(artifact.changeSet, null, 2);
+          } catch {
+            raw = String(artifact.changeSet);
+          }
+          html = renderChatMarkdown("```json\n" + raw + "\n```");
+        } else if (message.detailType === "bash" && artifact.bashOutput) {
+          const outRec = artifact.bashOutput as Record<string, any>;
+          let commandLine = outRec.commandLine;
+          const commands = outRec.commands;
+          if (commands && Array.isArray(commands) && commands.length > 0) {
+            commandLine = commands[0].commandLine;
+          }
+          const stdout = outRec.stdout;
+          const stderr = outRec.stderr;
+          const out = (
+            "> " +
+            (commandLine || "Command") +
+            "\n" +
+            (stdout || "") +
+            "\n" +
+            (stderr || "")
+          ).trim();
+          html = renderChatMarkdown("```bash\n" + out + "\n```");
+        }
+      }
+    }
+    void Promise.resolve(
+      this.view.webview.postMessage({
+        type: "detailsHtml",
+        activityId: message.activityId,
+        detailType: message.detailType,
+        index: message.index,
+        html,
+      }),
+    ).catch((err: unknown) =>
+      console.error("Jules: Failed to post detailsHtml to chat view:", err),
+    );
+  }
+
   private postState(): void {
     if (!this.view) {
       return;
