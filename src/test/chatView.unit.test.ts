@@ -190,6 +190,58 @@ suite("Chat View Unit Test Suite", () => {
       handleRequestDetails({ activityId: "invalid", detailType: "plan" });
       await new Promise(r => setTimeout(r, 0));
       assert.strictEqual(postedMessage, null);
+
+      // Test missing activityId or detailType
+      handleRequestDetails({ detailType: "plan" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage, null);
+
+      handleRequestDetails({ activityId: "act-1" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage, null);
+
+      // Test no view
+      const providerNoView = new JulesChatViewProvider(async () => {});
+      (providerNoView as any).handleRequestDetails({ activityId: "act-1", detailType: "plan" });
+
+      // Update session with edge cases
+      const actEdge: any = createActivity({
+        id: "act-edge",
+        artifacts: [{
+          changeSet: { gitPatch: { unidiffPatch: 123 } } as any, // not a string
+        }, {
+          changeSet: BigInt(9007199254740991) // invalid json
+        }, {
+          bashOutput: { commands: [{ commandLine: "cmd2" }] } as any
+        }]
+      });
+      actEdge.gitPatch = { diff: 123 }; // not string
+      provider.updateSession("session-2", [actEdge]);
+
+      // Test edge diff
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "diff" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage.html.includes("Not found"));
+
+      // Test edge changeset diff not string
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "changeset", index: 0 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage.html.includes("Not found"));
+
+      // Test edge invalid json
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "changeset-raw", index: 1 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage.html.includes("9007199254740991"));
+
+      // Test bash with commands array
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "bash", index: 2 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage.html.includes("cmd2"));
+
     });
   });
 
