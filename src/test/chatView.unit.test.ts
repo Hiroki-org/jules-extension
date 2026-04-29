@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import {
+  JulesChatViewProvider,
   buildChatMessagesFromActivities,
   getChatWebviewHtml,
   isGeneratingSessionState,
@@ -81,4 +82,115 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
   });
+
+  test("buildChatMessagesFromActivities should generate lazy load placeholders for details", () => {
+    const act: any = createActivity({
+      id: "act1",
+      createTime: "2025-01-01T00:00:01Z",
+      planGenerated: { plan: { steps: [{ description: "some plan" }] } as any },
+      sessionFailed: { reason: "some error" },
+      artifacts: [
+        {
+          changeSet: { gitPatch: { unidiffPatch: "change diff" } } as any,
+          bashOutput: { stdout: "out", stderr: "err", commandLine: "cmd" }
+        },
+        {
+          changeSet: { other: "raw json" } as any
+        }
+      ]
+    });
+    act.gitPatch = { diff: "some diff" };
+
+    const messages = buildChatMessagesFromActivities([act]);
+
+    assert.strictEqual(messages.length, 1);
+    const html = messages[0].html;
+
+    assert.ok(html.includes("some error"));
+    assert.ok(html.includes('data-detail-type="plan"'));
+    assert.ok(html.includes('data-detail-type="diff"'));
+    assert.ok(html.includes('data-detail-type="changeset"'));
+    assert.ok(html.includes('data-detail-type="changeset-raw"'));
+    assert.ok(html.includes('data-detail-type="bash"'));
+    assert.ok(html.includes("Loading..."));
+  });
+
+
+  suite("JulesChatViewProvider lazy loading", () => {
+    test("handleRequestDetails generates HTML and sends back via postMessage", async () => {
+      let postedMessage: any;
+      const webviewView: any = {
+        webview: {
+          options: {},
+          html: "",
+          cspSource: "https://example.com",
+          onDidReceiveMessage: (cb: any) => { /* mock */ },
+          postMessage: async (msg: any) => { postedMessage = msg; }
+        }
+      };
+
+      const provider = new JulesChatViewProvider(async () => {});
+      // we need to call resolveWebviewView to set this.view
+      await provider.resolveWebviewView(webviewView);
+
+
+      const actProvider: any = createActivity({
+        id: "act-1",
+        planGenerated: { plan: { steps: [{ description: "test plan" }] } as any },
+        artifacts: [{
+          changeSet: { gitPatch: { unidiffPatch: "test patch" } } as any,
+          bashOutput: { stdout: "out", stderr: "err", commandLine: "cmd" }
+        }, {
+          changeSet: { data: "test data" } as any
+        }]
+      });
+      actProvider.gitPatch = { diff: "test diff" };
+
+      provider.updateSession("session-1", [actProvider]);
+
+
+      // Call internal handleRequestDetails using cast to any
+      const handleRequestDetails = (provider as any).handleRequestDetails.bind(provider);
+
+      // Test plan
+      handleRequestDetails({ activityId: "act-1", detailType: "plan" });
+      await new Promise(r => setTimeout(r, 0)); // let microtasks run
+      assert.strictEqual(postedMessage.type, "detailsHtml");
+      assert.strictEqual(postedMessage.activityId, "act-1");
+      assert.strictEqual(postedMessage.detailType, "plan");
+      assert.ok(postedMessage.html.includes("test plan"));
+
+      // Test diff
+      handleRequestDetails({ activityId: "act-1", detailType: "diff" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "diff");
+      assert.ok(postedMessage.html.includes("test diff"));
+
+      // Test changeset
+      handleRequestDetails({ activityId: "act-1", detailType: "changeset", index: 0 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "changeset");
+      assert.ok(postedMessage.html.includes("test patch"));
+
+      // Test bash
+      handleRequestDetails({ activityId: "act-1", detailType: "bash", index: 0 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "bash");
+      assert.ok(postedMessage.html.includes("cmd"));
+      assert.ok(postedMessage.html.includes("out"));
+
+      // Test changeset-raw
+      handleRequestDetails({ activityId: "act-1", detailType: "changeset-raw", index: 1 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "changeset-raw");
+      assert.ok(postedMessage.html.includes("test data"));
+
+      // Test invalid activity
+      postedMessage = null;
+      handleRequestDetails({ activityId: "invalid", detailType: "plan" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage, null);
+    });
+  });
+
 });
