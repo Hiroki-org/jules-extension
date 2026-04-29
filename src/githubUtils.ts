@@ -23,11 +23,54 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
         repo: match[2],
     };
 }
-// Helper factory function to abstract dynamic Octokit import and instantiation.
-// This makes it easy to stub in unit tests without complex module mocking or proxyquire.
-export async function getOctokitInstance(token: string): Promise<any> {
+interface OctokitPullData {
+    head: {
+        ref: string;
+        repo: {
+            owner: { login: string };
+            name: string;
+            clone_url: string;
+        } | null;
+    };
+    base: { ref: string };
+    state: string;
+    title: string;
+    merged: boolean;
+}
+
+interface OctokitClient {
+    request: unknown;
+    repos: {
+        get(params: { owner: string; repo: string }): Promise<{ data: { default_branch: string } }>;
+    };
+    git: {
+        getRef(params: { owner: string; repo: string; ref: string }): Promise<{ data: { object: { sha: string } } }>;
+        createRef(params: { owner: string; repo: string; ref: string; sha: string }): Promise<unknown>;
+    };
+    pulls: {
+        get(params: { owner: string; repo: string; pull_number: number }): Promise<{ data: OctokitPullData }>;
+    };
+}
+
+type OctokitFactory = (token: string) => Promise<OctokitClient>;
+
+async function defaultOctokitFactory(token: string): Promise<OctokitClient> {
     const { Octokit } = await import('@octokit/rest');
-    return new Octokit({ auth: token });
+    return new Octokit({ auth: token }) as unknown as OctokitClient;
+}
+
+let octokitFactory: OctokitFactory = defaultOctokitFactory;
+
+export function setOctokitFactoryForTesting(factory: OctokitFactory): void {
+    octokitFactory = factory;
+}
+
+export function resetOctokitFactoryForTesting(): void {
+    octokitFactory = defaultOctokitFactory;
+}
+
+export async function getOctokitInstance(token: string): Promise<OctokitClient> {
+    return octokitFactory(token);
 }
 
 export async function createRemoteBranch(
@@ -36,7 +79,7 @@ export async function createRemoteBranch(
     repo: string,
     branchName: string
 ): Promise<void> {
-    const octokit = await exports.getOctokitInstance(pat);
+    const octokit = await getOctokitInstance(pat);
 
     // デフォルトブランチのSHAを取得
     const { data: repoData } = await octokit.repos.get({ owner, repo });
@@ -92,7 +135,7 @@ export async function getPullRequestBranchInfo(
     prNumber: number
 ): Promise<PullRequestBranchInfo | null> {
     try {
-        const octokit = await exports.getOctokitInstance(token);
+        const octokit = await getOctokitInstance(token);
 
         const { data: pr } = await octokit.pulls.get({
             owner,
