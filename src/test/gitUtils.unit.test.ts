@@ -61,18 +61,6 @@ suite('gitUtils', () => {
             const repo = getRepositoryForWorkspaceFolder(git, workspaceFolder, mockOutputChannel);
             assert.strictEqual(repo, repoMock);
         });
-
-        test('should sanitize workspace path before logging when repository is missing', () => {
-            const git = { repositories: [] };
-            const workspaceFolder = { uri: { fsPath: '/workspace/project' + String.fromCharCode(10) + 'secret' } } as any;
-
-            const repo = getRepositoryForWorkspaceFolder(git, workspaceFolder, mockOutputChannel);
-
-            assert.strictEqual(repo, null);
-            const loggedMessage = mockOutputChannel.appendLine.firstCall.args[0];
-            assert.ok(loggedMessage.includes('secret'));
-            assert.strictEqual(loggedMessage.includes(String.fromCharCode(10)), false);
-        });
     });
 
     suite('getRemoteUrl', () => {

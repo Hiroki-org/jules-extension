@@ -23,54 +23,44 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
         repo: match[2],
     };
 }
-interface OctokitPullData {
-    head: {
-        ref: string;
-        repo: {
-            owner: { login: string };
-            name: string;
-            clone_url: string;
-        } | null;
-    };
-    base: { ref: string };
-    state: string;
-    title: string;
-    merged: boolean;
-}
-
-interface OctokitClient {
-    request: unknown;
+/**
+ * Octokit Client interface representing the subset of methods used by githubUtils
+ */
+export interface OctokitClient {
     repos: {
         get(params: { owner: string; repo: string }): Promise<{ data: { default_branch: string } }>;
     };
     git: {
         getRef(params: { owner: string; repo: string; ref: string }): Promise<{ data: { object: { sha: string } } }>;
-        createRef(params: { owner: string; repo: string; ref: string; sha: string }): Promise<unknown>;
+        createRef(params: { owner: string; repo: string; ref: string; sha: string }): Promise<void>;
     };
     pulls: {
-        get(params: { owner: string; repo: string; pull_number: number }): Promise<{ data: OctokitPullData }>;
+        get(params: { owner: string; repo: string; pull_number: number }): Promise<{
+            data: {
+                head: { ref: string; repo: { owner: { login: string }; name: string; clone_url: string } | null };
+                base: { ref: string };
+                state: string;
+                title: string;
+                merged: boolean;
+            }
+        }>;
     };
 }
 
-type OctokitFactory = (token: string) => Promise<OctokitClient>;
-
-async function defaultOctokitFactory(token: string): Promise<OctokitClient> {
+// Function pointer to allow overriding the instance fetcher in unit tests without CommonJS 'exports' hacks
+let octokitFactory = async (token: string): Promise<OctokitClient> => {
     const { Octokit } = await import('@octokit/rest');
     return new Octokit({ auth: token }) as unknown as OctokitClient;
-}
+};
 
-let octokitFactory: OctokitFactory = defaultOctokitFactory;
-
-export function setOctokitFactoryForTesting(factory: OctokitFactory): void {
-    octokitFactory = factory;
-}
-
-export function resetOctokitFactoryForTesting(): void {
-    octokitFactory = defaultOctokitFactory;
-}
-
+// Helper factory function to abstract dynamic Octokit import and instantiation.
 export async function getOctokitInstance(token: string): Promise<OctokitClient> {
     return octokitFactory(token);
+}
+
+// Helper setter for unit tests to stub the factory
+export function setOctokitFactory(factory: (token: string) => Promise<OctokitClient>): void {
+    octokitFactory = factory;
 }
 
 export async function createRemoteBranch(
