@@ -463,14 +463,26 @@ export function extractPRs(
   if (!sessionOrState.outputs) {
     return [];
   }
-  const prMap = new Map<string, PullRequestOutput>();
+  const urlToIndex = new Map<string, number>();
+  const deduped: PullRequestOutput[] = [];
+
   for (const output of sessionOrState.outputs) {
     const pr = output.pullRequest;
-    if (pr?.url) {
-      prMap.set(pr.url, pr);
+    if (!pr?.url) {
+      continue;
     }
+    const existingIndex = urlToIndex.get(pr.url);
+    if (existingIndex === undefined) {
+      urlToIndex.set(pr.url, deduped.length);
+      deduped.push(pr);
+      continue;
+    }
+
+    // Keep first-seen URL order while replacing payload with the latest PR data.
+    deduped[existingIndex] = pr;
   }
-  return Array.from(prMap.values());
+
+  return deduped;
 }
 
 export async function checkPRStatus(
@@ -3096,6 +3108,8 @@ export function activate(context: vscode.ExtensionContext) {
             showPaginationProgress: true,
           },
         );
+        // TODO(issue-485): ページング取得で欠損/破損した activity がある場合、
+        // fetchSingleActivity(apiKey, sessionId, activityId) で対象のみ再取得して回復できる。
 
         const mergedActivities = shouldMergeWithCache
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)

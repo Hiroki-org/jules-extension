@@ -213,6 +213,8 @@ export function buildChatMessagesFromActivities(
       getActivityLabelPrefix(activity) +
       getActivitySummaryText(activity);
     let detailsHtml = "";
+    // TODO(issue-485): detailsはUI上で折りたたまれているが、HTML自体はここで先に生成している。
+    // 大きなplan/diff/bashOutputは展開時に個別取得する遅延読み込みへ移行可能。
     if (activity.sessionFailed?.reason) {
       detailsHtml +=
         '<details class="activity-details"><summary>View Error Details</summary><div class="details-content code-block"><pre><code>' +

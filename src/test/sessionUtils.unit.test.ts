@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
-import { createJulesSession, sendMessage } from "../sessionUtils";
+import { createJulesSession, fetchSingleActivity, sendMessage } from "../sessionUtils";
 import * as fetchUtils from "../fetchUtils";
 
 suite("sessionUtils Test Suite", () => {
@@ -114,5 +114,56 @@ suite("sessionUtils Test Suite", () => {
         } catch (error: any) {
             assert.ok(error.message.includes("Session not found"));
         }
+    });
+
+    test("fetchSingleActivity returns activity details", async () => {
+        fetchStub.resolves({
+            ok: true,
+            json: async () => ({
+                name: "sessions/123/activities/a1",
+                createTime: "2026-01-01T00:00:00Z",
+                id: "a1",
+            }),
+        } as Response);
+
+        const activity = await fetchSingleActivity("dummy-key", "sessions/123", "a1");
+
+        assert.strictEqual(activity.id, "a1");
+        const [url, options] = fetchStub.firstCall.args;
+        assert.strictEqual(url, "https://jules.googleapis.com/v1alpha/sessions/123/activities/a1");
+        assert.strictEqual(options.headers["X-Goog-Api-Key"], "dummy-key");
+    });
+
+    test("fetchSingleActivity throws wrapped error on failure", async () => {
+        fetchStub.resolves({
+            ok: false,
+            status: 404,
+            statusText: "Not Found",
+            json: async () => ({}),
+        } as Response);
+
+        await assert.rejects(
+            fetchSingleActivity("dummy-key", "sessions/missing", "a404"),
+            /Failed to fetch activity: API request failed: 404 Not Found/
+        );
+    });
+
+    test("fetchSingleActivity preserves original error as cause", async () => {
+        fetchStub.resolves({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: async () => ({}),
+        } as Response);
+
+        await assert.rejects(
+            async () => fetchSingleActivity("dummy-key", "sessions/missing", "a500"),
+            (error: Error & { cause?: unknown }) => {
+                assert.ok(error.message.includes("Failed to fetch activity:"));
+                assert.ok(error.cause instanceof Error);
+                assert.ok((error.cause as Error).message.includes("API request failed: 500 Internal Server Error"));
+                return true;
+            }
+        );
     });
 });

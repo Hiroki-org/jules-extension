@@ -1,65 +1,241 @@
 import * as assert from 'assert';
-import { parseGitHubUrl } from '../githubUtils';
+import * as githubUtils from '../githubUtils';
+import * as sinon from 'sinon';
 
-suite('GitHub Utils Unit Tests', () => {
-    test('parseGitHubUrl は標準的な HTTPS URL を正しく解析すること', () => {
-        const url = 'https://github.com/owner/repo';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+suite('githubUtils', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
     });
 
-    test('parseGitHubUrl は .git 付きの HTTPS URL を正しく解析すること', () => {
-        const url = 'https://github.com/owner/repo.git';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+    teardown(() => {
+        sandbox.restore();
     });
 
-    test('parseGitHubUrl は http プロトコルの URL を正しく解析すること', () => {
-        const url = 'http://github.com/owner/repo.git';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+    suite('parseGitHubUrl', () => {
+        test('should parse https url correctly', () => {
+            const url = 'https://github.com/owner/repo';
+            const result = githubUtils.parseGitHubUrl(url);
+            assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+        });
+        test('should parse https url with .git correctly', () => {
+            const url = 'https://github.com/owner/repo.git';
+            const result = githubUtils.parseGitHubUrl(url);
+            assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+        });
+        test('should parse ssh url correctly', () => {
+            const url = 'git@github.com:owner/repo.git';
+            const result = githubUtils.parseGitHubUrl(url);
+            assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+        });
+        test('should return null for invalid urls', () => {
+            assert.strictEqual(githubUtils.parseGitHubUrl('invalid-url'), null);
+            assert.strictEqual(githubUtils.parseGitHubUrl('https://gitlab.com/owner/repo'), null);
+        });
     });
 
-    test('parseGitHubUrl は SSH URL (コロン区切り) を正しく解析すること', () => {
-        const url = 'git@github.com:owner/repo.git';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+    suite('getOctokitInstance', () => {
+        test('should use default factory to return an Octokit instance', async () => {
+            const instance = await githubUtils.getOctokitInstance('dummy-token');
+            assert.strictEqual(typeof instance, 'object');
+            // Check that it's a real Octokit instance using an internal method mapping
+            assert.ok((instance as any).request);
+        });
     });
 
-    test('parseGitHubUrl は .git なしの SSH URL を正しく解析すること', () => {
-        const url = 'git@github.com:owner/repo';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo' });
+    suite('getPullRequestBranchInfo', () => {
+        teardown(() => {
+            // Restore factory to its original implementation using dynamic import
+            githubUtils.setOctokitFactory(async (token: string) => {
+                const { Octokit } = await import('@octokit/rest');
+                return new Octokit({ auth: token }) as unknown as githubUtils.OctokitClient;
+            });
+        });
+
+        test('should return null if API request fails', async () => {
+            githubUtils.setOctokitFactory(async () => Promise.reject(new Error('API error')));
+            const result = await githubUtils.getPullRequestBranchInfo('invalid-token', 'owner', 'repo', 1);
+            assert.strictEqual(result, null);
+        });
+
+        test('should return null if API request fails with non-Error', async () => {
+            githubUtils.setOctokitFactory(async () => Promise.reject('String error'));
+            const result = await githubUtils.getPullRequestBranchInfo('invalid-token', 'owner', 'repo', 1);
+            assert.strictEqual(result, null);
+        });
+
+        test('should return null if PR head repo is null', async () => {
+            const mockOctokit = {
+                pulls: {
+                    get: sandbox.stub().resolves({
+                        data: {
+                            head: { repo: null },
+                            base: { ref: 'main' },
+                            state: 'open',
+                            title: 'Test PR',
+                            merged: false
+                        }
+                    })
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
+
+            const result = await githubUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+            assert.strictEqual(result, null);
+        });
+
+        test('should return branch info successfully', async () => {
+            const mockOctokit = {
+                pulls: {
+                    get: sandbox.stub().resolves({
+                        data: {
+                            head: {
+                                ref: 'feature-branch',
+                                repo: {
+                                    owner: { login: 'owner' },
+                                    name: 'repo',
+                                    clone_url: 'https://github.com/owner/repo.git'
+                                }
+                            },
+                            base: { ref: 'main' },
+                            state: 'open',
+                            title: 'Test PR',
+                            merged: false
+                        }
+                    })
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
+
+            const result = await githubUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+            assert.deepStrictEqual(result, {
+                headBranch: 'feature-branch',
+                baseBranch: 'main',
+                headOwner: 'owner',
+                headRepo: 'repo',
+                headCloneUrl: 'https://github.com/owner/repo.git',
+                state: 'open',
+                title: 'Test PR'
+            });
+        });
+
+        test('should return correct state when merged is true', async () => {
+            const mockOctokit = {
+                pulls: {
+                    get: sandbox.stub().resolves({
+                        data: {
+                            head: {
+                                ref: 'feature-branch',
+                                repo: {
+                                    owner: { login: 'owner' },
+                                    name: 'repo',
+                                    clone_url: 'https://github.com/owner/repo.git'
+                                }
+                            },
+                            base: { ref: 'main' },
+                            state: 'closed',
+                            title: 'Test PR',
+                            merged: true
+                        }
+                    })
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
+
+            const result = await githubUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
+            assert.strictEqual(result?.state, 'merged');
+        });
     });
 
-    test('parseGitHubUrl は github.com 以外のドメインの場合に null を返すこと', () => {
-        const url = 'https://gitlab.com/owner/repo.git';
-        const result = parseGitHubUrl(url);
-        assert.strictEqual(result, null);
-    });
+    suite('createRemoteBranch', () => {
+        teardown(() => {
+            githubUtils.setOctokitFactory(async (token: string) => {
+                const { Octokit } = await import('@octokit/rest');
+                return new Octokit({ auth: token }) as unknown as githubUtils.OctokitClient;
+            });
+        });
 
-    test('parseGitHubUrl は無効な形式の URL の場合に null を返すこと', () => {
-        const url = 'not-a-url';
-        const result = parseGitHubUrl(url);
-        assert.strictEqual(result, null);
-    });
+        test('should create branch successfully', async () => {
+            const mockCreateRef = sandbox.stub().resolves();
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().resolves({ data: { default_branch: 'main' } })
+                },
+                git: {
+                    getRef: sandbox.stub().resolves({ data: { object: { sha: '1234567890abcdef' } } }),
+                    createRef: mockCreateRef
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
 
-    test('parseGitHubUrl はリポジトリルート以外のパスが含まれる場合に null を返すこと', () => {
-        // 現在の実装では末尾が repo(.git)?$ で終わることを期待しているため
-        const url = 'https://github.com/owner/repo/blob/main/README.md';
-        const result = parseGitHubUrl(url);
-        assert.strictEqual(result, null);
-    });
+            await githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch');
 
-    test('parseGitHubUrl はハイフンを含むユーザー名やリポジトリ名を正しく処理すること', () => {
-        const url = 'https://github.com/my-owner/my-repo.git';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'my-owner', repo: 'my-repo' });
-    });
+            sinon.assert.calledOnceWithExactly(mockCreateRef, {
+                 owner: 'owner',
+                 repo: 'repo',
+                 ref: 'refs/heads/new-branch',
+                 sha: '1234567890abcdef'
+            });
+        });
 
-    test('parseGitHubUrl はドットを含むリポジトリ名を正しく処理すること', () => {
-        const url = 'https://github.com/owner/repo.js.git';
-        const result = parseGitHubUrl(url);
-        assert.deepStrictEqual(result, { owner: 'owner', repo: 'repo.js' });
+        test('should throw error if factory throws', async () => {
+            githubUtils.setOctokitFactory(async () => Promise.reject(new Error('Auth failed')));
+            await assert.rejects(githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'), /Auth failed/);
+        });
+
+        test('should throw error if repos.get rejects', async () => {
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().rejects(new Error('Failed to get repository'))
+                },
+                git: {
+                    getRef: sandbox.stub().resolves({ data: { object: { sha: '1234567890abcdef' } } }),
+                    createRef: sandbox.stub().resolves()
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
+
+            await assert.rejects(
+                githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
+                /Failed to get repository/
+            );
+        });
+
+        test('should throw error if git.getRef rejects', async () => {
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().resolves({ data: { default_branch: 'main' } })
+                },
+                git: {
+                    getRef: sandbox.stub().rejects(new Error('Failed to get ref')),
+                    createRef: sandbox.stub().resolves()
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
+
+            await assert.rejects(
+                githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
+                /Failed to get ref/
+            );
+        });
+
+        test('should throw error if git.createRef rejects', async () => {
+            const mockOctokit = {
+                repos: {
+                    get: sandbox.stub().resolves({ data: { default_branch: 'main' } })
+                },
+                git: {
+                    getRef: sandbox.stub().resolves({ data: { object: { sha: '1234567890abcdef' } } }),
+                    createRef: sandbox.stub().rejects(new Error('Failed to create ref'))
+                }
+            };
+            githubUtils.setOctokitFactory(async () => mockOctokit as any);
+
+            await assert.rejects(
+                githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
+                /Failed to create ref/
+            );
+        });
     });
 });

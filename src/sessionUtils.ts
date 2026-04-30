@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
-import { SourceType } from "./types";
+import { Activity, SourceType } from "./types";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
+import { JulesApiClient } from "./julesApiClient";
 
 export interface CreateSessionRequest {
   prompt: string;
@@ -142,5 +143,23 @@ export async function sendMessage(
     const errorText = await response.text();
     const message = errorText || `${response.status} ${response.statusText}`;
     throw new Error(message);
+  }
+}
+
+/**
+ * Fetch a single activity detail by activity ID.
+ */
+export async function fetchSingleActivity(
+  apiKey: string,
+  sessionName: string,
+  activityId: string,
+): Promise<Activity> {
+  const client = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+
+  try {
+    return await client.getActivity(sessionName, activityId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to fetch activity: ${message}`, { cause: error });
   }
 }

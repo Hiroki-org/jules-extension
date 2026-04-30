@@ -53,6 +53,72 @@ suite('JulesApiClient Test Suite', () => {
         });
     });
 
+    suite('getActivity', () => {
+        test('should make correct request', async () => {
+            const sessionName = 'sessions/abc123';
+            const activityId = 'activity-1';
+            const mockResponse = {
+                ok: true,
+                json: async () => ({
+                    name: `${sessionName}/activities/${activityId}`,
+                    createTime: '2026-01-01T00:00:00Z',
+                    id: activityId,
+                    description: 'activity detail'
+                })
+            };
+            fetchStub.resolves(mockResponse);
+
+            const result = await client.getActivity(sessionName, activityId);
+
+            assert.strictEqual(fetchStub.calledOnce, true);
+            const [url, options] = fetchStub.firstCall.args;
+            assert.strictEqual(url, `${baseUrl}/${sessionName}/activities/${activityId}`);
+            assert.strictEqual(options.headers['X-Goog-Api-Key'], apiKey);
+            assert.strictEqual(options.headers['Content-Type'], 'application/json');
+            assert.strictEqual(result.id, activityId);
+        });
+
+        test('should encode activity ID path segment', async () => {
+            const sessionName = 'sessions/abc123';
+            const activityId = 'activity with/slash';
+            fetchStub.resolves({
+                ok: true,
+                json: async () => ({
+                    name: `${sessionName}/activities/${activityId}`,
+                    createTime: '2026-01-01T00:00:00Z',
+                    id: activityId,
+                })
+            });
+
+            await client.getActivity(sessionName, activityId);
+
+            const [url] = fetchStub.firstCall.args;
+            assert.strictEqual(url, `${baseUrl}/${sessionName}/activities/activity%20with%2Fslash`);
+        });
+
+        test('should throw error on API failure', async () => {
+            fetchStub.resolves({
+                ok: false,
+                status: 404,
+                statusText: 'Not Found'
+            });
+
+            await assert.rejects(
+                client.getActivity('sessions/missing', 'activity-404'),
+                new Error('API request failed: 404 Not Found')
+            );
+        });
+
+        test('should throw error on network failure', async () => {
+            fetchStub.rejects(new Error('Network failure'));
+
+            await assert.rejects(
+                client.getActivity('sessions/abc123', 'activity-1'),
+                new Error('Network failure')
+            );
+        });
+    });
+
     suite('listAllSources', () => {
         test('should paginate through all sources with pageSize=100', async () => {
             fetchStub.onFirstCall().resolves({
