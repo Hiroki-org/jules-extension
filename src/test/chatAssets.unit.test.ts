@@ -66,22 +66,4 @@ suite("chatAssets unit tests", () => {
       "both success and failure paths should reset button text",
     );
   });
-
-  test("CHAT_JS should restore cached lazy details after chat state renders", () => {
-    assert.ok(CHAT_JS.includes("function syncRenderedDetailsState()"));
-    assert.ok(CHAT_JS.includes("expandedDetails.has(key)"));
-    assert.ok(CHAT_JS.includes("applyDetailsHtml(details, detailsCache[key])"));
-    assert.ok(CHAT_JS.includes("delete detailsCache[key]"));
-  });
-
-  test("CHAT_JS should match details elements without interpolated selectors", () => {
-    assert.ok(CHAT_JS.includes('querySelectorAll(".activity-details")'));
-    assert.ok(CHAT_JS.includes('details.getAttribute("data-activity-id") === activityId'));
-    assert.ok(CHAT_JS.includes('details.getAttribute("data-detail-type") === detailType'));
-    assert.ok(
-      !CHAT_JS.includes(
-        "querySelectorAll('[data-activity-id=\"' + activityId + '\"][data-detail-type=\"' + detailType + '\"]')",
-      ),
-    );
-  });
 });

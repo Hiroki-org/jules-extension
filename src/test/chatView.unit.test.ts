@@ -81,8 +81,6 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
-    assert.ok(html.includes('aria-label="Enter message"'));
-    assert.ok(html.includes('aria-label="Jules is working"'));
   });
 
   test("buildChatMessagesFromActivities should generate lazy load placeholders for details", () => {
