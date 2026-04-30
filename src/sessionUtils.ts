@@ -1,3 +1,5 @@
+import { isActivityCorrupted } from "./activityUtils";
+import { mapLimit } from "./asyncUtils";
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
@@ -161,5 +163,55 @@ export async function fetchSingleActivity(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to fetch activity: ${message}`, { cause: error });
+  }
+}
+
+/**
+ * Recovers corrupted activities by fetching them individually.
+ */
+export async function recoverCorruptedActivities(
+  apiKey: string,
+  sessionId: string,
+  activities: Activity[],
+  progress?: vscode.Progress<{ message?: string; increment?: number }>,
+): Promise<void> {
+  const corruptedActivities = activities.filter(isActivityCorrupted);
+  if (corruptedActivities.length === 0) {
+    return;
+  }
+
+  if (progress) {
+    progress.report({
+      message: `Recovering ${corruptedActivities.length} corrupted activities...`,
+    });
+  }
+
+  const recoveredActivities = await mapLimit(
+    corruptedActivities,
+    3,
+    async (activity) => {
+      try {
+        return await fetchSingleActivity(apiKey, sessionId, activity.id);
+      } catch (error) {
+        console.error(
+          `Jules: Failed to recover activity ${activity.id}: ${error}`,
+        );
+        return activity;
+      }
+    },
+  );
+
+  const recoveredMap = new Map<string, Activity>(
+    recoveredActivities.map((a) => [a.id, a]),
+  );
+
+  for (let i = 0; i < activities.length; i++) {
+    const act = activities[i];
+    if (isActivityCorrupted(act)) {
+      const recovered = recoveredMap.get(act.id);
+      if (recovered && !isActivityCorrupted(recovered)) {
+        activities[i] = recovered;
+      }
+    }
   }
 }

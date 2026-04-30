@@ -1,5 +1,5 @@
 import { isActivityCorrupted } from "./activityUtils";
-import { fetchSingleActivity } from "./sessionUtils";
+import { fetchSingleActivity, recoverCorruptedActivities } from "./sessionUtils";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
@@ -1514,42 +1514,7 @@ async function fetchSessionActivitiesPaginated(
       pageToken = data.nextPageToken;
     } while (pageToken);
 
-    // TODO(issue-485): Recover corrupted activities if any
-    const corruptedActivities = activities.filter(isActivityCorrupted);
-    if (corruptedActivities.length > 0) {
-      if (progress) {
-        progress.report({
-          message: `Recovering ${corruptedActivities.length} corrupted activities...`,
-        });
-      }
-      const recoveredActivities = await mapLimit(
-        corruptedActivities,
-        3,
-        async (activity) => {
-          try {
-            return await fetchSingleActivity(apiKey, sessionId, activity.id);
-          } catch (error) {
-            console.error(
-              `Jules: Failed to recover activity ${activity.id}: ${error}`,
-            );
-            return activity;
-          }
-        },
-      );
-
-      const recoveredMap = new Map<string, Activity>(
-        recoveredActivities.map((a) => [a.id, a]),
-      );
-      for (let i = 0; i < activities.length; i++) {
-        const act = activities[i];
-        if (isActivityCorrupted(act)) {
-          const recovered = recoveredMap.get(act.id);
-          if (recovered && !isActivityCorrupted(recovered)) {
-            activities[i] = recovered;
-          }
-        }
-      }
-    }
+    await recoverCorruptedActivities(apiKey, sessionId, activities, progress);
 
     return activities;
   };
