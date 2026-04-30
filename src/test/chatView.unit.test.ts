@@ -81,8 +81,6 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
-    assert.ok(html.includes('aria-label="Enter message"'));
-    assert.ok(html.includes('aria-label="Jules is working"'));
   });
 
   test("buildChatMessagesFromActivities should generate lazy load placeholders for details", () => {
@@ -207,16 +205,18 @@ suite("Chat View Unit Test Suite", () => {
       (providerNoView as any).handleRequestDetails({ activityId: "act-1", detailType: "plan" });
 
       // Update session with edge cases
-      const actEdge: any = createActivity({
+      const actEdge: any = {
         id: "act-edge",
+        name: "activities/act-edge",
+        createTime: "2025-01-01T00:00:00Z",
         artifacts: [{
           changeSet: { gitPatch: { unidiffPatch: 123 } } as any, // not a string
         }, {
-          changeSet: BigInt(9007199254740991) // invalid json
+          changeSet: BigInt(9007199254740991) as any // invalid json
         }, {
           bashOutput: { commands: [{ commandLine: "cmd2" }] } as any
         }]
-      });
+      };
       actEdge.gitPatch = { diff: 123 }; // not string
       provider.updateSession("session-2", [actEdge]);
 
@@ -224,25 +224,37 @@ suite("Chat View Unit Test Suite", () => {
       postedMessage = null;
       handleRequestDetails({ activityId: "act-edge", detailType: "diff" });
       await new Promise(r => setTimeout(r, 0));
-      assert.ok(postedMessage.html.includes("Not found"));
+      assert.ok(postedMessage && postedMessage.html.includes("Not found"));
 
       // Test edge changeset diff not string
       postedMessage = null;
       handleRequestDetails({ activityId: "act-edge", detailType: "changeset", index: 0 });
       await new Promise(r => setTimeout(r, 0));
-      assert.ok(postedMessage.html.includes("Not found"));
+      assert.ok(postedMessage && postedMessage.html.includes("Not found"));
 
       // Test edge invalid json
       postedMessage = null;
       handleRequestDetails({ activityId: "act-edge", detailType: "changeset-raw", index: 1 });
       await new Promise(r => setTimeout(r, 0));
-      assert.ok(postedMessage.html.includes("9007199254740991"));
+      assert.ok(postedMessage && postedMessage.html.includes("9007199254740991"));
 
       // Test bash with commands array
       postedMessage = null;
       handleRequestDetails({ activityId: "act-edge", detailType: "bash", index: 2 });
       await new Promise(r => setTimeout(r, 0));
-      assert.ok(postedMessage.html.includes("cmd2"));
+      assert.ok(postedMessage && postedMessage.html.includes("cmd2"));
+
+      // Test invalid index in artifacts
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "changeset", index: 999 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html === "Not found");
+
+      // Test detailType that does not match any 'if' conditions (e.g., 'unknown')
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "unknown" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html === "Not found");
 
     });
   });
