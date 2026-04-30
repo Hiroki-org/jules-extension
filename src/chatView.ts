@@ -25,6 +25,12 @@ interface ChatStatePayload {
   isTyping: boolean;
 }
 
+interface RequestDetailsMessage {
+  activityId?: unknown;
+  detailType?: unknown;
+  index?: unknown;
+}
+
 let markdownRenderer: MarkdownIt | null = null;
 let markdownRendererInit: Promise<void> | null = null;
 
@@ -361,33 +367,38 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     };
     this.postState();
   }
-  private handleRequestDetails(message: any): void {
-    if (!this.view || !message.activityId || !message.detailType) {
+  private handleRequestDetails(message: RequestDetailsMessage): void {
+    const activityId =
+      typeof message.activityId === "string" ? message.activityId : "";
+    const detailType =
+      typeof message.detailType === "string" ? message.detailType : "";
+    const index = typeof message.index === "number" ? message.index : undefined;
+    if (!this.view || !activityId || !detailType) {
       return;
     }
     const activity = this.activities.find(
-      (a) => (a.id ?? a.name) === message.activityId,
+      (a) => (a.id ?? a.name) === activityId,
     );
     if (!activity) {
       return;
     }
     let html = "Not found";
-    if (message.detailType === "plan" && activity.planGenerated?.plan) {
+    if (detailType === "plan" && activity.planGenerated?.plan) {
       html = renderChatMarkdown(formatFullPlan(activity.planGenerated.plan));
-    } else if (message.detailType === "diff" && (activity as any).gitPatch?.diff) {
+    } else if (detailType === "diff" && (activity as any).gitPatch?.diff) {
       const diff = (activity as any).gitPatch.diff;
       if (typeof diff === "string") {
         html = renderChatMarkdown("```diff\n" + diff + "\n```");
       }
-    } else if (activity.artifacts && typeof message.index === "number") {
-      const artifact = activity.artifacts[message.index];
+    } else if (activity.artifacts && typeof index === "number") {
+      const artifact = activity.artifacts[index];
       if (artifact) {
-        if (message.detailType === "changeset" && artifact.changeSet) {
+        if (detailType === "changeset" && artifact.changeSet) {
           const diffData = (artifact.changeSet as any).gitPatch?.unidiffPatch;
           if (diffData && typeof diffData === "string") {
             html = renderChatMarkdown("```diff\n" + diffData + "\n```");
           }
-        } else if (message.detailType === "changeset-raw" && artifact.changeSet) {
+        } else if (detailType === "changeset-raw" && artifact.changeSet) {
           let raw = "";
           try {
             raw = JSON.stringify(artifact.changeSet, null, 2);
@@ -395,7 +406,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
             raw = String(artifact.changeSet);
           }
           html = renderChatMarkdown("```json\n" + raw + "\n```");
-        } else if (message.detailType === "bash" && artifact.bashOutput) {
+        } else if (detailType === "bash" && artifact.bashOutput) {
           const outRec = artifact.bashOutput as Record<string, any>;
           let commandLine = outRec.commandLine;
           const commands = outRec.commands;
@@ -419,9 +430,9 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     void Promise.resolve(
       this.view.webview.postMessage({
         type: "detailsHtml",
-        activityId: message.activityId,
-        detailType: message.detailType,
-        index: message.index,
+        activityId,
+        detailType,
+        index,
         html,
       }),
     ).catch((err: unknown) =>
