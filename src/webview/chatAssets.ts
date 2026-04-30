@@ -62,6 +62,62 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
 
+  function getDetailsKey(activityId, detailType, index) {
+    return activityId + "|" + detailType + "|" + (index !== undefined ? String(index) : "");
+  }
+
+  function hasCachedDetails(key) {
+    return Object.prototype.hasOwnProperty.call(detailsCache, key);
+  }
+
+  function applyDetailsHtml(details, html) {
+    const contentDiv = details.querySelector(".details-content");
+    if (contentDiv) {
+      contentDiv.innerHTML = html;
+    }
+  }
+
+  function findDetailsElements(activityId, detailType, index) {
+    const msgIndex = index !== undefined ? String(index) : "";
+    return Array.from(chatContainer.querySelectorAll(".activity-details")).filter(details => {
+      return details.getAttribute("data-activity-id") === activityId
+        && details.getAttribute("data-detail-type") === detailType
+        && (details.getAttribute("data-index") || "") === msgIndex;
+    });
+  }
+
+  function syncRenderedDetailsState() {
+    const renderedKeys = new Set();
+    chatContainer.querySelectorAll(".activity-details").forEach(details => {
+      const activityId = details.getAttribute("data-activity-id");
+      const detailType = details.getAttribute("data-detail-type");
+      if (!activityId || !detailType) {
+        return;
+      }
+
+      const indexStr = details.getAttribute("data-index") || "";
+      const key = getDetailsKey(activityId, detailType, indexStr || undefined);
+      renderedKeys.add(key);
+      if (expandedDetails.has(key)) {
+        details.open = true;
+      }
+      if (hasCachedDetails(key)) {
+        applyDetailsHtml(details, detailsCache[key]);
+      }
+    });
+
+    Object.keys(detailsCache).forEach(key => {
+      if (!renderedKeys.has(key)) {
+        delete detailsCache[key];
+      }
+    });
+    Array.from(expandedDetails).forEach(key => {
+      if (!renderedKeys.has(key)) {
+        expandedDetails.delete(key);
+      }
+    });
+  }
+
   function updateUI() {
     const hasSession = !!state.sessionId;
     sendButton.disabled = !hasSession || messageInput.value.trim().length === 0;
@@ -118,11 +174,13 @@ export const CHAT_JS = `(function() {
       if (activityId && detailType) {
         const indexStr = details.getAttribute("data-index");
         const index = indexStr ? parseInt(indexStr, 10) : undefined;
-        const key = activityId + "|" + detailType + "|" + (indexStr || "");
+        const key = getDetailsKey(activityId, detailType, indexStr || undefined);
 
         if (details.open) {
           expandedDetails.add(key);
-          if (!detailsCache[key]) {
+          if (hasCachedDetails(key)) {
+            applyDetailsHtml(details, detailsCache[key]);
+          } else {
             vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
           }
         } else {
@@ -151,23 +209,17 @@ export const CHAT_JS = `(function() {
     if (e.data.type === "chatState") {
       state = e.data.payload || state;
       renderMessages();
+      syncRenderedDetailsState();
     } else if (e.data.type === "detailsHtml") {
       const { activityId, detailType, index, html } = e.data;
-      const key = activityId + "|" + detailType + "|" + (index !== undefined ? index : "");
+      if (!activityId || !detailType) {
+        return;
+      }
+      const key = getDetailsKey(activityId, detailType, index);
       detailsCache[key] = html;
 
       // Update DOM if currently rendered
-      const detailsEls = chatContainer.querySelectorAll('[data-activity-id="' + activityId + '"][data-detail-type="' + detailType + '"]');
-      detailsEls.forEach(details => {
-        const elIndex = details.getAttribute("data-index") || "";
-        const msgIndex = index !== undefined ? String(index) : "";
-        if (elIndex === msgIndex) {
-          const contentDiv = details.querySelector(".details-content");
-          if (contentDiv) {
-            contentDiv.innerHTML = html;
-          }
-        }
-      });
+      findDetailsElements(activityId, detailType, index).forEach(details => applyDetailsHtml(details, html));
     }
   });
 
