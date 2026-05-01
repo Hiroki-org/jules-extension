@@ -1,5 +1,3 @@
-import { isActivityCorrupted } from "./activityUtils";
-import { fetchSingleActivity, recoverCorruptedActivities } from "./sessionUtils";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
@@ -75,6 +73,7 @@ import {
 import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 import {
   createJulesSession,
+  recoverCorruptedActivities,
   sendMessage as sendMessageToApi,
 } from "./sessionUtils";
 import { registerInlineCommands } from "./inlineCommands";
@@ -1459,7 +1458,7 @@ async function fetchAllSessionsPaginated(
   );
 }
 
-async function fetchSessionActivitiesPaginated(
+export async function fetchSessionActivitiesPaginated(
   apiKey: string,
   sessionId: string,
   options?: { showPaginationProgress?: boolean },
@@ -1514,7 +1513,7 @@ async function fetchSessionActivitiesPaginated(
       pageToken = data.nextPageToken;
     } while (pageToken);
 
-    await recoverCorruptedActivities(apiKey, sessionId, activities, progress);
+    await recoverCorruptedActivities(apiKey, sessionId, activities, progress, logChannel);
 
     return activities;
   };

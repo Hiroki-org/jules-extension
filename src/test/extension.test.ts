@@ -22,6 +22,7 @@ import {
   createRemoteBranch,
   resetUpdatePreviousStatesCachesForTests,
   setPRStatusCacheForTests,
+  fetchSessionActivitiesPaginated,
 } from "../extension";
 import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
@@ -1544,6 +1545,76 @@ suite("Extension Test Suite", () => {
       } catch (err: any) {
         assert.strictEqual(err.message, "GitHub API error: 500 - Internal Server Error");
       }
+    });
+  });
+
+  suite("fetchSessionActivitiesPaginated Recovery Flow", () => {
+    let fetchStub: sinon.SinonStub;
+
+    setup(() => {
+      fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout");
+    });
+
+    teardown(() => {
+      sinon.restore();
+    });
+
+    test("should fetch activities and replace corrupted ones with healthy ones if recovery succeeds", async () => {
+      // First call: paginated fetch
+      fetchStub.onCall(0).resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { id: "a1", type: "planGenerated" }, // missing payload (corrupted)
+            { id: "a2", type: "agentMessaged", agentMessaged: { agentMessage: "hi" } } // healthy
+          ],
+          nextPageToken: "",
+        }),
+      } as any);
+
+      // Second call: recovery fetch for "a1"
+      fetchStub.onCall(1).resolves({
+        ok: true,
+        json: async () => ({
+          id: "a1",
+          type: "planGenerated",
+          planGenerated: { plan: { title: "recovered plan" } }
+        }),
+      } as any);
+
+      const activities = await fetchSessionActivitiesPaginated("dummy-key", "sessions/123", { showPaginationProgress: false });
+
+      assert.strictEqual(activities.length, 2);
+      assert.strictEqual(activities[0].id, "a1");
+      // Should be recovered
+      assert.ok(activities[0].planGenerated);
+      assert.strictEqual((activities[0] as any).planGenerated.plan.title, "recovered plan");
+      
+      assert.strictEqual(activities[1].id, "a2");
+      assert.ok(activities[1].agentMessaged);
+    });
+
+    test("should fetch activities but keep the corrupted one if recovery fails", async () => {
+      // First call: paginated fetch
+      fetchStub.onCall(0).resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { id: "a1", type: "planGenerated" } // corrupted
+          ],
+          nextPageToken: "",
+        }),
+      } as any);
+
+      // Second call: recovery fetch fails
+      fetchStub.onCall(1).rejects(new Error("API Error during recovery"));
+
+      const activities = await fetchSessionActivitiesPaginated("dummy-key", "sessions/123", { showPaginationProgress: false });
+
+      assert.strictEqual(activities.length, 1);
+      assert.strictEqual(activities[0].id, "a1");
+      // Should remain corrupted
+      assert.strictEqual(activities[0].planGenerated, undefined);
     });
   });
 });

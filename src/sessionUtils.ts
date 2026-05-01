@@ -3,6 +3,7 @@ import { mapLimit } from "./asyncUtils";
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
+import { sanitizeError } from "./errorUtils";
 import { Activity, SourceType } from "./types";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
 import { JulesApiClient } from "./julesApiClient";
@@ -174,6 +175,7 @@ export async function recoverCorruptedActivities(
   sessionId: string,
   activities: Activity[],
   progress?: vscode.Progress<{ message?: string; increment?: number }>,
+  logChannel?: vscode.OutputChannel,
 ): Promise<void> {
   const corruptedActivities = activities.filter(isActivityCorrupted);
   if (corruptedActivities.length === 0) {
@@ -193,25 +195,32 @@ export async function recoverCorruptedActivities(
       try {
         return await fetchSingleActivity(apiKey, sessionId, activity.id);
       } catch (error) {
-        console.error(
-          `Jules: Failed to recover activity ${activity.id}: ${error}`,
-        );
-        return activity;
+        if (logChannel) {
+          logChannel.appendLine(
+            `Jules: Failed to recover activity ${activity.id}: ${sanitizeError(error)}`,
+          );
+        } else {
+          console.error(
+            `Jules: Failed to recover activity ${activity.id}: ${sanitizeError(error)}`,
+          );
+        }
+        return null;
       }
     },
   );
 
-  const recoveredMap = new Map<string, Activity>(
-    recoveredActivities.map((a) => [a.id, a]),
-  );
+  const recoveredMap = new Map<string, Activity>();
+  for (const a of recoveredActivities) {
+    if (a !== null) {
+      recoveredMap.set(a.id, a);
+    }
+  }
 
   for (let i = 0; i < activities.length; i++) {
     const act = activities[i];
-    if (isActivityCorrupted(act)) {
-      const recovered = recoveredMap.get(act.id);
-      if (recovered && !isActivityCorrupted(recovered)) {
-        activities[i] = recovered;
-      }
+    const recovered = recoveredMap.get(act.id);
+    if (recovered && !isActivityCorrupted(recovered)) {
+      activities[i] = recovered;
     }
   }
 }
