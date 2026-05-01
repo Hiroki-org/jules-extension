@@ -15,6 +15,7 @@ import {
   getSourceDisplayName,
   getSourceIsPrivate,
   handleOpenInWebApp,
+  isInferredActivityLogKey,
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
   resetUpdatePreviousStatesCachesForTests,
@@ -105,6 +106,13 @@ suite("Extension helper unit tests", () => {
   });
 
   suite("comparison and activity helpers", () => {
+    test("isInferredActivityLogKey should exclude known base and union keys", () => {
+      assert.strictEqual(isInferredActivityLogKey("id"), false);
+      assert.strictEqual(isInferredActivityLogKey("type"), false);
+      assert.strictEqual(isInferredActivityLogKey("planGenerated"), false);
+      assert.strictEqual(isInferredActivityLogKey("customDiagnostic"), true);
+    });
+
     test("session comparison helpers should detect equality and mismatches", () => {
       const outputsA: SessionOutput[] = [
         {

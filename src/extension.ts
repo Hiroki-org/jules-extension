@@ -86,6 +86,23 @@ const MAX_PAGINATION_PAGES = 100;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
 const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
   "jules.activities.latestCreateTime";
+const ACTIVITY_LOG_BASE_KEYS = new Set([
+  "name",
+  "createTime",
+  "description",
+  "originator",
+  "id",
+  "type",
+  "artifacts",
+]);
+const ACTIVITY_LOG_UNION_KEYS = new Set(ACTIVITY_UNION_KEYS);
+
+export function isInferredActivityLogKey(key: string): boolean {
+  return (
+    !ACTIVITY_LOG_BASE_KEYS.has(key) &&
+    !ACTIVITY_LOG_UNION_KEYS.has(key as ActivityUnionKey)
+  );
+}
 
 // Plan notification display constants
 const MAX_PLAN_STEPS_IN_NOTIFICATION = 5;
@@ -3228,22 +3245,11 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
               let keySummary = activeKeys.join(", ");
               if (activeKeys.length === 0) {
-                const baseKeys = new Set([
-                  "name",
-                  "createTime",
-                  "description",
-                  "originator",
-                  "id",
-                  "type",
-                  "artifacts",
-                ]);
-                const unionKeys = new Set(ACTIVITY_UNION_KEYS);
                 const inferredKeys: string[] = [];
                 for (const key in activity) {
                   if (
                     Object.prototype.hasOwnProperty.call(activity, key) &&
-                    !baseKeys.has(key) &&
-                    !unionKeys.has(key as ActivityUnionKey)
+                    isInferredActivityLogKey(key)
                   ) {
                     const value = (
                       activity as unknown as Record<string, unknown>
