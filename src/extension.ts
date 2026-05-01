@@ -96,6 +96,13 @@ const ACTIVITY_LOG_BASE_KEYS = new Set([
 ]);
 const ACTIVITY_LOG_UNION_KEYS = new Set(ACTIVITY_UNION_KEYS);
 
+export function isInferredActivityLogKey(key: string): boolean {
+  return (
+    !ACTIVITY_LOG_BASE_KEYS.has(key) &&
+    !ACTIVITY_LOG_UNION_KEYS.has(key as ActivityUnionKey)
+  );
+}
+
 // Plan notification display constants
 const MAX_PLAN_STEPS_IN_NOTIFICATION = 5;
 const MAX_PLAN_STEP_LENGTH = 80;
@@ -3241,8 +3248,7 @@ export function activate(context: vscode.ExtensionContext) {
                 for (const key in activity) {
                   if (
                     Object.prototype.hasOwnProperty.call(activity, key) &&
-                    !ACTIVITY_LOG_BASE_KEYS.has(key) &&
-                    !ACTIVITY_LOG_UNION_KEYS.has(key as ActivityUnionKey)
+                    isInferredActivityLogKey(key)
                   ) {
                     const value = (
                       activity as unknown as Record<string, unknown>
