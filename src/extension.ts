@@ -3159,6 +3159,18 @@ export function activate(context: vscode.ExtensionContext) {
           detailLines.push("No activities found for this session.");
         } else {
           let planDetected = false;
+          // Optimization: Pre-allocate sets outside the loop to avoid recreation on every activity
+          const logBaseKeys = new Set([
+            "name",
+            "createTime",
+            "description",
+            "originator",
+            "id",
+            "type",
+            "artifacts",
+          ]);
+          const logUnionKeys = new Set(ACTIVITY_UNION_KEYS);
+
           filteredActivities.forEach((activity) => {
             const icon = getActivityIcon(activity);
             const codicon = getActivityThemeIcon(activity)?.id;
@@ -3227,22 +3239,12 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
               let keySummary = activeKeys.join(", ");
               if (activeKeys.length === 0) {
-                const baseKeys = new Set([
-                  "name",
-                  "createTime",
-                  "description",
-                  "originator",
-                  "id",
-                  "type",
-                  "artifacts",
-                ]);
-                const unionKeys = new Set(ACTIVITY_UNION_KEYS);
                 const inferredKeys: string[] = [];
                 for (const key in activity) {
                   if (
                     Object.prototype.hasOwnProperty.call(activity, key) &&
-                    !baseKeys.has(key) &&
-                    !unionKeys.has(key as ActivityUnionKey)
+                    !logBaseKeys.has(key) &&
+                    !logUnionKeys.has(key as ActivityUnionKey)
                   ) {
                     const value = (
                       activity as unknown as Record<string, unknown>
