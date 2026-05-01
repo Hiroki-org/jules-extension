@@ -1,7 +1,7 @@
 # Jules Extension for VSCode
 
 [![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
-[![Downloads](https://img.shields.io/visual-studio-marketplace/d/HirokiMukai.jules-extension.svg?color=green)](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
+[![Downloads](https://img.shields.io/vscode-marketplace/d/HirokiMukai.jules-extension.svg?color=green)](https://marketplace.visualstudio.com/items?itemName=HirokiMukai.jules-extension)
 [![Built with Jules](https://img.shields.io/badge/Built%20with-Jules-715cd7?link=https://jules.google)](https://jules.google)
 [![CI](https://img.shields.io/github/actions/workflow/status/Hiroki-org/jules-extension/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/Hiroki-org/jules-extension/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Hiroki-org/jules-extension/branch/main/graph/badge.svg)](https://codecov.io/gh/Hiroki-org/jules-extension)
