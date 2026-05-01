@@ -923,6 +923,50 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(merged[2].name, "activities/3");
     });
 
+    test("mergeActivitiesByIdentity should not overwrite healthy existing activity with corrupted incoming one", () => {
+      const existing = [
+        { 
+          id: "a1", 
+          type: "planGenerated", 
+          planGenerated: { plan: { title: "healthy" } },
+          createTime: "2026-02-28T10:00:00Z" 
+        }
+      ] as any;
+      const incoming = [
+        { 
+          id: "a1", 
+          type: "planGenerated",
+          createTime: "2026-02-28T10:00:00Z" 
+        } // corrupted
+      ] as any;
+
+      const merged = mergeActivitiesByIdentity(existing, incoming);
+      assert.strictEqual(merged.length, 1);
+      assert.ok(merged[0].planGenerated);
+    });
+
+    test("mergeActivitiesByIdentity should overwrite corrupted existing activity with healthy incoming one", () => {
+      const existing = [
+        { 
+          id: "a1", 
+          type: "planGenerated",
+          createTime: "2026-02-28T10:00:00Z" 
+        } // corrupted
+      ] as any;
+      const incoming = [
+        { 
+          id: "a1", 
+          type: "planGenerated", 
+          planGenerated: { plan: { title: "healthy" } },
+          createTime: "2026-02-28T10:00:00Z" 
+        }
+      ] as any;
+
+      const merged = mergeActivitiesByIdentity(existing, incoming);
+      assert.strictEqual(merged.length, 1);
+      assert.ok(merged[0].planGenerated);
+    });
+
     test("getLatestActivityCreateTime should return latest valid timestamp", () => {
       const latest = getLatestActivityCreateTime([
         { id: "1", name: "a1", createTime: "invalid" },
@@ -1647,7 +1691,10 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(incomingActivities[0].planGenerated, undefined); // still corrupted
 
       // Merge the incoming corrupted activity with the existing healthy cache
+      console.log("existingActivities[0]:", JSON.stringify(existingActivities[0]));
+      console.log("incomingActivities[0]:", JSON.stringify(incomingActivities[0]));
       const mergedActivities = mergeActivitiesByIdentity(existingActivities, incomingActivities);
+      console.log("mergedActivities[0]:", JSON.stringify(mergedActivities[0]));
 
       // The healthy activity from cache should be preserved, not overwritten by the corrupted incoming one
       assert.strictEqual(mergedActivities.length, 1);
