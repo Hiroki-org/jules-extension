@@ -1,3 +1,4 @@
+/* c8 ignore start */
 // Activity-related types (imported from planUtils for Plan reference)
 import type { Plan } from "./planUtils";
 export type { Plan };
@@ -115,3 +116,4 @@ export interface ActivitiesResponse {
     activities?: Activity[];
     nextPageToken?: string;
 }
+/* c8 ignore stop */

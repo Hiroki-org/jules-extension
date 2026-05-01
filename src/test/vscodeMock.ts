@@ -44,6 +44,7 @@ const mockVscode = {
         showWarningMessage: () => undefined,
         showErrorMessage: () => undefined,
         showQuickPick: async () => undefined,
+        showInputBox: async () => undefined,
         withProgress: async (_opts: any, task: any) => {
             const token = {
                 isCancellationRequested: false,

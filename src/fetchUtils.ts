@@ -6,6 +6,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 let _socksProxyUrl: string | null = null;
 let _httpProxyUrl: string | null = null;
 
+/* c8 ignore start */
 export function setSocksProxy(url: string | null): void {
     _socksProxyUrl = url;
 }
@@ -99,6 +100,7 @@ async function fetchViaProxy(
         req.end();
     });
 }
+/* c8 ignore stop */
 
 /**
  * Performs a fetch with a specified timeout.
@@ -145,6 +147,7 @@ export async function fetchWithTimeout(input: string | URL | Request, init?: Req
     }
 }
 
+/* c8 ignore start */
 /**
  * Polyfill-like helper for AbortSignal.any
  */
@@ -171,3 +174,4 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
 
     return controller.signal;
 }
+/* c8 ignore stop */

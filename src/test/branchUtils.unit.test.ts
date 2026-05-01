@@ -162,6 +162,98 @@ suite('branchUtils Unit Tests', () => {
             const result = await getCurrentBranch(mockOutputChannel);
             assert.strictEqual(result, 'develop');
         });
+
+        test('should infer repository from active text editor in silent mode', async () => {
+            const mockGitExtension = {
+                exports: {
+                    getAPI: sinon.stub().returns({
+                        repositories: [
+                            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'repo1-branch' } } },
+                            { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'repo2-branch' } } }
+                        ]
+                    })
+                },
+                activate: sinon.stub().resolves()
+            };
+
+            sandbox.stub(vscode.extensions, 'getExtension').returns(mockGitExtension as any);
+            sandbox.stub(vscode.window, 'activeTextEditor').value({
+                document: {
+                    uri: { scheme: 'file', fsPath: '/repo2/src/main.ts' }
+                }
+            });
+
+            const result = await getCurrentBranch(mockOutputChannel, { silent: true });
+            assert.strictEqual(result, 'repo2-branch');
+        });
+
+        test('should return null when multiple repos exist, silent mode is true, but no matching active editor', async () => {
+            const mockGitExtension = {
+                exports: {
+                    getAPI: sinon.stub().returns({
+                        repositories: [
+                            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'repo1-branch' } } },
+                            { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'repo2-branch' } } }
+                        ]
+                    })
+                },
+                activate: sinon.stub().resolves()
+            };
+
+            sandbox.stub(vscode.extensions, 'getExtension').returns(mockGitExtension as any);
+            sandbox.stub(vscode.window, 'activeTextEditor').value({
+                document: {
+                    uri: { scheme: 'file', fsPath: '/other/path/main.ts' }
+                }
+            });
+
+            const result = await getCurrentBranch(mockOutputChannel, { silent: true });
+            assert.strictEqual(result, null);
+        });
+
+        test('should prompt user to select repository when silent mode is false', async () => {
+            const mockGitExtension = {
+                exports: {
+                    getAPI: sinon.stub().returns({
+                        repositories: [
+                            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'repo1-branch' } } },
+                            { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'repo2-branch' } } }
+                        ]
+                    })
+                },
+                activate: sinon.stub().resolves()
+            };
+
+            sandbox.stub(vscode.extensions, 'getExtension').returns(mockGitExtension as any);
+            const showQuickPickStub = sandbox.stub(vscode.window, 'showQuickPick').resolves({
+                label: 'repo2',
+                repo: { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'repo2-branch' } } }
+            } as any);
+
+            const result = await getCurrentBranch(mockOutputChannel, { silent: false });
+            assert.strictEqual(result, 'repo2-branch');
+            assert.ok(showQuickPickStub.calledOnce);
+        });
+
+        test('should return null if user cancels repository selection', async () => {
+            const mockGitExtension = {
+                exports: {
+                    getAPI: sinon.stub().returns({
+                        repositories: [
+                            { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'repo1-branch' } } },
+                            { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'repo2-branch' } } }
+                        ]
+                    })
+                },
+                activate: sinon.stub().resolves()
+            };
+
+            sandbox.stub(vscode.extensions, 'getExtension').returns(mockGitExtension as any);
+            sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
+
+            const result = await getCurrentBranch(mockOutputChannel, { silent: false });
+            assert.strictEqual(result, null);
+        });
     });
 
     suite('getBranchesForSession', () => {

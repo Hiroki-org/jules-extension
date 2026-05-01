@@ -604,6 +604,74 @@ suite("Extension Test Suite", () => {
     });
   });
 
+  suite("Command Registration and Execution Tests", () => {
+    let localSandbox: sinon.SinonSandbox;
+    let registeredCommands: Record<string, Function>;
+
+    setup(() => {
+      localSandbox = sinon.createSandbox();
+      registeredCommands = {};
+
+      const mockContext = {
+        globalState: {
+          get: localSandbox.stub().returns({}),
+          update: localSandbox.stub().resolves(),
+          keys: localSandbox.stub().returns([]),
+        },
+        subscriptions: [],
+        secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() }
+      } as any as vscode.ExtensionContext;
+
+      localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeActionsProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeLensProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.workspace, 'registerTextDocumentContentProvider').callsFake(() => ({ dispose: () => { } } as any));
+      
+      localSandbox.stub(vscode.commands, 'registerCommand').callsFake((cmd: string, cb: Function) => {
+        registeredCommands[cmd] = cb;
+        return { dispose: () => { } } as any;
+      });
+
+      activate(mockContext);
+    });
+
+    teardown(() => {
+      localSandbox.restore();
+    });
+
+    test("jules-extension.setApiKey executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.setApiKey']);
+      
+      const showInputBoxStub = localSandbox.stub(vscode.window, 'showInputBox').resolves('dummy-key');
+      const showInfoStub = localSandbox.stub(vscode.window, 'showInformationMessage').resolves();
+
+      await registeredCommands['jules-extension.setApiKey']();
+      
+      assert.strictEqual(showInputBoxStub.calledOnce, true);
+      assert.strictEqual(showInfoStub.calledOnce, true);
+    });
+
+    test("jules-extension.refreshSessions executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.refreshSessions']);
+      
+      const executeCommandStub = localSandbox.stub(vscode.commands, 'executeCommand').resolves();
+
+      await registeredCommands['jules-extension.refreshSessions']();
+      
+      assert.ok(executeCommandStub.calledWith('julesSessions.refresh'));
+    });
+
+    test("jules-extension.createSession executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.createSession']);
+      
+      const executeCommandStub = localSandbox.stub(vscode.commands, 'executeCommand').resolves();
+
+      await registeredCommands['jules-extension.createSession']();
+      
+      assert.ok(executeCommandStub.calledWith('jules-extension.showChat'));
+    });
+  });
+
   suite("Proxy detection", () => {
     const proxyEnvKeys = [
       "HTTP_PROXY",

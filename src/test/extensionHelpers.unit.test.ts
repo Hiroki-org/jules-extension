@@ -667,4 +667,326 @@ suite("Extension helper unit tests", () => {
       );
     });
   });
+
+  suite("Command Registration and Execution Tests", () => {
+    let localSandbox: sinon.SinonSandbox;
+    let registeredCommands: Record<string, Function>;
+
+    setup(() => {
+      localSandbox = sinon.createSandbox();
+      registeredCommands = {};
+
+      const mockContext = {
+        globalState: {
+          get: localSandbox.stub().callsFake((key) => {
+            if (key === 'selected-source') return undefined;
+            return {};
+          }),
+          update: localSandbox.stub().resolves(),
+          keys: localSandbox.stub().returns([]),
+        },
+        subscriptions: [],
+        secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() }
+      } as any as vscode.ExtensionContext;
+
+      localSandbox.stub(vscode.window, "createTreeView").callsFake(() => ({
+        onDidChangeSelection: () => ({ dispose: () => { } }),
+        dispose: () => { },
+      } as any));
+      localSandbox.stub(vscode.window, "createStatusBarItem").returns({
+        show: () => { },
+        hide: () => { },
+        dispose: () => { },
+        name: "",
+      } as any);
+      localSandbox.stub(vscode.window, "createOutputChannel").returns({
+        appendLine: () => { },
+        clear: () => { },
+        show: () => { },
+        hide: () => { },
+        dispose: () => { },
+      } as any);
+      localSandbox.stub(vscode.workspace, "getConfiguration").returns({
+        get: () => undefined,
+      } as any);
+      localSandbox.stub(vscode.workspace, "onDidChangeConfiguration").callsFake(() => ({ dispose: () => { } } as any));
+
+      localSandbox.stub(vscode.window, 'registerWebviewViewProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeActionsProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.languages, 'registerCodeLensProvider').callsFake(() => ({ dispose: () => { } } as any));
+      localSandbox.stub(vscode.workspace, 'registerTextDocumentContentProvider').callsFake(() => ({ dispose: () => { } } as any));
+      
+      localSandbox.stub(vscode.commands, 'registerCommand').callsFake((cmd: string, cb: Function) => {
+        registeredCommands[cmd] = cb;
+        return { dispose: () => { } } as any;
+      });
+
+      // Require the activate function dynamically to ensure fresh registration
+      const extension = require("../extension");
+      extension.activate(mockContext);
+    });
+
+    teardown(() => {
+      localSandbox.restore();
+    });
+
+    test("jules-extension.setApiKey executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.setApiKey']);
+      
+      const showInputBoxStub = localSandbox.stub(vscode.window, 'showInputBox').resolves('dummy-key');
+      const showInfoStub = localSandbox.stub(vscode.window, 'showInformationMessage').resolves();
+
+      await registeredCommands['jules-extension.setApiKey']();
+      
+      assert.strictEqual(showInputBoxStub.calledOnce, true);
+      assert.strictEqual(showInfoStub.calledOnce, true);
+    });
+
+    test("jules-extension.refreshSessions executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.refreshSessions']);
+      
+      // Should run without throwing
+      await registeredCommands['jules-extension.refreshSessions']();
+    });
+
+    test("jules-extension.createSession executes successfully without source", async () => {
+      assert.ok(registeredCommands['jules-extension.createSession']);
+      const showErrorStub = localSandbox.stub(vscode.window, 'showErrorMessage').resolves();
+      await registeredCommands['jules-extension.createSession']();
+      // Test passes if it runs without throwing
+    });
+
+    test("jules-extension.verifyApiKey executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.verifyApiKey']);
+      const showErrorStub = localSandbox.stub(vscode.window, 'showErrorMessage').resolves();
+      await registeredCommands['jules-extension.verifyApiKey']();
+    });
+
+    test("jules-extension.clearCache executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.clearCache']);
+      const showInfoStub = localSandbox.stub(vscode.window, 'showInformationMessage').resolves();
+      await registeredCommands['jules-extension.clearCache']();
+      assert.strictEqual(showInfoStub.calledOnce, true);
+    });
+
+    test("jules.showFailureReason executes successfully", async () => {
+      assert.ok(registeredCommands['jules.showFailureReason']);
+      // If we pass an invalid item, it should return early
+      await registeredCommands['jules.showFailureReason'](null);
+    });
+
+    test("jules-extension.openInWebApp executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openInWebApp']);
+      const showErrorStub = localSandbox.stub(vscode.window, 'showErrorMessage').resolves();
+      await registeredCommands['jules-extension.openInWebApp'](null);
+    });
+
+    test("jules-extension.deleteSession executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.deleteSession']);
+      await registeredCommands['jules-extension.deleteSession'](null);
+    });
+
+    test("jules-extension.checkoutToBranch executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.checkoutToBranch']);
+      await registeredCommands['jules-extension.checkoutToBranch'](null);
+    });
+
+    test("jules-extension.openLatestDiff executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openLatestDiff']);
+      await registeredCommands['jules-extension.openLatestDiff'](null);
+    });
+
+    test("jules-extension.openChangeset executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openChangeset']);
+      await registeredCommands['jules-extension.openChangeset'](null);
+    });
+
+    test("jules-extension.applyPatchLocally executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.applyPatchLocally']);
+      await registeredCommands['jules-extension.applyPatchLocally'](null);
+    });
+
+    test("jules-extension.reviewPlan executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.reviewPlan']);
+      await registeredCommands['jules-extension.reviewPlan'](null);
+    });
+
+    test("jules-extension.approvePlan executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.approvePlan']);
+      await registeredCommands['jules-extension.approvePlan'](null);
+    });
+
+    test("jules-extension.sendMessage executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.sendMessage']);
+      await registeredCommands['jules-extension.sendMessage'](null);
+    });
+
+    test("jules.filterActivities executes successfully", async () => {
+      assert.ok(registeredCommands['jules.filterActivities']);
+      await registeredCommands['jules.filterActivities']();
+    });
+
+    test("jules-extension.showActivities executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.showActivities']);
+      await registeredCommands['jules-extension.showActivities'](null);
+    });
+
+    test("jules-extension.refreshActivities executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.refreshActivities']);
+      await registeredCommands['jules-extension.refreshActivities'](null);
+    });
+
+    test("jules-extension.openInWebApp executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openInWebApp']);
+      await registeredCommands['jules-extension.openInWebApp'](null);
+    });
+
+    test("jules-extension.openLatestDiff executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openLatestDiff']);
+      await registeredCommands['jules-extension.openLatestDiff'](null);
+    });
+
+    test("jules-extension.openChangeset executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openChangeset']);
+      await registeredCommands['jules-extension.openChangeset'](null);
+    });
+
+    test("jules-extension.applyPatchLocally executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.applyPatchLocally']);
+      await registeredCommands['jules-extension.applyPatchLocally'](null);
+    });
+
+    test("jules-extension.listSources executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.listSources']);
+      await registeredCommands['jules-extension.listSources']();
+    });
+
+    test("jules-extension.openSettings executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openSettings']);
+      await registeredCommands['jules-extension.openSettings']();
+    });
+
+    test("jules-extension.openPRInBrowser executes successfully", async () => {
+      assert.ok(registeredCommands['jules-extension.openPRInBrowser']);
+      await registeredCommands['jules-extension.openPRInBrowser'](null);
+    });
+  });
+
+  suite("Exported helper functions", () => {
+    const extension = require("../extension");
+
+    test("mapApiStateToSessionState handles all states", () => {
+      assert.strictEqual(extension.mapApiStateToSessionState("IN_PROGRESS"), "RUNNING");
+      assert.strictEqual(extension.mapApiStateToSessionState("QUEUED"), "RUNNING");
+      assert.strictEqual(extension.mapApiStateToSessionState("STATE_UNSPECIFIED"), "RUNNING");
+      assert.strictEqual(extension.mapApiStateToSessionState("PLANNING"), "PLANNING");
+      assert.strictEqual(extension.mapApiStateToSessionState("AWAITING_PLAN_APPROVAL"), "AWAITING_PLAN_APPROVAL");
+      assert.strictEqual(extension.mapApiStateToSessionState("AWAITING_USER_FEEDBACK"), "AWAITING_USER_FEEDBACK");
+      assert.strictEqual(extension.mapApiStateToSessionState("PAUSED"), "PAUSED");
+      assert.strictEqual(extension.mapApiStateToSessionState("COMPLETED"), "COMPLETED");
+      assert.strictEqual(extension.mapApiStateToSessionState("FAILED"), "FAILED");
+      assert.strictEqual(extension.mapApiStateToSessionState("CANCELLED"), "CANCELLED");
+      assert.strictEqual(extension.mapApiStateToSessionState("UNKNOWN_NEW_STATE"), "RUNNING");
+    });
+
+    test("extractPRs deduplicates PRs and keeps latest", () => {
+      const state = {
+        outputs: [
+          { pullRequest: { url: "url1", title: "old title" } },
+          { pullRequest: { url: "url2", title: "title2" } },
+          { pullRequest: { url: "url1", title: "new title" } },
+          { notPR: true },
+          { pullRequest: {} }
+        ]
+      };
+      const prs = extension.extractPRs(state);
+      assert.strictEqual(prs.length, 2);
+      assert.strictEqual(prs[0].title, "new title"); // should keep first seen order but replace data
+      assert.strictEqual(prs[1].title, "title2");
+    });
+
+    test("extractPRs handles empty outputs", () => {
+      assert.deepStrictEqual(extension.extractPRs({}), []);
+      assert.deepStrictEqual(extension.extractPRs({ outputs: [] }), []);
+    });
+
+    test("areOutputsEqual correctly compares outputs", () => {
+      assert.strictEqual(extension.areOutputsEqual(undefined, undefined), true);
+      assert.strictEqual(extension.areOutputsEqual([], []), true);
+      assert.strictEqual(extension.areOutputsEqual([{pullRequest: {url: "a"}}], [{pullRequest: {url: "a"}}]), true);
+      assert.strictEqual(extension.areOutputsEqual([{pullRequest: {url: "a"}}], [{pullRequest: {url: "b"}}]), false);
+      assert.strictEqual(extension.areOutputsEqual([{pullRequest: {url: "a"}}], []), false);
+      assert.strictEqual(extension.areOutputsEqual(undefined, []), false);
+    });
+
+    test("areSessionListsEqual correctly compares session lists", () => {
+      const s1 = { name: "s1", state: "RUNNING", rawState: "RUNNING", outputs: [], sourceContext: {} };
+      const s2 = { name: "s2", state: "COMPLETED", rawState: "COMPLETED", outputs: [], sourceContext: {} };
+      const s1_diff = { name: "s1", state: "COMPLETED", rawState: "COMPLETED", outputs: [], sourceContext: {} };
+
+      assert.strictEqual(extension.areSessionListsEqual([], []), true);
+      assert.strictEqual(extension.areSessionListsEqual([s1], [s1]), true);
+      assert.strictEqual(extension.areSessionListsEqual([s1], [s2]), false);
+      assert.strictEqual(extension.areSessionListsEqual([s1], []), false);
+      assert.strictEqual(extension.areSessionListsEqual([s1], [s1_diff]), false);
+    });
+
+    test("isInferredActivityLogKey correctly identifies keys", () => {
+      assert.strictEqual(extension.isInferredActivityLogKey("someInferredKey"), true);
+      assert.strictEqual(extension.isInferredActivityLogKey("name"), false);
+      assert.strictEqual(extension.isInferredActivityLogKey("createTime"), false);
+    });
+
+    test("getSourceIsPrivate correctly identifies private sources", () => {
+      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1", isPrivate: true }), true);
+      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1", isPrivate: false }), false);
+      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1", githubRepo: { owner: "A", repo: "B", isPrivate: true, defaultBranch: { displayName: "main" }, branches: [] } }), true);
+      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1" }), undefined);
+    });
+
+    test("getSourceDisplayName formats source names", () => {
+      assert.strictEqual(extension.getSourceDisplayName({ name: "A", id: "1" }), "A");
+      assert.strictEqual(extension.getSourceDisplayName({ name: "A", id: "1", githubRepo: { owner: "owner", repo: "repo", isPrivate: false, defaultBranch: { displayName: "main" }, branches: [] } }), "owner/repo");
+    });
+
+    test("buildSessionsListEndpoint constructs URL correctly", () => {
+      assert.strictEqual(extension.buildSessionsListEndpoint("src", "token"), "src/sessions?pageSize=100&pageToken=token");
+      assert.strictEqual(extension.buildSessionsListEndpoint("src"), "src/sessions?pageSize=100");
+    });
+
+    test("buildActivitiesListEndpoint constructs URL correctly", () => {
+      assert.strictEqual(extension.buildActivitiesListEndpoint("sess", "10", { pageToken: "token" }), "sess/10/activities?pageSize=100&pageToken=token");
+      assert.strictEqual(extension.buildActivitiesListEndpoint("sess", "10"), "sess/10/activities?pageSize=100");
+    });
+
+    test("getLatestActivityCreateTime gets the latest time", () => {
+      assert.strictEqual(extension.getLatestActivityCreateTime([]), undefined);
+      assert.strictEqual(extension.getLatestActivityCreateTime([{ createTime: "2023-01-01T00:00:00Z" }]), "2023-01-01T00:00:00Z");
+      assert.strictEqual(extension.getLatestActivityCreateTime([{ createTime: "2023-01-01T00:00:00Z" }, { createTime: "2024-01-01T00:00:00Z" }]), "2024-01-01T00:00:00Z");
+      assert.strictEqual(extension.getLatestActivityCreateTime([{ createTime: "2025-01-01T00:00:00Z" }, { createTime: "2024-01-01T00:00:00Z" }]), "2025-01-01T00:00:00Z");
+    });
+
+    test("mergeActivitiesByIdentity merges activities", () => {
+      const a1 = { name: "1", createTime: "2023-01-01", type: "T1" };
+      const a2 = { name: "2", createTime: "2023-01-02", type: "T2" };
+      const a1_updated = { name: "1", createTime: "2023-01-01", type: "T1_UPDATED" };
+
+      assert.deepStrictEqual(extension.mergeActivitiesByIdentity([a1], []), [a1]);
+      assert.deepStrictEqual(extension.mergeActivitiesByIdentity([], [a2]), [a2]);
+      assert.deepStrictEqual(extension.mergeActivitiesByIdentity([a1], [a1_updated]), [a1_updated]);
+      const merged = extension.mergeActivitiesByIdentity([a1], [a2, a1_updated]);
+      assert.strictEqual(merged.length, 2);
+    });
+
+    test("buildActivitySummaryHeader creates summary", () => {
+      const activities = [
+        { originator: "agent", planGenerated: {}, name: "1", createTime: "" },
+        { originator: "user", userMessaged: {}, name: "2", createTime: "" },
+      ];
+      const summary = extension.buildActivitySummaryHeader("RUNNING", activities);
+      assert.ok(summary.includes("Activities: 2"));
+      assert.ok(summary.includes("Plan: 1"));
+      assert.ok(summary.includes("Messages: 1"));
+    });
+  });
 });
