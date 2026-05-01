@@ -41,6 +41,26 @@ export function getActiveActivityKeys(activity: Activity): ActivityUnionKey[] {
 }
 
 /**
+ * Checks if an activity is corrupted.
+ * An activity is considered corrupted if its type is known but the corresponding payload is missing.
+ * @param activity Activity オブジェクト
+ * @returns 破損している場合はtrue
+ */
+export function isActivityCorrupted(activity: Activity): boolean {
+    const activeKeys = getActiveActivityKeys(activity);
+
+    if (
+        activity.type &&
+        (ACTIVITY_UNION_KEYS as readonly string[]).includes(activity.type) &&
+        !activeKeys.includes(activity.type as ActivityUnionKey)
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Activity をカテゴリに分類する
  *
  * カテゴリマッピング：
@@ -53,6 +73,7 @@ export function getActiveActivityKeys(activity: Activity): ActivityUnionKey[] {
  * @param activity Activity オブジェクト
  * @returns Activity のカテゴリ
  */
+
 export function getActivityCategory(activity: Activity): ActivityCategory {
     // Error チェック（優先度最高）
     if (activity.sessionFailed) {

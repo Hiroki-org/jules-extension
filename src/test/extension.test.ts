@@ -12,6 +12,7 @@ import {
   buildActivitiesListEndpoint,
   buildSessionsListEndpoint,
   mergeActivitiesByIdentity,
+  fetchSessionActivitiesPaginated,
   getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
@@ -1545,5 +1546,53 @@ suite("Extension Test Suite", () => {
         assert.strictEqual(err.message, "GitHub API error: 500 - Internal Server Error");
       }
     });
+  });
+
+  test("mergeActivitiesByIdentity retains healthy existing cache when incoming is missing due to failed recovery filtering", async () => {
+    // 既存キャッシュに健全な Activity がある
+    const existingActivities = [
+      {
+        id: "activity-1",
+        name: "sessions/test/activities/activity-1",
+        createTime: "2026-01-01T00:00:00Z",
+        type: "planGenerated",
+        planGenerated: { plan: { title: "Healthy Plan", steps: [] } },
+      } as any
+    ];
+
+    // incoming として、API からページングで破損した Activity (payload 欠落) が返ってくることをシミュレート
+    const fetchStub = sinon.stub(globalThis, "fetch");
+    fetchStub.onFirstCall().resolves({
+      ok: true,
+      json: async () => ({
+        activities: [
+          {
+            id: "activity-1",
+            name: "sessions/test/activities/activity-1",
+            createTime: "2026-01-01T00:00:00Z",
+            type: "planGenerated",
+            // planGenerated payload is missing -> corrupted
+          }
+        ],
+        nextPageToken: undefined
+      })
+    } as any);
+
+    // 回復用の fetchSingleActivity も失敗することをシミュレート (fetchStub の 2 回目)
+    fetchStub.onSecondCall().rejects(new Error("Network failure"));
+
+    // これにより、incoming の fetchSessionActivitiesPaginated は
+    // corrupted な Activity を見つけて回復を試みるが失敗し、
+    // 配列から削除して空の配列を返すはず。
+    const incomingActivities = await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: false });
+
+    // mergeActivitiesByIdentity で既存キャッシュと結合
+    const mergedResult = mergeActivitiesByIdentity(existingActivities, incomingActivities);
+
+    // 既存の健全なペイロードが維持されていることをアサート
+    assert.strictEqual(mergedResult.length, 1);
+    assert.ok(mergedResult[0].planGenerated);
+    assert.strictEqual((mergedResult[0] as any).planGenerated.plan.title, "Healthy Plan");
+    fetchStub.restore();
   });
 });

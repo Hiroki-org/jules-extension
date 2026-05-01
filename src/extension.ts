@@ -1,3 +1,4 @@
+import { recoverCorruptedActivities } from "./sessionUtils";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
@@ -1457,7 +1458,7 @@ async function fetchAllSessionsPaginated(
   );
 }
 
-async function fetchSessionActivitiesPaginated(
+export async function fetchSessionActivitiesPaginated(
   apiKey: string,
   sessionId: string,
   options?: { showPaginationProgress?: boolean },
@@ -1511,6 +1512,8 @@ async function fetchSessionActivitiesPaginated(
       }
       pageToken = data.nextPageToken;
     } while (pageToken);
+
+    await recoverCorruptedActivities(apiKey, sessionId, activities, progress);
 
     return activities;
   };
@@ -3108,8 +3111,6 @@ export function activate(context: vscode.ExtensionContext) {
             showPaginationProgress: true,
           },
         );
-        // TODO(issue-485): ページング取得で欠損/破損した activity がある場合、
-        // fetchSingleActivity(apiKey, sessionId, activityId) で対象のみ再取得して回復できる。
 
         const mergedActivities = shouldMergeWithCache
           ? mergeActivitiesByIdentity(cachedActivities, newActivities)
