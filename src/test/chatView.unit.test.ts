@@ -119,19 +119,46 @@ suite("Chat View Unit Test Suite", () => {
   suite("JulesChatViewProvider lazy loading", () => {
     test("handleRequestDetails generates HTML and sends back via postMessage", async () => {
       let postedMessage: any;
+      let messageHandler: any;
       const webviewView: any = {
         webview: {
           options: {},
           html: "",
           cspSource: "https://example.com",
-          onDidReceiveMessage: (cb: any) => { /* mock */ },
+          onDidReceiveMessage: (cb: any) => { messageHandler = cb; },
           postMessage: async (msg: any) => { postedMessage = msg; }
         }
       };
 
-      const provider = new JulesChatViewProvider(async () => {});
+      const provider = new JulesChatViewProvider(async (sid, text) => {
+        if (text === "error") { throw new Error("mock error"); }
+      });
       // we need to call resolveWebviewView to set this.view
       await provider.resolveWebviewView(webviewView);
+
+      // Trigger requestInitialState
+      await messageHandler({ type: "requestInitialState" });
+
+      // Trigger sendMessage
+      await messageHandler({ type: "sendMessage", sessionId: "s1", text: "hello" });
+      
+      // Trigger sendMessage with error
+      await messageHandler({ type: "sendMessage", sessionId: "s1", text: "error" });
+
+      // Trigger requestDetails
+      await messageHandler({ type: "requestDetails", activityId: "act-1", detailType: "plan" });
+
+      // Trigger unknown message type
+      await messageHandler({ type: "unknown" });
+
+      // Trigger sendMessage with missing sid/text
+      await messageHandler({ type: "sendMessage", sessionId: "", text: "hi" });
+      await messageHandler({ type: "sendMessage", sessionId: "s1", text: "" });
+
+      // Set sessionId to cover buildChatMessagesFromActivities in resolveWebviewView
+      const providerWithSession = new JulesChatViewProvider(async () => {});
+      (providerWithSession as any).state.sessionId = "s1";
+      await providerWithSession.resolveWebviewView(webviewView);
 
 
       const actProvider: any = createActivity({
