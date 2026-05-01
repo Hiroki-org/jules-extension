@@ -1,3 +1,4 @@
+import { recoverCorruptedActivities } from "./sessionUtils";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
@@ -65,7 +66,6 @@ import {
   getActivityLabelPrefix,
   getActivityThemeIcon,
   getActiveActivityKeys,
-  isActivityCorrupted,
   ACTIVITY_UNION_KEYS,
   type ActivityCategory,
   type ActivityUnionKey,
@@ -74,7 +74,6 @@ import {
 import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
 import {
   createJulesSession,
-  recoverCorruptedActivities,
   sendMessage as sendMessageToApi,
 } from "./sessionUtils";
 import { registerInlineCommands } from "./inlineCommands";
@@ -1304,15 +1303,6 @@ export function mergeActivitiesByIdentity(
   for (const activity of incoming) {
     const key = getActivityIdentityKey(activity);
     if (key) {
-      const existingActivity = mergedMap.get(key);
-      if (
-        existingActivity &&
-        !isActivityCorrupted(existingActivity) &&
-        isActivityCorrupted(activity)
-      ) {
-        // Do not overwrite a healthy existing activity with a corrupted incoming one
-        continue;
-      }
       mergedMap.set(key, activity);
     }
   }
@@ -1523,7 +1513,7 @@ export async function fetchSessionActivitiesPaginated(
       pageToken = data.nextPageToken;
     } while (pageToken);
 
-    await recoverCorruptedActivities(apiKey, sessionId, activities, progress, logChannel);
+    await recoverCorruptedActivities(apiKey, sessionId, activities, progress);
 
     return activities;
   };

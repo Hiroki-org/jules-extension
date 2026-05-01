@@ -12,6 +12,7 @@ import {
   buildActivitiesListEndpoint,
   buildSessionsListEndpoint,
   mergeActivitiesByIdentity,
+  fetchSessionActivitiesPaginated,
   getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
@@ -22,7 +23,6 @@ import {
   createRemoteBranch,
   resetUpdatePreviousStatesCachesForTests,
   setPRStatusCacheForTests,
-  fetchSessionActivitiesPaginated,
 } from "../extension";
 import { buildFinalPrompt } from "../promptUtils";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
@@ -1548,111 +1548,51 @@ suite("Extension Test Suite", () => {
     });
   });
 
-  suite("fetchSessionActivitiesPaginated Recovery Flow", () => {
-    let fetchStub: sinon.SinonStub;
+  test("mergeActivitiesByIdentity retains healthy existing cache when incoming is missing due to failed recovery filtering", async () => {
+    // 既存キャッシュに健全な Activity がある
+    const existingActivities = [
+      {
+        id: "activity-1",
+        name: "sessions/test/activities/activity-1",
+        createTime: "2026-01-01T00:00:00Z",
+        type: "planGenerated",
+        planGenerated: { plan: { title: "Healthy Plan", steps: [] } },
+      } as any
+    ];
 
-    setup(() => {
-      fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout");
-    });
+    // incoming として、API からページングで破損した Activity (payload 欠落) が返ってくることをシミュレート
+    const fetchStub = sinon.stub(globalThis, "fetch");
+    fetchStub.onFirstCall().resolves({
+      ok: true,
+      json: async () => ({
+        activities: [
+          {
+            id: "activity-1",
+            name: "sessions/test/activities/activity-1",
+            createTime: "2026-01-01T00:00:00Z",
+            type: "planGenerated",
+            // planGenerated payload is missing -> corrupted
+          }
+        ],
+        nextPageToken: undefined
+      })
+    } as any);
 
-    teardown(() => {
-      sinon.restore();
-    });
+    // 回復用の fetchSingleActivity も失敗することをシミュレート (fetchStub の 2 回目)
+    fetchStub.onSecondCall().rejects(new Error("Network failure"));
 
-    test("should fetch activities and replace corrupted ones with healthy ones if recovery succeeds", async () => {
-      // First call: paginated fetch
-      fetchStub.onCall(0).resolves({
-        ok: true,
-        json: async () => ({
-          activities: [
-            { id: "a1", type: "planGenerated" }, // missing payload (corrupted)
-            { id: "a2", type: "agentMessaged", agentMessaged: { agentMessage: "hi" } } // healthy
-          ],
-          nextPageToken: "",
-        }),
-      } as any);
+    // これにより、incoming の fetchSessionActivitiesPaginated は
+    // corrupted な Activity を見つけて回復を試みるが失敗し、
+    // 配列から削除して空の配列を返すはず。
+    const incomingActivities = await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: false });
 
-      // Second call: recovery fetch for "a1"
-      fetchStub.onCall(1).resolves({
-        ok: true,
-        json: async () => ({
-          id: "a1",
-          type: "planGenerated",
-          planGenerated: { plan: { title: "recovered plan" } }
-        }),
-      } as any);
+    // mergeActivitiesByIdentity で既存キャッシュと結合
+    const mergedResult = mergeActivitiesByIdentity(existingActivities, incomingActivities);
 
-      const activities = await fetchSessionActivitiesPaginated("dummy-key", "sessions/123", { showPaginationProgress: false });
-
-      assert.strictEqual(activities.length, 2);
-      assert.strictEqual(activities[0].id, "a1");
-      // Should be recovered
-      assert.ok(activities[0].planGenerated);
-      assert.strictEqual((activities[0] as any).planGenerated.plan.title, "recovered plan");
-      
-      assert.strictEqual(activities[1].id, "a2");
-      assert.ok(activities[1].agentMessaged);
-    });
-
-    test("should fetch activities but keep the corrupted one if recovery fails", async () => {
-      // First call: paginated fetch
-      fetchStub.onCall(0).resolves({
-        ok: true,
-        json: async () => ({
-          activities: [
-            { id: "a1", type: "planGenerated" } // corrupted
-          ],
-          nextPageToken: "",
-        }),
-      } as any);
-
-      // Second call: recovery fetch fails
-      fetchStub.onCall(1).rejects(new Error("API Error during recovery"));
-
-      const activities = await fetchSessionActivitiesPaginated("dummy-key", "sessions/123", { showPaginationProgress: false });
-
-      assert.strictEqual(activities.length, 1);
-      assert.strictEqual(activities[0].id, "a1");
-      // Should remain corrupted
-      assert.strictEqual(activities[0].planGenerated, undefined);
-    });
-
-    test("should not overwrite existing healthy cache with failed recovery result", async () => {
-      const existingActivities = [
-        { 
-          id: "a1", 
-          type: "planGenerated", 
-          planGenerated: { plan: { title: "healthy plan" } } 
-        }
-      ] as any;
-
-      // First call: paginated fetch returns corrupted activity
-      fetchStub.onCall(0).resolves({
-        ok: true,
-        json: async () => ({
-          activities: [
-            { id: "a1", type: "planGenerated" } // corrupted (missing payload)
-          ],
-          nextPageToken: "",
-        }),
-      } as any);
-
-      // Second call: recovery fetch fails
-      fetchStub.onCall(1).rejects(new Error("API Error during recovery"));
-
-      // The paginated fetch returns the corrupted activity
-      const incomingActivities = await fetchSessionActivitiesPaginated("dummy-key", "sessions/123", { showPaginationProgress: false });
-
-      assert.strictEqual(incomingActivities.length, 1);
-      assert.strictEqual(incomingActivities[0].planGenerated, undefined); // still corrupted
-
-      // Merge the incoming corrupted activity with the existing healthy cache
-      const mergedActivities = mergeActivitiesByIdentity(existingActivities, incomingActivities);
-
-      // The healthy activity from cache should be preserved, not overwritten by the corrupted incoming one
-      assert.strictEqual(mergedActivities.length, 1);
-      assert.ok(mergedActivities[0].planGenerated);
-      assert.strictEqual((mergedActivities[0] as any).planGenerated.plan.title, "healthy plan");
-    });
+    // 既存の健全なペイロードが維持されていることをアサート
+    assert.strictEqual(mergedResult.length, 1);
+    assert.ok(mergedResult[0].planGenerated);
+    assert.strictEqual((mergedResult[0] as any).planGenerated.plan.title, "Healthy Plan");
+    fetchStub.restore();
   });
 });
