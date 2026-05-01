@@ -725,6 +725,8 @@ suite("Extension helper unit tests", () => {
         return { dispose: () => { } } as any;
       });
 
+      localSandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
       // Require the activate function dynamically to ensure fresh registration
       delete require.cache[require.resolve("../extension")];
       const extension = require("../extension");
