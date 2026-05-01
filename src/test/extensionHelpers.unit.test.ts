@@ -710,6 +710,8 @@ suite("Extension helper unit tests", () => {
         hide: () => { },
         dispose: () => { },
       } as any);
+      localSandbox.stub(vscode.window, "showQuickPick").resolves(undefined);
+      localSandbox.stub(vscode.window, "withProgress").callsFake((options: any, task: any) => task(null));
       localSandbox.stub(vscode.workspace, "getConfiguration").returns({
         get: () => undefined,
       } as any);
