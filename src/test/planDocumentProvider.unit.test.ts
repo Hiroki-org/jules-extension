@@ -1,6 +1,9 @@
 import * as assert from "assert";
+import * as vscode from "vscode";
+import * as sinon from "sinon";
 import { formatFullPlan, type Plan, type PlanStep } from "../planUtils";
-import { JulesPlanDocumentProvider } from "../planDocumentProvider";
+import { JulesPlanDocumentProvider, reviewPlanForSession } from "../planDocumentProvider";
+
 
 suite("formatFullPlan", () => {
     test("formats plan with all fields", () => {
@@ -185,3 +188,120 @@ suite("JulesPlanDocumentProvider", () => {
         assert.strictEqual(provider.provideTextDocumentContent(uri2), "Content 2");
     });
 });
+
+suite("reviewPlanForSession", () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test("shows error if session ID is invalid", async () => {
+        const showErrorMessageSpy = sandbox.spy(vscode.window, "showErrorMessage");
+        
+        await reviewPlanForSession({
+            sessionId: "../invalid/session",
+            plan: { title: "Test" },
+            logChannel: { appendLine: () => {} } as any,
+            planProvider: new JulesPlanDocumentProvider(),
+            onApprove: async () => {}
+        });
+
+        assert.ok(showErrorMessageSpy.calledWith("Invalid session ID."));
+    });
+
+    test("shows error if no plan is available", async () => {
+        const showErrorMessageSpy = sandbox.spy(vscode.window, "showErrorMessage");
+        
+        await reviewPlanForSession({
+            sessionId: "session-123",
+            plan: null,
+            logChannel: { appendLine: () => {} } as any,
+            planProvider: new JulesPlanDocumentProvider(),
+            onApprove: async () => {}
+        });
+
+        assert.ok(showErrorMessageSpy.calledWith("No plan available for this session."));
+    });
+
+    test("formats plan, opens document, and shows approve prompt", async () => {
+        const openTextDocumentStub = sandbox.stub(vscode.workspace, "openTextDocument").resolves({} as any);
+        const showTextDocumentStub = sandbox.stub(vscode.window, "showTextDocument").resolves({} as any);
+        const showInformationMessageStub = sandbox.stub(vscode.window, "showInformationMessage").resolves("Approve Plan" as any);
+        
+        let onApproveCalled = false;
+
+        const provider = new JulesPlanDocumentProvider();
+        const setContentSpy = sandbox.spy(provider, "setContent");
+        const clearContentSpy = sandbox.spy(provider, "clearContent");
+
+        await reviewPlanForSession({
+            sessionId: "session-123",
+            sessionTitle: "My Session",
+            plan: { title: "Test Plan", steps: [{ description: "Step 1" }] },
+            logChannel: { appendLine: () => {} } as any,
+            planProvider: provider,
+            onApprove: async (id) => {
+                assert.strictEqual(id, "session-123");
+                onApproveCalled = true;
+            }
+        });
+
+        assert.ok(setContentSpy.calledOnce);
+        assert.ok(openTextDocumentStub.calledOnce);
+        assert.ok(showTextDocumentStub.calledOnce);
+        assert.ok(showInformationMessageStub.called);
+        const callArgs = showInformationMessageStub.getCall(0).args;
+        assert.ok(callArgs[0].includes("My Session"));
+        assert.ok((callArgs[2] as any) === "Approve Plan");
+        assert.ok(onApproveCalled);
+        assert.ok(clearContentSpy.calledOnce);
+    });
+
+    test("does not call onApprove if dismissed", async () => {
+        sandbox.stub(vscode.workspace, "openTextDocument").resolves({} as any);
+        sandbox.stub(vscode.window, "showTextDocument").resolves({} as any);
+        sandbox.stub(vscode.window, "showInformationMessage").resolves(undefined as any);
+        
+        let onApproveCalled = false;
+
+        const provider = new JulesPlanDocumentProvider();
+        const clearContentSpy = sandbox.spy(provider, "clearContent");
+
+        await reviewPlanForSession({
+            sessionId: "session-123",
+            plan: { title: "Test Plan", steps: [] },
+            logChannel: { appendLine: () => {} } as any,
+            planProvider: provider,
+            onApprove: async () => {
+                onApproveCalled = true;
+            }
+        });
+
+        assert.ok(!onApproveCalled);
+        assert.ok(clearContentSpy.calledOnce);
+    });
+
+    test("handles errors gracefully", async () => {
+        sandbox.stub(vscode.workspace, "openTextDocument").rejects(new Error("Failed to open"));
+        const showErrorMessageSpy = sandbox.spy(vscode.window, "showErrorMessage");
+        
+        let logMessage = "";
+        
+        await reviewPlanForSession({
+            sessionId: "session-123",
+            plan: { title: "Test Plan" },
+            logChannel: { appendLine: (msg: string) => { logMessage = msg; } } as any,
+            planProvider: new JulesPlanDocumentProvider(),
+            onApprove: async () => {}
+        });
+
+        assert.ok(showErrorMessageSpy.calledWith("Failed to load plan for review."));
+        assert.ok(logMessage.includes("Failed to review plan"));
+    });
+});
+

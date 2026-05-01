@@ -603,7 +603,6 @@ suite("Extension Test Suite", () => {
       localSandbox.restore();
     });
   });
-
   suite("Proxy detection", () => {
     const proxyEnvKeys = [
       "HTTP_PROXY",
