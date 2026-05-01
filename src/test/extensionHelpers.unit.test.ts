@@ -681,7 +681,9 @@ suite("Extension helper unit tests", () => {
       const mockContext = {
         globalState: {
           get: localSandbox.stub().callsFake((key) => {
-            if (key === 'selected-source') return undefined;
+            if (key === 'selected-source') {
+              return undefined;
+            }
             return {};
           }),
           update: localSandbox.stub().resolves(),
@@ -724,6 +726,7 @@ suite("Extension helper unit tests", () => {
       });
 
       // Require the activate function dynamically to ensure fresh registration
+      delete require.cache[require.resolve("../extension")];
       const extension = require("../extension");
       extension.activate(mockContext);
     });
