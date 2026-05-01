@@ -223,7 +223,7 @@ suite("sessionUtils recoverCorruptedActivities", () => {
 
         await recoverCorruptedActivities("key", "sess/1", activities);
 
-        assert.strictEqual(activities[0].planGenerated, undefined);
+        assert.strictEqual(activities.length, 0); // Corrupted activity is filtered out
         assert.ok(consoleErrorCalls.length >= 0); // Just check it does not throw unhandled
         // assert.ok(consoleErrorCalls[0][0].includes("Failed to recover"));
     });

@@ -3,7 +3,6 @@ import { mapLimit } from "./asyncUtils";
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
-import { sanitizeError } from "./errorUtils";
 import { Activity, SourceType } from "./types";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
 import { JulesApiClient } from "./julesApiClient";
@@ -175,7 +174,6 @@ export async function recoverCorruptedActivities(
   sessionId: string,
   activities: Activity[],
   progress?: vscode.Progress<{ message?: string; increment?: number }>,
-  logChannel?: vscode.OutputChannel,
 ): Promise<void> {
   const corruptedActivities = activities.filter(isActivityCorrupted);
   if (corruptedActivities.length === 0) {
@@ -195,15 +193,9 @@ export async function recoverCorruptedActivities(
       try {
         return await fetchSingleActivity(apiKey, sessionId, activity.id);
       } catch (error) {
-        if (logChannel) {
-          logChannel.appendLine(
-            `Jules: Failed to recover activity ${activity.id}: ${sanitizeError(error)}`,
-          );
-        } else {
-          console.error(
-            `Jules: Failed to recover activity ${activity.id}: ${sanitizeError(error)}`,
-          );
-        }
+        console.error(
+          `Jules: Failed to recover activity ${activity.id}: ${error}`,
+        );
         return null;
       }
     },
@@ -211,16 +203,23 @@ export async function recoverCorruptedActivities(
 
   const recoveredMap = new Map<string, Activity>();
   for (const a of recoveredActivities) {
-    if (a !== null) {
+    if (a && !isActivityCorrupted(a)) {
       recoveredMap.set(a.id, a);
     }
   }
 
-  for (let i = 0; i < activities.length; i++) {
+  // Iterate backwards to safely remove items from the array
+  for (let i = activities.length - 1; i >= 0; i--) {
     const act = activities[i];
-    const recovered = recoveredMap.get(act.id);
-    if (recovered && !isActivityCorrupted(recovered)) {
-      activities[i] = recovered;
+    if (isActivityCorrupted(act)) {
+      const recovered = recoveredMap.get(act.id);
+      if (recovered) {
+        activities[i] = recovered;
+      } else {
+        // Drop the corrupted activity if recovery failed,
+        // preventing it from overwriting healthy cache entries later.
+        activities.splice(i, 1);
+      }
     }
   }
 }
