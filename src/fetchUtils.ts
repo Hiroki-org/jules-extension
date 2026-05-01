@@ -14,6 +14,7 @@ export function setSocksProxy(url: string | null): void {
 export function setHttpProxy(url: string | null): void {
     _httpProxyUrl = url;
 }
+/* c8 ignore stop */
 
 function normalizeHeaders(headers: RequestInit['headers']): Record<string, string> {
     if (!headers) {
@@ -100,7 +101,6 @@ async function fetchViaProxy(
         req.end();
     });
 }
-/* c8 ignore stop */
 
 /**
  * Performs a fetch with a specified timeout.
