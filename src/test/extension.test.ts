@@ -1616,5 +1616,43 @@ suite("Extension Test Suite", () => {
       // Should remain corrupted
       assert.strictEqual(activities[0].planGenerated, undefined);
     });
+
+    test("should not overwrite existing healthy cache with failed recovery result", async () => {
+      const existingActivities = [
+        { 
+          id: "a1", 
+          type: "planGenerated", 
+          planGenerated: { plan: { title: "healthy plan" } } 
+        }
+      ] as any;
+
+      // First call: paginated fetch returns corrupted activity
+      fetchStub.onCall(0).resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { id: "a1", type: "planGenerated" } // corrupted (missing payload)
+          ],
+          nextPageToken: "",
+        }),
+      } as any);
+
+      // Second call: recovery fetch fails
+      fetchStub.onCall(1).rejects(new Error("API Error during recovery"));
+
+      // The paginated fetch returns the corrupted activity
+      const incomingActivities = await fetchSessionActivitiesPaginated("dummy-key", "sessions/123", { showPaginationProgress: false });
+
+      assert.strictEqual(incomingActivities.length, 1);
+      assert.strictEqual(incomingActivities[0].planGenerated, undefined); // still corrupted
+
+      // Merge the incoming corrupted activity with the existing healthy cache
+      const mergedActivities = mergeActivitiesByIdentity(existingActivities, incomingActivities);
+
+      // The healthy activity from cache should be preserved, not overwritten by the corrupted incoming one
+      assert.strictEqual(mergedActivities.length, 1);
+      assert.ok(mergedActivities[0].planGenerated);
+      assert.strictEqual((mergedActivities[0] as any).planGenerated.plan.title, "healthy plan");
+    });
   });
 });
