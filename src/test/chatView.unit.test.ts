@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import {
+  JulesChatViewProvider,
   buildChatMessagesFromActivities,
   getChatWebviewHtml,
   isGeneratingSessionState,
@@ -81,4 +82,208 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
   });
+
+  test("buildChatMessagesFromActivities should generate lazy load placeholders for details", () => {
+    const act: any = createActivity({
+      id: "act1",
+      createTime: "2025-01-01T00:00:01Z",
+      planGenerated: { plan: { steps: [{ description: "some plan" }] } as any },
+      sessionFailed: { reason: "some error" },
+      artifacts: [
+        {
+          changeSet: { gitPatch: { unidiffPatch: "change diff" } } as any,
+          bashOutput: { stdout: "out", stderr: "err", commandLine: "cmd" }
+        },
+        {
+          changeSet: { other: "raw json" } as any
+        }
+      ]
+    });
+    act.gitPatch = { diff: "some diff" };
+
+    const messages = buildChatMessagesFromActivities([act]);
+
+    assert.strictEqual(messages.length, 1);
+    const html = messages[0].html;
+
+    assert.ok(html.includes("some error"));
+    assert.ok(html.includes('data-detail-type="plan"'));
+    assert.ok(html.includes('data-detail-type="diff"'));
+    assert.ok(html.includes('data-detail-type="changeset"'));
+    assert.ok(html.includes('data-detail-type="changeset-raw"'));
+    assert.ok(html.includes('data-detail-type="bash"'));
+    assert.ok(html.includes("Loading..."));
+  });
+
+
+  suite("JulesChatViewProvider lazy loading", () => {
+    test("handleRequestDetails generates HTML and sends back via postMessage", async () => {
+      let postedMessage: any;
+      let messageHandler: any;
+      const webviewView: any = {
+        webview: {
+          options: {},
+          html: "",
+          cspSource: "https://example.com",
+          onDidReceiveMessage: (cb: any) => { messageHandler = cb; },
+          postMessage: async (msg: any) => { postedMessage = msg; }
+        }
+      };
+
+      const provider = new JulesChatViewProvider(async (sid, text) => {
+        if (text === "error") { throw new Error("mock error"); }
+      });
+      // we need to call resolveWebviewView to set this.view
+      await provider.resolveWebviewView(webviewView);
+
+      // Trigger requestInitialState
+      await messageHandler({ type: "requestInitialState" });
+
+      // Trigger sendMessage
+      await messageHandler({ type: "sendMessage", sessionId: "s1", text: "hello" });
+      
+      // Trigger sendMessage with error
+      await messageHandler({ type: "sendMessage", sessionId: "s1", text: "error" });
+
+      // Trigger requestDetails
+      await messageHandler({ type: "requestDetails", activityId: "act-1", detailType: "plan" });
+
+      // Trigger unknown message type
+      await messageHandler({ type: "unknown" });
+
+      // Trigger sendMessage with missing sid/text
+      await messageHandler({ type: "sendMessage", sessionId: "", text: "hi" });
+      await messageHandler({ type: "sendMessage", sessionId: "s1", text: "" });
+
+      // Set sessionId to cover buildChatMessagesFromActivities in resolveWebviewView
+      const providerWithSession = new JulesChatViewProvider(async () => {});
+      (providerWithSession as any).state.sessionId = "s1";
+      await providerWithSession.resolveWebviewView(webviewView);
+
+
+      const actProvider: any = createActivity({
+        id: "act-1",
+        planGenerated: { plan: { steps: [{ description: "test plan" }] } as any },
+        artifacts: [{
+          changeSet: { gitPatch: { unidiffPatch: "test patch" } } as any,
+          bashOutput: { stdout: "out", stderr: "err", commandLine: "cmd" }
+        }, {
+          changeSet: { data: "test data" } as any
+        }]
+      });
+      actProvider.gitPatch = { diff: "test diff" };
+
+      provider.updateSession("session-1", [actProvider]);
+
+
+      // Call internal handleRequestDetails using cast to any
+      const handleRequestDetails = (provider as any).handleRequestDetails.bind(provider);
+
+      // Test plan
+      handleRequestDetails({ activityId: "act-1", detailType: "plan" });
+      await new Promise(r => setTimeout(r, 0)); // let microtasks run
+      assert.strictEqual(postedMessage.type, "detailsHtml");
+      assert.strictEqual(postedMessage.activityId, "act-1");
+      assert.strictEqual(postedMessage.detailType, "plan");
+      assert.ok(postedMessage.html.includes("test plan"));
+
+      // Test diff
+      handleRequestDetails({ activityId: "act-1", detailType: "diff" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "diff");
+      assert.ok(postedMessage.html.includes("test diff"));
+
+      // Test changeset
+      handleRequestDetails({ activityId: "act-1", detailType: "changeset", index: 0 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "changeset");
+      assert.ok(postedMessage.html.includes("test patch"));
+
+      // Test bash
+      handleRequestDetails({ activityId: "act-1", detailType: "bash", index: 0 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "bash");
+      assert.ok(postedMessage.html.includes("cmd"));
+      assert.ok(postedMessage.html.includes("out"));
+
+      // Test changeset-raw
+      handleRequestDetails({ activityId: "act-1", detailType: "changeset-raw", index: 1 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage.detailType, "changeset-raw");
+      assert.ok(postedMessage.html.includes("test data"));
+
+      // Test invalid activity
+      postedMessage = null;
+      handleRequestDetails({ activityId: "invalid", detailType: "plan" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage, null);
+
+      // Test missing activityId or detailType
+      handleRequestDetails({ detailType: "plan" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage, null);
+
+      handleRequestDetails({ activityId: "act-1" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.strictEqual(postedMessage, null);
+
+      // Test no view
+      const providerNoView = new JulesChatViewProvider(async () => {});
+      (providerNoView as any).handleRequestDetails({ activityId: "act-1", detailType: "plan" });
+
+      // Update session with edge cases
+      const actEdge: any = {
+        id: "act-edge",
+        name: "activities/act-edge",
+        createTime: "2025-01-01T00:00:00Z",
+        artifacts: [{
+          changeSet: { gitPatch: { unidiffPatch: 123 } } as any, // not a string
+        }, {
+          changeSet: BigInt(9007199254740991) as any // invalid json
+        }, {
+          bashOutput: { commands: [{ commandLine: "cmd2" }] } as any
+        }]
+      };
+      actEdge.gitPatch = { diff: 123 }; // not string
+      provider.updateSession("session-2", [actEdge]);
+
+      // Test edge diff
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "diff" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html.includes("Not found"));
+
+      // Test edge changeset diff not string
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "changeset", index: 0 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html.includes("Not found"));
+
+      // Test edge invalid json
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "changeset-raw", index: 1 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html.includes("9007199254740991"));
+
+      // Test bash with commands array
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "bash", index: 2 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html.includes("cmd2"));
+
+      // Test invalid index in artifacts
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "changeset", index: 999 });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html === "Not found");
+
+      // Test detailType that does not match any 'if' conditions (e.g., 'unknown')
+      postedMessage = null;
+      handleRequestDetails({ activityId: "act-edge", detailType: "unknown" });
+      await new Promise(r => setTimeout(r, 0));
+      assert.ok(postedMessage && postedMessage.html === "Not found");
+
+    });
+  });
+
 });

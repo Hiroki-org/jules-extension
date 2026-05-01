@@ -59,6 +59,8 @@ export const CHAT_JS = `(function() {
   const sessionLabel = document.getElementById("sessionLabel");
 
   let state = { sessionId: null, messages: [], isTyping: false };
+  let detailsCache = {}; // "activityId|detailType|index" -> html
+  let expandedDetails = new Set(); // set of "activityId|detailType|index"
 
   function updateUI() {
     const hasSession = !!state.sessionId;
@@ -107,6 +109,29 @@ export const CHAT_JS = `(function() {
     }
   });
 
+  chatContainer.addEventListener("toggle", e => {
+    const details = e.target;
+    if (details.tagName === "DETAILS" && details.classList.contains("activity-details")) {
+      const activityId = details.getAttribute("data-activity-id");
+      const detailType = details.getAttribute("data-detail-type");
+
+      if (activityId && detailType) {
+        const indexStr = details.getAttribute("data-index");
+        const index = indexStr ? parseInt(indexStr, 10) : undefined;
+        const key = activityId + "|" + detailType + "|" + (indexStr || "");
+
+        if (details.open) {
+          expandedDetails.add(key);
+          if (!detailsCache[key]) {
+            vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+          }
+        } else {
+          expandedDetails.delete(key);
+        }
+      }
+    }
+  }, true); // use capture phase for toggle events on non-bubbling elements
+
   chatContainer.addEventListener("click", async e => {
     const copyButton = e.target.closest(".copy-code-button");
     if (!copyButton) return;
@@ -126,6 +151,23 @@ export const CHAT_JS = `(function() {
     if (e.data.type === "chatState") {
       state = e.data.payload || state;
       renderMessages();
+    } else if (e.data.type === "detailsHtml") {
+      const { activityId, detailType, index, html } = e.data;
+      const key = activityId + "|" + detailType + "|" + (index !== undefined ? index : "");
+      detailsCache[key] = html;
+
+      // Update DOM if currently rendered
+      const detailsEls = chatContainer.querySelectorAll('[data-activity-id="' + activityId + '"][data-detail-type="' + detailType + '"]');
+      detailsEls.forEach(details => {
+        const elIndex = details.getAttribute("data-index") || "";
+        const msgIndex = index !== undefined ? String(index) : "";
+        if (elIndex === msgIndex) {
+          const contentDiv = details.querySelector(".details-content");
+          if (contentDiv) {
+            contentDiv.innerHTML = html;
+          }
+        }
+      });
     }
   });
 
