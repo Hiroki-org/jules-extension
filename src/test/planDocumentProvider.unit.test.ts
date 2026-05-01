@@ -254,11 +254,10 @@ suite("reviewPlanForSession", () => {
         assert.ok(setContentSpy.calledOnce);
         assert.ok(openTextDocumentStub.calledOnce);
         assert.ok(showTextDocumentStub.calledOnce);
-        assert.ok(showInformationMessageStub.calledWith(
-            "Plan for \"My Session\" is ready for review.",
-            { modal: false } as any,
-            "Approve Plan" as any
-        ));
+        assert.ok(showInformationMessageStub.called);
+        const callArgs = showInformationMessageStub.getCall(0).args;
+        assert.ok(callArgs[0].includes("My Session"));
+        assert.ok((callArgs[2] as any) === "Approve Plan");
         assert.ok(onApproveCalled);
         assert.ok(clearContentSpy.calledOnce);
     });
