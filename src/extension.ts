@@ -1304,7 +1304,8 @@ export function mergeActivitiesByIdentity(
     const key = getActivityIdentityKey(activity);
     if (key) {
       mergedMap.set(key, activity);
-    }  }
+    }
+  }
 
   const values = [...mergedMap.values()];
   const mapped = new Array<{ item: Activity; time: number }>(values.length);
