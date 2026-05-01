@@ -65,6 +65,7 @@ import {
   getActivityLabelPrefix,
   getActivityThemeIcon,
   getActiveActivityKeys,
+  isActivityCorrupted,
   ACTIVITY_UNION_KEYS,
   type ActivityCategory,
   type ActivityUnionKey,
@@ -1303,6 +1304,15 @@ export function mergeActivitiesByIdentity(
   for (const activity of incoming) {
     const key = getActivityIdentityKey(activity);
     if (key) {
+      const existingActivity = mergedMap.get(key);
+      if (
+        existingActivity &&
+        !isActivityCorrupted(existingActivity) &&
+        isActivityCorrupted(activity)
+      ) {
+        // Do not overwrite a healthy existing activity with a corrupted incoming one
+        continue;
+      }
       mergedMap.set(key, activity);
     }
   }
