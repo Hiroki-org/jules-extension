@@ -5,7 +5,6 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Hiroki-org/jules-extension/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/Hiroki-org/jules-extension/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Hiroki-org/jules-extension/branch/main/graph/badge.svg)](https://codecov.io/gh/Hiroki-org/jules-extension)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat-square)](https://github.com/Hiroki-org/jules-extension/issues)
-[![GitHub License](https://img.shields.io/github/license/Hiroki-org/jules-extension)](https://github.com/Hiroki-org/jules-extension/blob/main/LICENSE)
 
 Jules Extension is an extension that allows you to operate Google's AI coding agent **Jules** directly from within VSCode.
 Welcome an intelligent partner to your coding workflow.
