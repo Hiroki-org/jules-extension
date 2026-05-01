@@ -389,6 +389,7 @@ export async function createRemoteBranch(
   }
 }
 
+
 /**
  * Get privacy icon for a source
  * @param isPrivate - The isPrivate field from Source
@@ -998,9 +999,7 @@ function startAutoRefresh(
 
   autoRefreshInterval = setInterval(() => {
     if (isAutoRefreshPipelineRunning) {
-      logChannel.appendLine(
-        "Jules: Auto-refresh pipeline already in progress. Skipping.",
-      );
+      logChannel.appendLine("Jules: Auto-refresh pipeline already in progress. Skipping.");
       return;
     }
     isAutoRefreshPipelineRunning = true;
@@ -1008,10 +1007,7 @@ function startAutoRefresh(
     void sessionsProvider
       .refresh(true) // Pass true for background refresh
       .then(async () => {
-        await refreshActiveChatSessionFromAutoRefresh(
-          context,
-          chatViewProvider,
-        );
+        await refreshActiveChatSessionFromAutoRefresh(context, chatViewProvider);
       })
       .catch((error: unknown) => {
         logChannel.appendLine(
@@ -1158,8 +1154,7 @@ export async function refreshActiveChatSessionFromAutoRefresh(
 
   isRefreshingActiveChatSession = true;
   try {
-    const activeSessionId =
-      context.globalState.get<string>("active-session-id");
+    const activeSessionId = context.globalState.get<string>("active-session-id");
     if (!activeSessionId || !isValidSessionId(activeSessionId)) {
       return;
     }
@@ -1272,10 +1267,7 @@ type ActivityCategoryCountsCacheEntry = {
   length: number;
 };
 
-const arrayCategoryCountsCache = new WeakMap<
-  Activity[],
-  ActivityCategoryCountsCacheEntry
->();
+const arrayCategoryCountsCache = new WeakMap<Activity[], ActivityCategoryCountsCacheEntry>();
 
 function createEmptyActivityCategoryCounts(): Record<ActivityCategory, number> {
   return {
@@ -1291,9 +1283,7 @@ function getActivityIdentityKey(activity: Activity): string | undefined {
   return activity.name || activity.id || undefined;
 }
 
-function countActivityCategoryCounts(
-  activities: Activity[],
-): Record<ActivityCategory, number> {
+function countActivityCategoryCounts(activities: Activity[]): Record<ActivityCategory, number> {
   const counts = createEmptyActivityCategoryCounts();
   for (const activity of activities) {
     counts[getActivityCategory(activity)] += 1;
@@ -2396,7 +2386,7 @@ export async function handleOpenInWebApp(
  * 環境変数からSOCKSプロキシが設定されているか確認し、最初に見つかった値を返す。
  * 設定されていない場合は null を返す。
  */
-function detectProxy(): { type: "socks" | "http"; url: string } | null {
+function detectProxy(): { type: 'socks' | 'http', url: string } | null {
   const proxyEnvVars: (string | undefined)[] = [
     process.env.HTTP_PROXY,
     process.env.http_proxy,
@@ -2420,10 +2410,10 @@ function detectProxy(): { type: "socks" | "http"; url: string } | null {
     if (v) {
       const lower = v.toLowerCase();
       if (socksSchemes.some((s) => lower.startsWith(s))) {
-        return { type: "socks", url: v };
+        return { type: 'socks', url: v };
       }
       if (httpSchemes.some((s) => lower.startsWith(s))) {
-        return { type: "http", url: v };
+        return { type: 'http', url: v };
       }
     }
   }
@@ -2445,7 +2435,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
       return;
     }
-    if (proxy.type === "socks") {
+    if (proxy.type === 'socks') {
       setSocksProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
@@ -3667,9 +3657,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (!item) {
         return;
       }
-      let changeSet = getCachedSessionArtifacts(
-        item.session.name,
-      )?.latestChangeSet;
+      let changeSet = getCachedSessionArtifacts(item.session.name)?.latestChangeSet;
       if (!getChangeSetUnidiffPatch(changeSet)) {
         const apiKey = await getStoredApiKey(context);
         if (!apiKey) {
@@ -3683,22 +3671,16 @@ export function activate(context: vscode.ExtensionContext) {
           );
           changeSet = fresh.latestChangeSet;
         } catch (error) {
-          vscode.window.showErrorMessage(
-            `Failed to fetch latest ChangeSet artifact: ${sanitizeError(error)}`,
-          );
+          vscode.window.showErrorMessage(`Failed to fetch latest ChangeSet artifact: ${sanitizeError(error)}`);
           return;
         }
       }
       if (!changeSet) {
-        vscode.window.showErrorMessage(
-          "This session has no ChangeSet artifact.",
-        );
+        vscode.window.showErrorMessage("This session has no ChangeSet artifact.");
         return;
       }
       if (!getChangeSetUnidiffPatch(changeSet)) {
-        vscode.window.showErrorMessage(
-          "This session has no applicable patch artifact.",
-        );
+        vscode.window.showErrorMessage("This session has no applicable patch artifact.");
         return;
       }
       await applyPatchLocallyForSession({
