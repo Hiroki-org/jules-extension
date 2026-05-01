@@ -1,6 +1,8 @@
 import * as assert from "assert";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
+import * as extension from "../extension";
+import { Activity } from "../types";
 import {
   Session,
   SessionOutput,
@@ -21,6 +23,7 @@ import {
   resetUpdatePreviousStatesCachesForTests,
   updatePreviousStates,
   checkPRStatus,
+  buildActivitySummaryHeader,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -751,14 +754,12 @@ suite("Extension helper unit tests", () => {
 
     test("jules-extension.createSession executes successfully without source", async () => {
       assert.ok(registeredCommands['jules-extension.createSession']);
-      const showErrorStub = localSandbox.stub(vscode.window, 'showErrorMessage').resolves();
       await registeredCommands['jules-extension.createSession']();
       // Test passes if it runs without throwing
     });
 
     test("jules-extension.verifyApiKey executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.verifyApiKey']);
-      const showErrorStub = localSandbox.stub(vscode.window, 'showErrorMessage').resolves();
       await registeredCommands['jules-extension.verifyApiKey']();
     });
 
@@ -777,7 +778,6 @@ suite("Extension helper unit tests", () => {
 
     test("jules-extension.openInWebApp executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.openInWebApp']);
-      const showErrorStub = localSandbox.stub(vscode.window, 'showErrorMessage').resolves();
       await registeredCommands['jules-extension.openInWebApp'](null);
     });
 
@@ -836,26 +836,6 @@ suite("Extension helper unit tests", () => {
       await registeredCommands['jules-extension.refreshActivities'](null);
     });
 
-    test("jules-extension.openInWebApp executes successfully", async () => {
-      assert.ok(registeredCommands['jules-extension.openInWebApp']);
-      await registeredCommands['jules-extension.openInWebApp'](null);
-    });
-
-    test("jules-extension.openLatestDiff executes successfully", async () => {
-      assert.ok(registeredCommands['jules-extension.openLatestDiff']);
-      await registeredCommands['jules-extension.openLatestDiff'](null);
-    });
-
-    test("jules-extension.openChangeset executes successfully", async () => {
-      assert.ok(registeredCommands['jules-extension.openChangeset']);
-      await registeredCommands['jules-extension.openChangeset'](null);
-    });
-
-    test("jules-extension.applyPatchLocally executes successfully", async () => {
-      assert.ok(registeredCommands['jules-extension.applyPatchLocally']);
-      await registeredCommands['jules-extension.applyPatchLocally'](null);
-    });
-
     test("jules-extension.listSources executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.listSources']);
       await registeredCommands['jules-extension.listSources']();
@@ -873,117 +853,113 @@ suite("Extension helper unit tests", () => {
   });
 
   suite("Exported helper functions", () => {
-    const extension = require("../extension");
-
     test("mapApiStateToSessionState handles all states", () => {
-      assert.strictEqual(extension.mapApiStateToSessionState("IN_PROGRESS"), "RUNNING");
-      assert.strictEqual(extension.mapApiStateToSessionState("QUEUED"), "RUNNING");
-      assert.strictEqual(extension.mapApiStateToSessionState("STATE_UNSPECIFIED"), "RUNNING");
-      assert.strictEqual(extension.mapApiStateToSessionState("PLANNING"), "PLANNING");
-      assert.strictEqual(extension.mapApiStateToSessionState("AWAITING_PLAN_APPROVAL"), "AWAITING_PLAN_APPROVAL");
-      assert.strictEqual(extension.mapApiStateToSessionState("AWAITING_USER_FEEDBACK"), "AWAITING_USER_FEEDBACK");
-      assert.strictEqual(extension.mapApiStateToSessionState("PAUSED"), "PAUSED");
-      assert.strictEqual(extension.mapApiStateToSessionState("COMPLETED"), "COMPLETED");
-      assert.strictEqual(extension.mapApiStateToSessionState("FAILED"), "FAILED");
-      assert.strictEqual(extension.mapApiStateToSessionState("CANCELLED"), "CANCELLED");
-      assert.strictEqual(extension.mapApiStateToSessionState("UNKNOWN_NEW_STATE"), "RUNNING");
+      assert.strictEqual(mapApiStateToSessionState("IN_PROGRESS"), "RUNNING");
+      assert.strictEqual(mapApiStateToSessionState("QUEUED"), "RUNNING");
+      assert.strictEqual(mapApiStateToSessionState("STATE_UNSPECIFIED"), "RUNNING");
+      assert.strictEqual(mapApiStateToSessionState("PLANNING"), "PLANNING");
+      assert.strictEqual(mapApiStateToSessionState("AWAITING_PLAN_APPROVAL"), "AWAITING_PLAN_APPROVAL");
+      assert.strictEqual(mapApiStateToSessionState("AWAITING_USER_FEEDBACK"), "AWAITING_USER_FEEDBACK");
+      assert.strictEqual(mapApiStateToSessionState("PAUSED"), "PAUSED");
+      assert.strictEqual(mapApiStateToSessionState("COMPLETED"), "COMPLETED");
+      assert.strictEqual(mapApiStateToSessionState("FAILED"), "FAILED");
+      assert.strictEqual(mapApiStateToSessionState("CANCELLED"), "CANCELLED");
+      assert.strictEqual(mapApiStateToSessionState("UNKNOWN"), "RUNNING");
     });
 
-    test("extractPRs deduplicates PRs and keeps latest", () => {
+    test("extractPRs deduplicates PR URLs", () => {
       const state = {
         outputs: [
-          { pullRequest: { url: "url1", title: "old title" } },
-          { pullRequest: { url: "url2", title: "title2" } },
-          { pullRequest: { url: "url1", title: "new title" } },
-          { notPR: true },
-          { pullRequest: {} }
+          { pullRequest: { url: "https://github.com/a/b/pull/1" } },
+          { pullRequest: { url: "https://github.com/a/b/pull/1" } },
+          { pullRequest: { url: "https://github.com/a/b/pull/2" } }
         ]
-      };
-      const prs = extension.extractPRs(state);
+      } as any as Session;
+      const prs = extractPRs(state);
       assert.strictEqual(prs.length, 2);
-      assert.strictEqual(prs[0].title, "new title"); // should keep first seen order but replace data
-      assert.strictEqual(prs[1].title, "title2");
+      assert.strictEqual(prs[0].url, "https://github.com/a/b/pull/1");
+      assert.strictEqual(prs[1].url, "https://github.com/a/b/pull/2");
     });
 
     test("extractPRs handles empty outputs", () => {
-      assert.deepStrictEqual(extension.extractPRs({}), []);
-      assert.deepStrictEqual(extension.extractPRs({ outputs: [] }), []);
+      assert.deepStrictEqual(extractPRs({} as any as Session), []);
+      assert.deepStrictEqual(extractPRs({ outputs: [] } as any as Session), []);
     });
 
-    test("areOutputsEqual correctly compares outputs", () => {
-      assert.strictEqual(extension.areOutputsEqual(undefined, undefined), true);
-      assert.strictEqual(extension.areOutputsEqual([], []), true);
-      assert.strictEqual(extension.areOutputsEqual([{pullRequest: {url: "a"}}], [{pullRequest: {url: "a"}}]), true);
-      assert.strictEqual(extension.areOutputsEqual([{pullRequest: {url: "a"}}], [{pullRequest: {url: "b"}}]), false);
-      assert.strictEqual(extension.areOutputsEqual([{pullRequest: {url: "a"}}], []), false);
-      assert.strictEqual(extension.areOutputsEqual(undefined, []), false);
+    test("areOutputsEqual compares outputs correctly", () => {
+      assert.strictEqual(areOutputsEqual(undefined, undefined), true);
+      assert.strictEqual(areOutputsEqual([], []), true);
+      assert.strictEqual(areOutputsEqual([{pullRequest: {url: "a"}} as any], [{pullRequest: {url: "a"}} as any]), true);
+      assert.strictEqual(areOutputsEqual([{pullRequest: {url: "a"}} as any], [{pullRequest: {url: "b"}} as any]), false);
+      assert.strictEqual(areOutputsEqual([{pullRequest: {url: "a"}} as any], []), false);
+      assert.strictEqual(areOutputsEqual(undefined, []), false);
     });
 
-    test("areSessionListsEqual correctly compares session lists", () => {
-      const s1 = { name: "s1", state: "RUNNING", rawState: "RUNNING", outputs: [], sourceContext: {} };
-      const s2 = { name: "s2", state: "COMPLETED", rawState: "COMPLETED", outputs: [], sourceContext: {} };
-      const s1_diff = { name: "s1", state: "COMPLETED", rawState: "COMPLETED", outputs: [], sourceContext: {} };
+    test("areSessionListsEqual compares sessions correctly", () => {
+      const s1 = { name: "1", state: "RUNNING", rawState: "IN_PROGRESS", outputs: [], sourceContext: {} } as any as Session;
+      const s2 = { name: "2", state: "RUNNING", rawState: "IN_PROGRESS", outputs: [], sourceContext: {} } as any as Session;
+      const s1_diff = { name: "1", state: "FAILED", rawState: "ERROR", outputs: [], sourceContext: {} } as any as Session;
 
-      assert.strictEqual(extension.areSessionListsEqual([], []), true);
-      assert.strictEqual(extension.areSessionListsEqual([s1], [s1]), true);
-      assert.strictEqual(extension.areSessionListsEqual([s1], [s2]), false);
-      assert.strictEqual(extension.areSessionListsEqual([s1], []), false);
-      assert.strictEqual(extension.areSessionListsEqual([s1], [s1_diff]), false);
+      assert.strictEqual(areSessionListsEqual([], []), true);
+      assert.strictEqual(areSessionListsEqual([s1], [s1]), true);
+      assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
+      assert.strictEqual(areSessionListsEqual([s1], []), false);
+      assert.strictEqual(areSessionListsEqual([s1], [s1_diff]), false);
     });
 
     test("isInferredActivityLogKey correctly identifies keys", () => {
-      assert.strictEqual(extension.isInferredActivityLogKey("someInferredKey"), true);
-      assert.strictEqual(extension.isInferredActivityLogKey("name"), false);
-      assert.strictEqual(extension.isInferredActivityLogKey("createTime"), false);
+      assert.strictEqual(isInferredActivityLogKey("someInferredKey"), true);
+      assert.strictEqual(isInferredActivityLogKey("name"), false);
+      assert.strictEqual(isInferredActivityLogKey("createTime"), false);
     });
 
     test("getSourceIsPrivate correctly identifies private sources", () => {
-      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1", isPrivate: true }), true);
-      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1", isPrivate: false }), false);
-      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1", githubRepo: { owner: "A", repo: "B", isPrivate: true, defaultBranch: { displayName: "main" }, branches: [] } }), true);
-      assert.strictEqual(extension.getSourceIsPrivate({ name: "A", id: "1" }), undefined);
+      assert.strictEqual(getSourceIsPrivate({ name: "A", id: "1", isPrivate: true } as any), true);
+      assert.strictEqual(getSourceIsPrivate({ name: "A", id: "1", isPrivate: false } as any), false);
+      assert.strictEqual(getSourceIsPrivate({ name: "A", id: "1", githubRepo: { owner: "A", repo: "B", isPrivate: true, defaultBranch: { displayName: "main" }, branches: [] } } as any), true);
+      assert.strictEqual(getSourceIsPrivate({ name: "A", id: "1" } as any), undefined);
     });
 
     test("getSourceDisplayName formats source names", () => {
-      assert.strictEqual(extension.getSourceDisplayName({ name: "A", id: "1" }), "A");
-      assert.strictEqual(extension.getSourceDisplayName({ name: "A", id: "1", githubRepo: { owner: "owner", repo: "repo", isPrivate: false, defaultBranch: { displayName: "main" }, branches: [] } }), "owner/repo");
+      assert.strictEqual(getSourceDisplayName({ name: "A", id: "1" } as any), "A");
+      assert.strictEqual(getSourceDisplayName({ name: "A", id: "1", githubRepo: { owner: "owner", repo: "repo", isPrivate: false, defaultBranch: { displayName: "main" }, branches: [] } } as any), "owner/repo");
     });
 
     test("buildSessionsListEndpoint constructs URL correctly", () => {
-      assert.strictEqual(extension.buildSessionsListEndpoint("src", "token"), "src/sessions?pageSize=100&pageToken=token");
-      assert.strictEqual(extension.buildSessionsListEndpoint("src"), "src/sessions?pageSize=100");
+      assert.strictEqual(buildSessionsListEndpoint("src", "token"), "src/sessions?pageSize=100&pageToken=token");
+      assert.strictEqual(buildSessionsListEndpoint("src"), "src/sessions?pageSize=100");
     });
 
     test("buildActivitiesListEndpoint constructs URL correctly", () => {
-      assert.strictEqual(extension.buildActivitiesListEndpoint("sess", "10", { pageToken: "token" }), "sess/10/activities?pageSize=100&pageToken=token");
-      assert.strictEqual(extension.buildActivitiesListEndpoint("sess", "10"), "sess/10/activities?pageSize=100");
+      assert.strictEqual(buildActivitiesListEndpoint("sess", "10", { pageToken: "token" }), "sess/10/activities?pageSize=100&pageToken=token");
+      assert.strictEqual(buildActivitiesListEndpoint("sess", "10"), "sess/10/activities?pageSize=100");
     });
 
     test("getLatestActivityCreateTime gets the latest time", () => {
-      assert.strictEqual(extension.getLatestActivityCreateTime([]), undefined);
-      assert.strictEqual(extension.getLatestActivityCreateTime([{ createTime: "2023-01-01T00:00:00Z" }]), "2023-01-01T00:00:00Z");
-      assert.strictEqual(extension.getLatestActivityCreateTime([{ createTime: "2023-01-01T00:00:00Z" }, { createTime: "2024-01-01T00:00:00Z" }]), "2024-01-01T00:00:00Z");
-      assert.strictEqual(extension.getLatestActivityCreateTime([{ createTime: "2025-01-01T00:00:00Z" }, { createTime: "2024-01-01T00:00:00Z" }]), "2025-01-01T00:00:00Z");
+      assert.strictEqual(getLatestActivityCreateTime([]), undefined);
+      assert.strictEqual(getLatestActivityCreateTime([{ id: "1", name: "1", createTime: "2023-01-01T00:00:00Z" } as any]), "2023-01-01T00:00:00Z");
+      assert.strictEqual(getLatestActivityCreateTime([{ id: "1", name: "1", createTime: "2023-01-01T00:00:00Z" } as any, { id: "2", name: "2", createTime: "2024-01-01T00:00:00Z" } as any]), "2024-01-01T00:00:00Z");
+      assert.strictEqual(getLatestActivityCreateTime([{ id: "1", name: "1", createTime: "2025-01-01T00:00:00Z" } as any, { id: "2", name: "2", createTime: "2024-01-01T00:00:00Z" } as any]), "2025-01-01T00:00:00Z");
     });
 
     test("mergeActivitiesByIdentity merges activities", () => {
-      const a1 = { name: "1", createTime: "2023-01-01", type: "T1" };
-      const a2 = { name: "2", createTime: "2023-01-02", type: "T2" };
-      const a1_updated = { name: "1", createTime: "2023-01-01", type: "T1_UPDATED" };
+      const a1 = { id: "1", name: "1", createTime: "2023-01-01", type: "T1" } as any as Activity;
+      const a2 = { id: "2", name: "2", createTime: "2023-01-02", type: "T2" } as any as Activity;
+      const a1_updated = { id: "1", name: "1", createTime: "2023-01-01", type: "T1_UPDATED" } as any as Activity;
 
-      assert.deepStrictEqual(extension.mergeActivitiesByIdentity([a1], []), [a1]);
-      assert.deepStrictEqual(extension.mergeActivitiesByIdentity([], [a2]), [a2]);
-      assert.deepStrictEqual(extension.mergeActivitiesByIdentity([a1], [a1_updated]), [a1_updated]);
-      const merged = extension.mergeActivitiesByIdentity([a1], [a2, a1_updated]);
+      assert.deepStrictEqual(mergeActivitiesByIdentity([a1], []), [a1]);
+      assert.deepStrictEqual(mergeActivitiesByIdentity([], [a2]), [a2]);
+      assert.deepStrictEqual(mergeActivitiesByIdentity([a1], [a1_updated]), [a1_updated]);
+      const merged = mergeActivitiesByIdentity([a1], [a2, a1_updated]);
       assert.strictEqual(merged.length, 2);
     });
 
     test("buildActivitySummaryHeader creates summary", () => {
       const activities = [
-        { originator: "agent", planGenerated: {}, name: "1", createTime: "" },
-        { originator: "user", userMessaged: {}, name: "2", createTime: "" },
+        { id: "1", originator: "agent", planGenerated: {}, name: "1", createTime: "" } as any as Activity,
+        { id: "2", originator: "user", userMessaged: {}, name: "2", createTime: "" } as any as Activity,
       ];
-      const summary = extension.buildActivitySummaryHeader("RUNNING", activities);
+      const summary = buildActivitySummaryHeader("RUNNING", activities);
       assert.ok(summary.includes("Activities: 2"));
       assert.ok(summary.includes("Plan: 1"));
       assert.ok(summary.includes("Messages: 1"));

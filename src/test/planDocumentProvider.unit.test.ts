@@ -1,6 +1,9 @@
 import * as assert from "assert";
+import * as vscode from "vscode";
+import * as sinon from "sinon";
 import { formatFullPlan, type Plan, type PlanStep } from "../planUtils";
-import { JulesPlanDocumentProvider } from "../planDocumentProvider";
+import { JulesPlanDocumentProvider, reviewPlanForSession } from "../planDocumentProvider";
+
 
 suite("formatFullPlan", () => {
     test("formats plan with all fields", () => {
@@ -185,10 +188,6 @@ suite("JulesPlanDocumentProvider", () => {
         assert.strictEqual(provider.provideTextDocumentContent(uri2), "Content 2");
     });
 });
-
-import * as vscode from "vscode";
-import * as sinon from "sinon";
-import { reviewPlanForSession } from "../planDocumentProvider";
 
 suite("reviewPlanForSession", () => {
     let sandbox: sinon.SinonSandbox;
