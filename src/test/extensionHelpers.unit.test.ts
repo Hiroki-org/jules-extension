@@ -1,7 +1,6 @@
 import * as assert from "assert";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as extension from "../extension";
 import { Activity } from "../types";
 import {
   Session,
@@ -908,7 +907,7 @@ suite("Extension helper unit tests", () => {
     });
 
     test("isInferredActivityLogKey correctly identifies keys", () => {
-      assert.strictEqual(isInferredActivityLogKey("someInferredKey"), true);
+      assert.strictEqual(isInferredActivityLogKey("inferred_someKey"), true);
       assert.strictEqual(isInferredActivityLogKey("name"), false);
       assert.strictEqual(isInferredActivityLogKey("createTime"), false);
     });
