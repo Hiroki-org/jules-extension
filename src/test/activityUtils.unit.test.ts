@@ -100,14 +100,29 @@ suite("activityUtils getActivityCategory", () => {
 });
 
 suite("activityUtils getActivityTypeLabel", () => {
-    test("returns stable labels for every known union key", () => {
+    test("planGenerated -> Plan generated", () => {
         assert.strictEqual(getActivityTypeLabel("planGenerated"), "Plan generated");
+    });
+    test("planApproved -> Plan approved", () => {
         assert.strictEqual(getActivityTypeLabel("planApproved"), "Plan approved");
+    });
+    test("agentMessaged -> Agent messaged", () => {
         assert.strictEqual(getActivityTypeLabel("agentMessaged"), "Agent messaged");
+    });
+    test("userMessaged -> User messaged", () => {
         assert.strictEqual(getActivityTypeLabel("userMessaged"), "User messaged");
+    });
+    test("progressUpdated -> Progress updated", () => {
         assert.strictEqual(getActivityTypeLabel("progressUpdated"), "Progress updated");
+    });
+    test("sessionCompleted -> Session completed", () => {
         assert.strictEqual(getActivityTypeLabel("sessionCompleted"), "Session completed");
+    });
+    test("sessionFailed -> Session failed", () => {
         assert.strictEqual(getActivityTypeLabel("sessionFailed"), "Session failed");
+    });
+    test("unknown key falls back to Activity", () => {
+        assert.strictEqual(getActivityTypeLabel("unknown" as any), "Activity");
     });
 });
 
