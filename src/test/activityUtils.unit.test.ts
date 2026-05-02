@@ -4,6 +4,7 @@ import {
     getActivityIcon,
     getActivityLabelPrefix,
     getActivitySummaryText,
+    getActivityThemeIcon,
     getActivityTypeLabel,
     isActivityCorrupted,
     summarizeArtifacts,
@@ -354,5 +355,19 @@ suite("activityUtils isActivityCorrupted", () => {
             type: "customUnknownType",
         });
         assert.strictEqual(isActivityCorrupted(activity), false);
+    });
+});
+
+suite("activityUtils getActivityThemeIcon", () => {
+    test("maps non-error activity events and artifact fallbacks to theme icon ids", () => {
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ planGenerated: { plan: { title: "p1", steps: [] } as any } }))?.id, "lightbulb");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ planApproved: { planId: "p1" } }))?.id, "check");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ sessionCompleted: {} }))?.id, "pass");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ progressUpdated: { title: "Working", description: "" } }))?.id, "pulse");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ agentMessaged: { agentMessage: "hello" } }))?.id, "comment");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ userMessaged: {} }))?.id, "account");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ artifacts: [{ changeSet: { source: "s1" } as any }] }))?.id, "diff");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ artifacts: [{ bashOutput: { command: "pnpm test" } }] }))?.id, "terminal");
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ description: undefined }))?.id, undefined);
     });
 });
