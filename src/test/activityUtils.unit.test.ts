@@ -5,6 +5,7 @@ import {
     getActivityLabelPrefix,
     getActivitySummaryText,
     isActivityCorrupted,
+    summarizeArtifacts,
 } from "../activityUtils";
 import type { Activity } from "../types";
 
@@ -201,6 +202,23 @@ suite("activityUtils getActivityIcon", () => {
 
     test("returns the fallback icon when no active key is present", () => {
         assert.strictEqual(getActivityIcon(mockActivity()), "ℹ️");
+    });
+});
+
+suite("activityUtils summarizeArtifacts", () => {
+    test("returns null for empty inputs and summarizes unique artifact types in insertion order", () => {
+        assert.strictEqual(summarizeArtifacts(undefined), null);
+        assert.strictEqual(summarizeArtifacts([]), null);
+        assert.strictEqual(summarizeArtifacts([{}]), null);
+        assert.strictEqual(
+            summarizeArtifacts([
+                { changeSet: {} },
+                { bashOutput: { command: "pnpm test" } as any },
+                { media: { uri: "file:///tmp/screenshot.png" } },
+                { changeSet: {} },
+            ]),
+            "Artifacts: changeSet, bashOutput, media",
+        );
     });
 });
 
