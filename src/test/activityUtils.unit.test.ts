@@ -359,15 +359,43 @@ suite("activityUtils isActivityCorrupted", () => {
 });
 
 suite("activityUtils getActivityThemeIcon", () => {
-    test("maps non-error activity events and artifact fallbacks to theme icon ids", () => {
+    test("sessionFailed maps to error icon", () => {
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ sessionFailed: { reason: "error" } }))?.id, "error");
+    });
+
+    test("planGenerated maps to lightbulb icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ planGenerated: { plan: { title: "p1", steps: [] } as any } }))?.id, "lightbulb");
+    });
+
+    test("planApproved maps to check icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ planApproved: { planId: "p1" } }))?.id, "check");
+    });
+
+    test("sessionCompleted maps to pass icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ sessionCompleted: {} }))?.id, "pass");
+    });
+
+    test("progressUpdated maps to pulse icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ progressUpdated: { title: "Working", description: "" } }))?.id, "pulse");
+    });
+
+    test("agentMessaged maps to comment icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ agentMessaged: { agentMessage: "hello" } }))?.id, "comment");
+    });
+
+    test("userMessaged maps to account icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ userMessaged: {} }))?.id, "account");
+    });
+
+    test("artifacts with changeSet maps to diff icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ artifacts: [{ changeSet: { source: "s1" } as any }] }))?.id, "diff");
+    });
+
+    test("artifacts with bashOutput maps to terminal icon", () => {
         assert.strictEqual(getActivityThemeIcon(mockActivity({ artifacts: [{ bashOutput: { command: "pnpm test" } }] }))?.id, "terminal");
-        assert.strictEqual(getActivityThemeIcon(mockActivity({ description: undefined }))?.id, undefined);
+    });
+
+    test("unhandled activity returns undefined", () => {
+        assert.strictEqual(getActivityThemeIcon(mockActivity({ description: "unknown event", artifacts: [] }))?.id, undefined);
     });
 });
