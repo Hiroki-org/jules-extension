@@ -146,6 +146,34 @@ suite("inlineCommands Test Suite", () => {
         assert.strictEqual(showErrorStub.calledOnce, true);
     });
 
+    test("handleInlineTask stops before branch loading when the API key is missing", async () => {
+        const showErrorStub = sandbox.stub(vscode.window, "showErrorMessage");
+        sandbox.stub(vscode.workspace, "openTextDocument").resolves({
+            getText: () => "const value = 1",
+            uri: vscode.Uri.parse("file:///workspace/file.ts"),
+            languageId: "typescript",
+        } as any);
+        (vscode.workspace as any).getWorkspaceFolder = sandbox.stub().returns({ uri: vscode.Uri.parse("file:///workspace") });
+        const branchStub = sandbox.stub(branchUtils, "getBranchesForSession");
+
+        await handleInlineTask(
+            {
+                globalState: {
+                    get: sandbox.stub().returns({ id: "source-1", name: "repo" }),
+                },
+                secrets: { get: sandbox.stub().resolves(undefined) },
+            } as any,
+            { appendLine: sandbox.stub() } as any,
+            vscode.Uri.parse("file:///workspace/file.ts"),
+            new vscode.Range(0, 0, 0, 10),
+            "Refactor",
+        );
+
+        assert.strictEqual(showErrorStub.calledOnce, true);
+        assert.match(showErrorStub.firstCall.args[0], /API Key not found/);
+        assert.strictEqual(branchStub.called, false);
+    });
+
     test("handleInlineTask stops when no specific source is selected", async () => {
         const showErrorStub = sandbox.stub(vscode.window, "showErrorMessage");
         sandbox.stub(vscode.workspace, "openTextDocument").resolves({
