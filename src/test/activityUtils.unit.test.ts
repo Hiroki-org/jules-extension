@@ -143,25 +143,63 @@ suite("activityUtils getActivitySummaryText", () => {
 });
 
 suite("activityUtils getActivityIcon", () => {
-    test("returns event-specific icons only for single active keys", () => {
-        const cases = [
-            [{ planGenerated: { plan: { title: "p1", steps: [] } as any } }, "📝"],
-            [{ planApproved: { planId: "p1" } }, "👍"],
-            [{ progressUpdated: { title: "Working", description: "" } }, "🔄"],
-            [{ sessionCompleted: {} }, "✅"],
-            [{ sessionFailed: { reason: "boom" } }, "❌"],
-            [{ agentMessaged: { agentMessage: "hello" } }, "💬"],
-            [{ userMessaged: {} }, "🗨️"],
-        ];
+    test("returns the plan generated icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ planGenerated: { plan: { title: "p1", steps: [] } as any } })),
+            "📝",
+        );
+    });
 
-        for (const [overrides, expected] of cases as any[]) {
-            assert.strictEqual(getActivityIcon(mockActivity(overrides)), expected);
-        }
+    test("returns the plan approved icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ planApproved: { planId: "p1" } })),
+            "👍",
+        );
+    });
 
+    test("returns the progress updated icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ progressUpdated: { title: "Working", description: "" } })),
+            "🔄",
+        );
+    });
+
+    test("returns the session completed icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ sessionCompleted: {} })),
+            "✅",
+        );
+    });
+
+    test("returns the session failed icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ sessionFailed: { reason: "boom" } })),
+            "❌",
+        );
+    });
+
+    test("returns the agent messaged icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ agentMessaged: { agentMessage: "hello" } })),
+            "💬",
+        );
+    });
+
+    test("returns the user messaged icon", () => {
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ userMessaged: {} })),
+            "🗨️",
+        );
+    });
+
+    test("returns the fallback icon when multiple active keys are present", () => {
         assert.strictEqual(
             getActivityIcon(mockActivity({ agentMessaged: { agentMessage: "hi" }, userMessaged: {} })),
             "ℹ️",
         );
+    });
+
+    test("returns the fallback icon when no active key is present", () => {
         assert.strictEqual(getActivityIcon(mockActivity()), "ℹ️");
     });
 });
