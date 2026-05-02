@@ -229,6 +229,12 @@ const mockVscode = {
             this.color = color;
         }
     },
+    ThemeColor: class ThemeColor {
+        id: string;
+        constructor(id: string) {
+            this.id = id;
+        }
+    },
     StatusBarAlignment: {
         Left: 1,
         Right: 2,
