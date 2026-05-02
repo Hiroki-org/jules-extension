@@ -3,6 +3,7 @@ import {
     getActivityCategory,
     getActivityLabelPrefix,
     getActivitySummaryText,
+    getActivityTypeLabel,
     isActivityCorrupted,
 } from "../activityUtils";
 import type { Activity } from "../types";
@@ -95,6 +96,18 @@ suite("activityUtils getActivityCategory", () => {
     test("empty activity -> Messages fallback", () => {
         const activity = mockActivity();
         assert.strictEqual(getActivityCategory(activity), "Messages");
+    });
+});
+
+suite("activityUtils getActivityTypeLabel", () => {
+    test("returns stable labels for every known union key", () => {
+        assert.strictEqual(getActivityTypeLabel("planGenerated"), "Plan generated");
+        assert.strictEqual(getActivityTypeLabel("planApproved"), "Plan approved");
+        assert.strictEqual(getActivityTypeLabel("agentMessaged"), "Agent messaged");
+        assert.strictEqual(getActivityTypeLabel("userMessaged"), "User messaged");
+        assert.strictEqual(getActivityTypeLabel("progressUpdated"), "Progress updated");
+        assert.strictEqual(getActivityTypeLabel("sessionCompleted"), "Session completed");
+        assert.strictEqual(getActivityTypeLabel("sessionFailed"), "Session failed");
     });
 });
 
