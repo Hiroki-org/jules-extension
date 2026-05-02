@@ -111,6 +111,27 @@ suite("activityUtils getActivityLabelPrefix", () => {
         const activity = mockActivity({ sessionFailed: { reason: "error" } });
         assert.strictEqual(getActivityLabelPrefix(activity), "FAILED: ");
     });
+
+    test("planApproved -> Approved: ", () => {
+        assert.strictEqual(getActivityLabelPrefix(mockActivity({ planApproved: { planId: "p1" } })), "Approved: ");
+    });
+
+    test("sessionCompleted -> Completed: ", () => {
+        assert.strictEqual(getActivityLabelPrefix(mockActivity({ sessionCompleted: {} })), "Completed: ");
+    });
+
+    test("artifacts with changeSet -> (diff) ", () => {
+        assert.strictEqual(
+            getActivityLabelPrefix(
+                mockActivity({ artifacts: [{ changeSet: { source: "s1" } as any }] }),
+            ),
+            "(diff) ",
+        );
+    });
+
+    test("agentMessaged -> empty prefix", () => {
+        assert.strictEqual(getActivityLabelPrefix(mockActivity({ agentMessaged: { agentMessage: "hello" } })), "");
+    });
 });
 
 suite("activityUtils getActivitySummaryText", () => {
