@@ -139,6 +139,32 @@ suite("activityUtils getActivitySummaryText", () => {
         const activity = mockActivity({ sessionFailed: { reason: "   " } });
         assert.strictEqual(getActivitySummaryText(activity), "Session failed");
     });
+
+    test("falls back to description, artifacts, active key labels, and metadata", () => {
+        assert.strictEqual(
+            getActivitySummaryText(mockActivity({ description: "  described work  " })),
+            "described work",
+        );
+        assert.strictEqual(
+            getActivitySummaryText(
+                mockActivity({
+                    description: undefined,
+                    artifacts: [{ media: { uri: "file:///tmp/image.png" } } as any],
+                }),
+            ),
+            "Artifacts: media",
+        );
+        assert.strictEqual(
+            getActivitySummaryText(mockActivity({ description: undefined, planApproved: { planId: "p1" } })),
+            "Plan approved",
+        );
+        assert.strictEqual(
+            getActivitySummaryText(
+                mockActivity({ description: undefined, originator: "user", createTime: "2026-03-02T00:00:00Z" }),
+            ),
+            "Activity (originator=user, time=2026-03-02T00:00:00Z)",
+        );
+    });
 });
 
 suite("activityUtils isActivityCorrupted", () => {
