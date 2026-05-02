@@ -162,6 +162,59 @@ suite("activityUtils getActivitySummaryText", () => {
         const activity = mockActivity({ sessionFailed: { reason: "   " } });
         assert.strictEqual(getActivitySummaryText(activity), "Session failed");
     });
+
+    test("falls back to description", () => {
+        assert.strictEqual(
+            getActivitySummaryText(mockActivity({ description: "  described work  " })),
+            "described work",
+        );
+    });
+
+    test("falls back to artifacts summary", () => {
+        assert.strictEqual(
+            getActivitySummaryText(
+                mockActivity({
+                    description: undefined,
+                    artifacts: [{ media: { uri: "file:///tmp/image.png" } }],
+                }),
+            ),
+            "Artifacts: media",
+        );
+    });
+
+    test("falls back to active key label", () => {
+        assert.strictEqual(
+            getActivitySummaryText(mockActivity({ description: undefined, planApproved: { planId: "p1" } })),
+            "Plan approved",
+        );
+    });
+
+    test("falls back to metadata (originator and time)", () => {
+        assert.strictEqual(
+            getActivitySummaryText(
+                mockActivity({ description: undefined, originator: "user", createTime: "2026-03-02T00:00:00Z" }),
+            ),
+            "Activity (originator=user, time=2026-03-02T00:00:00Z)",
+        );
+    });
+
+    test("falls back to metadata without createTime", () => {
+        assert.strictEqual(
+            getActivitySummaryText(
+                mockActivity({ description: undefined, createTime: undefined }),
+            ),
+            "Activity (originator=agent)",
+        );
+    });
+
+    test("falls back to metadata when multiple active keys present", () => {
+        assert.strictEqual(
+            getActivitySummaryText(
+                mockActivity({ description: undefined, planApproved: { planId: "p1" }, sessionCompleted: {} }),
+            ),
+            "Activity (originator=agent, time=2026-03-01T00:00:00Z)",
+        );
+    });
 });
 
 suite("activityUtils getActivityIcon", () => {
