@@ -70,6 +70,23 @@ suite("inlineCommands Test Suite", () => {
         assert.ok(prompt.includes(`\n${fence}\n`));
     });
 
+    test("JulesCodeLensProvider returns no lenses and skips symbol lookup when disabled", async () => {
+        sandbox.stub(vscode.workspace, "getConfiguration").returns({
+            get: () => false,
+        } as any)
+        const executeStub = sandbox.stub(vscode.commands, "executeCommand")
+
+        const provider = new JulesCodeLensProvider({ appendLine: sandbox.stub() } as any)
+        const lenses = await provider.provideCodeLenses(
+            { uri: vscode.Uri.parse("file:///sample.ts") } as any,
+            { isCancellationRequested: false } as any,
+        )
+
+        assert.deepStrictEqual(lenses, [])
+        assert.strictEqual(executeStub.called, false)
+        provider.dispose()
+    })
+
     test("JulesCodeLensProvider returns lenses for nested symbols", async () => {
         const configStub = sandbox.stub(vscode.workspace, "getConfiguration").returns({
             get: () => true,
