@@ -111,17 +111,26 @@ suite("activityUtils getActivityLabelPrefix", () => {
         assert.strictEqual(getActivityLabelPrefix(activity), "FAILED: ");
     });
 
-    test("covers approval, completion, diff, and neutral label prefixes", () => {
-        assert.strictEqual(getActivityLabelPrefix(mockActivity({ planApproved: { planId: "p1" } })), "Approved: ")
-        assert.strictEqual(getActivityLabelPrefix(mockActivity({ sessionCompleted: {} })), "Completed: ")
+    test("planApproved -> Approved: ", () => {
+        assert.strictEqual(getActivityLabelPrefix(mockActivity({ planApproved: { planId: "p1" } })), "Approved: ");
+    });
+
+    test("sessionCompleted -> Completed: ", () => {
+        assert.strictEqual(getActivityLabelPrefix(mockActivity({ sessionCompleted: {} })), "Completed: ");
+    });
+
+    test("artifacts with changeSet -> (diff) ", () => {
         assert.strictEqual(
             getActivityLabelPrefix(
                 mockActivity({ artifacts: [{ changeSet: { source: "s1" } as any }] }),
             ),
             "(diff) ",
-        )
-        assert.strictEqual(getActivityLabelPrefix(mockActivity({ agentMessaged: { agentMessage: "hello" } })), "")
-    })
+        );
+    });
+
+    test("agentMessaged -> empty prefix", () => {
+        assert.strictEqual(getActivityLabelPrefix(mockActivity({ agentMessaged: { agentMessage: "hello" } })), "");
+    });
 });
 
 suite("activityUtils getActivitySummaryText", () => {
