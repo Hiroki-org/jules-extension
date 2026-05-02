@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import {
     getActivityCategory,
+    getActivityIcon,
     getActivityLabelPrefix,
     getActivitySummaryText,
     isActivityCorrupted,
@@ -138,6 +139,30 @@ suite("activityUtils getActivitySummaryText", () => {
     test("sessionFailed with whitespace-only reason", () => {
         const activity = mockActivity({ sessionFailed: { reason: "   " } });
         assert.strictEqual(getActivitySummaryText(activity), "Session failed");
+    });
+});
+
+suite("activityUtils getActivityIcon", () => {
+    test("returns event-specific icons only for single active keys", () => {
+        const cases = [
+            [{ planGenerated: { plan: { title: "p1", steps: [] } as any } }, "📝"],
+            [{ planApproved: { planId: "p1" } }, "👍"],
+            [{ progressUpdated: { title: "Working", description: "" } }, "🔄"],
+            [{ sessionCompleted: {} }, "✅"],
+            [{ sessionFailed: { reason: "boom" } }, "❌"],
+            [{ agentMessaged: { agentMessage: "hello" } }, "💬"],
+            [{ userMessaged: {} }, "🗨️"],
+        ];
+
+        for (const [overrides, expected] of cases as any[]) {
+            assert.strictEqual(getActivityIcon(mockActivity(overrides)), expected);
+        }
+
+        assert.strictEqual(
+            getActivityIcon(mockActivity({ agentMessaged: { agentMessage: "hi" }, userMessaged: {} })),
+            "ℹ️",
+        );
+        assert.strictEqual(getActivityIcon(mockActivity()), "ℹ️");
     });
 });
 
