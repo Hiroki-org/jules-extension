@@ -123,6 +123,29 @@ suite("inlineCommands Test Suite", () => {
         assert.strictEqual(appendLine.calledOnce, true);
     });
 
+    test("handleInlineTask logs and reports when the target document cannot be opened", async () => {
+        const showErrorStub = sandbox.stub(vscode.window, "showErrorMessage");
+        sandbox.stub(vscode.workspace, "openTextDocument").rejects(new Error("missing file\nsecret"));
+        const appendLine = sandbox.stub();
+
+        await handleInlineTask(
+            {
+                globalState: { get: sandbox.stub() },
+                secrets: { get: sandbox.stub() },
+            } as any,
+            { appendLine } as any,
+            vscode.Uri.parse("file:///workspace/missing.ts"),
+            new vscode.Range(0, 0, 0, 10),
+            "Refactor",
+        );
+
+        assert.strictEqual(showErrorStub.calledOnce, true);
+        assert.strictEqual(showErrorStub.firstCall.args[0], "Could not open the target document.");
+        assert.strictEqual(appendLine.calledOnce, true);
+        assert.match(String(appendLine.firstCall.args[0]), /Error opening document/);
+        assert.match(String(appendLine.firstCall.args[0]), /missing file\\nsecret/);
+    });
+
     test("handleInlineTask shows an error when the file is outside the workspace", async () => {
         const showErrorStub = sandbox.stub(vscode.window, "showErrorMessage");
         sandbox.stub(vscode.workspace, "openTextDocument").resolves({
