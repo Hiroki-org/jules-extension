@@ -171,6 +171,39 @@ suite("inlineCommands Test Suite", () => {
         assert.strictEqual(showErrorStub.calledOnce, true);
     });
 
+    test("handleInlineTask stops when branch selection is cancelled", async () => {
+        const showWarningStub = sandbox.stub(vscode.window, "showWarningMessage");
+        sandbox.stub(vscode.workspace, "openTextDocument").resolves({
+            getText: () => "const value = 1",
+            uri: vscode.Uri.parse("file:///workspace/file.ts"),
+            languageId: "typescript",
+        } as any);
+        (vscode.workspace as any).getWorkspaceFolder = sandbox.stub().returns({ uri: vscode.Uri.parse("file:///workspace") });
+        sandbox.stub(branchUtils, "getBranchesForSession").resolves({
+            branches: ["main"],
+            defaultBranch: "main",
+            currentBranch: "main",
+            remoteBranches: ["main"],
+        } as any);
+        sandbox.stub(vscode.window, "showQuickPick").resolves(undefined);
+        const composerStub = sandbox.stub(composer, "showMessageComposer");
+
+        await handleInlineTask(
+            {
+                globalState: { get: sandbox.stub().returns({ id: "source-1", name: "repo" }) },
+                secrets: { get: sandbox.stub().resolves("api-key") },
+            } as any,
+            { appendLine: sandbox.stub() } as any,
+            vscode.Uri.parse("file:///workspace/file.ts"),
+            new vscode.Range(0, 0, 0, 10),
+            "Generate Tests",
+        );
+
+        assert.strictEqual(showWarningStub.calledOnce, true);
+        assert.strictEqual(showWarningStub.firstCall.args[0], "Branch selection was cancelled or invalid.");
+        assert.strictEqual(composerStub.called, false);
+    });
+
     test("handleInlineTask creates a session when all inputs are valid", async () => {
         sandbox.stub(vscode.workspace, "openTextDocument").resolves({
             getText: () => "const value = 1;",
