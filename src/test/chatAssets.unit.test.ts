@@ -66,4 +66,14 @@ suite("chatAssets unit tests", () => {
       "both success and failure paths should reset button text",
     );
   });
+
+  test("CHAT_CSS should contain disabled states for accessibility", () => {
+    assert.ok(CHAT_CSS.includes("#messageInput:disabled"));
+  });
+
+  test("CHAT_JS should set aria attributes and update UI", () => {
+    assert.ok(CHAT_JS.includes('setAttribute("aria-disabled"'));
+    assert.ok(CHAT_JS.includes('setAttribute("aria-label"'));
+    assert.ok(CHAT_JS.includes('updateUI();\n})();'));
+  });
 });
