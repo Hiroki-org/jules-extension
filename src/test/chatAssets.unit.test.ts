@@ -66,4 +66,68 @@ suite("chatAssets unit tests", () => {
       "both success and failure paths should reset button text",
     );
   });
+
+  test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
+    const elements: any = {
+      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      typing: { classList: { toggle: () => {} } },
+      messageInput: { 
+        value: "", 
+        disabled: false, 
+        placeholder: "", 
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; }, 
+        addEventListener: () => {} 
+      },
+      sendButton: { 
+        disabled: false, 
+        title: "", 
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; }, 
+        addEventListener: () => {} 
+      },
+      sessionLabel: { textContent: "" },
+      composer: { addEventListener: () => {} },
+    };
+    
+    const mockDocument = {
+      getElementById: (id: string) => elements[id],
+    };
+    let messageListener: any = null;
+    const mockWindow = {
+      addEventListener: (evt: string, cb: any) => {
+        if (evt === "message") messageListener = cb;
+      },
+    };
+    const mockVscode = { postMessage: () => {} };
+
+    const runScript = new Function("document", "window", "acquireVsCodeApi", "navigator", CHAT_JS);
+    runScript(mockDocument, mockWindow, () => mockVscode, {});
+
+    // (1) state.sessionId = null
+    messageListener({ data: { type: "chatState", payload: { sessionId: null, messages: [], isTyping: false } } });
+    assert.strictEqual(elements.messageInput.disabled, true);
+    assert.strictEqual(elements.messageInput["aria-disabled"], "true");
+    assert.ok(elements.messageInput.placeholder.startsWith("Select a session"));
+    assert.strictEqual(elements.sendButton.disabled, true);
+    assert.strictEqual(elements.sendButton["aria-disabled"], "true");
+    assert.strictEqual(elements.sendButton.title, "Select a session to send a message");
+    assert.strictEqual(elements.sendButton["aria-label"], "Send (Select a session to send a message)");
+    assert.strictEqual(elements.sessionLabel.textContent, "Session: None selected");
+
+    // (2) sessionId present + empty input value
+    elements.messageInput.value = "   "; // whitespace
+    messageListener({ data: { type: "chatState", payload: { sessionId: "session-123", messages: [], isTyping: false } } });
+    assert.strictEqual(elements.sendButton.disabled, true);
+    assert.strictEqual(elements.sendButton["aria-disabled"], "true");
+    assert.strictEqual(elements.sendButton.title, "Type a message to send");
+    assert.strictEqual(elements.sendButton["aria-label"], "Send (Type a message to send)");
+    assert.strictEqual(elements.sessionLabel.textContent, "Session: session-123");
+
+    // (3) sessionId present + non-empty input value
+    elements.messageInput.value = "Hello";
+    messageListener({ data: { type: "chatState", payload: { sessionId: "session-123", messages: [], isTyping: false } } });
+    assert.strictEqual(elements.sendButton.disabled, false);
+    assert.strictEqual(elements.sendButton["aria-disabled"], "false");
+    assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");
+    assert.strictEqual(elements.sendButton["aria-label"], "Send message (Ctrl/Cmd+Enter)");
+  });
 });
