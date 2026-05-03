@@ -29,12 +29,12 @@ p { margin: 0 0 8px; }
 #composer { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--vscode-editor-background); border-top: 1px solid var(--vscode-widget-border, transparent); }
 #messageInput { width: 100%; min-height: 40px; max-height: 120px; resize: vertical; padding: 8px 12px; border: 1px solid var(--vscode-input-border, transparent); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: inherit; font-size: var(--vscode-editor-font-size); border-radius: 6px; outline: none; }
 #messageInput:focus-visible { border-color: var(--vscode-focusBorder); }
-#messageInput:disabled { opacity: 0.6; cursor: not-allowed; resize: none; }
+#messageInput:disabled, #messageInput[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; resize: none; }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; }
 .session-label { color: var(--vscode-descriptionForeground); font-size: 11px; user-select: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sendButton { padding: 6px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
 #sendButton:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-#sendButton:disabled { opacity: 0.5; cursor: not-allowed; }
+#sendButton:disabled, #sendButton[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .activity-log { font-size: 0.9em; opacity: 0.75; margin-bottom: 2px; }
 .activity-details { margin-top: 4px; font-size: 0.9em; }
 .activity-details summary { cursor: pointer; user-select: none; font-weight: 600; opacity: 0.8; padding: 2px 0; outline: none; }
@@ -67,18 +67,30 @@ export const CHAT_JS = `(function() {
     const hasSession = !!state.sessionId;
     const hasText = messageInput.value.trim().length > 0;
 
-    sendButton.disabled = !hasSession || !hasText;
+    const sendDisabled = !hasSession || !hasText;
+    sendButton.disabled = sendDisabled;
+    sendButton.setAttribute("aria-disabled", sendDisabled ? "true" : "false");
+    
     messageInput.disabled = !hasSession;
+    messageInput.setAttribute("aria-disabled", !hasSession ? "true" : "false");
+
+    if (!hasSession) {
+      messageInput.value = "";
+    }
+
     messageInput.placeholder = hasSession
       ? "Enter message (Ctrl/Cmd+Enter to send)"
       : "Select a session to start typing";
 
     if (!hasSession) {
       sendButton.title = "Select a session to send a message";
+      sendButton.setAttribute("aria-label", "Send (Select a session to send a message)");
     } else if (!hasText) {
       sendButton.title = "Type a message to send";
+      sendButton.setAttribute("aria-label", "Send (Type a message to send)");
     } else {
       sendButton.title = "Send message (Ctrl/Cmd+Enter)";
+      sendButton.setAttribute("aria-label", "Send message (Ctrl/Cmd+Enter)");
     }
 
     sessionLabel.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
@@ -188,4 +200,5 @@ export const CHAT_JS = `(function() {
   });
 
   vscode.postMessage({ type: "requestInitialState" });
+  updateUI();
 })();`;
