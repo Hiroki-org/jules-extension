@@ -94,7 +94,7 @@ suite("chatAssets unit tests", () => {
     let messageListener: any = null;
     const mockWindow = {
       addEventListener: (evt: string, cb: any) => {
-        if (evt === "message") {messageListener = cb;}
+        if (evt === "message") messageListener = cb;
       },
     };
     const mockVscode = { postMessage: () => {} };
