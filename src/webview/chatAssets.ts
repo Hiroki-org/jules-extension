@@ -120,8 +120,11 @@ export const CHAT_JS = `(function() {
   function renderMessages() {
     chatContainer.innerHTML = state.messages.map(m => {
       const sanitizedHtml = sanitizeHtml(m.html);
+      const safeRole = m.role === "user" || m.role === "assistant"
+        ? m.role
+        : "assistant";
       return \`
-      <div class="message \${m.role}">
+      <div class="message \${safeRole}">
         <div class="bubble">\${sanitizedHtml}</div>
         <div class="meta">\${formatTime(m.createTime)}</div>
       </div>

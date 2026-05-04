@@ -137,6 +137,32 @@ suite("chatAssets unit tests", () => {
     assert.ok(!elements.chat.innerHTML.includes("onerror"));
   });
 
+  test("CHAT_JS should constrain message role class names", () => {
+    const { elements, messageListener } = createChatScriptHarness({
+      sanitize: (html) => html,
+    });
+
+    messageListener({
+      data: {
+        type: "chatState",
+        payload: {
+          sessionId: "session-1",
+          isTyping: false,
+          messages: [
+            {
+              role: 'assistant"><img src=x onerror="alert(1)"><!--',
+              html: "<p>safe</p>",
+              createTime: "2026-05-04T00:00:00Z",
+            },
+          ],
+        },
+      },
+    });
+
+    assert.ok(elements.chat.innerHTML.includes('class="message assistant"'));
+    assert.ok(!elements.chat.innerHTML.includes("onerror"));
+  });
+
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
     const contentDiv = { innerHTML: "" };
