@@ -1743,9 +1743,9 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         `Jules: Debug - Total sessions: ${allSessionsMapped.length}`,
       );
 
-      // Optimization: Using a traditional for loop instead of Array.prototype.reduce
-      // to avoid callback overhead and reduce memory allocations when tallying states.
-      const stateCounts: Record<string, number> = {};
+      // 最適化: コールバックのオーバーヘッドとメモリアロケーションを抑えるため、
+      // Array.prototype.reduce の代わりに通常の for ループを使用する。
+      const stateCounts: Record<string, number> = Object.create(null);
       for (let i = 0; i < allSessionsMapped.length; i += 1) {
         const state = allSessionsMapped[i].rawState;
         stateCounts[state] = (stateCounts[state] || 0) + 1;
