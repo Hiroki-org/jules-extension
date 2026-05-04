@@ -90,7 +90,7 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes('aria-label="Send message"'));
     assert.match(
       html,
-      /<script nonce="nonce-123" src="[^"]*dist[\\/]purify\.min\.js"><\/script>/,
+      /<script nonce="nonce-123" src="[^"]*dist(?:[\\/]|%5[cC])purify\.min\.js"><\/script>/,
     );
     assert.ok(html.includes("script-src 'nonce-nonce-123'"));
     assert.ok(!html.includes("script-src https://example.com"));
