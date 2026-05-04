@@ -472,9 +472,7 @@ export function getChatWebviewHtml(
     webview.cspSource +
     " 'nonce-" +
     nonce +
-    "'; script-src " +
-    webview.cspSource +
-    " 'nonce-" +
+    "'; script-src 'nonce-" +
     nonce +
     '\';" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Jules Chat</title><style nonce="' +
     nonce +

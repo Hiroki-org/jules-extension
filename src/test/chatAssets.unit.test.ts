@@ -75,7 +75,7 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_JS.includes("navigator.clipboard.writeText"));
   });
 
-  test("CHAT_JS should sanitize rendered message HTML with the shared URI allowlist", () => {
+  test("CHAT_JS should sanitize rendered message HTML with the explicit URI allowlist", () => {
     let sanitizedInput = "";
     let sanitizeConfig: any;
     const { elements, messageListener } = createChatScriptHarness({
@@ -108,7 +108,23 @@ suite("chatAssets unit tests", () => {
       sanitizeConfig.ALLOWED_URI_REGEXP.test("command:jules-extension.openSettings"),
       false,
     );
+    assert.strictEqual(
+      sanitizeConfig.ALLOWED_URI_REGEXP.test("javascript:alert(1)"),
+      false,
+    );
+    assert.strictEqual(
+      sanitizeConfig.ALLOWED_URI_REGEXP.test("data:text/html,<p>x</p>"),
+      false,
+    );
+    assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("https://example.com"));
+    assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("./relative/path"));
     assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("vscode-webview-resource://resource"));
+    assert.deepStrictEqual(sanitizeConfig.ADD_TAGS, ["details", "summary"]);
+    assert.deepStrictEqual(sanitizeConfig.ADD_ATTR, [
+      "data-activity-id",
+      "data-detail-type",
+      "data-index",
+    ]);
     assert.ok(elements.chat.innerHTML.includes("<p>safe</p>"));
     assert.ok(!elements.chat.innerHTML.includes("onerror"));
   });
@@ -133,7 +149,8 @@ suite("chatAssets unit tests", () => {
       },
     });
 
-    assert.ok(elements.chat.innerHTML.includes('<div class="bubble"></div>'));
+    assert.ok(elements.chat.innerHTML.includes('class="message-unavailable"'));
+    assert.ok(elements.chat.innerHTML.includes('aria-label="Message unavailable"'));
     assert.ok(!elements.chat.innerHTML.includes("onerror"));
   });
 
@@ -161,6 +178,33 @@ suite("chatAssets unit tests", () => {
 
     assert.ok(elements.chat.innerHTML.includes('class="message assistant"'));
     assert.ok(!elements.chat.innerHTML.includes("onerror"));
+  });
+
+  test("CHAT_JS should cache sanitized HTML across renders", () => {
+    let sanitizeCalls = 0;
+    const { elements, messageListener } = createChatScriptHarness({
+      sanitize: (html) => {
+        sanitizeCalls += 1;
+        return html;
+      },
+    });
+    const payload = {
+      sessionId: "session-1",
+      isTyping: false,
+      messages: [
+        {
+          role: "assistant",
+          html: "<p>safe</p>",
+          createTime: "2026-05-04T00:00:00Z",
+        },
+      ],
+    };
+
+    messageListener({ data: { type: "chatState", payload } });
+    messageListener({ data: { type: "chatState", payload } });
+
+    assert.strictEqual(sanitizeCalls, 1);
+    assert.ok(elements.chat.innerHTML.includes("<p>safe</p>"));
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {

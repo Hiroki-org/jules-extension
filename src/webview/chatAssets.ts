@@ -8,6 +8,7 @@ body { margin: 0; padding: 10px; color: var(--vscode-editor-foreground); backgro
 .bubble { border: 1px solid var(--vscode-widget-border, transparent); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); line-height: 1.5; overflow-wrap: anywhere; }
 .user .bubble { background: color-mix(in srgb, var(--vscode-button-background) 28%, transparent); border-color: var(--vscode-button-background); }
 .assistant .bubble { background: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 75%, transparent); }
+.message-unavailable { opacity: 0.75; font-style: italic; }
 .meta { color: var(--vscode-descriptionForeground); font-size: 11px; padding: 0 4px; }
 blockquote { margin: 8px 0; border-left: 3px solid var(--vscode-textBlockQuote-border); padding-left: 10px; color: var(--vscode-textBlockQuote-foreground); background: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 35%, transparent); border-radius: 6px; }
 ul, ol { padding-left: 18px; margin: 6px 0; }
@@ -52,7 +53,10 @@ export const CHAT_JS = `(function() {
   const vscode = typeof acquireVsCodeApi === "function"
     ? acquireVsCodeApi()
     : { postMessage: (m) => console.warn("VSCode API unavailable", m) };
-  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
+  const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
+  const SANITIZED_HTML_CACHE_LIMIT = 500;
+  const sanitizedHtmlCache = new Map();
 
   const chatContainer = document.getElementById("chat");
   const typingIndicator = document.getElementById("typing");
@@ -64,17 +68,35 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
 
+  function rememberSanitizedHtml(html, sanitizedHtml) {
+    sanitizedHtmlCache.set(html, sanitizedHtml);
+    if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
+      const oldestKey = sanitizedHtmlCache.keys().next().value;
+      sanitizedHtmlCache.delete(oldestKey);
+    }
+    return sanitizedHtml;
+  }
+
   function sanitizeHtml(html) {
+    const rawHtml = typeof html === "string" ? html : "";
+    if (sanitizedHtmlCache.has(rawHtml)) {
+      return sanitizedHtmlCache.get(rawHtml);
+    }
     if (typeof DOMPurify === "undefined") {
-      return "";
+      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
     }
     try {
-      return DOMPurify.sanitize(html, {
-        ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
-      });
+      return rememberSanitizedHtml(
+        rawHtml,
+        DOMPurify.sanitize(rawHtml, {
+          ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
+          ADD_TAGS: ["details", "summary"],
+          ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
+        }),
+      );
     } catch (error) {
       console.error("Jules: Failed to sanitize chat HTML", error);
-      return "";
+      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
     }
   }
 

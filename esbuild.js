@@ -30,10 +30,16 @@ const copyDomPurifyPlugin = {
 
 	setup(build) {
 		build.onEnd(() => {
-			const sourcePath = require.resolve('dompurify/dist/purify.min.js');
-			const targetPath = path.join(__dirname, 'dist', 'purify.min.js');
-			fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-			fs.copyFileSync(sourcePath, targetPath);
+			try {
+				const sourcePath = require.resolve('dompurify/dist/purify.min.js');
+				const targetPath = path.join(__dirname, 'dist', 'purify.min.js');
+				fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+				fs.copyFileSync(sourcePath, targetPath);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				console.error('[copy-dompurify] Failed to copy purify.min.js:', message);
+				throw err;
+			}
 		});
 	},
 };

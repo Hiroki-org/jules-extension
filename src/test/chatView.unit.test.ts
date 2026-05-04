@@ -92,8 +92,12 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
-    assert.ok(html.includes('src="vscode-webview-resource:///tmp/jules-extension/dist/purify.min.js"'));
-    assert.ok(html.includes("script-src https://example.com 'nonce-nonce-123'"));
+    assert.match(
+      html,
+      /<script nonce="nonce-123" src="[^"]*dist\/purify\.min\.js"><\/script>/,
+    );
+    assert.ok(html.includes("script-src 'nonce-nonce-123'"));
+    assert.ok(!html.includes("script-src https://example.com"));
     assert.ok(!html.includes("require.resolve"));
   });
 
