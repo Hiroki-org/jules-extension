@@ -1742,14 +1742,13 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       logChannel.appendLine(
         `Jules: Debug - Total sessions: ${allSessionsMapped.length}`,
       );
-
-      // Optimization: Using a traditional for loop instead of Array.prototype.reduce
-      // to avoid callback overhead and reduce memory allocations when tallying states.
-      const stateCounts: Record<string, number> = Object.create(null);
-      for (let i = 0; i < allSessionsMapped.length; i += 1) {
-        const state = allSessionsMapped[i].rawState;
-        stateCounts[state] = (stateCounts[state] || 0) + 1;
-      }
+      const stateCounts = allSessionsMapped.reduce(
+        (acc, s) => {
+          acc[s.rawState] = (acc[s.rawState] || 0) + 1;
+          return acc;
+        },
+        Object.create(null) as Record<string, number>,
+      );
       logChannel.appendLine(
         `Jules: Debug - State counts: ${JSON.stringify(stateCounts)}`,
       );
@@ -2499,6 +2498,7 @@ export function activate(context: vscode.ExtensionContext) {
     async (sessionId, message) => {
       await sendMessageToSession(context, sessionId, message);
     },
+    context.extensionUri,
   );
   const chatViewProviderDisposable = vscode.window.registerWebviewViewProvider(
     "julesChatView",

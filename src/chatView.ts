@@ -295,14 +295,19 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       sessionId: string,
       message: string,
     ) => Promise<void>,
+    private readonly extensionUri: vscode.Uri,
   ) {}
   async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
     await initMarkdownRenderer();
     this.view = webviewView;
-    webviewView.webview.options = { enableScripts: true };
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist")],
+    };
     webviewView.webview.html = getChatWebviewHtml(
       webviewView.webview,
       getNonce(),
+      this.extensionUri,
     );
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message?.type === "requestInitialState") {
@@ -441,10 +446,24 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
+function getDOMPurifyScriptUri(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+): string {
+  const domPurifyUri = vscode.Uri.joinPath(
+    extensionUri,
+    "dist",
+    "purify.min.js",
+  );
+  return webview.asWebviewUri(domPurifyUri).toString();
+}
+
 export function getChatWebviewHtml(
   webview: vscode.Webview,
   nonce: string,
+  extensionUri: vscode.Uri,
 ): string {
+  const domPurifyScriptUri = getDOMPurifyScriptUri(webview, extensionUri);
   return (
     '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src ' +
     webview.cspSource +
@@ -457,6 +476,10 @@ export function getChatWebviewHtml(
     '">' +
     CHAT_CSS +
     '</style></head><body><div id="chat"></div><div id="typing" class="typing" aria-live="polite" aria-label="Jules is working"><span>Jules is working</span><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div><form id="composer"><textarea id="messageInput" aria-label="Enter message" placeholder="Enter message (Ctrl/Cmd+Enter to send)"></textarea><div class="composer-actions"><div id="sessionLabel" class="session-label">Session: None selected</div><button id="sendButton" type="submit" aria-label="Send message" disabled>Send</button></div></form><script nonce="' +
+    nonce +
+    '" src="' +
+    domPurifyScriptUri +
+    '"></script><script nonce="' +
     nonce +
     '">' +
     CHAT_JS +
