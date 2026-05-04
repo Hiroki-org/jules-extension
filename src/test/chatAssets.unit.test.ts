@@ -104,7 +104,10 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
-    assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("command:jules-extension.openSettings"));
+    assert.strictEqual(
+      sanitizeConfig.ALLOWED_URI_REGEXP.test("command:jules-extension.openSettings"),
+      false,
+    );
     assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("vscode-webview-resource://resource"));
     assert.ok(elements.chat.innerHTML.includes("<p>safe</p>"));
     assert.ok(!elements.chat.innerHTML.includes("onerror"));

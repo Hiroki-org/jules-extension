@@ -52,7 +52,7 @@ export const CHAT_JS = `(function() {
   const vscode = typeof acquireVsCodeApi === "function"
     ? acquireVsCodeApi()
     : { postMessage: (m) => console.warn("VSCode API unavailable", m) };
-  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|command|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 
   const chatContainer = document.getElementById("chat");
   const typingIndicator = document.getElementById("typing");
