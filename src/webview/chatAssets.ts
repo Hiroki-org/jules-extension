@@ -103,12 +103,17 @@ export const CHAT_JS = `(function() {
   }
 
   function renderMessages() {
-    chatContainer.innerHTML = state.messages.map(m => \`
+    chatContainer.innerHTML = state.messages.map(m => {
+      const sanitizedHtml = typeof DOMPurify !== "undefined"
+        ? DOMPurify.sanitize(m.html, { ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|command|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i })
+        : m.html;
+      return \`
       <div class="message \${m.role}">
-        <div class="bubble">\${m.html}</div>
+        <div class="bubble">\${sanitizedHtml}</div>
         <div class="meta">\${formatTime(m.createTime)}</div>
       </div>
-    \`).join("");
+    \`;
+    }).join("");
     typingIndicator.classList.toggle("visible", !!state.isTyping);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     updateUI();
@@ -192,7 +197,9 @@ export const CHAT_JS = `(function() {
         if (elIndex === msgIndex) {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
-            contentDiv.innerHTML = html;
+            contentDiv.innerHTML = typeof DOMPurify !== "undefined"
+              ? DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|command|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i })
+              : html;
           }
         }
       });

@@ -409,6 +409,7 @@
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "@shikijs/markdown-it": "^4.0.2",
+    "dompurify": "^3.4.2",
     "https-proxy-agent": "^7.0.6",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
