@@ -10,16 +10,6 @@ import {
 } from "../chatView";
 import { Activity } from "../types";
 
-const extensionUri = vscode.Uri.file("/tmp/jules-extension");
-
-function createWebview(): vscode.Webview {
-  return {
-    cspSource: "https://example.com",
-    asWebviewUri: (uri: vscode.Uri) =>
-      vscode.Uri.parse("vscode-webview-resource://" + uri.fsPath),
-  } as vscode.Webview;
-}
-
 function createActivity(activity: Partial<Activity>): Activity {
   return {
     id: "id",
@@ -72,7 +62,6 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes("<ul>"));
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
-    assert.ok(rendered.includes('aria-label="Copy code"'));
   });
 
   test("isGeneratingSessionState should detect active generation states", () => {
@@ -84,22 +73,14 @@ suite("Chat View Unit Test Suite", () => {
 
   test("getChatWebviewHtml should include typing indicator and send flow script", () => {
     const html = getChatWebviewHtml(
-      createWebview(),
+      { cspSource: "https://example.com" } as vscode.Webview,
       "nonce-123",
-      extensionUri,
     );
     assert.ok(html.includes('id="typing"'));
     assert.ok(html.includes('type:"sendMessage"') || html.includes('type: "sendMessage"'));
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
-    assert.match(
-      html,
-      /<script nonce="nonce-123" src="[^"]*dist[\\/]purify\.min\.js"><\/script>/,
-    );
-    assert.ok(html.includes("script-src 'nonce-nonce-123'"));
-    assert.ok(!html.includes("script-src https://example.com"));
-    assert.ok(!html.includes("require.resolve"));
   });
 
   test("buildChatMessagesFromActivities should generate lazy load placeholders for details", () => {
@@ -144,7 +125,6 @@ suite("Chat View Unit Test Suite", () => {
           options: {},
           html: "",
           cspSource: "https://example.com",
-          asWebviewUri: (uri: vscode.Uri) => vscode.Uri.parse("vscode-webview-resource://" + uri.fsPath),
           onDidReceiveMessage: (cb: any) => { messageHandler = cb; },
           postMessage: async (msg: any) => { postedMessage = msg; }
         }
@@ -152,15 +132,9 @@ suite("Chat View Unit Test Suite", () => {
 
       const provider = new JulesChatViewProvider(async (sid, text) => {
         if (text === "error") { throw new Error("mock error"); }
-      }, extensionUri);
+      });
       // we need to call resolveWebviewView to set this.view
       await provider.resolveWebviewView(webviewView);
-      assert.deepStrictEqual(
-        webviewView.webview.options.localResourceRoots.map((uri: vscode.Uri) =>
-          uri.fsPath.replace(/\\/g, "/"),
-        ),
-        ["/tmp/jules-extension/dist"],
-      );
 
       // Trigger requestInitialState
       await messageHandler({ type: "requestInitialState" });
@@ -182,7 +156,7 @@ suite("Chat View Unit Test Suite", () => {
       await messageHandler({ type: "sendMessage", sessionId: "s1", text: "" });
 
       // Set sessionId to cover buildChatMessagesFromActivities in resolveWebviewView
-      const providerWithSession = new JulesChatViewProvider(async () => {}, extensionUri);
+      const providerWithSession = new JulesChatViewProvider(async () => {});
       (providerWithSession as any).state.sessionId = "s1";
       await providerWithSession.resolveWebviewView(webviewView);
 
@@ -254,7 +228,7 @@ suite("Chat View Unit Test Suite", () => {
       assert.strictEqual(postedMessage, null);
 
       // Test no view
-      const providerNoView = new JulesChatViewProvider(async () => {}, extensionUri);
+      const providerNoView = new JulesChatViewProvider(async () => {});
       (providerNoView as any).handleRequestDetails({ activityId: "act-1", detailType: "plan" });
 
       // Update session with edge cases

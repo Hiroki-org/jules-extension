@@ -1,6 +1,4 @@
 const esbuild = require("esbuild");
-const fs = require("fs");
-const path = require("path");
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -25,25 +23,6 @@ const esbuildProblemMatcherPlugin = {
 	},
 };
 
-const copyDomPurifyPlugin = {
-	name: 'copy-dompurify',
-
-	setup(build) {
-		build.onEnd(() => {
-			try {
-				const sourcePath = require.resolve('dompurify/dist/purify.min.js');
-				const targetPath = path.join(__dirname, 'dist', 'purify.min.js');
-				fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-				fs.copyFileSync(sourcePath, targetPath);
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				console.error('[copy-dompurify] Failed to copy purify.min.js:', message);
-				throw err;
-			}
-		});
-	},
-};
-
 async function main() {
 	const ctx = await esbuild.context({
 		entryPoints: [
@@ -60,7 +39,6 @@ async function main() {
 		logLevel: 'silent',
 		metafile: true,
 		plugins: [
-			copyDomPurifyPlugin,
 			/* add to the end of plugins array */
 			esbuildProblemMatcherPlugin,
 		],

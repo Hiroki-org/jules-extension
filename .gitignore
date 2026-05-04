@@ -98,4 +98,3 @@ pr[0-9]*_reviews.json
 pr[0-9]*_threads.json
 pr[0-9]*_view.json
 pr_status.json
-*.orig

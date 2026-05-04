@@ -1,57 +1,6 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: any) => string }) {
-  const elements: any = {
-    chat: {
-      innerHTML: "",
-      scrollTop: 0,
-      scrollHeight: 0,
-      addEventListener: () => {},
-      querySelectorAll: () => [],
-    },
-    typing: { classList: { toggle: () => {} } },
-    messageInput: {
-      value: "",
-      disabled: false,
-      placeholder: "",
-      setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-      addEventListener: () => {},
-    },
-    sendButton: {
-      disabled: false,
-      title: "",
-      setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-      addEventListener: () => {},
-    },
-    sessionLabel: { textContent: "" },
-    composer: { addEventListener: () => {} },
-  };
-  const mockDocument = {
-    getElementById: (id: string) => elements[id],
-  };
-  let messageListener: any = null;
-  const mockWindow = {
-    addEventListener: (evt: string, cb: any) => {
-      if (evt === "message") {
-        messageListener = cb;
-      }
-    },
-  };
-  const mockVscode = { postMessage: () => {} };
-
-  const runScript = new Function(
-    "document",
-    "window",
-    "acquireVsCodeApi",
-    "navigator",
-    "DOMPurify",
-    CHAT_JS,
-  );
-  runScript(mockDocument, mockWindow, () => mockVscode, {}, domPurify);
-  return { elements, messageListener };
-}
-
 suite("chatAssets unit tests", () => {
   test("CHAT_CSS should keep accessibility-focused selectors", () => {
     assert.ok(
@@ -73,173 +22,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_JS.includes('type: "sendMessage"'));
     assert.ok(CHAT_JS.includes("copy-code-button"));
     assert.ok(CHAT_JS.includes("navigator.clipboard.writeText"));
-  });
-
-  test("CHAT_JS should sanitize rendered message HTML with the explicit URI allowlist", () => {
-    let sanitizedInput = "";
-    let sanitizeConfig: any;
-    const { elements, messageListener } = createChatScriptHarness({
-      sanitize: (html, config) => {
-        sanitizedInput = html;
-        sanitizeConfig = config;
-        return "<p>safe</p>";
-      },
-    });
-
-    messageListener({
-      data: {
-        type: "chatState",
-        payload: {
-          sessionId: "session-1",
-          isTyping: false,
-          messages: [
-            {
-              role: "assistant",
-              html: '<img src=x onerror="alert(1)">',
-              createTime: "2026-05-04T00:00:00Z",
-            },
-          ],
-        },
-      },
-    });
-
-    assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
-    assert.strictEqual(
-      sanitizeConfig.ALLOWED_URI_REGEXP.test("command:jules-extension.openSettings"),
-      false,
-    );
-    assert.strictEqual(
-      sanitizeConfig.ALLOWED_URI_REGEXP.test("javascript:alert(1)"),
-      false,
-    );
-    assert.strictEqual(
-      sanitizeConfig.ALLOWED_URI_REGEXP.test("data:text/html,<p>x</p>"),
-      false,
-    );
-    assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("https://example.com"));
-    assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("./relative/path"));
-    assert.ok(sanitizeConfig.ALLOWED_URI_REGEXP.test("vscode-webview-resource://resource"));
-    assert.deepStrictEqual(sanitizeConfig.ADD_TAGS, ["details", "summary"]);
-    assert.deepStrictEqual(sanitizeConfig.ADD_ATTR, [
-      "data-activity-id",
-      "data-detail-type",
-      "data-index",
-    ]);
-    assert.ok(elements.chat.innerHTML.includes("<p>safe</p>"));
-    assert.ok(!elements.chat.innerHTML.includes("onerror"));
-  });
-
-  test("CHAT_JS should fail closed when DOMPurify is unavailable", () => {
-    const { elements, messageListener } = createChatScriptHarness();
-
-    messageListener({
-      data: {
-        type: "chatState",
-        payload: {
-          sessionId: "session-1",
-          isTyping: false,
-          messages: [
-            {
-              role: "assistant",
-              html: '<img src=x onerror="alert(1)">',
-              createTime: "2026-05-04T00:00:00Z",
-            },
-          ],
-        },
-      },
-    });
-
-    assert.ok(elements.chat.innerHTML.includes('class="message-unavailable"'));
-    assert.ok(elements.chat.innerHTML.includes('aria-label="Message unavailable"'));
-    assert.ok(!elements.chat.innerHTML.includes("onerror"));
-  });
-
-  test("CHAT_JS should constrain message role class names", () => {
-    const { elements, messageListener } = createChatScriptHarness({
-      sanitize: (html) => html,
-    });
-
-    messageListener({
-      data: {
-        type: "chatState",
-        payload: {
-          sessionId: "session-1",
-          isTyping: false,
-          messages: [
-            {
-              role: 'assistant"><img src=x onerror="alert(1)"><!--',
-              html: "<p>safe</p>",
-              createTime: "2026-05-04T00:00:00Z",
-            },
-          ],
-        },
-      },
-    });
-
-    assert.ok(elements.chat.innerHTML.includes('class="message assistant"'));
-    assert.ok(!elements.chat.innerHTML.includes("onerror"));
-  });
-
-  test("CHAT_JS should cache sanitized HTML across renders", () => {
-    let sanitizeCalls = 0;
-    const { elements, messageListener } = createChatScriptHarness({
-      sanitize: (html) => {
-        sanitizeCalls += 1;
-        return html;
-      },
-    });
-    const payload = {
-      sessionId: "session-1",
-      isTyping: false,
-      messages: [
-        {
-          role: "assistant",
-          html: "<p>safe</p>",
-          createTime: "2026-05-04T00:00:00Z",
-        },
-      ],
-    };
-
-    messageListener({ data: { type: "chatState", payload } });
-    messageListener({ data: { type: "chatState", payload } });
-
-    assert.strictEqual(sanitizeCalls, 1);
-    assert.ok(elements.chat.innerHTML.includes("<p>safe</p>"));
-  });
-
-  test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
-    let sanitizedInput = "";
-    const contentDiv = { innerHTML: "" };
-    const detailsEl = {
-      getAttribute: (name: string) => {
-        const attrs: Record<string, string> = {
-          "data-index": "0",
-        };
-        return attrs[name] ?? "";
-      },
-      querySelector: (selector: string) =>
-        selector === ".details-content" ? contentDiv : null,
-    };
-    const { elements, messageListener } = createChatScriptHarness({
-      sanitize: (html) => {
-        sanitizedInput = html;
-        return "<pre>safe details</pre>";
-      },
-    });
-    elements.chat.querySelectorAll = () => [detailsEl];
-
-    messageListener({
-      data: {
-        type: "detailsHtml",
-        activityId: "activity-1",
-        detailType: "plan",
-        index: 0,
-        html: '<img src=x onerror="alert(1)">',
-      },
-    });
-
-    assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
-    assert.strictEqual(contentDiv.innerHTML, "<pre>safe details</pre>");
   });
 
   test("CHAT_CSS should include activity details layout styles", () => {
@@ -286,9 +68,39 @@ suite("chatAssets unit tests", () => {
   });
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
-    const { elements, messageListener } = createChatScriptHarness({
-      sanitize: (html) => html,
-    });
+    const elements: any = {
+      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      typing: { classList: { toggle: () => {} } },
+      messageInput: {
+        value: "",
+        disabled: false,
+        placeholder: "",
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        addEventListener: () => {}
+      },
+      sendButton: {
+        disabled: false,
+        title: "",
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        addEventListener: () => {}
+      },
+      sessionLabel: { textContent: "" },
+      composer: { addEventListener: () => {} },
+    };
+
+    const mockDocument = {
+      getElementById: (id: string) => elements[id],
+    };
+    let messageListener: any = null;
+    const mockWindow = {
+      addEventListener: (evt: string, cb: any) => {
+        if (evt === "message") messageListener = cb;
+      },
+    };
+    const mockVscode = { postMessage: () => {} };
+
+    const runScript = new Function("document", "window", "acquireVsCodeApi", "navigator", CHAT_JS);
+    runScript(mockDocument, mockWindow, () => mockVscode, {});
 
     // (1) state.sessionId = null
     messageListener({ data: { type: "chatState", payload: { sessionId: null, messages: [], isTyping: false } } });
