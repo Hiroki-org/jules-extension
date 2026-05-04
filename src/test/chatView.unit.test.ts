@@ -95,7 +95,7 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes('aria-label="Send message"'));
     assert.match(
       html,
-      /<script nonce="nonce-123" src="[^"]*dist\/purify\.min\.js"><\/script>/,
+      /<script nonce="nonce-123" src="[^"]*dist[\\/]purify\.min\.js"><\/script>/,
     );
     assert.ok(html.includes("script-src 'nonce-nonce-123'"));
     assert.ok(!html.includes("script-src https://example.com"));
@@ -156,7 +156,9 @@ suite("Chat View Unit Test Suite", () => {
       // we need to call resolveWebviewView to set this.view
       await provider.resolveWebviewView(webviewView);
       assert.deepStrictEqual(
-        webviewView.webview.options.localResourceRoots.map((uri: vscode.Uri) => uri.fsPath),
+        webviewView.webview.options.localResourceRoots.map((uri: vscode.Uri) =>
+          uri.fsPath.replace(/\\/g, "/"),
+        ),
         ["/tmp/jules-extension/dist"],
       );
 
