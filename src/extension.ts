@@ -2498,6 +2498,7 @@ export function activate(context: vscode.ExtensionContext) {
     async (sessionId, message) => {
       await sendMessageToSession(context, sessionId, message);
     },
+    context.extensionUri,
   );
   const chatViewProviderDisposable = vscode.window.registerWebviewViewProvider(
     "julesChatView",

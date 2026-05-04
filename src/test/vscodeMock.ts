@@ -81,6 +81,11 @@ const mockVscode = {
             fsPath: value.replace(/^file:\/\//, ""),
             toString: () => value,
         }),
+        joinPath: (base: any, ...paths: string[]) => {
+            const basePath = base.fsPath || String(base).replace(/^file:\/\//, "");
+            const fsPath = [basePath, ...paths].join("/").replace(/\/+/g, "/");
+            return mockVscode.Uri.file(fsPath);
+        },
     },
     FileType: {
         File: 1,
