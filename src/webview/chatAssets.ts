@@ -42,6 +42,7 @@ p { margin: 0 0 8px; }
 .activity-details summary:hover { opacity: 1; text-decoration: underline; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+.message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
 .shiki span { color: var(--shiki-light); }
 [data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); }
@@ -63,7 +64,42 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
 
-  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
+  const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
+  const SANITIZED_HTML_CACHE_LIMIT = 500;
+  const sanitizedHtmlCache = new Map();
+
+  function rememberSanitizedHtml(html, sanitizedHtml) {
+    sanitizedHtmlCache.set(html, sanitizedHtml);
+    if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
+      const oldestKey = sanitizedHtmlCache.keys().next().value;
+      sanitizedHtmlCache.delete(oldestKey);
+    }
+    return sanitizedHtml;
+  }
+
+  function sanitizeHtml(html) {
+    const rawHtml = typeof html === "string" ? html : "";
+    if (sanitizedHtmlCache.has(rawHtml)) {
+      return sanitizedHtmlCache.get(rawHtml);
+    }
+    if (typeof DOMPurify === "undefined") {
+      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
+    }
+    try {
+      return rememberSanitizedHtml(
+        rawHtml,
+        DOMPurify.sanitize(rawHtml, {
+          ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
+          ADD_TAGS: ["details", "summary"],
+          ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
+        }),
+      );
+    } catch (error) {
+      console.error("Jules: Failed to sanitize chat HTML", error);
+      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
+    }
+  }
 
   function updateUI() {
     const hasSession = !!state.sessionId;
@@ -106,11 +142,10 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     chatContainer.innerHTML = state.messages.map(m => {
-      const sanitizedHtml = typeof DOMPurify !== "undefined"
-        ? DOMPurify.sanitize(m.html, { ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP })
-        : m.html;
+      const sanitizedHtml = sanitizeHtml(m.html);
+      const roleClass = m.role === "user" ? "user" : "assistant";
       return \`
-      <div class="message \${m.role}">
+      <div class="message \${roleClass}">
         <div class="bubble">\${sanitizedHtml}</div>
         <div class="meta">\${formatTime(m.createTime)}</div>
       </div>
@@ -199,9 +234,7 @@ export const CHAT_JS = `(function() {
         if (elIndex === msgIndex) {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
-            contentDiv.innerHTML = typeof DOMPurify !== "undefined"
-              ? DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP })
-              : html;
+            contentDiv.innerHTML = sanitizeHtml(html);
           }
         }
       });

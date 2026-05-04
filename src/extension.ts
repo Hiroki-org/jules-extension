@@ -1747,7 +1747,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
           acc[s.rawState] = (acc[s.rawState] || 0) + 1;
           return acc;
         },
-        {} as Record<string, number>,
+        Object.create(null) as Record<string, number>,
       );
       logChannel.appendLine(
         `Jules: Debug - State counts: ${JSON.stringify(stateCounts)}`,
@@ -2498,6 +2498,7 @@ export function activate(context: vscode.ExtensionContext) {
     async (sessionId, message) => {
       await sendMessageToSession(context, sessionId, message);
     },
+    context.extensionUri,
   );
   const chatViewProviderDisposable = vscode.window.registerWebviewViewProvider(
     "julesChatView",

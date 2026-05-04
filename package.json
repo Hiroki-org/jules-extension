@@ -395,6 +395,7 @@
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "c8": "^10.1.3",
+    "dompurify": "^3.4.2",
     "esbuild": "^0.25.10",
     "eslint": "^9.36.0",
     "mocha": "^11.7.5",
@@ -409,7 +410,6 @@
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "@shikijs/markdown-it": "^4.0.2",
-    "dompurify": "^3.4.2",
     "https-proxy-agent": "^7.0.6",
     "is-glob": "^4.0.3",
     "markdown-it": "^14.1.1",
