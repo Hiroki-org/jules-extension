@@ -63,6 +63,8 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
 
+  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
   function updateUI() {
     const hasSession = !!state.sessionId;
     const hasText = messageInput.value.trim().length > 0;
@@ -105,8 +107,8 @@ export const CHAT_JS = `(function() {
   function renderMessages() {
     chatContainer.innerHTML = state.messages.map(m => {
       const sanitizedHtml = typeof DOMPurify !== "undefined"
-        ? DOMPurify.sanitize(m.html, { ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|command|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i })
-        : m.html;
+        ? DOMPurify.sanitize(m.html, { ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP })
+        : "";
       return \`
       <div class="message \${m.role}">
         <div class="bubble">\${sanitizedHtml}</div>
@@ -198,7 +200,7 @@ export const CHAT_JS = `(function() {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
             contentDiv.innerHTML = typeof DOMPurify !== "undefined"
-              ? DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: SANITIZE_URI_REGEXP })
+              ? DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP })
               : "";
           }
         }
