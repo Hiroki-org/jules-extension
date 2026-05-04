@@ -198,8 +198,8 @@ export const CHAT_JS = `(function() {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
             contentDiv.innerHTML = typeof DOMPurify !== "undefined"
-              ? DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|command|vscode-webview-resource):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i })
-              : html;
+              ? DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: SANITIZE_URI_REGEXP })
+              : "";
           }
         }
       });

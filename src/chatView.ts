@@ -443,18 +443,19 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-let domPurifyScriptCache = "";
+let domPurifyScriptCache: string | null | undefined = undefined;
 
 function getDOMPurifyScript(): string {
-  if (!domPurifyScriptCache) {
+  if (domPurifyScriptCache === undefined) {
     try {
       const purifyPath = require.resolve("dompurify/dist/purify.min.js");
       domPurifyScriptCache = fs.readFileSync(purifyPath, "utf-8");
     } catch (e) {
       console.error("Jules: Failed to load DOMPurify script", e);
+      domPurifyScriptCache = null;
     }
   }
-  return domPurifyScriptCache;
+  return domPurifyScriptCache || "";
 }
 
 export function getChatWebviewHtml(
