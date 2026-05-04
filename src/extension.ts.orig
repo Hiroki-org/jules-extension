@@ -1745,7 +1745,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // Optimization: Using a traditional for loop instead of Array.prototype.reduce
       // to avoid callback overhead and reduce memory allocations when tallying states.
-      const stateCounts: Record<string, number> = Object.create(null);
+      const stateCounts: Record<string, number> = {};
       for (let i = 0; i < allSessionsMapped.length; i += 1) {
         const state = allSessionsMapped[i].rawState;
         stateCounts[state] = (stateCounts[state] || 0) + 1;
