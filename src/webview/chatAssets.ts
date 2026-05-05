@@ -28,7 +28,7 @@ p { margin: 0 0 8px; }
 .typing-dot:nth-child(3) { animation-delay: -0.16s; }
 @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 #composer { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--vscode-editor-background); border-top: 1px solid var(--vscode-widget-border, transparent); }
-#messageInput { width: 100%; min-height: 40px; max-height: 120px; resize: none; overflow-y: auto; padding: 8px 12px; border: 1px solid var(--vscode-input-border, transparent); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: inherit; font-size: var(--vscode-editor-font-size); border-radius: 6px; outline: none; box-sizing: border-box; }
+#messageInput { width: 100%; min-height: 40px; max-height: 120px; resize: none; overflow-y: auto; padding: 8px 12px; border: 1px solid var(--vscode-input-border, transparent); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: inherit; font-size: var(--vscode-editor-font-size); border-radius: 6px; outline: none; }
 #messageInput:focus-visible { border-color: var(--vscode-focusBorder); }
 #messageInput:disabled, #messageInput[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; resize: none; }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; }
@@ -116,6 +116,7 @@ export const CHAT_JS = `(function() {
 
     if (!hasSession) {
       messageInput.value = "";
+      messageInput.style.height = "auto";
     }
 
     messageInput.placeholder = hasSession
@@ -158,9 +159,16 @@ export const CHAT_JS = `(function() {
     updateUI();
   }
 
+  function getVerticalBorderHeight(el) {
+    const style = window.getComputedStyle(el);
+    const top = parseFloat(style.borderTopWidth) || 0;
+    const bottom = parseFloat(style.borderBottomWidth) || 0;
+    return top + bottom;
+  }
+
   messageInput.addEventListener("input", () => {
     messageInput.style.height = "auto";
-    messageInput.style.height = messageInput.scrollHeight + "px";
+    messageInput.style.height = (messageInput.scrollHeight + getVerticalBorderHeight(messageInput)) + "px";
     updateUI();
   });
 
