@@ -1,7 +1,10 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: any) => string }) {
+function createChatScriptHarness(
+  domPurify?: { sanitize: (html: string, config: any) => string },
+  computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
+) {
   const listeners: Record<string, Record<string, any>> = {
     messageInput: {},
     composer: {},
@@ -43,7 +46,7 @@ function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: 
         messageListeners.push(cb);
       }
     },
-    getComputedStyle: () => ({ borderTopWidth: "1px", borderBottomWidth: "1px" }),
+    getComputedStyle: () => computedStyle,
   };
   const sentMessages: any[] = [];
   const mockVscode = { postMessage: (msg: any) => sentMessages.push(msg) };
@@ -396,5 +399,16 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton["aria-disabled"], "false");
     assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");
     assert.strictEqual(elements.sendButton["aria-label"], "Send message (Ctrl/Cmd+Enter)");
+  });
+
+  test("CHAT_JS should preserve fractional border widths when auto-resizing", () => {
+    const harness = createChatScriptHarness(undefined, { borderTopWidth: "1.5px", borderBottomWidth: "1.5px" });
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+    harness.elements.messageInput.scrollHeight = 50;
+    harness.listeners.messageInput.input();
+    assert.strictEqual(harness.elements.messageInput.style.height, "53px");
   });
 });

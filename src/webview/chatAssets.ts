@@ -162,7 +162,7 @@ export const CHAT_JS = `(function() {
   messageInput.addEventListener("input", () => {
     messageInput.style.height = "auto";
     const computed = window.getComputedStyle(messageInput);
-    const borderY = parseInt(computed.borderTopWidth, 10) + parseInt(computed.borderBottomWidth, 10);
+    const borderY = parseFloat(computed.borderTopWidth) + parseFloat(computed.borderBottomWidth);
     messageInput.style.height = (messageInput.scrollHeight + (isNaN(borderY) ? 0 : borderY)) + "px";
     updateUI();
   });
