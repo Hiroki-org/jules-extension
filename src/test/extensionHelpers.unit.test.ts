@@ -271,6 +271,20 @@ suite("Extension helper unit tests", () => {
     test("should return false for invalid GitHub PR URLs without fetching", async () => {
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
 
+      const isClosed1 = await checkPRStatus("https://evil-github.com/org/repo/pull/123", undefined);
+      assert.strictEqual(isClosed1, false);
+      assert.strictEqual(fetchStub.called, false);
+
+      const isClosed2 = await checkPRStatus("https://github.com/org/repo/issue/123", undefined);
+      assert.strictEqual(isClosed2, false);
+      assert.strictEqual(fetchStub.called, false);
+
+      fetchStub.restore();
+    });
+
+    test("should return false for completely malformed URLs without fetching", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+
       const isClosed = await checkPRStatus("not-a-github-pr-url", undefined);
 
       assert.strictEqual(isClosed, false);
