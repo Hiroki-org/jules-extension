@@ -1,4 +1,8 @@
 # 2024-03-10 - Activity details summary accessibility
 
-**Learning:** `outline: none;` on interactive `<summary>` tags inside `<details>` breaks keyboard navigation and makes it impossible for keyboard users to know which item has focus. It is better to rely on `:focus-visible` to hide outline from mouse users but preserve it for keyboard users.
-**Action:** When removing default outline from interactive elements, ensure `:focus-visible` is implemented (typically with `outline: 1px solid var(--vscode-focusBorder)`) to preserve keyboard accessibility.
+**Learning:** `<details>` 内のインタラクティブな `<summary>` タグに `outline: none;` を設定すると、キーボードナビゲーションが壊れ、キーボードユーザーがフォーカスの位置を把握できなくなります。マウスユーザーに対してはアウトラインを隠しつつ、キーボードユーザーのためにアウトラインを維持するには `:focus-visible` に頼るのがベストです。
+**Action:** インタラクティブ要素からデフォルトのアウトラインを削除する場合は、キーボードのアクセシビリティを維持するために、必ず `:focus-visible` （通常は `outline: 1px solid var(--vscode-focusBorder)`）を実装するようにします。
+
+## 2026-05-04 - フォーカス状態の視覚的フィードバックの改善
+**Learning:** チャットの送信ボタンやコピーボタンなどで、キーボード操作時に視覚的なアウトラインが欠落、もしくは不完全であることが分かりました。これにより、キーボード操作を利用するユーザーが現在位置を把握しにくくなっていました。
+**Action:** VS Code 標準の focusBorder トークンを利用し、`:focus-visible` ルールを追加することで、一貫したアクセシビリティのサポートを提供しました。

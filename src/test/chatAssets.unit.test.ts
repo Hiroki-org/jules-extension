@@ -1,7 +1,14 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: any) => string }) {
+function createChatScriptHarness(
+  domPurify?: { sanitize: (html: string, config: any) => string },
+  computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
+) {
+  const listeners: Record<string, Record<string, any>> = {
+    messageInput: {},
+    composer: {},
+  };
   const elements: Record<string, any> = {
     chat: {
       innerHTML: "",
@@ -15,8 +22,10 @@ function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: 
       value: "",
       disabled: false,
       placeholder: "",
+      style: { height: "" },
+      scrollHeight: 0,
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-      addEventListener: () => {},
+      addEventListener: (evt: string, cb: any) => { listeners.messageInput[evt] = cb; },
     },
     sendButton: {
       disabled: false,
@@ -25,7 +34,7 @@ function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: 
       addEventListener: () => {},
     },
     sessionLabel: { textContent: "" },
-    composer: { addEventListener: () => {} },
+    composer: { addEventListener: (evt: string, cb: any) => { listeners.composer[evt] = cb; } },
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
@@ -37,8 +46,10 @@ function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: 
         messageListeners.push(cb);
       }
     },
+    getComputedStyle: () => computedStyle,
   };
-  const mockVscode = { postMessage: () => {} };
+  const sentMessages: any[] = [];
+  const mockVscode = { postMessage: (msg: any) => sentMessages.push(msg) };
   const mockNavigator = { clipboard: { writeText: async () => {} } };
 
   const runScript = new Function(
@@ -53,6 +64,8 @@ function createChatScriptHarness(domPurify?: { sanitize: (html: string, config: 
 
   return {
     elements,
+    listeners,
+    sentMessages,
     postWindowMessage: (data: any) => {
       messageListeners.forEach((listener) => listener({ data }));
     },
@@ -259,6 +272,68 @@ suite("chatAssets unit tests", () => {
     );
   });
 
+  test("CHAT_JS should adjust height to scrollHeight plus border height on input", () => {
+    const harness = createChatScriptHarness();
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+    harness.elements.messageInput.scrollHeight = 50;
+    harness.listeners.messageInput.input();
+    assert.strictEqual(harness.elements.messageInput.style.height, "52px");
+  });
+
+  test("CHAT_JS chatState should clear input and reset height to auto if no session", () => {
+    const harness = createChatScriptHarness();
+    harness.elements.messageInput.value = "old text";
+    harness.elements.messageInput.style.height = "52px";
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: null, messages: [], isTyping: false },
+    });
+    assert.strictEqual(harness.elements.messageInput.value, "");
+    assert.strictEqual(harness.elements.messageInput.style.height, "auto");
+  });
+
+  test("CHAT_JS submit should send trimmed message, clear input, and reset height to auto", () => {
+    const harness = createChatScriptHarness();
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    harness.elements.messageInput.value = "  hello world  ";
+    harness.elements.messageInput.style.height = "52px";
+
+    harness.listeners.composer.submit({ preventDefault: () => {} });
+
+    const sendMessages = harness.sentMessages.filter((m: any) => m.type === "sendMessage");
+    assert.strictEqual(sendMessages.length, 1);
+    assert.deepStrictEqual(sendMessages[0], { type: "sendMessage", sessionId: "session-1", text: "hello world" });
+    assert.strictEqual(harness.elements.messageInput.value, "");
+    assert.strictEqual(harness.elements.messageInput.style.height, "auto");
+  });
+
+  test("CHAT_JS keydown Ctrl+Enter should send trimmed message, clear input, and reset height to auto", () => {
+    const harness = createChatScriptHarness();
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    harness.elements.messageInput.value = "  hello keydown  ";
+    harness.listeners.messageInput.input();
+    harness.elements.messageInput.style.height = "52px";
+
+    harness.listeners.messageInput.keydown({ ctrlKey: true, metaKey: false, key: "Enter", preventDefault: () => {} });
+
+    const sendMessages = harness.sentMessages.filter((m: any) => m.type === "sendMessage");
+    assert.strictEqual(sendMessages.length, 1);
+    assert.deepStrictEqual(sendMessages[0], { type: "sendMessage", sessionId: "session-1", text: "hello keydown" });
+    assert.strictEqual(harness.elements.messageInput.value, "");
+    assert.strictEqual(harness.elements.messageInput.style.height, "auto");
+  });
+
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
       chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
@@ -267,6 +342,7 @@ suite("chatAssets unit tests", () => {
         value: "",
         disabled: false,
         placeholder: "",
+        style: { height: "" },
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
         addEventListener: () => {}
       },
@@ -323,5 +399,16 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton["aria-disabled"], "false");
     assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");
     assert.strictEqual(elements.sendButton["aria-label"], "Send message (Ctrl/Cmd+Enter)");
+  });
+
+  test("CHAT_JS should preserve fractional border widths when auto-resizing", () => {
+    const harness = createChatScriptHarness(undefined, { borderTopWidth: "1.5px", borderBottomWidth: "1.5px" });
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+    harness.elements.messageInput.scrollHeight = 50;
+    harness.listeners.messageInput.input();
+    assert.strictEqual(harness.elements.messageInput.style.height, "53px");
   });
 });
