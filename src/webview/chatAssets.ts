@@ -49,6 +49,10 @@ p { margin: 0 0 8px; }
 .shiki span { color: var(--shiki-light); }
 [data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); }
 [data-vscode-theme-kind="vscode-high-contrast"] .shiki span { color: var(--shiki-dark); }
+.empty-state { margin: auto; text-align: center; color: var(--vscode-descriptionForeground); padding: 20px; font-size: 13px; max-width: 80%; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0; animation: fade-in 0.3s ease-out forwards; animation-delay: 0.1s; }
+.empty-state h3 { font-size: 16px; margin: 0 0 8px 0; color: var(--vscode-editor-foreground); font-weight: 500; }
+.empty-state p { margin: 0; line-height: 1.4; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 `;
 
 export const CHAT_JS = `(function() {
@@ -144,16 +148,23 @@ export const CHAT_JS = `(function() {
   }
 
   function renderMessages() {
-    chatContainer.innerHTML = state.messages.map(m => {
-      const sanitizedHtml = sanitizeHtml(m.html);
-      const roleClass = m.role === "user" ? "user" : "assistant";
-      return \`
-      <div class="message \${roleClass}">
-        <div class="bubble">\${sanitizedHtml}</div>
-        <div class="meta">\${formatTime(m.createTime)}</div>
-      </div>
-    \`;
-    }).join("");
+    if (state.messages.length === 0 && !state.isTyping) {
+      const emptyStateContent = state.sessionId
+        ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
+        : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
+      chatContainer.innerHTML = '<div class="empty-state">' + emptyStateContent + '</div>';
+    } else {
+      chatContainer.innerHTML = state.messages.map(m => {
+        const sanitizedHtml = sanitizeHtml(m.html);
+        const roleClass = m.role === "user" ? "user" : "assistant";
+        return \`
+        <div class="message \${roleClass}">
+          <div class="bubble">\${sanitizedHtml}</div>
+          <div class="meta">\${formatTime(m.createTime)}</div>
+        </div>
+      \`;
+      }).join("");
+    }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     updateUI();
