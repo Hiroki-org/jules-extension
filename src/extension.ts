@@ -1742,13 +1742,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       logChannel.appendLine(
         `Jules: Debug - Total sessions: ${allSessionsMapped.length}`,
       );
-      const stateCounts = allSessionsMapped.reduce(
-        (acc, s) => {
-          acc[s.rawState] = (acc[s.rawState] || 0) + 1;
-          return acc;
-        },
-        Object.create(null) as Record<string, number>,
-      );
+      const stateCounts = Object.create(null) as Record<string, number>;
+      for (let i = 0; i < allSessionsMapped.length; i += 1) {
+        const s = allSessionsMapped[i];
+        stateCounts[s.rawState] = (stateCounts[s.rawState] || 0) + 1;
+      }
       logChannel.appendLine(
         `Jules: Debug - State counts: ${JSON.stringify(stateCounts)}`,
       );
@@ -2469,7 +2467,9 @@ export function activate(context: vscode.ExtensionContext) {
   const now = Date.now();
   let expiredCount = 0;
 
-  for (const url in prStatusCache) {
+  const cacheKeys = Object.keys(prStatusCache);
+  for (let i = 0; i < cacheKeys.length; i += 1) {
+    const url = cacheKeys[i];
     const entry = prStatusCache[url];
     const ttl = entry.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
     if (now - entry.lastChecked > ttl) {
@@ -3247,11 +3247,10 @@ export function activate(context: vscode.ExtensionContext) {
               let keySummary = activeKeys.join(", ");
               if (activeKeys.length === 0) {
                 const inferredKeys: string[] = [];
-                for (const key in activity) {
-                  if (
-                    Object.prototype.hasOwnProperty.call(activity, key) &&
-                    isInferredActivityLogKey(key)
-                  ) {
+                const activityKeys = Object.keys(activity);
+                for (let i = 0; i < activityKeys.length; i += 1) {
+                  const key = activityKeys[i];
+                  if (isInferredActivityLogKey(key)) {
                     const value = (
                       activity as unknown as Record<string, unknown>
                     )[key];
