@@ -311,6 +311,26 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(harness.elements.messageInput.style.height, "auto");
   });
 
+  test("CHAT_JS keydown Ctrl+Enter should send trimmed message, clear input, and reset height to auto", () => {
+    const harness = createChatScriptHarness();
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    harness.elements.messageInput.value = "  hello keydown  ";
+    harness.listeners.messageInput.input();
+    harness.elements.messageInput.style.height = "52px";
+
+    harness.listeners.messageInput.keydown({ ctrlKey: true, metaKey: false, key: "Enter", preventDefault: () => {} });
+
+    const sendMessages = harness.sentMessages.filter((m: any) => m.type === "sendMessage");
+    assert.strictEqual(sendMessages.length, 1);
+    assert.deepStrictEqual(sendMessages[0], { type: "sendMessage", sessionId: "session-1", text: "hello keydown" });
+    assert.strictEqual(harness.elements.messageInput.value, "");
+    assert.strictEqual(harness.elements.messageInput.style.height, "auto");
+  });
+
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
       chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
