@@ -271,15 +271,39 @@ suite("Extension helper unit tests", () => {
     test("should return false for invalid GitHub PR URLs without fetching", async () => {
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
 
-      const isClosed1 = await checkPRStatus("https://evil-github.com/org/repo/pull/123", undefined);
-      assert.strictEqual(isClosed1, false);
-      assert.strictEqual(fetchStub.called, false);
+      const invalidUrls = [
+        "https://evil-github.com/org/repo/pull/123",
+        "https://github.com/org/repo/issue/123",
+        "https://evil.com/github.com/org/repo/pull/123",
+        "https://github.com.evil.com/org/repo/pull/123",
+        "http://github.com/org/repo/pull/123",
+        "ftp://github.com/org/repo/pull/123",
+      ];
 
-      const isClosed2 = await checkPRStatus("https://github.com/org/repo/issue/123", undefined);
-      assert.strictEqual(isClosed2, false);
-      assert.strictEqual(fetchStub.called, false);
+      for (const invalidUrl of invalidUrls) {
+        const isClosed = await checkPRStatus(invalidUrl, undefined);
+        assert.strictEqual(isClosed, false);
+        assert.strictEqual(fetchStub.called, false);
+      }
+    });
 
-      fetchStub.restore();
+    test("should parse GitHub API pull request URLs", async () => {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "closed" }),
+      } as any);
+
+      const isClosed = await checkPRStatus(
+        "https://api.github.com/repos/org/repo/pulls/125",
+        undefined,
+      );
+
+      assert.strictEqual(isClosed, true);
+      assert.strictEqual(fetchStub.callCount, 1);
+      assert.strictEqual(
+        fetchStub.firstCall.args[0],
+        "https://api.github.com/repos/org/repo/pulls/125",
+      );
     });
 
     test("should return false for completely malformed URLs without fetching", async () => {

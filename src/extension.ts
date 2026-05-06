@@ -519,14 +519,19 @@ export async function checkPRStatus(
     let match: RegExpMatchArray | null = null;
     try {
       const u = new URL(prUrl);
-      if (u.hostname === "github.com" || u.hostname === "api.github.com") {
-        match = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pulls?\/(\d+)/);
+      if (u.protocol === "https:" && u.hostname === "github.com") {
+        match = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
+      } else if (u.protocol === "https:" && u.hostname === "api.github.com") {
+        match = u.pathname.match(
+          /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/?$/,
+        );
       }
     } catch (e) {
       // ignore invalid URL
     }
     if (!match) {
-      console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
+      const safePrUrl = sanitizeForLogging(stripUrlCredentials(prUrl));
+      console.log(`Jules: Invalid GitHub PR URL format: ${safePrUrl}`);
       prStatusCache[prUrl] = {
         isClosed: false,
         lastChecked: now,
