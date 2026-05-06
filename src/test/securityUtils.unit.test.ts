@@ -187,6 +187,24 @@ suite("Security Utils Test Suite", () => {
         assert.ok(result.endsWith("safe"));
     });
 
+    test("sanitizeForLogging should strip a trailing escape character", () => {
+        const input = "prefix\u001b";
+        const result = sanitizeForLogging(input);
+        assert.strictEqual(result, "prefix");
+    });
+
+    test("sanitizeForLogging should strip two-character escape sequences", () => {
+        const input = "before\u001bMafter";
+        const result = sanitizeForLogging(input);
+        assert.strictEqual(result, "beforeafter");
+    });
+
+    test("sanitizeForLogging should preserve text after unknown escape prefixes", () => {
+        const input = "before\u001bxafter";
+        const result = sanitizeForLogging(input);
+        assert.strictEqual(result, "beforexafter");
+    });
+
     test("sanitizeForLogging should handle malformed ANSI-like sequences", () => {
         const input = "\u001b[Invalid ANSI Code";
         // Should still strip the escape sequence
