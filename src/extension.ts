@@ -876,10 +876,23 @@ export async function updatePreviousStates(
 
     // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
     if (urlsToFetch.length > 0) {
-      await mapLimit(urlsToFetch, 5, async (url) => {
-        const isClosed = await checkPRStatus(url, token);
-        prStatusCacheChanged = true;
-        prStatusLookup.set(url, isClosed);
+      const urlsByRepo = new Map<string, string[]>();
+      for (let i = 0; i < urlsToFetch.length; i += 1) {
+        const url = urlsToFetch[i];
+        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\//);
+        const repo = match ? `${match[1]}/${match[2]}` : "unknown";
+        const list = urlsByRepo.get(repo) ?? [];
+        list.push(url);
+        urlsByRepo.set(repo, list);
+      }
+
+      await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
+        for (let i = 0; i < repoUrls.length; i += 1) {
+          const url = repoUrls[i];
+          const isClosed = await checkPRStatus(url, token);
+          prStatusCacheChanged = true;
+          prStatusLookup.set(url, isClosed);
+        }
       });
     }
 
