@@ -5,13 +5,20 @@ function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => string },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
 ) {
+  let chatInnerHTML = "";
+  let chatInnerHTMLSetCount = 0;
   const listeners: Record<string, Record<string, any>> = {
     messageInput: {},
     composer: {},
   };
   const elements: Record<string, any> = {
     chat: {
-      innerHTML: "",
+      get innerHTML() { return chatInnerHTML; },
+      set innerHTML(value: string) {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = value;
+      },
+      get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
       addEventListener: () => {},
@@ -256,6 +263,51 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_CSS.includes("max-width: 70%"));
     assert.ok(CHAT_CSS.includes("text-overflow: ellipsis"));
     assert.ok(CHAT_CSS.includes("white-space: nowrap"));
+  });
+
+  test("CHAT_CSS should keep empty state accessible and reduced-motion friendly", () => {
+    assert.ok(CHAT_CSS.includes("font-size: var(--vscode-editor-font-size)"));
+    assert.ok(!CHAT_CSS.includes("height: 100%; opacity: 0; animation: fade-in"));
+    assert.ok(CHAT_CSS.includes("@media (prefers-reduced-motion: reduce)"));
+    assert.ok(CHAT_CSS.includes(".empty-state { animation: none; opacity: 1; }"));
+  });
+
+  test("CHAT_JS should render welcome empty state when no session is selected", () => {
+    const harness = createChatScriptHarness();
+
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: null, messages: [], isTyping: false },
+    });
+
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
+    assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
+  });
+
+  test("CHAT_JS should render ready empty state when a session has no messages", () => {
+    const harness = createChatScriptHarness();
+
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
+    assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
+  });
+
+  test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
+    const harness = createChatScriptHarness();
+    const payload = { sessionId: "session-1", messages: [], isTyping: false };
+
+    harness.postWindowMessage({ type: "chatState", payload });
+    const firstRenderCount = harness.elements.chat.innerHTMLSetCount;
+    harness.postWindowMessage({ type: "chatState", payload });
+
+    assert.strictEqual(firstRenderCount, 1);
+    assert.strictEqual(harness.elements.chat.innerHTMLSetCount, 1);
   });
 
   test("CHAT_JS should reset copy button text after failure", () => {
