@@ -54,10 +54,7 @@ export function sanitizeForLogging(value: unknown, maxLength: number = 500): str
     }
 
     // Convert to string in case it's not
-    let str = String(value);
-
-    // Strip ANSI escape codes
-    str = str.replace(/\x1B(?:].*?(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g, '');
+    let str = stripAnsiEscapeSequences(String(value));
 
     // Truncate if too long, ensuring the result is not longer than maxLength
     if (str.length > maxLength) {
@@ -77,6 +74,55 @@ export function sanitizeForLogging(value: unknown, maxLength: number = 500): str
         // Remove other non-printable characters (except basic ASCII printable)
         // \x00-\x08, \x0B-\x0C, \x0E-\x1F, \x7F
         .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
+function stripAnsiEscapeSequences(value: string): string {
+    let result = '';
+
+    for (let i = 0; i < value.length; i += 1) {
+        if (value.charCodeAt(i) !== 0x1B) {
+            result += value[i];
+            continue;
+        }
+
+        const next = value[i + 1];
+        if (!next) {
+            continue;
+        }
+
+        if (next === ']') {
+            i += 2;
+            while (i < value.length) {
+                if (value.charCodeAt(i) === 0x07) {
+                    break;
+                }
+                if (value.charCodeAt(i) === 0x1B && value[i + 1] === '\\') {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        if (next === '[') {
+            i += 2;
+            while (i < value.length) {
+                const code = value.charCodeAt(i);
+                if (code >= 0x40 && code <= 0x7E) {
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        const nextCode = next.charCodeAt(0);
+        if (nextCode >= 0x40 && nextCode <= 0x5F) {
+            i += 1;
+        }
+    }
+    return result;
 }
 
 /**

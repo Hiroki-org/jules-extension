@@ -173,6 +173,20 @@ suite("Security Utils Test Suite", () => {
         assert.strictEqual(result, expected);
     });
 
+    test("sanitizeForLogging should handle OSC sequences terminated by ST", () => {
+        const input = "\u001b]0;Window Title\u001b\\Text Content";
+        const expected = "Text Content";
+        const result = sanitizeForLogging(input);
+        assert.strictEqual(result, expected);
+    });
+
+    test("sanitizeForLogging should handle repeated incomplete CSI prefixes", () => {
+        const input = "\u001b[".repeat(1000) + "safe";
+        const result = sanitizeForLogging(input);
+        assert.ok(!result.includes("\u001b"));
+        assert.ok(result.endsWith("safe"));
+    });
+
     test("sanitizeForLogging should handle malformed ANSI-like sequences", () => {
         const input = "\u001b[Invalid ANSI Code";
         // Should still strip the escape sequence

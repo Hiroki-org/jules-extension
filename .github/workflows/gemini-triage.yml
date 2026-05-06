@@ -121,6 +121,7 @@ jobs:
         uses: "google-github-actions/run-gemini-cli@v0" # ratchet:exclude
         env:
           GITHUB_TOKEN: "" # Do NOT pass any auth tokens here since this runs on untrusted inputs
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
           GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
           ISSUE_TITLE: "${{ github.event.issue.title }}"
           ISSUE_BODY: "${{ github.event.issue.body }}"

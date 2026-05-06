@@ -4,9 +4,6 @@ on:
   pull_request_review_comment:
     types:
       - "created"
-  pull_request_review:
-    types:
-      - "submitted"
   issues:
     types:
       - "opened"
@@ -49,7 +46,8 @@ jobs:
         contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association)
       ) || (
         github.event_name == 'issues' &&
-        contains(fromJSON('["opened", "reopened"]'), github.event.action)
+        contains(fromJSON('["opened", "reopened"]'), github.event.action) &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)
       )
     runs-on: "ubuntu-latest"
     permissions:
