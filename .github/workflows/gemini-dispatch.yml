@@ -38,7 +38,7 @@ jobs:
 
   dispatch:
     # For comments: only if user types @gemini-cli and is OWNER/MEMBER/COLLABORATOR
-    # For issues: only on open/reopen
+    # For issues: only on open/reopen by repository collaborators
     if: |-
       (
         github.event.sender.type == 'User' &&
@@ -138,7 +138,6 @@ jobs:
     with:
       additional_context: "${{ needs.dispatch.outputs.additional_context }}"
       language: "ja"
-      gemini_debug: true
       gemini_model: "gemini-2.5-flash-lite"
     secrets: "inherit"
 

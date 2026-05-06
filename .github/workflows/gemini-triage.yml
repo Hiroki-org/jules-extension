@@ -122,7 +122,6 @@ jobs:
         env:
           GITHUB_TOKEN: "" # Do NOT pass any auth tokens here since this runs on untrusted inputs
           GEMINI_CLI_TRUST_WORKSPACE: "true"
-          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
           ISSUE_TITLE: "${{ github.event.issue.title }}"
           ISSUE_BODY: "${{ github.event.issue.body }}"
           AVAILABLE_LABELS: "${{ steps.get_labels.outputs.available_labels }}"
@@ -147,13 +146,9 @@ jobs:
                 "target": "gcp"
               },
               "tools": {
-                "core": [
-                  "run_shell_command"
-                ]
+                "core": []
               }
             }
-          # For reasons beyond my understanding, Gemini CLI cannot set the
-          # GitHub Outputs, but it CAN set the GitHub Env.
           prompt: |-
             出力は必ず日本語で行ってください。
             応答言語: ${{ inputs.language }}
@@ -165,7 +160,10 @@ jobs:
 
             - Only use labels that are from the list of available labels.
             - You can choose multiple labels to apply.
-            - When generating shell commands, you **MUST NOT** use command substitution with `$(...)`, `<(...)`, or `>(...)`. This is a security measure to prevent unintended command execution.
+            - Do not run shell commands or request tools.
+            - Output exactly one line in this format:
+              `SELECTED_LABELS=label1,label2`
+            - If no labels apply, output `SELECTED_LABELS=`.
 
             ## Input Data
 
@@ -184,55 +182,48 @@ jobs:
             ${{ env.ISSUE_BODY }}
             ```
 
-            **Output File Path**:
-            ```
-            /tmp/runner/env
-            ```
-
             ## Steps
 
             1. Review the issue title, issue body, and available labels provided above.
 
             2. Based on the issue title and issue body, classify the issue and choose all appropriate labels from the list of available labels.
 
-            4. Convert the list of appropriate labels into a comma-separated list (CSV). If there are no appropriate labels, use the empty string.
-
-            5. Use the run_shell_command tool to execute the echo command and append the CSV labels to the output file path provided above:
-
-                ```
-                run_shell_command(echo "SELECTED_LABELS=[APPROPRIATE_LABELS_AS_CSV]" >> "/tmp/runner/env")
-                ```
-
-                for example:
-
-                ```
-                run_shell_command(echo "SELECTED_LABELS=bug,enhancement" >> "/tmp/runner/env")
-                ```
+            3. Convert the list of appropriate labels into a comma-separated list (CSV). If there are no appropriate labels, use the empty string.
 
       - name: "Collect outputs"
         id: "collect_selected"
         uses: "actions/github-script@v9"
+        env:
+          GEMINI_SUMMARY: "${{ steps.gemini_analysis.outputs.summary }}"
+          AVAILABLE_LABELS: "${{ steps.get_labels.outputs.available_labels }}"
         with:
           script: |-
-            const fs = require('fs');
-            const path = '/tmp/runner/env';
+            const summary = process.env.GEMINI_SUMMARY || '';
             let selectedLabels = '';
             let triagedIssues = '';
-            
-            try {
-              if (fs.existsSync(path)) {
-                const content = fs.readFileSync(path, 'utf8');
-                const lines = content.split('\n');
-                for (const line of lines) {
-                  if (line.startsWith('SELECTED_LABELS=')) {
-                    selectedLabels = line.substring('SELECTED_LABELS='.length);
-                  } else if (line.startsWith('TRIAGED_ISSUES=')) {
-                    triagedIssues = line.substring('TRIAGED_ISSUES='.length);
-                  }
-                }
+
+            const lines = summary.split(/\r?\n/);
+            for (const rawLine of lines) {
+              const line = rawLine.trim();
+              if (line.startsWith('SELECTED_LABELS=')) {
+                selectedLabels = line.substring('SELECTED_LABELS='.length).trim();
+              } else if (line.startsWith('TRIAGED_ISSUES=')) {
+                triagedIssues = line.substring('TRIAGED_ISSUES='.length).trim();
               }
-            } catch (error) {
-              core.warning(`Error reading output file: ${error.message}`);
+            }
+
+            if (!selectedLabels) {
+              const availableLabels = (process.env.AVAILABLE_LABELS || '').split(',')
+                .map((label) => label.trim())
+                .filter(Boolean);
+              const foundLabels = lines
+                .flatMap((line) => line.split(','))
+                .map((label) => label.trim())
+                .filter((label) => availableLabels.includes(label));
+
+              if (foundLabels.length > 0) {
+                selectedLabels = Array.from(new Set(foundLabels)).join(',');
+              }
             }
             
             core.setOutput('selected_labels', selectedLabels);
