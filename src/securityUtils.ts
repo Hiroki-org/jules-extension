@@ -77,11 +77,11 @@ export function sanitizeForLogging(value: unknown, maxLength: number = 500): str
 }
 
 function stripAnsiEscapeSequences(value: string): string {
-    let result = '';
+    const result: string[] = [];
 
     for (let i = 0; i < value.length; i += 1) {
         if (value.charCodeAt(i) !== 0x1B) {
-            result += value[i];
+            result.push(value[i]);
             continue;
         }
 
@@ -122,7 +122,7 @@ function stripAnsiEscapeSequences(value: string): string {
             i += 1;
         }
     }
-    return result;
+    return result.join('');
 }
 
 /**
