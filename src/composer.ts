@@ -124,6 +124,11 @@ export function getComposerHtml(
     outline: 1px solid var(--vscode-focusBorder);
   }
 
+  textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .actions {
     display: flex;
     justify-content: flex-end;
@@ -187,6 +192,11 @@ export function getComposerHtml(
     outline-offset: 2px;
   }
 
+  input[type="checkbox"]:disabled + label {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   label {
     cursor: pointer;
   }
@@ -210,6 +220,7 @@ export function getComposerHtml(
     const validate = () => {
       const isValid = textarea.value.trim().length > 0;
       submitButton.disabled = !isValid;
+      submitButton.title = isValid ? 'Send (Cmd/Ctrl+Enter)' : 'Type a message to send';
       return isValid;
     };
 
@@ -220,6 +231,8 @@ export function getComposerHtml(
 
       submitButton.disabled = true;
       submitButton.innerText = 'Sending...';
+      submitButton.setAttribute('aria-busy', 'true');
+      submitButton.setAttribute('aria-label', 'Sending message...');
       textarea.disabled = true;
       if (createPrCheckbox) createPrCheckbox.disabled = true;
       if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
