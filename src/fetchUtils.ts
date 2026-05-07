@@ -107,6 +107,12 @@ async function fetchViaProxy(
  * Defaults to 30 seconds.
  */
 export async function fetchWithTimeout(input: string | URL | Request, init?: RequestInit & { timeout?: number }): Promise<Response> {
+    const urlString = input instanceof Request ? input.url : input.toString();
+    const url = new URL(urlString);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new Error(`Unsupported protocol: ${url.protocol}. Only http: and https: are allowed.`);
+    }
+
     const timeout = init?.timeout ?? 30000;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
