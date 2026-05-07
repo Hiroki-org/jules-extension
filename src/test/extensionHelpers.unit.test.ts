@@ -468,13 +468,14 @@ suite("Extension helper unit tests", () => {
 
       assert.strictEqual(tokenStub.callCount, 1);
       assert.strictEqual(fetchStub.callCount, 2);
-      const checkedUrls = fetchStub.getCalls().map((call) => String(call.args[0]));
-      assert.ok(
-        checkedUrls.includes("https://api.github.com/repos/org/repo/pulls/111"),
-      );
-      assert.ok(
-        checkedUrls.includes("https://api.github.com/repos/org/repo/pulls/222"),
-      );
+      const checkedUrls = fetchStub
+        .getCalls()
+        .map((call) => String(call.args[0]))
+        .sort();
+      assert.deepStrictEqual(checkedUrls, [
+        "https://api.github.com/repos/org/repo/pulls/111",
+        "https://api.github.com/repos/org/repo/pulls/222",
+      ]);
       const stateUpdate = updateStub
         .getCalls()
         .filter((call) => call.args[0] === "jules.previousSessionStates")
