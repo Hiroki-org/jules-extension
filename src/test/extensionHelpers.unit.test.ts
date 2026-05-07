@@ -21,6 +21,7 @@ import {
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
   resetUpdatePreviousStatesCachesForTests,
+  setCheckPRStatusForUpdatePreviousStatesForTests,
   updatePreviousStates,
   checkPRStatus,
   buildActivitySummaryHeader,
@@ -415,6 +416,61 @@ suite("Extension helper unit tests", () => {
       >;
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-1"].isTerminated, false);
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-2"].isTerminated, false);
+    });
+
+    test("continues checking remaining URLs in a repo group when one status check throws", async () => {
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const checkedUrls: string[] = [];
+      setCheckPRStatusForUpdatePreviousStatesForTests(async (url) => {
+        checkedUrls.push(url);
+        if (url.endsWith("/111")) {
+          throw new Error("status failed");
+        }
+        return true;
+      });
+      const updateStub = sandbox.stub().resolves();
+
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const firstUrl = "https://github.com/org/repo/pull/111";
+      const secondUrl = "https://github.com/org/repo/pull/222";
+      const sessions: Session[] = [
+        {
+          name: "sessions/pr-status-throws-1",
+          title: "throws-1",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: firstUrl, title: "PR 111" } } as any],
+        },
+        {
+          name: "sessions/pr-status-throws-2",
+          title: "throws-2",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [{ pullRequest: { url: secondUrl, title: "PR 222" } } as any],
+        },
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.deepStrictEqual(checkedUrls, [firstUrl, secondUrl]);
+      const stateUpdate = updateStub
+        .getCalls()
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
+      assert.ok(stateUpdate);
+      const savedStates = stateUpdate?.args[1] as Record<
+        string,
+        { isTerminated?: boolean }
+      >;
+      assert.strictEqual(savedStates["sessions/pr-status-throws-1"].isTerminated, false);
+      assert.strictEqual(savedStates["sessions/pr-status-throws-2"].isTerminated, true);
     });
 
     test("reuses cached session PRs and terminates sessions when all PRs are closed", async () => {

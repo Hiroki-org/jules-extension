@@ -182,11 +182,13 @@ interface CachedSessionState {
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
+let checkPRStatusForUpdatePreviousStates = checkPRStatus;
 
 export function resetUpdatePreviousStatesCachesForTests(): void {
   previousSessionStates = new Map();
   notifiedSessions = new Set();
   prStatusCache = {};
+  checkPRStatusForUpdatePreviousStates = checkPRStatus;
 }
 
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
@@ -195,6 +197,12 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
 
 export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
   return getPRStatusFetchGroupKey(prUrl);
+}
+
+export function setCheckPRStatusForUpdatePreviousStatesForTests(
+  checker: typeof checkPRStatus,
+): void {
+  checkPRStatusForUpdatePreviousStates = checker;
 }
 
 // Initialize with dummy to support usage before activate (e.g. in tests)
@@ -933,7 +941,7 @@ export async function updatePreviousStates(
         for (let i = 0; i < repoUrls.length; i += 1) {
           const url = repoUrls[i];
           try {
-            const isClosed = await checkPRStatus(url, token);
+            const isClosed = await checkPRStatusForUpdatePreviousStates(url, token);
             prStatusCacheChanged = true;
             prStatusLookup.set(url, isClosed);
           } catch (error) {
