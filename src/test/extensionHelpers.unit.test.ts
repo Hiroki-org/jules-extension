@@ -15,6 +15,7 @@ import {
   getLatestActivityCreateTime,
   getSourceDisplayName,
   getSourceIsPrivate,
+  getPRStatusFetchGroupKeyForTests,
   handleOpenInWebApp,
   isInferredActivityLogKey,
   mapApiStateToSessionState,
@@ -327,6 +328,29 @@ suite("Extension helper unit tests", () => {
       const isClosedCached = await checkPRStatus("https://github.com/org/repo/pull/888", undefined);
       assert.strictEqual(isClosedCached, false);
       assert.strictEqual(fetchStub.callCount, 1);
+    });
+
+    test("should group only numeric pull request URLs by host and repository", () => {
+      assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("https://github.com/org/repo/pull/123"),
+        "github.com/org/repo",
+      );
+      assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("https://github.mycompany.com/org/repo/pull/123"),
+        "github.mycompany.com/org/repo",
+      );
+      assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("https://api.github.com/repos/org/repo/pulls/123"),
+        "api.github.com/org/repo",
+      );
+      assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("https://github.com/org/repo/pull/abc"),
+        "https://github.com/org/repo/pull/abc",
+      );
+      assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("not-a-url"),
+        "not-a-url",
+      );
     });
   });
 

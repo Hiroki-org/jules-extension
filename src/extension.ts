@@ -193,6 +193,10 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
 }
 
+export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
+  return getPRStatusFetchGroupKey(prUrl);
+}
+
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
   name: "Jules Logs (Fallback)",
@@ -597,6 +601,33 @@ function isPRCacheEntryFresh(
   return now - cached.lastChecked < ttl;
 }
 
+function getPRStatusFetchGroupKey(prUrl: string): string {
+  try {
+    const u = new URL(prUrl);
+    if (u.protocol !== "https:") {
+      return prUrl;
+    }
+
+    const webPrMatch = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/\d+\/?$/);
+    if (webPrMatch) {
+      return `${u.hostname}/${webPrMatch[1]}/${webPrMatch[2]}`;
+    }
+
+    if (u.hostname === "api.github.com") {
+      const apiPrMatch = u.pathname.match(
+        /^\/repos\/([^/]+)\/([^/]+)\/pulls\/\d+\/?$/,
+      );
+      if (apiPrMatch) {
+        return `${u.hostname}/${apiPrMatch[1]}/${apiPrMatch[2]}`;
+      }
+    }
+  } catch {
+    // Fall through to the URL itself for non-URL strings.
+  }
+
+  return prUrl;
+}
+
 async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
@@ -892,8 +923,7 @@ export async function updatePreviousStates(
       const urlsByRepo = new Map<string, string[]>();
       for (let i = 0; i < urlsToFetch.length; i += 1) {
         const url = urlsToFetch[i];
-        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\//);
-        const repo = match ? `${match[1]}/${match[2]}` : "unknown";
+        const repo = getPRStatusFetchGroupKey(url);
         const list = urlsByRepo.get(repo) ?? [];
         list.push(url);
         urlsByRepo.set(repo, list);
@@ -902,9 +932,23 @@ export async function updatePreviousStates(
       await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
         for (let i = 0; i < repoUrls.length; i += 1) {
           const url = repoUrls[i];
-          const isClosed = await checkPRStatus(url, token);
-          prStatusCacheChanged = true;
-          prStatusLookup.set(url, isClosed);
+          try {
+            const isClosed = await checkPRStatus(url, token);
+            prStatusCacheChanged = true;
+            prStatusLookup.set(url, isClosed);
+          } catch (error) {
+            console.error(
+              `Jules: Error checking PR status for ${sanitizeForLogging(stripUrlCredentials(url))}:`,
+              sanitizeError(error),
+            );
+            prStatusCache[url] = {
+              isClosed: false,
+              lastChecked: now,
+              isError: true,
+            };
+            prStatusCacheChanged = true;
+            prStatusLookup.set(url, false);
+          }
         }
       });
     }
