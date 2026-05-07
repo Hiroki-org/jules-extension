@@ -193,6 +193,10 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
 }
 
+export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
+  return getPRStatusFetchGroupKey(prUrl);
+}
+
 // Initialize with dummy to support usage before activate (e.g. in tests)
 let logChannel: vscode.OutputChannel = {
   name: "Jules Logs (Fallback)",
@@ -597,6 +601,33 @@ function isPRCacheEntryFresh(
   return now - cached.lastChecked < ttl;
 }
 
+function getPRStatusFetchGroupKey(prUrl: string): string {
+  try {
+    const u = new URL(prUrl);
+    if (u.protocol !== "https:") {
+      return prUrl;
+    }
+
+    const webPrMatch = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/\d+\/?$/);
+    if (webPrMatch) {
+      return `${u.hostname}/${webPrMatch[1]}/${webPrMatch[2]}`;
+    }
+
+    if (u.hostname === "api.github.com") {
+      const apiPrMatch = u.pathname.match(
+        /^\/repos\/([^/]+)\/([^/]+)\/pulls\/\d+\/?$/,
+      );
+      if (apiPrMatch) {
+        return `${u.hostname}/${apiPrMatch[1]}/${apiPrMatch[2]}`;
+      }
+    }
+  } catch {
+    // Fall through to the URL itself for non-URL strings.
+  }
+
+  return prUrl;
+}
+
 async function notifyPRCreated(
   session: Session,
   prs: PullRequestOutput[],
@@ -889,10 +920,21 @@ export async function updatePreviousStates(
 
     // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
     if (urlsToFetch.length > 0) {
-      await mapLimit(urlsToFetch, 5, async (url) => {
-        const isClosed = await checkPRStatus(url, token);
-        prStatusCacheChanged = true;
-        prStatusLookup.set(url, isClosed);
+      const urlsByRepo = new Map<string, string[]>();
+      for (let i = 0; i < urlsToFetch.length; i += 1) {
+        const url = urlsToFetch[i];
+        const repo = getPRStatusFetchGroupKey(url);
+        const list = urlsByRepo.get(repo) ?? [];
+        list.push(url);
+        urlsByRepo.set(repo, list);
+      }
+
+      await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
+        await mapLimit(repoUrls, 5, async (url) => {
+          const isClosed = await checkPRStatus(url, token);
+          prStatusCacheChanged = true;
+          prStatusLookup.set(url, isClosed);
+        });
       });
     }
 
