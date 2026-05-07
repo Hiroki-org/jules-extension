@@ -159,11 +159,11 @@ export function getComposerHtml(
     color: var(--vscode-button-foreground);
   }
 
-  button.primary:hover {
+  button.primary:hover:not(:disabled) {
     background: var(--vscode-button-hoverBackground);
   }
 
-  button:not(.primary):hover {
+  button:not(.primary):hover:not(:disabled) {
     background: var(--vscode-button-secondaryHoverBackground);
   }
 
