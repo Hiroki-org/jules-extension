@@ -108,9 +108,17 @@ async function fetchViaProxy(
  */
 export async function fetchWithTimeout(input: string | URL | Request, init?: RequestInit & { timeout?: number }): Promise<Response> {
     const urlString = input instanceof Request ? input.url : input.toString();
-    const url = new URL(urlString);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        throw new Error(`Unsupported protocol: ${url.protocol}. Only http: and https: are allowed.`);
+
+    try {
+        const url = new URL(urlString);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new Error(`Unsupported protocol: ${url.protocol}. Only http: and https: are allowed.`);
+        }
+    } catch (err: unknown) {
+        if (err instanceof Error && err.message.includes('Unsupported protocol')) {
+            throw err;
+        }
+        // If new URL() fails, it's likely a relative URL which fetch natively supports
     }
 
     const timeout = init?.timeout ?? 30000;
