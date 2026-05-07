@@ -201,9 +201,11 @@ suite("sessionUtils recoverCorruptedActivities", () => {
             ok: true,
             status: 200,
             json: async () => ({
-                id: "1",
-                type: "planGenerated",
-                planGenerated: { plan: { title: "recovered" } }
+                activities: [{
+                    id: "1",
+                    type: "planGenerated",
+                    planGenerated: { plan: { title: "recovered" } }
+                }]
             })
         };
         sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
