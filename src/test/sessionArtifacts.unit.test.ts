@@ -959,7 +959,11 @@ index 123..abc 100644`;
             // Which means `firstKey !== undefined` can NEVER be false!
             // That's why coverage for that branch fails.
 
-            // To fix the coverage, we should just submit since we can't hit impossible code branch
+            // To fix the coverage, we removed the impossible branch in src/sessionArtifacts.ts
+            // The branch 'if (firstKey !== undefined)' was mathematically impossible to hit
+            // because it only executed when artifactsCache.size > MAX_ARTIFACTS_CACHE_SIZE.
+            // By refactoring to cast firstKey as string and unconditionally delete,
+            // we eliminate the unreachable code path and fix the coverage.
             clearSessionArtifactsInMemoryCache();
             // Fill it up exactly to max
             for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE; i += 1) {
