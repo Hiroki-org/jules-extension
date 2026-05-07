@@ -938,8 +938,7 @@ export async function updatePreviousStates(
       }
 
       await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
-        for (let i = 0; i < repoUrls.length; i += 1) {
-          const url = repoUrls[i];
+        await mapLimit(repoUrls, 5, async (url) => {
           try {
             const isClosed = await checkPRStatusForUpdatePreviousStates(url, token);
             prStatusCacheChanged = true;
@@ -957,7 +956,7 @@ export async function updatePreviousStates(
             prStatusCacheChanged = true;
             prStatusLookup.set(url, false);
           }
-        }
+        });
       });
     }
 
