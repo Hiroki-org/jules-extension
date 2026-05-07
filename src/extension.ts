@@ -182,27 +182,15 @@ interface CachedSessionState {
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
-let checkPRStatusForUpdatePreviousStates = checkPRStatus;
 
 export function resetUpdatePreviousStatesCachesForTests(): void {
   previousSessionStates = new Map();
   notifiedSessions = new Set();
   prStatusCache = {};
-  checkPRStatusForUpdatePreviousStates = checkPRStatus;
 }
 
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
-}
-
-export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
-  return getPRStatusFetchGroupKey(prUrl);
-}
-
-export function setCheckPRStatusForUpdatePreviousStatesForTests(
-  checker: typeof checkPRStatus,
-): void {
-  checkPRStatusForUpdatePreviousStates = checker;
 }
 
 // Initialize with dummy to support usage before activate (e.g. in tests)
@@ -528,22 +516,9 @@ export async function checkPRStatus(
 
   try {
     // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
-    let match: RegExpMatchArray | null = null;
-    try {
-      const u = new URL(prUrl);
-      if (u.protocol === "https:" && u.hostname === "github.com") {
-        match = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
-      } else if (u.protocol === "https:" && u.hostname === "api.github.com") {
-        match = u.pathname.match(
-          /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/?$/,
-        );
-      }
-    } catch (e) {
-      // ignore invalid URL
-    }
+    const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     if (!match) {
-      const safePrUrl = sanitizeForLogging(stripUrlCredentials(prUrl));
-      console.log(`Jules: Invalid GitHub PR URL format: ${safePrUrl}`);
+      console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
       prStatusCache[prUrl] = {
         isClosed: false,
         lastChecked: now,
@@ -607,33 +582,6 @@ function isPRCacheEntryFresh(
 
   const ttl = cached.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
   return now - cached.lastChecked < ttl;
-}
-
-function getPRStatusFetchGroupKey(prUrl: string): string {
-  try {
-    const u = new URL(prUrl);
-    if (u.protocol !== "https:") {
-      return prUrl;
-    }
-
-    const webPrMatch = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/\d+\/?$/);
-    if (webPrMatch) {
-      return `${u.hostname}/${webPrMatch[1]}/${webPrMatch[2]}`;
-    }
-
-    if (u.hostname === "api.github.com") {
-      const apiPrMatch = u.pathname.match(
-        /^\/repos\/([^/]+)\/([^/]+)\/pulls\/\d+\/?$/,
-      );
-      if (apiPrMatch) {
-        return `${u.hostname}/${apiPrMatch[1]}/${apiPrMatch[2]}`;
-      }
-    }
-  } catch {
-    // Fall through to the URL itself for non-URL strings.
-  }
-
-  return prUrl;
 }
 
 async function notifyPRCreated(
@@ -931,32 +879,21 @@ export async function updatePreviousStates(
       const urlsByRepo = new Map<string, string[]>();
       for (let i = 0; i < urlsToFetch.length; i += 1) {
         const url = urlsToFetch[i];
-        const repo = getPRStatusFetchGroupKey(url);
+        // Parse url: /host/owner/repo/pull/d+ to correctly bucket by repository across arbitrary GHES hosts
+        const match = url.match(/^https?:\/\/([^\/]+)\/([^\/]+)\/([^\/]+)\/pull\/\d+$/);
+        const repo = match ? `${match[1]}/${match[2]}/${match[3]}` : url;
         const list = urlsByRepo.get(repo) ?? [];
         list.push(url);
         urlsByRepo.set(repo, list);
       }
 
       await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
-        await mapLimit(repoUrls, 5, async (url) => {
-          try {
-            const isClosed = await checkPRStatusForUpdatePreviousStates(url, token);
-            prStatusCacheChanged = true;
-            prStatusLookup.set(url, isClosed);
-          } catch (error) {
-            console.error(
-              `Jules: Error checking PR status for ${sanitizeForLogging(stripUrlCredentials(url))}:`,
-              sanitizeError(error),
-            );
-            prStatusCache[url] = {
-              isClosed: false,
-              lastChecked: now,
-              isError: true,
-            };
-            prStatusCacheChanged = true;
-            prStatusLookup.set(url, false);
-          }
-        });
+        for (let i = 0; i < repoUrls.length; i += 1) {
+          const url = repoUrls[i];
+          const isClosed = await checkPRStatus(url, token);
+          prStatusCacheChanged = true;
+          prStatusLookup.set(url, isClosed);
+        }
       });
     }
 
