@@ -21,7 +21,6 @@ import {
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
   resetUpdatePreviousStatesCachesForTests,
-  setCheckPRStatusForUpdatePreviousStatesForTests,
   updatePreviousStates,
   checkPRStatus,
   buildActivitySummaryHeader,
@@ -345,8 +344,16 @@ suite("Extension helper unit tests", () => {
         "api.github.com/org/repo",
       );
       assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("http://github.com/org/repo/pull/123"),
+        "http://github.com/org/repo/pull/123",
+      );
+      assert.strictEqual(
         getPRStatusFetchGroupKeyForTests("https://github.com/org/repo/pull/abc"),
         "https://github.com/org/repo/pull/abc",
+      );
+      assert.strictEqual(
+        getPRStatusFetchGroupKeyForTests("https://api.github.com/repos/org/repo/pulls/abc"),
+        "https://api.github.com/repos/org/repo/pulls/abc",
       );
       assert.strictEqual(
         getPRStatusFetchGroupKeyForTests("not-a-url"),
@@ -418,15 +425,16 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-2"].isTerminated, false);
     });
 
-    test("continues checking remaining URLs in a repo group when one status check throws", async () => {
+    test("continues checking remaining URLs in a repo group when one status fetch fails", async () => {
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
-      const checkedUrls: string[] = [];
-      setCheckPRStatusForUpdatePreviousStatesForTests(async (url) => {
-        checkedUrls.push(url);
-        if (url.endsWith("/111")) {
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").callsFake(async (url) => {
+        if (String(url).endsWith("/pulls/111")) {
           throw new Error("status failed");
         }
-        return true;
+        return {
+          ok: true,
+          json: async () => ({ state: "closed" }),
+        } as any;
       });
       const updateStub = sandbox.stub().resolves();
 
@@ -459,7 +467,14 @@ suite("Extension helper unit tests", () => {
       await updatePreviousStates(sessions, mockContext);
 
       assert.strictEqual(tokenStub.callCount, 1);
-      assert.deepStrictEqual(checkedUrls, [firstUrl, secondUrl]);
+      assert.strictEqual(fetchStub.callCount, 2);
+      const checkedUrls = fetchStub.getCalls().map((call) => String(call.args[0]));
+      assert.ok(
+        checkedUrls.includes("https://api.github.com/repos/org/repo/pulls/111"),
+      );
+      assert.ok(
+        checkedUrls.includes("https://api.github.com/repos/org/repo/pulls/222"),
+      );
       const stateUpdate = updateStub
         .getCalls()
         .filter((call) => call.args[0] === "jules.previousSessionStates")

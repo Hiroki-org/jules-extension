@@ -182,13 +182,11 @@ interface CachedSessionState {
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
 let notifiedSessions: Set<string> = new Set();
-let checkPRStatusForUpdatePreviousStates = checkPRStatus;
 
 export function resetUpdatePreviousStatesCachesForTests(): void {
   previousSessionStates = new Map();
   notifiedSessions = new Set();
   prStatusCache = {};
-  checkPRStatusForUpdatePreviousStates = checkPRStatus;
 }
 
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
@@ -197,12 +195,6 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
 
 export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
   return getPRStatusFetchGroupKey(prUrl);
-}
-
-export function setCheckPRStatusForUpdatePreviousStatesForTests(
-  checker: typeof checkPRStatus,
-): void {
-  checkPRStatusForUpdatePreviousStates = checker;
 }
 
 // Initialize with dummy to support usage before activate (e.g. in tests)
@@ -939,23 +931,9 @@ export async function updatePreviousStates(
 
       await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
         await mapLimit(repoUrls, 5, async (url) => {
-          try {
-            const isClosed = await checkPRStatusForUpdatePreviousStates(url, token);
-            prStatusCacheChanged = true;
-            prStatusLookup.set(url, isClosed);
-          } catch (error) {
-            console.error(
-              `Jules: Error checking PR status for ${sanitizeForLogging(stripUrlCredentials(url))}:`,
-              sanitizeError(error),
-            );
-            prStatusCache[url] = {
-              isClosed: false,
-              lastChecked: now,
-              isError: true,
-            };
-            prStatusCacheChanged = true;
-            prStatusLookup.set(url, false);
-          }
+          const isClosed = await checkPRStatus(url, token);
+          prStatusCacheChanged = true;
+          prStatusLookup.set(url, isClosed);
         });
       });
     }
