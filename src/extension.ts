@@ -1422,7 +1422,9 @@ async function fetchAllSessionsPaginated(
     do {
       page += 1;
       if (page > MAX_PAGINATION_PAGES) {
-        logChannel.appendLine(`Jules: Pagination limit exceeded while loading sessions (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`);
+        const msg = `Jules: Pagination limit exceeded while loading sessions (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`;
+        logChannel.appendLine(msg);
+        vscode.window.showWarningMessage(`Pagination limit exceeded while loading sessions. Partial results returned.`);
         break;
       }
       if (page > 1) {
@@ -1489,7 +1491,9 @@ export async function fetchSessionActivitiesPaginated(
     do {
       page += 1;
       if (page > MAX_PAGINATION_PAGES) {
-        logChannel.appendLine(`Jules: Pagination limit exceeded while loading activities (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`);
+        const msg = `Jules: Pagination limit exceeded while loading activities (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`;
+        logChannel.appendLine(msg);
+        vscode.window.showWarningMessage(`Pagination limit exceeded while loading activities. Partial results returned.`);
         break;
       }
       if (page > 1) {
