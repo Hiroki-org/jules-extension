@@ -86,11 +86,7 @@ function evictOldestArtifactsEntryIfNeeded(): void {
     }
 
     // Map preserves insertion order. The oldest entry is always the first one.
-    // The previous code had a branch that was mathematically impossible to hit
-    // because artifactsCache.size must be > MAX_ARTIFACTS_CACHE_SIZE (which is 50)
-    // for this code to run, meaning artifactsCache is never empty here.
-    // By casting the value and removing the undefined check, we fix the impossible branch coverage issue.
-    const firstKey = artifactsCache.keys().next().value as string;
+    const firstKey = artifactsCache.keys().next().value!;
     artifactsCache.delete(firstKey);
 }
 
