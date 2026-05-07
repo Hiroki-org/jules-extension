@@ -323,7 +323,14 @@ suite("Composer Test Suite", () => {
         { title: "Test" },
         "nonce-123"
       );
-      assert.ok(html.includes('button:not(.primary):hover:not(:disabled) {'));
+      assert.match(
+        html,
+        /button\.primary:hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-hoverBackground\);\s*\}/
+      );
+      assert.match(
+        html,
+        /button:not\(\.primary\):hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*\}/
+      );
     });
 
     test("validation logic should work with empty initial value", () => {
