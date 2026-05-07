@@ -1,5 +1,4 @@
 import { isActivityCorrupted } from "./activityUtils";
-import { mapLimit } from "./asyncUtils";
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
@@ -167,7 +166,7 @@ export async function fetchSingleActivity(
 }
 
 /**
- * Recovers corrupted activities by fetching them individually.
+ * 破損したアクティビティをページネーション対応の一括フェッチで復旧します。
  */
 export async function recoverCorruptedActivities(
   apiKey: string,

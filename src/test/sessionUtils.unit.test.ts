@@ -231,8 +231,9 @@ suite("sessionUtils recoverCorruptedActivities", () => {
         assert.strictEqual(activities.length, 0); // Not recovered, so it gets dropped
     });
 
-    test("should paginate when needed and respect MAX_PAGES", async () => {
-        const activities = [{ id: "1", type: "planGenerated" } as any, { id: "2", type: "planGenerated" } as any];
+    test("should paginate correctly when item is found on subsequent pages", async () => {
+        // We look for ID "2" which is corrupted
+        const activities = [{ id: "2", type: "planGenerated" } as any];
 
         let callCount = 0;
         const mockResponse = {
@@ -242,12 +243,14 @@ suite("sessionUtils recoverCorruptedActivities", () => {
                 callCount++;
                 if (callCount === 1) {
                     return {
-                        activities: [{ id: "1", type: "planGenerated", planGenerated: { plan: { title: "1" } } }],
+                        // First page has ID "1", not "2"
+                        activities: [{ id: "1", type: "agentMessaged", agentMessaged: { agentMessage: "hi" } }],
                         nextPageToken: "token-2"
                     };
                 } else if (callCount === 2) {
                     return {
-                        activities: [{ id: "2", type: "planGenerated", planGenerated: { plan: { title: "2" } } }],
+                        // Second page has ID "2"
+                        activities: [{ id: "2", type: "planGenerated", planGenerated: { plan: { title: "found on page 2" } } }],
                         nextPageToken: "token-3"
                     };
                 } else {
@@ -258,9 +261,8 @@ suite("sessionUtils recoverCorruptedActivities", () => {
         sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
 
         await recoverCorruptedActivities("key", "sess/1", activities);
-        assert.strictEqual(callCount, 2); // Should early exit after finding both
-        assert.strictEqual((activities[0] as any).planGenerated.plan.title, "1");
-        assert.strictEqual((activities[1] as any).planGenerated.plan.title, "2");
+        assert.strictEqual(callCount, 2); // Should loop exactly twice and early exit
+        assert.strictEqual((activities[0] as any).planGenerated.plan.title, "found on page 2");
     });
 
     test("should break early if MAX_PAGES exceeded", async () => {
@@ -334,7 +336,7 @@ suite("sessionUtils recoverCorruptedActivities", () => {
         await recoverCorruptedActivities("key", "sess/1", activities);
 
         assert.strictEqual(activities.length, 0); // Corrupted activity is filtered out
-        assert.ok(consoleErrorCalls.length >= 0); // Just check it does not throw unhandled
-        // assert.ok(consoleErrorCalls[0][0].includes("Failed to recover"));
+        assert.ok(consoleErrorCalls.length > 0, "console.error should have been called");
+        assert.ok(consoleErrorCalls[0][0].includes("Failed to recover corrupted activities in bulk"));
     });
 });
