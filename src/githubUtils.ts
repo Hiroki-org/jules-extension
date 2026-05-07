@@ -47,10 +47,13 @@ export interface OctokitClient {
     };
 }
 
-// Helper factory function to abstract dynamic Octokit import and instantiation.
-export const getOctokitInstance = async (token: string): Promise<OctokitClient> => {
-    const { Octokit } = await import('@octokit/rest');
-    return new Octokit({ auth: token }) as unknown as OctokitClient;
+// Helper object containing dependencies to allow stubbing in unit tests without CommonJS 'exports' hacks
+export const deps = {
+    // Factory function to abstract dynamic Octokit import and instantiation.
+    getOctokitInstance: async (token: string): Promise<OctokitClient> => {
+        const { Octokit } = await import('@octokit/rest');
+        return new Octokit({ auth: token }) as unknown as OctokitClient;
+    }
 };
 
 export async function createRemoteBranch(
@@ -59,7 +62,7 @@ export async function createRemoteBranch(
     repo: string,
     branchName: string
 ): Promise<void> {
-    const octokit = await exports.getOctokitInstance(pat);
+    const octokit = await deps.getOctokitInstance(pat);
 
     // デフォルトブランチのSHAを取得
     const { data: repoData } = await octokit.repos.get({ owner, repo });
@@ -115,7 +118,7 @@ export async function getPullRequestBranchInfo(
     prNumber: number
 ): Promise<PullRequestBranchInfo | null> {
     try {
-        const octokit = await exports.getOctokitInstance(token);
+        const octokit = await deps.getOctokitInstance(token);
 
         const { data: pr } = await octokit.pulls.get({
             owner,
