@@ -218,6 +218,114 @@ suite("sessionUtils recoverCorruptedActivities", () => {
         assert.strictEqual((activities[0] as any).planGenerated.plan.title, "recovered");
     });
 
+
+    test("should handle missing activities field in response", async () => {
+        const activities = [{ id: "1", type: "planGenerated" } as any];
+        const mockResponse = {
+            ok: true,
+            status: 200,
+            json: async () => ({}) // missing activities
+        };
+        sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
+        await recoverCorruptedActivities("key", "sess/1", activities);
+        assert.strictEqual(activities.length, 0); // Not recovered, so it gets dropped
+    });
+
+    test("should paginate when needed and respect MAX_PAGES", async () => {
+        const activities = [{ id: "1", type: "planGenerated" } as any, { id: "2", type: "planGenerated" } as any];
+
+        let callCount = 0;
+        const mockResponse = {
+            ok: true,
+            status: 200,
+            json: async () => {
+                callCount++;
+                if (callCount === 1) {
+                    return {
+                        activities: [{ id: "1", type: "planGenerated", planGenerated: { plan: { title: "1" } } }],
+                        nextPageToken: "token-2"
+                    };
+                } else if (callCount === 2) {
+                    return {
+                        activities: [{ id: "2", type: "planGenerated", planGenerated: { plan: { title: "2" } } }],
+                        nextPageToken: "token-3"
+                    };
+                } else {
+                    return {};
+                }
+            }
+        };
+        sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
+
+        await recoverCorruptedActivities("key", "sess/1", activities);
+        assert.strictEqual(callCount, 2); // Should early exit after finding both
+        assert.strictEqual((activities[0] as any).planGenerated.plan.title, "1");
+        assert.strictEqual((activities[1] as any).planGenerated.plan.title, "2");
+    });
+
+    test("should break early if MAX_PAGES exceeded", async () => {
+        const activities = [{ id: "1", type: "planGenerated" } as any];
+        const mockResponse = {
+            ok: true,
+            status: 200,
+            json: async () => ({ nextPageToken: "token" }) // Always returning next page but never the activity
+        };
+        const fetchStub = sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
+
+        await recoverCorruptedActivities("key", "sess/1", activities);
+        assert.strictEqual(fetchStub.callCount, 100); // Should stop at MAX_PAGES
+        assert.strictEqual(activities.length, 0);
+    });
+
+    test("should skip non-corrupted activities in recovered loop", async () => {
+        const activities = [{ id: "1", type: "planGenerated" } as any];
+        const mockResponse = {
+            ok: true,
+            status: 200,
+            json: async () => ({
+                activities: [{
+                    id: "1",
+                    type: "planGenerated", // Still missing payload, so it's "corrupted" after recovery
+                }]
+            })
+        };
+        sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
+        await recoverCorruptedActivities("key", "sess/1", activities);
+        assert.strictEqual(activities.length, 0); // Recovery failed because it's still corrupted
+    });
+
+
+    test("should handle missing activities field in response gracefully", async () => {
+        const activities = [{ id: "1", type: "planGenerated" } as any];
+        const mockResponse = {
+            ok: true,
+            status: 200,
+            json: async () => ({})
+        };
+        sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
+        await recoverCorruptedActivities("key", "sess/1", activities);
+        assert.strictEqual(activities.length, 0); // Fails to recover, gets dropped
+    });
+
+    test("should return early when activities length is 0", async () => {
+        const spy = sinon.spy(globalThis, "fetch");
+        await recoverCorruptedActivities("key", "sess/1", []);
+        assert.strictEqual(spy.called, false);
+        spy.restore();
+    });
+
+    test("should handle fetch error response (!response.ok)", async () => {
+        const activities = [{ id: "1", type: "planGenerated" } as any];
+        const mockResponse = {
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error"
+        };
+        sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
+        await recoverCorruptedActivities("key", "sess/1", activities);
+        assert.strictEqual(activities.length, 0);
+    });
+
     test("should fallback if fetch fails", async () => {
         const activities = [{ id: "1", type: "planGenerated" } as any];
 
