@@ -1,6 +1,6 @@
 # Issue → PR → Review Loop Runbook (jules-extension)
 
-このドキュメントは、`Hiroki-org/jules-extension` で open issue を実装 PR へ落とし込み、review 解決・CI 完了・コンフリクト確認まで回す実運用手順です。
+このドキュメントは、`<OWNER>/<REPO>` で open issue を実装 PR へ落とし込み、review 解決・CI 完了・コンフリクト確認まで回す実運用手順です。
 
 ## 目的
 
@@ -11,7 +11,7 @@
 ## 前提
 
 - `gh` CLI が利用可能
-- リポジトリ: `Hiroki-org/jules-extension`
+- リポジトリ: `<OWNER>/<REPO>`
 - 基本検証:
   - `pnpm run check-types`
   - `pnpm run lint`
@@ -53,7 +53,7 @@ gh pr create --base main --head <branch> --title "<title>" --body $'<概要>\n\n
 ```bash
 gh pr view <PR#> --json number,state,mergeStateStatus,mergeable,reviewDecision,reviews,comments,statusCheckRollup,headRefName,baseRefName
 # Repeat with `-f after="<endCursor>"` while `hasNextPage` is true.
-gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100, after:$after) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } pageInfo { hasNextPage endCursor } } } } }' -f owner=Hiroki-org -f repo=jules-extension -F pr=<PR#>
+gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100, after:$after) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } pageInfo { hasNextPage endCursor } } } } }' -f owner=<OWNER> -f repo=<REPO> -F pr=<PR#>
 ```
 
 2. 各スレッドを判定
@@ -77,8 +77,8 @@ fi
 5. ポーリングで再確認
 
 ```bash
-OWNER="Hiroki-org"
-REPO="jules-extension"
+OWNER="<OWNER>"
+REPO="<REPO>"
 PR_NUMBER="<PR#>"
 
 count_unresolved_threads() {
@@ -164,6 +164,23 @@ fi
 - pending checks = 0
 - failing/cancelled checks = 0
 - `mergeStateStatus != DIRTY` and `mergeable == MERGEABLE`
+
+
+## 最終報告フォーマット
+
+再レビュー依頼後、または作業停止（エスカレーション）時は、必ず以下の内容を報告すること:
+- 対象 PR URL:
+- gh version:
+- gh auth status の結果:
+- 取得した review thread 数:
+- resolve 前の unresolved thread 数:
+- resolve 後の unresolved thread 数:
+- 返信したコメント URL:
+- resolve した thread ID 一覧:
+- 実行した test / lint / typecheck コマンドと結果:
+- CI checks の結果:
+- できなかったこと:
+- どこで止まったか:
 
 ## エスカレーション
 
