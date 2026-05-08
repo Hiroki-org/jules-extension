@@ -583,7 +583,7 @@ suite("Composer Test Suite", () => {
         "nonce-123"
       );
       // Check for loading state logic
-      assert.ok(html.includes("submitButton.innerText = 'Sending...';"));
+      assert.ok(html.includes("submitButton.innerHTML = 'Sending... <span class=\"spinner\"></span>';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
       assert.ok(html.includes("textarea.disabled = true;"));
       assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
