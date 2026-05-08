@@ -494,6 +494,15 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes(`<script nonce="${testNonce}">`));
     });
 
+    test("should include base-uri 'none' in Content-Security-Policy", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes("base-uri 'none'"));
+    });
+
     test("should set submitButton disabled state based on validation result", () => {
       const html = getComposerHtml(
         mockWebview,

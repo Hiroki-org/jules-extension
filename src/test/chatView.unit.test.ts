@@ -93,6 +93,7 @@ suite("Chat View Unit Test Suite", () => {
       /<script nonce="nonce-123" src="[^"]*dist(?:[\\/]|%5[cC])purify\.min\.js"><\/script>/,
     );
     assert.ok(html.includes("script-src 'nonce-nonce-123'"));
+    assert.ok(html.includes("base-uri 'none'"));
     assert.ok(!html.includes("script-src https://example.com"));
     assert.ok(!html.includes("DOMPURIFY_SOURCE"));
   });
