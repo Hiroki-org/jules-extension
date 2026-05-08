@@ -189,7 +189,7 @@ export async function recoverCorruptedActivities(
   const corruptedIds = new Set(corruptedActivities.map((a) => a.id));
   const recoveredActivities: Activity[] = [];
   let pageToken: string | undefined;
-  const MAX_PAGES = 100;
+  const MAX_PAGES = 10;
   let page = 0;
 
   try {
@@ -201,7 +201,7 @@ export async function recoverCorruptedActivities(
         break; // Prevent infinite loop
       }
 
-      const data = await client.listActivities(sessionName, 100, pageToken);
+      const data = await client.listActivities(sessionName, 1000, pageToken);
 
       if (data.activities) {
         for (const act of data.activities) {
