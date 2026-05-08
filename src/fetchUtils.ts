@@ -115,10 +115,10 @@ export async function fetchWithTimeout(input: string | URL | Request, init?: Req
             throw new Error(`Unsupported protocol: ${url.protocol}. Only http: and https: are allowed.`);
         }
     } catch (err: unknown) {
-        if (err instanceof Error && err.message.includes('Unsupported protocol')) {
+        if (!(err instanceof TypeError)) {
             throw err;
         }
-        // If new URL() fails, it's likely a relative URL which fetch natively supports
+        // If new URL() fails with TypeError, it's likely a relative URL which fetch natively supports
     }
 
     const timeout = init?.timeout ?? 30000;
