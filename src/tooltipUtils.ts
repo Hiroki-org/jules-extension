@@ -79,13 +79,25 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
     tooltip.appendMarkdown(`\n\nMode: ${automationLabel}`);
   }
 
-  // Add Pull Request info if available
-  const allPrs = session.outputs
-    ?.map(o => o.pullRequest)
-    .filter((pr): pr is NonNullable<PullRequestOutput> => !!pr && !!pr.url) || [];
-  
-  // De-duplicate PRs by URL to avoid redundant entries in the tooltip
-  const prs = Array.from(new Map(allPrs.map(pr => [pr.url, pr])).values());
+  // PR情報の追加と重複排除（パフォーマンス最適化）
+  // 以前の chained .map().filter() は複数の中間配列を生成していました。
+  // ここでは単一のループで Map に直接格納することで、メモリ割り当てを削減し処理を高速化しています。
+  const prs: NonNullable<PullRequestOutput>[] = [];
+  const urlToIndex = new Map<string, number>();
+  if (session.outputs) {
+    for (let i = 0; i < session.outputs.length; i += 1) {
+      const pr = session.outputs[i].pullRequest;
+      if (pr && pr.url) {
+        const index = urlToIndex.get(pr.url);
+        if (index !== undefined) {
+          prs[index] = pr;
+        } else {
+          urlToIndex.set(pr.url, prs.length);
+          prs.push(pr);
+        }
+      }
+    }
+  }
 
   if (prs.length > 0) {
     tooltip.appendMarkdown(`\n\n---`);
