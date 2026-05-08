@@ -485,26 +485,20 @@ export function extractPRs(
   if (!sessionOrState.outputs) {
     return [];
   }
-  const urlToIndex = new Map<string, number>();
-  const deduped: PullRequestOutput[] = [];
+
+  // Map は最初にキーが挿入された位置を常に保持し、同じキーで再 set() しても
+  // 反復順序は変わらず、値だけが更新される。これにより、前方から走査するだけで
+  // 「初出 URL 順を維持しつつ最新の PR データで上書きする」動作が実現できる。
+  const prMap = new Map<string, PullRequestOutput>();
 
   for (const output of sessionOrState.outputs) {
     const pr = output.pullRequest;
-    if (!pr?.url) {
-      continue;
+    if (pr?.url) {
+      prMap.set(pr.url, pr);
     }
-    const existingIndex = urlToIndex.get(pr.url);
-    if (existingIndex === undefined) {
-      urlToIndex.set(pr.url, deduped.length);
-      deduped.push(pr);
-      continue;
-    }
-
-    // Keep first-seen URL order while replacing payload with the latest PR data.
-    deduped[existingIndex] = pr;
   }
 
-  return deduped;
+  return Array.from(prMap.values());
 }
 
 export async function checkPRStatus(
