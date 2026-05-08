@@ -170,7 +170,7 @@ export async function fetchSingleActivity(
  */
 export async function recoverCorruptedActivities(
   apiKey: string,
-  sessionId: string,
+  sessionName: string,
   activities: Activity[],
   progress?: vscode.Progress<{ message?: string; increment?: number }>,
 ): Promise<void> {
@@ -193,33 +193,16 @@ export async function recoverCorruptedActivities(
   let page = 0;
 
   try {
+    const client = new JulesApiClient(apiKey, JULES_API_BASE_URL);
     do {
       page += 1;
       if (page > MAX_PAGES) {
+        console.error(`Jules: Reached MAX_PAGES (${MAX_PAGES}) while recovering activities.`);
         break; // Prevent infinite loop
       }
 
-      const params = new URLSearchParams({ pageSize: "100" });
-      if (pageToken) {
-        params.set("pageToken", pageToken);
-      }
-      const url = `${JULES_API_BASE_URL}/${sessionId}/activities?${params.toString()}`;
+      const data = await client.listActivities(sessionName, 100, pageToken);
 
-      const response = await fetchWithTimeout(url, {
-        method: "GET",
-        headers: {
-          "X-Goog-Api-Key": apiKey,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch activities: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const data = (await response.json()) as ActivitiesResponse;
       if (data.activities) {
         for (const act of data.activities) {
           if (corruptedIds.has(act.id)) {

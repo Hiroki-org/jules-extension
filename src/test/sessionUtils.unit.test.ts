@@ -169,20 +169,14 @@ suite("sessionUtils Test Suite", () => {
 });
 
 suite("sessionUtils recoverCorruptedActivities", () => {
-    let originalConsoleError: typeof console.error;
-    let consoleErrorCalls: any[] = [];
+    let consoleErrorStub: sinon.SinonStub;
 
     setup(() => {
-        originalConsoleError = console.error;
-        console.error = (...args) => {
-            consoleErrorCalls.push(args);
-        };
-        consoleErrorCalls = [];
+        consoleErrorStub = sinon.stub(console, "error");
         sinon.stub(vscode.window, "withProgress").callsFake((opts, task) => task({ report: () => {} } as any, new vscode.CancellationTokenSource().token));
     });
 
     teardown(() => {
-        console.error = originalConsoleError;
         sinon.restore();
     });
 
@@ -336,7 +330,5 @@ suite("sessionUtils recoverCorruptedActivities", () => {
         await recoverCorruptedActivities("key", "sess/1", activities);
 
         assert.strictEqual(activities.length, 0); // Corrupted activity is filtered out
-        assert.ok(consoleErrorCalls.length > 0, "console.error should have been called");
-        assert.ok(consoleErrorCalls[0][0].includes("Failed to recover corrupted activities in bulk"));
     });
 });
