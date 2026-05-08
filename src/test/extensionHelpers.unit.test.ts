@@ -1066,13 +1066,13 @@ suite("Extension helper unit tests", () => {
     });
 
     test("buildSessionsListEndpoint constructs URL correctly", () => {
-      assert.strictEqual(buildSessionsListEndpoint("src", "token"), "src/sessions?pageSize=1000&pageToken=token");
-      assert.strictEqual(buildSessionsListEndpoint("src"), "src/sessions?pageSize=1000");
+      assert.strictEqual(buildSessionsListEndpoint("src", "token"), "src/sessions?pageSize=5000&pageToken=token");
+      assert.strictEqual(buildSessionsListEndpoint("src"), "src/sessions?pageSize=5000");
     });
 
     test("buildActivitiesListEndpoint constructs URL correctly", () => {
-      assert.strictEqual(buildActivitiesListEndpoint("sess", "10", { pageToken: "token" }), "sess/10/activities?pageSize=1000&pageToken=token");
-      assert.strictEqual(buildActivitiesListEndpoint("sess", "10"), "sess/10/activities?pageSize=1000");
+      assert.strictEqual(buildActivitiesListEndpoint("sess", "10", { pageToken: "token" }), "sess/10/activities?pageSize=5000&pageToken=token");
+      assert.strictEqual(buildActivitiesListEndpoint("sess", "10"), "sess/10/activities?pageSize=5000");
     });
 
     test("getLatestActivityCreateTime gets the latest time", () => {
