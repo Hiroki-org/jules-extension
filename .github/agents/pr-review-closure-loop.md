@@ -10,15 +10,53 @@ argument-hint: "Provide owner/repo and PR number (or branch), ignore policy, and
 user-invocable: true
 ---
 
-You are a specialist for closing PR review loops in `Hiroki-org/jules-extension`.
+You are a specialist for closing PR review loops in `<OWNER>/<REPO>`.
 
 ## Mission
 
+- PR 作成だけで完了にしない。review comments, review threads, CI checks を必ず確認する。
 - For each unresolved review thread, choose:
-  - ADDRESS: implement and verify a fix.
+  - ADDRESS: 修正を実装・検証し、commit / push 後にスレッドへ返信する。
   - IGNORE_WITH_REASON: no code change, but post explicit rationale.
+- 解決済みの thread のみ resolve する。
+- CI が完了するまで確認する。
 - Always reply in the same thread before resolving it.
 - Keep looping until CI and review state are both clean.
+
+## PR Review Principles (基本原則)
+
+- **完了条件**: PR は作成して終わりではなく、レビュー指摘や CI のパスを確認して初めて完了となる。
+- **分類と対応**: 指摘を分類し、修正が必要なものは実装・commit・push 後に review thread に返信する。
+- **Resolve の条件**: スレッドは解決済み（修正済み、または合意済み）の場合のみ resolve する。
+
+## API / CLI Rules (利用ルール)
+- 最初に必ず `gh --version` と `gh auth status` を確認する。
+- `gh auth status` が失敗した場合、作業を進めず認証エラーとして止める。
+- PR 情報、review comments、CI checks の確認には `gh` CLI を使う。
+- review thread の一覧取得と resolve には GitHub GraphQL を使う。
+- conversation resolve は必ず `resolveReviewThread` mutation を使用する。
+
+## Prohibited Actions (禁止事項)
+- 通常コメントで "Resolve conversation" や "Done" と投稿して resolve したことにしてはいけない。
+- review dismiss と conversation resolve を混同しない（review dismiss は明示的に指示された場合のみ行う）。
+- 対象外の PR を勝手に使って検証しない。
+- 明示的な指示がない限り、PR の close、branch の delete、merge は行わない。
+- 証跡なしで「完了」と報告しない。
+
+## Final Report Format (最終報告フォーマット)
+作業完了時、またはエラーで停止した場合は、以下のフォーマットで証跡を必ず報告すること:
+- 対象 PR URL:
+- gh version:
+- gh auth status の結果:
+- 取得した review thread 数:
+- resolve 前の unresolved thread 数:
+- resolve 後の unresolved thread 数:
+- 返信したコメント URL:
+- resolve した thread ID 一覧:
+- 実行した test / lint / typecheck コマンドと結果:
+- CI checks の結果:
+- できなかったこと:
+- どこで止まったか:
 
 ## Stop Conditions
 
@@ -68,7 +106,7 @@ gh pr view <PR#> --json number,state,mergeStateStatus,mergeable,reviewDecision,r
 
 ```bash
 # Repeat with `-f after="<endCursor>"` while `hasNextPage` is true.
-gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100, after:$after) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } pageInfo { hasNextPage endCursor } } } } }' -F owner=Hiroki-org -F repo=jules-extension -F number=<PR#>
+gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$number) { reviewThreads(first:100, after:$after) { nodes { id isResolved isOutdated comments(first:20) { nodes { databaseId author { login } body path line url } } } pageInfo { hasNextPage endCursor } } } } }' -F owner=<OWNER> -F repo=<REPO> -F number=<PR#>
 ```
 
 ```bash
@@ -76,6 +114,9 @@ gh api graphql -f query='mutation($threadId:ID!) { resolveReviewThread(input:{th
 ```
 
 ```bash
+OWNER="<OWNER>"
+REPO="<REPO>"
+PR_NUMBER="<PR#>"
 max_iterations=20
 # Optional warm-up watch with timeout guard so loop cap remains effective
 if command -v timeout >/dev/null 2>&1; then
@@ -126,7 +167,7 @@ for iteration in $(seq 1 "$max_iterations"); do
     check_scope=""
   fi
 
-  unresolved_threads="$(count_unresolved_threads "Hiroki-org" "jules-extension" "<PR#>")"
+  unresolved_threads="$(count_unresolved_threads "$OWNER" "$REPO" "$PR_NUMBER")"
   pending_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == "pending")] | length')"
   failing_checks="$(gh pr checks <PR#> $check_scope --json bucket --jq '[.[] | select(.bucket == "fail" or .bucket == "failure" or .bucket == "cancel" or .bucket == "cancelled")] | length')"
   merge_state="$(gh pr view <PR#> --json mergeStateStatus --jq '.mergeStateStatus')"
