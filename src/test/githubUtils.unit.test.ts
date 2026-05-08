@@ -47,13 +47,13 @@ suite('githubUtils', () => {
     suite('getPullRequestBranchInfo', () => {
 
         test('should return null if API request fails', async () => {
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => Promise.reject(new Error('API error')));
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').rejects(new Error('API error'));
             const result = await githubUtils.getPullRequestBranchInfo('invalid-token', 'owner', 'repo', 1);
             assert.strictEqual(result, null);
         });
 
         test('should return null if API request fails with non-Error', async () => {
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => Promise.reject('String error'));
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').rejects('String error' as any);
             const result = await githubUtils.getPullRequestBranchInfo('invalid-token', 'owner', 'repo', 1);
             assert.strictEqual(result, null);
         });
@@ -72,7 +72,7 @@ suite('githubUtils', () => {
                     })
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             const result = await githubUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
             assert.strictEqual(result, null);
@@ -99,7 +99,7 @@ suite('githubUtils', () => {
                     })
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             const result = await githubUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
             assert.deepStrictEqual(result, {
@@ -134,7 +134,7 @@ suite('githubUtils', () => {
                     })
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             const result = await githubUtils.getPullRequestBranchInfo('token', 'owner', 'repo', 1);
             assert.strictEqual(result?.state, 'merged');
@@ -154,7 +154,7 @@ suite('githubUtils', () => {
                     createRef: mockCreateRef
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             await githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch');
 
@@ -167,7 +167,7 @@ suite('githubUtils', () => {
         });
 
         test('should throw error if factory throws', async () => {
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => Promise.reject(new Error('Auth failed')));
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').rejects(new Error('Auth failed'));
             await assert.rejects(githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'), /Auth failed/);
         });
 
@@ -181,7 +181,7 @@ suite('githubUtils', () => {
                     createRef: sandbox.stub().resolves()
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             await assert.rejects(
                 githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
@@ -199,7 +199,7 @@ suite('githubUtils', () => {
                     createRef: sandbox.stub().resolves()
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             await assert.rejects(
                 githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
@@ -217,7 +217,7 @@ suite('githubUtils', () => {
                     createRef: sandbox.stub().rejects(new Error('Failed to create ref'))
                 }
             };
-            sandbox.stub(githubUtils.deps, 'getOctokitInstance').callsFake(async () => mockOctokit as any);
+            sandbox.stub(githubUtils.deps, 'getOctokitInstance').resolves(mockOctokit as any);
 
             await assert.rejects(
                 githubUtils.createRemoteBranch('token', 'owner', 'repo', 'new-branch'),
