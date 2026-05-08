@@ -870,7 +870,7 @@ suite("Extension Test Suite", () => {
       );
 
       assert.ok(url.includes("/sessions?"));
-      assert.ok(url.includes("pageSize=100"));
+      assert.ok(url.includes("pageSize=5000"));
       assert.ok(url.includes("pageToken=next-token-1"));
     });
 
@@ -884,7 +884,7 @@ suite("Extension Test Suite", () => {
       );
 
       assert.ok(url.includes("/sessions/123/activities?"));
-      assert.ok(url.includes("pageSize=100"));
+      assert.ok(url.includes("pageSize=5000"));
       assert.ok(url.includes("pageToken=p2"));
       assert.ok(!url.includes("createTime"), "createTime is not a valid API parameter");
     });
@@ -1046,7 +1046,7 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(fetchStub.callCount, 2);
       assert.ok(String(fetchStub.getCall(0).args[0]).includes(`/${activeSessionId}`));
       assert.ok(
-        String(fetchStub.getCall(1).args[0]).includes(`/${activeSessionId}/activities?pageSize=100`),
+        String(fetchStub.getCall(1).args[0]).includes(`/${activeSessionId}/activities?pageSize=5000`),
       );
 
       assert.strictEqual(updateSessionStub.callCount, 1);
@@ -1625,7 +1625,7 @@ suite("Extension Test Suite", () => {
 
       await provider['fetchAndProcessSessions']();
 
-      assert.ok(fetchStub.callCount >= 10);
+      assert.ok(fetchStub.callCount >= 2);
     });
 
     test("should gracefully break pagination loop if limit is exceeded", async () => {
@@ -1639,8 +1639,8 @@ suite("Extension Test Suite", () => {
 
       const activities = await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: false });
 
-      assert.strictEqual(activities.length, 10);
-      assert.strictEqual(fetchStub.callCount, 10);
+      assert.strictEqual(activities.length, 2);
+      assert.strictEqual(fetchStub.callCount, 2);
     });
   });
   });
