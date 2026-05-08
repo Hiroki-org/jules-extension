@@ -40,4 +40,5 @@ For thread-level deferrals:
 gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {threadId: "PRRT_xxxxxxxxxx", body: "Deferred in this PR: <reason>. Follow-up: <issue-or-plan>"}) { comment { id } } }'
 ```
 
-If you must leave a general PR-wide comment instead of a thread reply, use `gh pr comment <PR#> --body "..."`. If the thread must be resolved explicitly, use the appropriate GitHub conversation API or GitHub UI and close the conversation after replying.
+If you must leave a general PR-wide comment instead of a thread reply, use `gh pr comment <PR#> --body "..."`.
+When resolving a review thread, use only the GraphQL `resolveReviewThread` mutation after posting a thread-level reply.
