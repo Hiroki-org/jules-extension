@@ -192,6 +192,7 @@ export function getComposerHtml(
     outline-offset: 2px;
   }
 
+  input[type="checkbox"]:disabled,
   input[type="checkbox"]:disabled + label {
     opacity: 0.5;
     cursor: not-allowed;
@@ -200,9 +201,22 @@ export function getComposerHtml(
   label {
     cursor: pointer;
   }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
 </style>
 </head>
 <body>
+  <div id="sr-status" class="sr-only" aria-live="polite"></div>
   <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
@@ -221,6 +235,7 @@ export function getComposerHtml(
       const isValid = textarea.value.trim().length > 0;
       submitButton.disabled = !isValid;
       submitButton.title = isValid ? 'Send (Cmd/Ctrl+Enter)' : 'Type a message to send';
+      submitButton.setAttribute('aria-label', isValid ? 'Send message (Cmd/Ctrl+Enter)' : 'Type a message to send');
       return isValid;
     };
 
@@ -231,8 +246,9 @@ export function getComposerHtml(
 
       submitButton.disabled = true;
       submitButton.innerText = 'Sending...';
-      submitButton.setAttribute('aria-busy', 'true');
-      submitButton.setAttribute('aria-label', 'Sending message...');
+      submitButton.removeAttribute('aria-busy');
+      const srStatus = document.getElementById('sr-status');
+      if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
       if (createPrCheckbox) createPrCheckbox.disabled = true;
       if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
