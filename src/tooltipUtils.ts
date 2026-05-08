@@ -82,16 +82,22 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   // PR情報の追加と重複排除（パフォーマンス最適化）
   // 以前の chained .map().filter() は複数の中間配列を生成していました。
   // ここでは単一のループで Map に直接格納することで、メモリ割り当てを削減し処理を高速化しています。
-  const prMap = new Map<string, NonNullable<PullRequestOutput>>();
+  const prs: NonNullable<PullRequestOutput>[] = [];
+  const urlToIndex = new Map<string, number>();
   if (session.outputs) {
     for (let i = 0; i < session.outputs.length; i += 1) {
       const pr = session.outputs[i].pullRequest;
       if (pr && pr.url) {
-        prMap.set(pr.url, pr);
+        const index = urlToIndex.get(pr.url);
+        if (index !== undefined) {
+          prs[index] = pr;
+        } else {
+          urlToIndex.set(pr.url, prs.length);
+          prs.push(pr);
+        }
       }
     }
   }
-  const prs = Array.from(prMap.values());
 
   if (prs.length > 0) {
     tooltip.appendMarkdown(`\n\n---`);
