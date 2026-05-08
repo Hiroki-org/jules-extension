@@ -325,7 +325,11 @@ suite("Composer Test Suite", () => {
       );
       assert.match(
         html,
-        /button:not\(\.primary\):hover\s*{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*}/
+        /button\.primary:hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-hoverBackground\);\s*\}/
+      );
+      assert.match(
+        html,
+        /button:not\(\.primary\):hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*\}/
       );
     });
 
