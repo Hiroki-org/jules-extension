@@ -2,6 +2,7 @@ import { CHAT_CSS, CHAT_JS } from "./webview/chatAssets";
 import * as crypto from "crypto";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
+import sanitizeHtml from "sanitize-html";
 import {
   pickFirstNonEmpty,
   getActivitySummaryText,
@@ -114,7 +115,16 @@ export function renderChatMarkdown(markdown: string): string {
   if (!markdownRenderer) {
     return escapeHtml(markdown);
   }
-  return markdownRenderer.render(markdown);
+  return sanitizeHtml(markdownRenderer.render(markdown), {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      "img", "details", "summary", "button"
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      "*": ["class", "id", "data-*", "aria-*"],
+      button: ["type", "title"],
+    },
+  });
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
@@ -270,11 +280,22 @@ export function buildChatMessagesFromActivities(
       id: activity.id ?? activity.name,
       role: "assistant",
       createTime: activity.createTime,
-      html:
+      html: sanitizeHtml(
         '<div class="activity-log"><em>' +
-        escapeHtml(combinedText) +
-        "</em></div>" +
-        detailsHtml,
+          escapeHtml(combinedText) +
+          "</em></div>" +
+          detailsHtml,
+        {
+          allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+            "img", "details", "summary", "button"
+          ]),
+          allowedAttributes: {
+            ...sanitizeHtml.defaults.allowedAttributes,
+            "*": ["class", "id", "data-*", "aria-*"],
+            button: ["type", "title"],
+          },
+        }
+      ),
     });
   });
   return messages;
