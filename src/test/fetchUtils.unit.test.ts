@@ -32,6 +32,40 @@ suite('FetchUtils ユニットテスト', () => {
         sandbox.restore();
     });
 
+    test('fetchWithTimeout はサポートされていないプロトコルの絶対URLでエラーをスローすること', async () => {
+        await assert.rejects(async () => {
+            await fetchWithTimeout('file:///etc/passwd');
+        }, /Unsupported protocol: file:/);
+
+        await assert.rejects(async () => {
+            await fetchWithTimeout('ftp://example.com/data');
+        }, /Unsupported protocol: ftp:/);
+
+        await assert.rejects(async () => {
+            await fetchWithTimeout('gopher://example.com');
+        }, /Unsupported protocol: gopher:/);
+
+        // Whitespace parsing edge case bypass checks
+        await assert.rejects(async () => {
+            await fetchWithTimeout('  file:///etc/passwd');
+        }, /Unsupported protocol: file:/);
+
+        await assert.rejects(async () => {
+            await fetchWithTimeout('\tdata:text/plain;base64,SGVsbG8sIFdvcmxkIQ==');
+        }, /Unsupported protocol: data:/);
+
+        assert.strictEqual(fetchStub.called, false);
+    });
+
+    test('fetchWithTimeout は相対パスのURLを正しく通過させること', async () => {
+        const mockResponse = { ok: true, status: 200 } as Response;
+        fetchStub.resolves(mockResponse);
+
+        const response = await fetchWithTimeout('/api/v1/data');
+        assert.strictEqual(response, mockResponse);
+        assert.strictEqual(fetchStub.calledOnce, true);
+    });
+
     test('fetchWithTimeout はタイムアウト内に完了した場合、成功すること', async () => {
         const mockResponse = { ok: true, status: 200 } as Response;
         fetchStub.resolves(mockResponse);
