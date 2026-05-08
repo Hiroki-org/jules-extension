@@ -93,6 +93,8 @@ export const CHAT_JS = `(function() {
           ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
           ADD_TAGS: ["details", "summary"],
           ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
+          RETURN_DOM: false,
+          RETURN_DOM_FRAGMENT: false,
         }),
       );
     } catch (error) {
