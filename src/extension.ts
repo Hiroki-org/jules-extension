@@ -485,26 +485,20 @@ export function extractPRs(
   if (!sessionOrState.outputs) {
     return [];
   }
-  const urlToIndex = new Map<string, number>();
-  const deduped: PullRequestOutput[] = [];
+
+  // A Map inherently preserves insertion order of the first time a key is set.
+  // By iterating forward, we keep the first-seen URL order while storing
+  // the latest PR data for that URL.
+  const prMap = new Map<string, PullRequestOutput>();
 
   for (const output of sessionOrState.outputs) {
     const pr = output.pullRequest;
-    if (!pr?.url) {
-      continue;
+    if (pr?.url) {
+      prMap.set(pr.url, pr);
     }
-    const existingIndex = urlToIndex.get(pr.url);
-    if (existingIndex === undefined) {
-      urlToIndex.set(pr.url, deduped.length);
-      deduped.push(pr);
-      continue;
-    }
-
-    // Keep first-seen URL order while replacing payload with the latest PR data.
-    deduped[existingIndex] = pr;
   }
 
-  return deduped;
+  return Array.from(prMap.values());
 }
 
 export async function checkPRStatus(
