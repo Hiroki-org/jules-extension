@@ -486,9 +486,9 @@ export function extractPRs(
     return [];
   }
 
-  // A Map inherently preserves insertion order of the first time a key is set.
-  // By iterating forward, we keep the first-seen URL order while storing
-  // the latest PR data for that URL.
+  // Map は最初にキーが挿入された位置を常に保持し、同じキーで再 set() しても
+  // 反復順序は変わらず、値だけが更新される。これにより、前方から走査するだけで
+  // 「初出 URL 順を維持しつつ最新の PR データで上書きする」動作が実現できる。
   const prMap = new Map<string, PullRequestOutput>();
 
   for (const output of sessionOrState.outputs) {
