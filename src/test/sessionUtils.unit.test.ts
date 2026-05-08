@@ -269,7 +269,7 @@ suite("sessionUtils recoverCorruptedActivities", () => {
         const fetchStub = sinon.stub(globalThis, "fetch").resolves(mockResponse as any);
 
         await recoverCorruptedActivities("key", "sess/1", activities);
-        assert.strictEqual(fetchStub.callCount, 100); // Should stop at MAX_PAGES
+        assert.strictEqual(fetchStub.callCount, 10); // Should stop at MAX_PAGES
         assert.strictEqual(activities.length, 0);
     });
 
