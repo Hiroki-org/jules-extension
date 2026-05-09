@@ -30,6 +30,7 @@ jobs:
         id: "gemini_pr_review"
         continue-on-error: true
         env:
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
           GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
           GITHUB_TOKEN: "${{ github.token }}"
           ISSUE_TITLE: "${{ github.event.pull_request.title }}"

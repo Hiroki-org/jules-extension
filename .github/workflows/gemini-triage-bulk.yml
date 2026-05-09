@@ -70,6 +70,7 @@ jobs:
               id: "gemini_issue_analysis"
               uses: "google-github-actions/run-gemini-cli@v0" # ratchet:exclude
               env:
+                  GEMINI_CLI_TRUST_WORKSPACE: "true"
                   GITHUB_TOKEN: "${{ github.token }}"
                   ISSUES_TO_TRIAGE: "${{ inputs.issues_to_triage }}"
                   REPOSITORY: "${{ github.repository }}"
