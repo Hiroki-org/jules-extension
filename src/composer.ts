@@ -219,6 +219,14 @@ export function getComposerHtml(
     to { transform: rotate(360deg); }
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation: none;
+      border-right-color: currentColor;
+      opacity: 0.5;
+    }
+  }
+
   .sr-only {
     position: absolute;
     width: 1px;
