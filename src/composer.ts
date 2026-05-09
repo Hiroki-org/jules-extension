@@ -202,6 +202,29 @@ export function getComposerHtml(
     cursor: pointer;
   }
 
+
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation: none;
+    }
+  }
+
   .sr-only {
     position: absolute;
     width: 1px;
@@ -245,8 +268,10 @@ export function getComposerHtml(
       }
 
       submitButton.disabled = true;
-      submitButton.innerText = 'Sending...';
-      submitButton.removeAttribute('aria-busy');
+      submitButton.innerHTML = 'Sending... <span class="spinner"></span>';
+      submitButton.setAttribute('aria-busy', 'true');
+      submitButton.title = 'Sending message...';
+      submitButton.setAttribute('aria-label', 'Sending message...');
       const srStatus = document.getElementById('sr-status');
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;

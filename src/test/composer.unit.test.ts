@@ -592,11 +592,44 @@ suite("Composer Test Suite", () => {
         "nonce-123"
       );
       // Check for loading state logic
-      assert.ok(html.includes("submitButton.innerText = 'Sending...';"));
+      assert.ok(html.includes("submitButton.innerHTML = 'Sending... <span class=\"spinner\"></span>';"));
+      assert.ok(html.includes("submitButton.setAttribute('aria-busy', 'true');"));
+      assert.ok(html.includes("submitButton.title = 'Sending message...';"));
+      assert.ok(html.includes("submitButton.setAttribute('aria-label', 'Sending message...');"));
+      assert.ok(html.includes("const srStatus = document.getElementById('sr-status');"));
+      assert.ok(html.includes("if (srStatus) srStatus.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
       assert.ok(html.includes("textarea.disabled = true;"));
       assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
+    });
+
+    test("should include prefers-reduced-motion media query for spinner", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes("@media (prefers-reduced-motion: reduce)"));
+      assert.ok(html.includes("animation: none;"));
+    });
+
+    test("should update aria-label and title in validate function", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(
+        html.includes(
+          "submitButton.title = isValid ? 'Send (Cmd/Ctrl+Enter)' : 'Type a message to send';"
+        )
+      );
+      assert.ok(
+        html.includes(
+          "submitButton.setAttribute('aria-label', isValid ? 'Send message (Cmd/Ctrl+Enter)' : 'Type a message to send');"
+        )
+      );
     });
 
     test("should disable checkboxes in loading state when present", () => {
