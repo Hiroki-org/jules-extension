@@ -959,7 +959,7 @@ index 123..abc 100644`;
             // Which means `firstKey !== undefined` can NEVER be false!
             // That's why coverage for that branch fails.
 
-            // To fix the coverage, we should just submit since we can't hit impossible code branch
+            // Verify eviction logic when the cache exceeds its maximum size
             clearSessionArtifactsInMemoryCache();
             // Fill it up exactly to max
             for (let i = 0; i < MAX_ARTIFACTS_CACHE_SIZE; i += 1) {

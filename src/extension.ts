@@ -81,8 +81,8 @@ import { registerInlineCommands } from "./inlineCommands";
 // Constants
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
-const MAX_PAGE_SIZE = 100;
-const MAX_PAGINATION_PAGES = 100;
+const MAX_PAGE_SIZE = 1000;
+const MAX_PAGINATION_PAGES = 10;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
 const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
   "jules.activities.latestCreateTime";
@@ -191,6 +191,10 @@ export function resetUpdatePreviousStatesCachesForTests(): void {
 
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
+}
+
+export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
+  return getPRStatusFetchGroupKey(prUrl);
 }
 
 // Initialize with dummy to support usage before activate (e.g. in tests)
@@ -481,26 +485,20 @@ export function extractPRs(
   if (!sessionOrState.outputs) {
     return [];
   }
-  const urlToIndex = new Map<string, number>();
-  const deduped: PullRequestOutput[] = [];
+
+  // Map は最初にキーが挿入された位置を常に保持し、同じキーで再 set() しても
+  // 反復順序は変わらず、値だけが更新される。これにより、前方から走査するだけで
+  // 「初出 URL 順を維持しつつ最新の PR データで上書きする」動作が実現できる。
+  const prMap = new Map<string, PullRequestOutput>();
 
   for (const output of sessionOrState.outputs) {
     const pr = output.pullRequest;
-    if (!pr?.url) {
-      continue;
+    if (pr?.url) {
+      prMap.set(pr.url, pr);
     }
-    const existingIndex = urlToIndex.get(pr.url);
-    if (existingIndex === undefined) {
-      urlToIndex.set(pr.url, deduped.length);
-      deduped.push(pr);
-      continue;
-    }
-
-    // Keep first-seen URL order while replacing payload with the latest PR data.
-    deduped[existingIndex] = pr;
   }
 
-  return deduped;
+  return Array.from(prMap.values());
 }
 
 export async function checkPRStatus(
@@ -516,9 +514,22 @@ export async function checkPRStatus(
 
   try {
     // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
-    const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+    let match: RegExpMatchArray | null = null;
+    try {
+      const u = new URL(prUrl);
+      if (u.protocol === "https:" && u.hostname === "github.com") {
+        match = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
+      } else if (u.protocol === "https:" && u.hostname === "api.github.com") {
+        match = u.pathname.match(
+          /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/?$/,
+        );
+      }
+    } catch (e) {
+      // ignore invalid URL
+    }
     if (!match) {
-      console.log(`Jules: Invalid GitHub PR URL format: ${prUrl}`);
+      const safePrUrl = sanitizeForLogging(stripUrlCredentials(prUrl));
+      console.log(`Jules: Invalid GitHub PR URL format: ${safePrUrl}`);
       prStatusCache[prUrl] = {
         isClosed: false,
         lastChecked: now,
@@ -582,6 +593,33 @@ function isPRCacheEntryFresh(
 
   const ttl = cached.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
   return now - cached.lastChecked < ttl;
+}
+
+function getPRStatusFetchGroupKey(prUrl: string): string {
+  try {
+    const u = new URL(prUrl);
+    if (u.protocol !== "https:") {
+      return prUrl;
+    }
+
+    const webPrMatch = u.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/\d+\/?$/);
+    if (webPrMatch) {
+      return `${u.hostname}/${webPrMatch[1]}/${webPrMatch[2]}`;
+    }
+
+    if (u.hostname === "api.github.com") {
+      const apiPrMatch = u.pathname.match(
+        /^\/repos\/([^/]+)\/([^/]+)\/pulls\/\d+\/?$/,
+      );
+      if (apiPrMatch) {
+        return `${u.hostname}/${apiPrMatch[1]}/${apiPrMatch[2]}`;
+      }
+    }
+  } catch {
+    // Fall through to the URL itself for non-URL strings.
+  }
+
+  return prUrl;
 }
 
 async function notifyPRCreated(
@@ -876,10 +914,21 @@ export async function updatePreviousStates(
 
     // Fetch only unique PR statuses that are not in cache in parallel with concurrency limit
     if (urlsToFetch.length > 0) {
-      await mapLimit(urlsToFetch, 5, async (url) => {
-        const isClosed = await checkPRStatus(url, token);
-        prStatusCacheChanged = true;
-        prStatusLookup.set(url, isClosed);
+      const urlsByRepo = new Map<string, string[]>();
+      for (let i = 0; i < urlsToFetch.length; i += 1) {
+        const url = urlsToFetch[i];
+        const repo = getPRStatusFetchGroupKey(url);
+        const list = urlsByRepo.get(repo) ?? [];
+        list.push(url);
+        urlsByRepo.set(repo, list);
+      }
+
+      await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
+        await mapLimit(repoUrls, 5, async (url) => {
+          const isClosed = await checkPRStatus(url, token);
+          prStatusCacheChanged = true;
+          prStatusLookup.set(url, isClosed);
+        });
       });
     }
 
@@ -1422,9 +1471,10 @@ async function fetchAllSessionsPaginated(
     do {
       page += 1;
       if (page > MAX_PAGINATION_PAGES) {
-        throw new Error(
-          `Pagination limit exceeded while loading sessions (>${MAX_PAGINATION_PAGES} pages).`,
-        );
+        const msg = `Jules: Pagination limit exceeded while loading sessions (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`;
+        logChannel.appendLine(msg);
+        vscode.window.showWarningMessage(`Pagination limit exceeded while loading sessions. Partial results returned.`);
+        break;
       }
       if (page > 1) {
         progress?.report({
@@ -1490,9 +1540,10 @@ export async function fetchSessionActivitiesPaginated(
     do {
       page += 1;
       if (page > MAX_PAGINATION_PAGES) {
-        throw new Error(
-          `Pagination limit exceeded while loading activities (>${MAX_PAGINATION_PAGES} pages).`,
-        );
+        const msg = `Jules: Pagination limit exceeded while loading activities (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`;
+        logChannel.appendLine(msg);
+        vscode.window.showWarningMessage(`Pagination limit exceeded while loading activities. Partial results returned.`);
+        break;
       }
       if (page > 1) {
         progress?.report({
@@ -1747,7 +1798,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
           acc[s.rawState] = (acc[s.rawState] || 0) + 1;
           return acc;
         },
-        {} as Record<string, number>,
+        Object.create(null) as Record<string, number>,
       );
       logChannel.appendLine(
         `Jules: Debug - State counts: ${JSON.stringify(stateCounts)}`,
@@ -2498,6 +2549,7 @@ export function activate(context: vscode.ExtensionContext) {
     async (sessionId, message) => {
       await sendMessageToSession(context, sessionId, message);
     },
+    context.extensionUri,
   );
   const chatViewProviderDisposable = vscode.window.registerWebviewViewProvider(
     "julesChatView",

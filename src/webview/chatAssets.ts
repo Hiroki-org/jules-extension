@@ -18,6 +18,7 @@ p { margin: 0 0 8px; }
 .copy-code-button { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .15s ease; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
 .code-block:hover .copy-code-button, .copy-code-button:focus-visible { opacity: 1; }
 .copy-code-button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.copy-code-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .copy-code-button:active { transform: scale(0.96); }
 @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .typing { display: none; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 0 8px 8px; }
@@ -27,13 +28,15 @@ p { margin: 0 0 8px; }
 .typing-dot:nth-child(3) { animation-delay: -0.16s; }
 @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 #composer { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--vscode-editor-background); border-top: 1px solid var(--vscode-widget-border, transparent); }
-#messageInput { width: 100%; min-height: 40px; max-height: 120px; resize: vertical; padding: 8px 12px; border: 1px solid var(--vscode-input-border, transparent); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: inherit; font-size: var(--vscode-editor-font-size); border-radius: 6px; outline: none; }
+#messageInput { width: 100%; min-height: 40px; max-height: 120px; resize: none; overflow-y: auto; padding: 8px 12px; border: 1px solid var(--vscode-input-border, transparent); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: inherit; font-size: var(--vscode-editor-font-size); border-radius: 6px; outline: none; box-sizing: border-box; }
 #messageInput:focus-visible { border-color: var(--vscode-focusBorder); }
+#messageInput:disabled, #messageInput[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; resize: none; }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; }
 .session-label { color: var(--vscode-descriptionForeground); font-size: 11px; user-select: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sendButton { padding: 6px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
 #sendButton:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-#sendButton:disabled { opacity: 0.5; cursor: not-allowed; }
+#sendButton:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+#sendButton:disabled, #sendButton[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .activity-log { font-size: 0.9em; opacity: 0.75; margin-bottom: 2px; }
 .activity-details { margin-top: 4px; font-size: 0.9em; }
 .activity-details summary { cursor: pointer; user-select: none; font-weight: 600; opacity: 0.8; padding: 2px 0; outline: none; }
@@ -41,10 +44,16 @@ p { margin: 0 0 8px; }
 .activity-details summary:hover { opacity: 1; text-decoration: underline; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+.message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
 .shiki span { color: var(--shiki-light); }
 [data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); }
 [data-vscode-theme-kind="vscode-high-contrast"] .shiki span { color: var(--shiki-dark); }
+.empty-state { margin: auto; text-align: center; color: var(--vscode-descriptionForeground); padding: 20px; font-size: var(--vscode-editor-font-size); max-width: 80%; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; animation: fade-in 0.3s ease-out forwards; animation-delay: 0.1s; }
+.empty-state h3 { font-size: 16px; margin: 0 0 8px 0; color: var(--vscode-editor-foreground); font-weight: 500; }
+.empty-state p { margin: 0; line-height: 1.4; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .empty-state { animation: none; opacity: 1; } }
 `;
 
 export const CHAT_JS = `(function() {
@@ -62,9 +71,74 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
 
+  const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
+  const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
+  const SANITIZED_HTML_CACHE_LIMIT = 500;
+  const sanitizedHtmlCache = new Map();
+
+  function rememberSanitizedHtml(html, sanitizedHtml) {
+    sanitizedHtmlCache.set(html, sanitizedHtml);
+    if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
+      const oldestKey = sanitizedHtmlCache.keys().next().value;
+      sanitizedHtmlCache.delete(oldestKey);
+    }
+    return sanitizedHtml;
+  }
+
+  function sanitizeHtml(html) {
+    const rawHtml = typeof html === "string" ? html : "";
+    if (sanitizedHtmlCache.has(rawHtml)) {
+      return sanitizedHtmlCache.get(rawHtml);
+    }
+    if (typeof DOMPurify === "undefined") {
+      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
+    }
+    try {
+      return rememberSanitizedHtml(
+        rawHtml,
+        DOMPurify.sanitize(rawHtml, {
+          ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
+          ADD_TAGS: ["details", "summary"],
+          ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
+        }),
+      );
+    } catch (error) {
+      console.error("Jules: Failed to sanitize chat HTML", error);
+      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
+    }
+  }
+
   function updateUI() {
     const hasSession = !!state.sessionId;
-    sendButton.disabled = !hasSession || messageInput.value.trim().length === 0;
+    const hasText = messageInput.value.trim().length > 0;
+
+    const sendDisabled = !hasSession || !hasText;
+    sendButton.disabled = sendDisabled;
+    sendButton.setAttribute("aria-disabled", sendDisabled ? "true" : "false");
+    
+    messageInput.disabled = !hasSession;
+    messageInput.setAttribute("aria-disabled", !hasSession ? "true" : "false");
+
+    if (!hasSession) {
+      messageInput.value = "";
+      messageInput.style.height = "auto";
+    }
+
+    messageInput.placeholder = hasSession
+      ? "Enter message (Ctrl/Cmd+Enter to send)"
+      : "Select a session to start typing";
+
+    if (!hasSession) {
+      sendButton.title = "Select a session to send a message";
+      sendButton.setAttribute("aria-label", "Send (Select a session to send a message)");
+    } else if (!hasText) {
+      sendButton.title = "Type a message to send";
+      sendButton.setAttribute("aria-label", "Send (Type a message to send)");
+    } else {
+      sendButton.title = "Send message (Ctrl/Cmd+Enter)";
+      sendButton.setAttribute("aria-label", "Send message (Ctrl/Cmd+Enter)");
+    }
+
     sessionLabel.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
   }
 
@@ -75,18 +149,39 @@ export const CHAT_JS = `(function() {
   }
 
   function renderMessages() {
-    chatContainer.innerHTML = state.messages.map(m => \`
-      <div class="message \${m.role}">
-        <div class="bubble">\${m.html}</div>
-        <div class="meta">\${formatTime(m.createTime)}</div>
-      </div>
-    \`).join("");
+    if (state.messages.length === 0 && !state.isTyping) {
+      const emptyStateContent = state.sessionId
+        ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
+        : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
+      const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
+      if (chatContainer.innerHTML !== emptyStateHtml) {
+        chatContainer.innerHTML = emptyStateHtml;
+      }
+    } else {
+      chatContainer.innerHTML = state.messages.map(m => {
+        const sanitizedHtml = sanitizeHtml(m.html);
+        const roleClass = m.role === "user" ? "user" : "assistant";
+        return \`
+        <div class="message \${roleClass}">
+          <div class="bubble">\${sanitizedHtml}</div>
+          <div class="meta">\${formatTime(m.createTime)}</div>
+        </div>
+      \`;
+      }).join("");
+    }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     updateUI();
   }
 
-  messageInput.addEventListener("input", updateUI);
+  messageInput.addEventListener("input", () => {
+    messageInput.style.height = "auto";
+    const computed = window.getComputedStyle(messageInput);
+    const borderY = parseFloat(computed.borderTopWidth) + parseFloat(computed.borderBottomWidth);
+    messageInput.style.height = (messageInput.scrollHeight + (isNaN(borderY) ? 0 : borderY)) + "px";
+    updateUI();
+  });
+
   messageInput.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
@@ -94,6 +189,7 @@ export const CHAT_JS = `(function() {
         const text = messageInput.value.trim();
         vscode.postMessage({ type: "sendMessage", sessionId: state.sessionId, text });
         messageInput.value = "";
+        messageInput.style.height = "auto";
         updateUI();
       }
     }
@@ -105,6 +201,7 @@ export const CHAT_JS = `(function() {
     if (state.sessionId && text) {
       vscode.postMessage({ type: "sendMessage", sessionId: state.sessionId, text });
       messageInput.value = "";
+      messageInput.style.height = "auto";
       updateUI();
     }
   });
@@ -164,7 +261,7 @@ export const CHAT_JS = `(function() {
         if (elIndex === msgIndex) {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
-            contentDiv.innerHTML = html;
+            contentDiv.innerHTML = sanitizeHtml(html);
           }
         }
       });
@@ -172,4 +269,5 @@ export const CHAT_JS = `(function() {
   });
 
   vscode.postMessage({ type: "requestInitialState" });
+  updateUI();
 })();`;

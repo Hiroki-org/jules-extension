@@ -4,9 +4,6 @@ on:
   pull_request_review_comment:
     types:
       - "created"
-  pull_request_review:
-    types:
-      - "submitted"
   issues:
     types:
       - "opened"
@@ -41,7 +38,7 @@ jobs:
 
   dispatch:
     # For comments: only if user types @gemini-cli and is OWNER/MEMBER/COLLABORATOR
-    # For issues: only on open/reopen
+    # For issues: only on open/reopen by repository collaborators
     if: |-
       (
         github.event.sender.type == 'User' &&
@@ -49,7 +46,8 @@ jobs:
         contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association)
       ) || (
         github.event_name == 'issues' &&
-        contains(fromJSON('["opened", "reopened"]'), github.event.action)
+        contains(fromJSON('["opened", "reopened"]'), github.event.action) &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)
       )
     runs-on: "ubuntu-latest"
     permissions:
@@ -140,7 +138,6 @@ jobs:
     with:
       additional_context: "${{ needs.dispatch.outputs.additional_context }}"
       language: "ja"
-      gemini_debug: true
       gemini_model: "gemini-2.5-flash-lite"
     secrets: "inherit"
 

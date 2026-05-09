@@ -1,9 +1,8 @@
 import { isActivityCorrupted } from "./activityUtils";
-import { mapLimit } from "./asyncUtils";
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
 import { buildFinalPrompt } from "./promptUtils";
-import { Activity, SourceType } from "./types";
+import { Activity, SourceType, ActivitiesResponse } from "./types";
 import { JULES_API_BASE_URL } from "./julesApiConstants";
 import { JulesApiClient } from "./julesApiClient";
 
@@ -167,11 +166,11 @@ export async function fetchSingleActivity(
 }
 
 /**
- * Recovers corrupted activities by fetching them individually.
+ * 破損したアクティビティをページネーション対応の一括フェッチで復旧します。
  */
 export async function recoverCorruptedActivities(
   apiKey: string,
-  sessionId: string,
+  sessionName: string,
   activities: Activity[],
   progress?: vscode.Progress<{ message?: string; increment?: number }>,
 ): Promise<void> {
@@ -186,20 +185,42 @@ export async function recoverCorruptedActivities(
     });
   }
 
-  const recoveredActivities = await mapLimit(
-    corruptedActivities,
-    3,
-    async (activity) => {
-      try {
-        return await fetchSingleActivity(apiKey, sessionId, activity.id);
-      } catch (error) {
-        console.error(
-          `Jules: Failed to recover activity ${activity.id}: ${error}`,
-        );
-        return null;
+  // Optimize N+1 fetch by fetching activities in bulk via the paginated endpoint
+  const corruptedIds = new Set(corruptedActivities.map((a) => a.id));
+  const recoveredActivities: Activity[] = [];
+  let pageToken: string | undefined;
+  const MAX_PAGES = 10;
+  let page = 0;
+
+  try {
+    const client = new JulesApiClient(apiKey, JULES_API_BASE_URL);
+    do {
+      page += 1;
+      if (page > MAX_PAGES) {
+        console.error(`Jules: Reached MAX_PAGES (${MAX_PAGES}) while recovering activities.`);
+        break; // Prevent infinite loop
       }
-    },
-  );
+
+      const data = await client.listActivities(sessionName, 1000, pageToken);
+
+      if (data.activities) {
+        for (const act of data.activities) {
+          if (corruptedIds.has(act.id)) {
+            recoveredActivities.push(act);
+          }
+        }
+      }
+
+      // Early exit if we have found all the missing activities
+      if (recoveredActivities.length >= corruptedIds.size) {
+        break;
+      }
+
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+  } catch (error) {
+    console.error(`Jules: Failed to recover corrupted activities in bulk: ${error}`);
+  }
 
   const recoveredMap = new Map<string, Activity>();
   for (const a of recoveredActivities) {

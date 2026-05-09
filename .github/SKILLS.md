@@ -1,6 +1,6 @@
 # Jules Extension Automation Skills Catalog
 
-This document defines reusable operational skills for issue implementation, PR review closure, and CI follow-up in `Hiroki-org/jules-extension`.
+This document defines reusable operational skills for issue implementation, PR review closure, and CI follow-up in `<OWNER>/<REPO>`.
 
 ## Table of Contents
 
@@ -23,8 +23,8 @@ This document defines reusable operational skills for issue implementation, PR r
 **Workflow**:
 
 ```bash
-OWNER="Hiroki-org"
-REPO="jules-extension"
+OWNER="<OWNER>"
+REPO="<REPO>"
 PR_NUMBER="<PR#>"
 
 # 1) Collect unresolved threads
@@ -70,8 +70,8 @@ mutation($threadId:ID!) {
 **Workflow**:
 
 ```bash
-OWNER="Hiroki-org"
-REPO="jules-extension"
+OWNER="<OWNER>"
+REPO="<REPO>"
 PR_NUMBER="<PR#>"
 
 # Optional warm-up watch with timeout guard so loop cap remains effective
@@ -170,7 +170,7 @@ Then for each PR:
 ```bash
 gh pr checks <PR#> --json name,bucket,state
 # Repeat with `-f after="<endCursor>"` while `hasNextPage` is true.
-gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100, after:$after) { nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }' -f owner=Hiroki-org -f repo=jules-extension -F pr=<PR#>
+gh api graphql -f query='query($owner:String!, $repo:String!, $pr:Int!, $after:String) { repository(owner:$owner, name:$repo) { pullRequest(number:$pr) { reviewThreads(first:100, after:$after) { nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }' -f owner=<OWNER> -f repo=<REPO> -F pr=<PR#>
 ```
 
 **Output**:

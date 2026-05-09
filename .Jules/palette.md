@@ -1,4 +1,12 @@
 # 2024-03-10 - Activity details summary accessibility
 
-**Learning:** `outline: none;` on interactive `<summary>` tags inside `<details>` breaks keyboard navigation and makes it impossible for keyboard users to know which item has focus. It is better to rely on `:focus-visible` to hide outline from mouse users but preserve it for keyboard users.
-**Action:** When removing default outline from interactive elements, ensure `:focus-visible` is implemented (typically with `outline: 1px solid var(--vscode-focusBorder)`) to preserve keyboard accessibility.
+**Learning:** `<details>` 内のインタラクティブな `<summary>` タグに `outline: none;` を設定すると、キーボードナビゲーションが壊れ、キーボードユーザーがフォーカスの位置を把握できなくなります。マウスユーザーに対してはアウトラインを隠しつつ、キーボードユーザーのためにアウトラインを維持するには `:focus-visible` に頼るのがベストです。
+**Action:** インタラクティブ要素からデフォルトのアウトラインを削除する場合は、キーボードのアクセシビリティを維持するために、必ず `:focus-visible` （通常は `outline: 1px solid var(--vscode-focusBorder)`）を実装するようにします。
+
+## 2026-05-04 - フォーカス状態の視覚的フィードバックの改善
+**Learning:** チャットの送信ボタンやコピーボタンなどで、キーボード操作時に視覚的なアウトラインが欠落、もしくは不完全であることが分かりました。これにより、キーボード操作を利用するユーザーが現在位置を把握しにくくなっていました。
+**Action:** VS Code 標準の focusBorder トークンを利用し、`:focus-visible` ルールを追加することで、一貫したアクセシビリティのサポートを提供しました。
+
+## 2026-05-05 - 空の状態（Empty State）の視覚的フィードバックの改善
+**Learning:** チャット画面のような動的なインターフェースにおいて、コンテンツが存在しない状態（空の状態）はユーザーに混乱を与える可能性があります。特に、セッションが選択されていない場合と、選択されているがメッセージがない場合で異なるガイダンスを提供することが重要です。また、フレックスコンテナ内で要素を堅牢に中央配置するには、`margin: auto;` を使用することが効果的です。
+**Action:** `src/webview/chatAssets.ts` において、`state.messages.length === 0` の場合に、セッションの有無に応じた空の状態（Empty State）をレンダリングするように変更しました。CSSクラス `.empty-state` を追加し、フェードインアニメーションを適用することで、UXを向上させました。

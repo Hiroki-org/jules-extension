@@ -325,7 +325,11 @@ suite("Composer Test Suite", () => {
       );
       assert.match(
         html,
-        /button:not\(\.primary\):hover\s*{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*}/
+        /button\.primary:hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-hoverBackground\);\s*\}/
+      );
+      assert.match(
+        html,
+        /button:not\(\.primary\):hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*\}/
       );
     });
 
@@ -488,6 +492,15 @@ suite("Composer Test Suite", () => {
       );
       assert.ok(html.includes(`<style nonce="${testNonce}">`));
       assert.ok(html.includes(`<script nonce="${testNonce}">`));
+    });
+
+    test("should include base-uri 'none' in Content-Security-Policy", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes("base-uri 'none'"));
     });
 
     test("should set submitButton disabled state based on validation result", () => {

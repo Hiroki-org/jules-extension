@@ -47,21 +47,14 @@ export interface OctokitClient {
     };
 }
 
-// Function pointer to allow overriding the instance fetcher in unit tests without CommonJS 'exports' hacks
-let octokitFactory = async (token: string): Promise<OctokitClient> => {
-    const { Octokit } = await import('@octokit/rest');
-    return new Octokit({ auth: token }) as unknown as OctokitClient;
+// Helper object containing dependencies to allow stubbing in unit tests without CommonJS 'exports' hacks
+export const deps = {
+    // Factory function to abstract dynamic Octokit import and instantiation.
+    getOctokitInstance: async (token: string): Promise<OctokitClient> => {
+        const { Octokit } = await import('@octokit/rest');
+        return new Octokit({ auth: token }) as unknown as OctokitClient;
+    }
 };
-
-// Helper factory function to abstract dynamic Octokit import and instantiation.
-export async function getOctokitInstance(token: string): Promise<OctokitClient> {
-    return octokitFactory(token);
-}
-
-// Helper setter for unit tests to stub the factory
-export function setOctokitFactory(factory: (token: string) => Promise<OctokitClient>): void {
-    octokitFactory = factory;
-}
 
 export async function createRemoteBranch(
     pat: string,
@@ -69,7 +62,7 @@ export async function createRemoteBranch(
     repo: string,
     branchName: string
 ): Promise<void> {
-    const octokit = await getOctokitInstance(pat);
+    const octokit = await deps.getOctokitInstance(pat);
 
     // デフォルトブランチのSHAを取得
     const { data: repoData } = await octokit.repos.get({ owner, repo });
@@ -125,7 +118,7 @@ export async function getPullRequestBranchInfo(
     prNumber: number
 ): Promise<PullRequestBranchInfo | null> {
     try {
-        const octokit = await getOctokitInstance(token);
+        const octokit = await deps.getOctokitInstance(token);
 
         const { data: pr } = await octokit.pulls.get({
             owner,

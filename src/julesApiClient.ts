@@ -7,6 +7,11 @@ interface SourcesListResponse {
     nextPageToken?: string;
 }
 
+export interface ActivitiesResponse {
+    activities?: Activity[];
+    nextPageToken?: string;
+}
+
 export interface ListSourcesOptions {
     pageSize?: number;
     pageToken?: string;
@@ -51,6 +56,21 @@ export class JulesApiClient {
      */
     async getActivity(sessionName: string, activityId: string): Promise<Activity> {
         return this.request<Activity>(`/${sessionName}/activities/${encodeURIComponent(activityId)}`);
+    }
+
+    /**
+     * List activities for a session.
+     * @param sessionName Full session resource name in the form `sessions/{id}`.
+     * @param pageSize Maximum number of activities to return.
+     * @param pageToken Token to retrieve the next page.
+     */
+    async listActivities(sessionName: string, pageSize: number = 100, pageToken?: string): Promise<ActivitiesResponse> {
+        const params = new URLSearchParams();
+        params.set('pageSize', String(pageSize));
+        if (pageToken) {
+            params.set('pageToken', pageToken);
+        }
+        return this.request<ActivitiesResponse>(`/${sessionName}/activities?${params.toString()}`);
     }
 
     async listSources(options: ListSourcesOptions = {}): Promise<SourcesListResponse> {
