@@ -20,26 +20,6 @@ export interface ChatMessageItem {
   html: string;
 }
 
-const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-    "img", "details", "summary", "button"
-  ]),
-  allowedAttributes: {
-    ...sanitizeHtml.defaults.allowedAttributes,
-    "*": ["class", "id", "data-*", "aria-*", "style"],
-    button: ["type", "title"],
-  },
-  allowedStyles: {
-    '*': {
-      'color': [/^.*$/],
-      'background-color': [/^.*$/],
-      'font-style': [/^.*$/],
-      'font-weight': [/^.*$/],
-      'text-decoration': [/^.*$/]
-    }
-  }
-};
-
 interface ChatStatePayload {
   sessionId: string | null;
   messages: ChatMessageItem[];
@@ -135,7 +115,16 @@ export function renderChatMarkdown(markdown: string): string {
   if (!markdownRenderer) {
     return escapeHtml(markdown);
   }
-  return sanitizeHtml(markdownRenderer.render(markdown), SANITIZE_OPTIONS);
+  return sanitizeHtml(markdownRenderer.render(markdown), {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      "img", "details", "summary", "button"
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      "*": ["class", "id", "data-*", "aria-*"],
+      button: ["type", "title"],
+    },
+  });
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
@@ -296,7 +285,16 @@ export function buildChatMessagesFromActivities(
           escapeHtml(combinedText) +
           "</em></div>" +
           detailsHtml,
-        SANITIZE_OPTIONS
+        {
+          allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+            "img", "details", "summary", "button"
+          ]),
+          allowedAttributes: {
+            ...sanitizeHtml.defaults.allowedAttributes,
+            "*": ["class", "id", "data-*", "aria-*"],
+            button: ["type", "title"],
+          },
+        }
       ),
     });
   });
