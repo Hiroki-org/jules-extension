@@ -81,8 +81,8 @@ import { registerInlineCommands } from "./inlineCommands";
 // Constants
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
-const MAX_PAGE_SIZE = 1000;
-const MAX_PAGINATION_PAGES = 10;
+const MAX_PAGE_SIZE = 5000;
+const MAX_PAGINATION_PAGES = 2;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
 const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
   "jules.activities.latestCreateTime";
