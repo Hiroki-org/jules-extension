@@ -140,6 +140,8 @@ suite("chatAssets unit tests", () => {
       "data-detail-type",
       "data-index",
     ]);
+    assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
+    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
   });
 
   test("CHAT_JS should fail closed when DOMPurify is unavailable", () => {
