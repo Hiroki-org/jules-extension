@@ -222,8 +222,6 @@ export function getComposerHtml(
   @media (prefers-reduced-motion: reduce) {
     .spinner {
       animation: none;
-      border-right-color: currentColor;
-      opacity: 0.5;
     }
   }
 
@@ -272,6 +270,8 @@ export function getComposerHtml(
       submitButton.disabled = true;
       submitButton.innerHTML = 'Sending... <span class="spinner"></span>';
       submitButton.setAttribute('aria-busy', 'true');
+      submitButton.title = 'Sending message...';
+      submitButton.setAttribute('aria-label', 'Sending message...');
       const srStatus = document.getElementById('sr-status');
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
