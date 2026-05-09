@@ -1625,7 +1625,7 @@ suite("Extension Test Suite", () => {
 
       await provider['fetchAndProcessSessions']();
 
-      assert.ok(fetchStub.callCount >= 2);
+      assert.strictEqual(fetchStub.callCount, 2);
     });
 
     test("should gracefully break pagination loop if limit is exceeded", async () => {
