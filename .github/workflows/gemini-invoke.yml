@@ -34,6 +34,7 @@ jobs:
       - name: "Check GEMINI_API_KEY presence (debug-only)"
         if: ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
         env:
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
           GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
         run: |-
           if [ -z "${GEMINI_API_KEY}" ]; then
@@ -46,6 +47,7 @@ jobs:
         uses: "google-github-actions/run-gemini-cli@v0" # ratchet:exclude
         id: "gemini_invoke"
         env:
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
           GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
           ADDITIONAL_CONTEXT: "${{ inputs.additional_context }}"
         with:
