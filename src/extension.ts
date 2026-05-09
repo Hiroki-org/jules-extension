@@ -2520,7 +2520,10 @@ export function activate(context: vscode.ExtensionContext) {
   const now = Date.now();
   let expiredCount = 0;
 
-  for (const url in prStatusCache) {
+  // Optimization: use Object.keys and index-based loop for better V8 performance
+  const cacheUrls = Object.keys(prStatusCache);
+  for (let i = 0; i < cacheUrls.length; i++) {
+    const url = cacheUrls[i];
     const entry = prStatusCache[url];
     const ttl = entry.isError ? PR_ERROR_CACHE_DURATION : PR_CACHE_DURATION;
     if (now - entry.lastChecked > ttl) {
@@ -3298,11 +3301,11 @@ export function activate(context: vscode.ExtensionContext) {
               let keySummary = activeKeys.join(", ");
               if (activeKeys.length === 0) {
                 const inferredKeys: string[] = [];
-                for (const key in activity) {
-                  if (
-                    Object.prototype.hasOwnProperty.call(activity, key) &&
-                    isInferredActivityLogKey(key)
-                  ) {
+                // Optimization: use Object.keys and index-based loop. Object.keys handles own properties
+                const activityKeys = Object.keys(activity);
+                for (let i = 0; i < activityKeys.length; i++) {
+                  const key = activityKeys[i];
+                  if (isInferredActivityLogKey(key)) {
                     const value = (
                       activity as unknown as Record<string, unknown>
                     )[key];
