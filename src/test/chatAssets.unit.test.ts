@@ -312,17 +312,15 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(harness.elements.chat.innerHTMLSetCount, 1);
   });
 
-  test("CHAT_JS should reset copy button text after failure", () => {
-    assert.ok(CHAT_JS.includes('copyButton.textContent = "Failed"'));
+  test("CHAT_JS should reset copy button state after failure", () => {
+    assert.ok(CHAT_JS.includes('updateButtonState("Failed")'));
     const resetCount = (
-      CHAT_JS.match(
-        /setTimeout\(\(\) => copyButton\.textContent = originalText, 1200\)/g,
-      ) ?? []
+      CHAT_JS.match(/setTimeout\(restoreButtonState, 2000\)/g) ?? []
     ).length;
     assert.strictEqual(
       resetCount,
       2,
-      "both success and failure paths should reset button text",
+      "both success and failure paths should restore button state",
     );
   });
 

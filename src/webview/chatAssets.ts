@@ -236,13 +236,31 @@ export const CHAT_JS = `(function() {
     if (!copyButton) return;
     const code = copyButton.closest(".code-block").querySelector("code").innerText;
     const originalText = copyButton.textContent;
+    const originalTitle = copyButton.hasAttribute("title") ? copyButton.getAttribute("title") : null;
+    const originalAriaLabel = copyButton.getAttribute("aria-label");
+
+    const updateButtonState = (text) => {
+      copyButton.textContent = text;
+      copyButton.setAttribute("title", text);
+      copyButton.setAttribute("aria-label", text);
+    };
+
+    const restoreButtonState = () => {
+      copyButton.textContent = originalText;
+      if (originalTitle !== null) copyButton.setAttribute("title", originalTitle);
+      else copyButton.removeAttribute("title");
+
+      if (originalAriaLabel !== null) copyButton.setAttribute("aria-label", originalAriaLabel);
+      else copyButton.removeAttribute("aria-label");
+    };
+
     try {
       await navigator.clipboard.writeText(code);
-      copyButton.textContent = "Copied";
-      setTimeout(() => copyButton.textContent = originalText, 1200);
+      updateButtonState("Copied");
+      setTimeout(restoreButtonState, 2000);
     } catch {
-      copyButton.textContent = "Failed";
-      setTimeout(() => copyButton.textContent = originalText, 1200);
+      updateButtonState("Failed");
+      setTimeout(restoreButtonState, 2000);
     }
   });
 
