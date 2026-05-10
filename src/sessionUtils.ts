@@ -185,9 +185,10 @@ export async function recoverCorruptedActivities(
     });
   }
 
-  // Optimize N+1 fetch by fetching activities in bulk via the paginated endpoint
+  // Optimize N+1 fetch by fetching activities in bulk via the paginated endpoint.
+  // We process directly into a Map and shrink the search Set to avoid intermediate arrays.
   const corruptedIds = new Set(corruptedActivities.map((a) => a.id));
-  const recoveredActivities: Activity[] = [];
+  const recoveredMap = new Map<string, Activity>();
   let pageToken: string | undefined;
   const MAX_PAGES = 10;
   let page = 0;
@@ -206,13 +207,16 @@ export async function recoverCorruptedActivities(
       if (data.activities) {
         for (const act of data.activities) {
           if (corruptedIds.has(act.id)) {
-            recoveredActivities.push(act);
+            if (!isActivityCorrupted(act)) {
+              recoveredMap.set(act.id, act);
+            }
+            corruptedIds.delete(act.id);
           }
         }
       }
 
       // Early exit if we have found all the missing activities
-      if (recoveredActivities.length >= corruptedIds.size) {
+      if (corruptedIds.size === 0) {
         break;
       }
 
@@ -220,13 +224,6 @@ export async function recoverCorruptedActivities(
     } while (pageToken);
   } catch (error) {
     console.error(`Jules: Failed to recover corrupted activities in bulk: ${error}`);
-  }
-
-  const recoveredMap = new Map<string, Activity>();
-  for (const a of recoveredActivities) {
-    if (a && !isActivityCorrupted(a)) {
-      recoveredMap.set(a.id, a);
-    }
   }
 
   // Iterate backwards to safely remove items from the array
