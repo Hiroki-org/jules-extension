@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as sinon from "sinon";
-import { createJulesSession, fetchSingleActivity, recoverCorruptedActivities, sendMessage } from "../sessionUtils";
+import { createJulesSession, fetchSingleActivity, recoverCorruptedActivities, sendMessage, handleUserFeedbackRequired } from "../sessionUtils";
 import * as fetchUtils from "../fetchUtils";
 
 suite("sessionUtils Test Suite", () => {
@@ -331,4 +331,69 @@ suite("sessionUtils recoverCorruptedActivities", () => {
 
         assert.strictEqual(activities.length, 0); // Corrupted activity is filtered out
     });
+
+
+  suite("handleUserFeedbackRequired", () => {
+    let getConfigurationStub: sinon.SinonStub;
+    let showInformationMessageStub: sinon.SinonStub;
+    let executeCommandStub: sinon.SinonStub;
+    let logChannelStub: any;
+
+    setup(() => {
+      getConfigurationStub = sinon.stub(vscode.workspace, "getConfiguration");
+      showInformationMessageStub = sinon.stub(vscode.window, "showInformationMessage");
+      executeCommandStub = sinon.stub(vscode.commands, "executeCommand");
+      logChannelStub = { appendLine: sinon.stub() };
+    });
+
+    teardown(() => {
+      sinon.restore();
+    });
+
+    test("should use autoReplyMessage when configured", async () => {
+      const configMock = { get: sinon.stub().returns("Test reply message") };
+      getConfigurationStub.returns(configMock);
+
+      const session = { name: "sessions/123", title: "Test Session" } as any;
+      const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({})
+      } as any);
+
+      await handleUserFeedbackRequired(session, "dummy-key", logChannelStub);
+
+      assert.ok(fetchStub.calledOnce);
+      assert.strictEqual(showInformationMessageStub.called, false);
+      assert.ok(logChannelStub.appendLine.called);
+    });
+
+    test("should fallback to manual prompt when autoReplyMessage throws", async () => {
+      const configMock = { get: sinon.stub().returns("Test reply message") };
+      getConfigurationStub.returns(configMock);
+
+      const session = { name: "sessions/123", title: "Test Session" } as any;
+      const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: async () => "Error"
+      } as any);
+
+      await handleUserFeedbackRequired(session, "dummy-key", logChannelStub);
+
+      assert.ok(fetchStub.calledOnce);
+      assert.ok(showInformationMessageStub.calledOnce);
+    });
+
+    test("should fallback to manual prompt when autoReplyMessage is empty", async () => {
+      const configMock = { get: sinon.stub().returns("") };
+      getConfigurationStub.returns(configMock);
+
+      const session = { name: "sessions/123", title: "Test Session" } as any;
+
+      await handleUserFeedbackRequired(session, "dummy-key", logChannelStub);
+
+      assert.ok(showInformationMessageStub.calledOnce);
+    });
+  });
 });

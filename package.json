@@ -97,6 +97,12 @@
             "Use 'main' branch, or the repository's default if 'main' does not exist"
           ],
           "scope": "resource"
+        },
+        "jules-extension.autoReplyMessage": {
+          "type": "string",
+          "default": "",
+          "description": "Julesがユーザーのフィードバックを待機している状態（AWAITING_USER_FEEDBACK）になった際、自動的に送信するメッセージを指定します。空の場合は自動返信は無効になります。",
+          "markdownDescription": "Julesがユーザーのフィードバックを待機している状態（AWAITING_USER_FEEDBACK）になった際、自動的に送信するメッセージを指定します。空の場合は自動返信は無効になります。\n\n**例:**\n`内容を確認しました。PRを作成してください。`"
         }
       }
     },
