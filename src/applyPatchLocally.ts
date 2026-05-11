@@ -142,7 +142,7 @@ export async function applyPatchLocallyForSession(options: {
                 childProcess.execFile(
                     gitExecutable,
                     ["apply", "--3way", patchFilePath], 
-                    { cwd: repository.rootUri.fsPath }, 
+                    { cwd: repository.rootUri.fsPath, timeout: 30000 },
                     (error, stdout, stderr) => {
                         if (error) {
                             const failureDetails = stderr || error.message;
