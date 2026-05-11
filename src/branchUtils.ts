@@ -98,12 +98,19 @@ function areArraysEqual(a: string[], b: string[]): boolean {
     if (a.length !== b.length) {
         return false;
     }
-    const sortedA = [...a].sort();
-    const sortedB = [...b].sort();
-    for (let i = 0; i < sortedA.length; i++) {
-        if (sortedA[i] !== sortedB[i]) {
+
+    // ⚡ Bolt: ソート(O(N log N))を避けて、Mapを使ったカウント(O(N))で比較し高速化
+    const counts = new Map<string, number>();
+    for (const item of a) {
+        counts.set(item, (counts.get(item) || 0) + 1);
+    }
+
+    for (const item of b) {
+        const count = counts.get(item);
+        if (!count) {
             return false;
         }
+        counts.set(item, count - 1);
     }
     return true;
 }
