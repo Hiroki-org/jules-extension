@@ -1,3 +1,4 @@
+import { handleUserFeedbackRequired } from "./sessionUtils";
 import { recoverCorruptedActivities } from "./sessionUtils";
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
@@ -758,16 +759,7 @@ async function notifyPlanAwaitingApproval(
   }
 }
 
-async function notifyUserFeedbackRequired(session: Session): Promise<void> {
-  const selection = await vscode.window.showInformationMessage(
-    `Jules is waiting for your feedback in session: "${session.title}"`,
-    VIEW_DETAILS_ACTION,
-  );
 
-  if (selection === VIEW_DETAILS_ACTION) {
-    await vscode.commands.executeCommand(SHOW_ACTIVITIES_COMMAND, session.name);
-  }
-}
 
 export function areOutputsEqual(
   a?: SessionOutput[],
@@ -1868,7 +1860,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         await this.sendNotifications(
           sessionsToNotifyFeedback,
           "user feedback",
-          notifyUserFeedbackRequired,
+          (session) => handleUserFeedbackRequired(session, apiKey || "", logChannel),
         );
 
         // Notify Completed (PR Created)
