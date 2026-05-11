@@ -105,6 +105,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             'base-sha',
         ]);
         assert.strictEqual(execFileStub.firstCall.args[0], '/custom/git');
+        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000 });
         assert.strictEqual(repository.inputBox.value, 'feat: apply patch locally');
     });
 
@@ -363,6 +364,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(execFileStub.firstCall.args[0], 'git');
+        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000 });
         assert.strictEqual(
             (outputChannel.appendLine as sinon.SinonSpy).calledWithMatch(/falling back to 'git'/),
             true,
