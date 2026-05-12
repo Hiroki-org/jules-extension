@@ -215,7 +215,8 @@ export async function recoverCorruptedActivities(
         }
       }
 
-      // Early exit if we have found all the missing activities
+      // Early exit after every corrupted ID has appeared in the API response,
+      // regardless of whether each activity could be recovered.
       if (corruptedIds.size === 0) {
         break;
       }
