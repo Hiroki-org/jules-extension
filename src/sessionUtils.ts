@@ -1,3 +1,4 @@
+import type { Session } from "./types";
 import { isActivityCorrupted } from "./activityUtils";
 import * as vscode from "vscode";
 import { fetchWithTimeout } from "./fetchUtils";
@@ -241,3 +242,41 @@ export async function recoverCorruptedActivities(
     }
   }
 }
+
+
+/**
+ * Handles the logic when a session requires user feedback.
+ * If auto-reply is configured, it automatically sends the message.
+ * Otherwise, it shows an information prompt.
+ */
+export async function handleUserFeedbackRequired(
+  session: Session,
+  apiKey: string,
+  logChannel: vscode.OutputChannel,
+): Promise<void> {
+  const config = vscode.workspace.getConfiguration("jules-extension");
+  const autoReplyMessage = config.get<string>("autoReplyMessage", "");
+
+  if (autoReplyMessage && autoReplyMessage.trim().length > 0) {
+    try {
+      logChannel.appendLine(`Jules: Auto-replying to session "${session.title}" with message: "${autoReplyMessage}"`);
+      await sendMessage(apiKey, session.name, autoReplyMessage);
+      return;
+    } catch (err) {
+      logChannel.appendLine(`Jules: Failed to auto-reply to session "${session.title}": ${err}`);
+      // Fallback to manual prompt on error
+    }
+  }
+
+  const selection = await vscode.window.showInformationMessage(
+    `Jules is waiting for your feedback in session: "${session.title}"`,
+    "View Details"
+  );
+
+  if (selection === "View Details") {
+    await vscode.commands.executeCommand(SHOW_ACTIVITIES_COMMAND, session.name);
+  }
+}
+
+const VIEW_DETAILS_ACTION = "View Details";
+const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
