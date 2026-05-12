@@ -234,6 +234,8 @@ export const CHAT_JS = `(function() {
   chatContainer.addEventListener("click", async e => {
     const copyButton = e.target.closest(".copy-code-button");
     if (!copyButton) return;
+    if (copyButton.getAttribute("data-copy-feedback-active") === "true") return;
+    copyButton.setAttribute("data-copy-feedback-active", "true");
     const code = copyButton.closest(".code-block").querySelector("code").innerText;
     const originalText = copyButton.textContent;
     const originalTitle = copyButton.title;
@@ -249,6 +251,7 @@ export const CHAT_JS = `(function() {
       copyButton.textContent = originalText;
       if (originalTitle) { copyButton.title = originalTitle; } else { copyButton.removeAttribute("title"); }
       if (originalAriaLabel) { copyButton.setAttribute("aria-label", originalAriaLabel); } else { copyButton.removeAttribute("aria-label"); }
+      copyButton.removeAttribute("data-copy-feedback-active");
     }
 
     try {

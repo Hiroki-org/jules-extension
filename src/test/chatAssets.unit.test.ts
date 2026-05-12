@@ -4,10 +4,13 @@ import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => string },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
+  clipboard = { writeText: async (_text: string) => {} },
 ) {
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
+  const timeoutCallbacks: Array<() => void> = [];
   const listeners: Record<string, Record<string, any>> = {
+    chat: {},
     messageInput: {},
     composer: {},
   };
@@ -21,7 +24,7 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
-      addEventListener: () => {},
+      addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
       querySelectorAll: () => [],
     },
     typing: { classList: { toggle: () => {} } },
@@ -57,7 +60,11 @@ function createChatScriptHarness(
   };
   const sentMessages: any[] = [];
   const mockVscode = { postMessage: (msg: any) => sentMessages.push(msg) };
-  const mockNavigator = { clipboard: { writeText: async () => {} } };
+  const mockNavigator = { clipboard };
+  const setTimeoutStub = (callback: () => void) => {
+    timeoutCallbacks.push(callback);
+    return timeoutCallbacks.length;
+  };
 
   const runScript = new Function(
     "document",
@@ -65,14 +72,20 @@ function createChatScriptHarness(
     "acquireVsCodeApi",
     "navigator",
     "DOMPurify",
+    "setTimeout",
     CHAT_JS,
   );
-  runScript(mockDocument, mockWindow, () => mockVscode, mockNavigator, domPurify);
+  runScript(mockDocument, mockWindow, () => mockVscode, mockNavigator, domPurify, setTimeoutStub);
 
   return {
     elements,
     listeners,
     sentMessages,
+    runPendingTimeouts: () => {
+      while (timeoutCallbacks.length > 0) {
+        timeoutCallbacks.shift()?.();
+      }
+    },
     postWindowMessage: (data: any) => {
       messageListeners.forEach((listener) => listener({ data }));
     },
@@ -324,6 +337,49 @@ suite("chatAssets unit tests", () => {
       2,
       "both success and failure paths should restore button state",
     );
+  });
+
+  test("CHAT_JS should ignore copy clicks while feedback is visible", async () => {
+    let writeCount = 0;
+    const harness = createChatScriptHarness(undefined, undefined, {
+      writeText: async () => {
+        writeCount += 1;
+      },
+    });
+    const codeElement = { innerText: "const answer = 42;" };
+    const codeBlock = {
+      querySelector: (selector: string) => selector === "code" ? codeElement : null,
+    };
+    const attrs: Record<string, string> = { "aria-label": "Copy code" };
+    const copyButton = {
+      textContent: "Copy",
+      title: "Copy code",
+      closest: (selector: string) => {
+        if (selector === ".copy-code-button") {
+          return copyButton;
+        }
+        if (selector === ".code-block") {
+          return codeBlock;
+        }
+        return null;
+      },
+      getAttribute: (name: string) => attrs[name] ?? null,
+      setAttribute: (name: string, value: string) => { attrs[name] = value; },
+      removeAttribute: (name: string) => { delete attrs[name]; },
+    };
+
+    await harness.listeners.chat.click({ target: copyButton });
+    await harness.listeners.chat.click({ target: copyButton });
+
+    assert.strictEqual(writeCount, 1);
+    assert.strictEqual(copyButton.textContent, "Copied");
+    assert.strictEqual(attrs["aria-label"], "Copied");
+
+    harness.runPendingTimeouts();
+
+    assert.strictEqual(copyButton.textContent, "Copy");
+    assert.strictEqual(attrs["aria-label"], "Copy code");
+    assert.strictEqual(attrs["data-copy-feedback-active"], undefined);
   });
 
   test("CHAT_JS should adjust height to scrollHeight plus border height on input", () => {
