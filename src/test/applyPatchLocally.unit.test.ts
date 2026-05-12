@@ -105,6 +105,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             'base-sha',
         ]);
         assert.strictEqual(execFileStub.firstCall.args[0], '/custom/git');
+        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: 'SIGKILL' });
         assert.strictEqual(repository.inputBox.value, 'feat: apply patch locally');
     });
 
@@ -225,6 +226,39 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             if (process.platform !== 'win32') {
                 assert.strictEqual(patchStats.mode & 0o777, 0o600);
             }
+        } finally {
+            await fs.rm(expectedPath, { force: true });
+        }
+    });
+
+    test('git apply タイムアウト時は元ブランチへ戻し、patch ファイルを保持すること', async () => {
+        sandbox.stub(Date, 'now').returns(5678);
+        const expectedPath = path.join(os.tmpdir(), 'jules-abc-5678.patch');
+        await fs.rm(expectedPath, { force: true });
+        execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
+            const timeoutError = Object.assign(new Error('Command failed: git apply timed out'), {
+                killed: true,
+                signal: 'SIGKILL',
+            });
+            callback(timeoutError, '', '');
+            return {} as childProcess.ChildProcess;
+        }) as any);
+
+        try {
+            await applyPatchLocallyForSession({
+                session: createSession(),
+                changeSet: createChangeSet(),
+                outputChannel,
+            });
+
+            assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: 'SIGKILL' });
+            assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
+            assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
+            assert.ok(
+                showErrorMessageStub.firstCall.args[0].includes(expectedPath),
+                'タイムアウト時も patch ファイルの保存先を含めるべき',
+            );
+            await fs.stat(expectedPath);
         } finally {
             await fs.rm(expectedPath, { force: true });
         }
@@ -363,6 +397,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(execFileStub.firstCall.args[0], 'git');
+        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: 'SIGKILL' });
         assert.strictEqual(
             (outputChannel.appendLine as sinon.SinonSpy).calledWithMatch(/falling back to 'git'/),
             true,
