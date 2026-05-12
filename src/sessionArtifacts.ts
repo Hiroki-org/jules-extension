@@ -501,11 +501,14 @@ function areChangeSetFilesEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boo
     }
 
     // Sort files by path to ensure order-independence
-    const sortedA = [...aFiles].sort((x, y) => x.path.localeCompare(y.path));
-    const sortedB = [...bFiles].sort((x, y) => x.path.localeCompare(y.path));
+    // ⚡ Bolt 最適化: O(N log N) のソート処理を O(N) の Map ルックアップに置換
+    const bFilesMap = new Map<string, string | undefined>();
+    for (const f of bFiles) {
+        bFilesMap.set(f.path, f.status);
+    }
 
-    for (let i = 0; i < sortedA.length; i += 1) {
-        if (sortedA[i].path !== sortedB[i].path || sortedA[i].status !== sortedB[i].status) {
+    for (const f of aFiles) {
+        if (!bFilesMap.has(f.path) || bFilesMap.get(f.path) !== f.status) {
             return false;
         }
     }
