@@ -102,6 +102,7 @@ export const CHAT_JS = `(function() {
           ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
           RETURN_DOM: false,
           RETURN_DOM_FRAGMENT: false,
+          USE_PROFILES: { math: false },
         }),
       );
     } catch (error) {

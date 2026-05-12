@@ -142,6 +142,7 @@ suite("chatAssets unit tests", () => {
     ]);
     assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
     assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
+    assert.deepStrictEqual(sanitizeConfig.USE_PROFILES, { math: false });
   });
 
   test("CHAT_JS should fail closed when DOMPurify is unavailable", () => {
