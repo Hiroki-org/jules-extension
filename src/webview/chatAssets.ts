@@ -233,9 +233,9 @@ export const CHAT_JS = `(function() {
 
   chatContainer.addEventListener("click", async e => {
     const copyButton = e.target.closest(".copy-code-button");
-    if (!copyButton) return;
-    if (copyButton.getAttribute("data-copy-feedback-active") === "true") return;
+    if (!copyButton || copyButton.hasAttribute("data-copy-feedback-active")) return;
     copyButton.setAttribute("data-copy-feedback-active", "true");
+
     const code = copyButton.closest(".code-block").querySelector("code").innerText;
     const originalText = copyButton.textContent;
     const originalTitle = copyButton.title;
