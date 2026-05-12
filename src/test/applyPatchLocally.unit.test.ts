@@ -105,6 +105,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             'base-sha',
         ]);
         assert.strictEqual(execFileStub.firstCall.args[0], '/custom/git');
+        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: "SIGKILL" });
         assert.strictEqual(repository.inputBox.value, 'feat: apply patch locally');
     });
 
@@ -204,6 +205,38 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         await fs.rm(expectedPath, { force: true });
         execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
             callback(new Error('apply failed'), '', 'fatal: patch failed');
+            return {} as childProcess.ChildProcess;
+        }) as any);
+
+        try {
+            await applyPatchLocallyForSession({
+                session: createSession(),
+                changeSet: createChangeSet(),
+                outputChannel,
+            });
+
+            assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
+            assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
+            assert.match(showErrorMessageStub.firstCall.args[0], /Restored original branch "main"/);
+            assert.ok(
+                showErrorMessageStub.firstCall.args[0].includes(expectedPath),
+                'エラーメッセージに patch ファイルの保存先を含めるべき',
+            );
+            const patchStats = await fs.stat(expectedPath);
+            assert.ok(patchStats.isFile());
+        } finally {
+            await fs.rm(expectedPath, { force: true }).catch(() => {});
+        }
+    });
+
+    test('git apply タイムアウト時 (error.killed === true) も元ブランチへ戻し、保存済み patch パスをエラーに含めること', async () => {
+        sandbox.stub(Date, 'now').returns(1234);
+        const expectedPath = path.join(os.tmpdir(), 'jules-abc-1234.patch');
+        await fs.rm(expectedPath, { force: true });
+        execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
+            const err: any = new Error('Command failed');
+            err.killed = true;
+            callback(err, '', '');
             return {} as childProcess.ChildProcess;
         }) as any);
 
@@ -363,6 +396,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(execFileStub.firstCall.args[0], 'git');
+        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: "SIGKILL" });
         assert.strictEqual(
             (outputChannel.appendLine as sinon.SinonSpy).calledWithMatch(/falling back to 'git'/),
             true,
