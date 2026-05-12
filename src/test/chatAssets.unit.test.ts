@@ -313,16 +313,16 @@ suite("chatAssets unit tests", () => {
   });
 
   test("CHAT_JS should reset copy button text after failure", () => {
-    assert.ok(CHAT_JS.includes('copyButton.textContent = "Failed"'));
+    assert.ok(CHAT_JS.includes('setButtonState("Failed")'));
     const resetCount = (
       CHAT_JS.match(
-        /setTimeout\(\(\) => copyButton\.textContent = originalText, 1200\)/g,
+        /setTimeout\(restoreButtonState, 1200\)/g,
       ) ?? []
     ).length;
     assert.strictEqual(
       resetCount,
       2,
-      "both success and failure paths should reset button text",
+      "both success and failure paths should restore button state",
     );
   });
 
@@ -466,3 +466,7 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(harness.elements.messageInput.style.height, "53px");
   });
 });
+
+  test("CHAT_JS should ignore clicks while copy feedback is active", () => {
+    assert.ok(CHAT_JS.includes('copyButton.hasAttribute("data-copy-feedback-active")'));
+  });

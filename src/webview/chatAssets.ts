@@ -233,16 +233,34 @@ export const CHAT_JS = `(function() {
 
   chatContainer.addEventListener("click", async e => {
     const copyButton = e.target.closest(".copy-code-button");
-    if (!copyButton) return;
+    if (!copyButton || copyButton.hasAttribute("data-copy-feedback-active")) return;
+    copyButton.setAttribute("data-copy-feedback-active", "true");
+
     const code = copyButton.closest(".code-block").querySelector("code").innerText;
     const originalText = copyButton.textContent;
+    const originalTitle = copyButton.title;
+    const originalAriaLabel = copyButton.getAttribute("aria-label");
+
+    function setButtonState(text) {
+      copyButton.textContent = text;
+      copyButton.title = text;
+      copyButton.setAttribute("aria-label", text);
+    }
+
+    function restoreButtonState() {
+      copyButton.textContent = originalText;
+      if (originalTitle) { copyButton.title = originalTitle; } else { copyButton.removeAttribute("title"); }
+      if (originalAriaLabel) { copyButton.setAttribute("aria-label", originalAriaLabel); } else { copyButton.removeAttribute("aria-label"); }
+      copyButton.removeAttribute("data-copy-feedback-active");
+    }
+
     try {
       await navigator.clipboard.writeText(code);
-      copyButton.textContent = "Copied";
-      setTimeout(() => copyButton.textContent = originalText, 1200);
+      setButtonState("Copied");
+      setTimeout(restoreButtonState, 1200);
     } catch {
-      copyButton.textContent = "Failed";
-      setTimeout(() => copyButton.textContent = originalText, 1200);
+      setButtonState("Failed");
+      setTimeout(restoreButtonState, 1200);
     }
   });
 
