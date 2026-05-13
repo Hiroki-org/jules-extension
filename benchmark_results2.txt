@@ -1,0 +1,4 @@
+Testing with 250 remotes (more realistic size)
+Old approach: 256.46 ms
+New approach (building + lookup inside loop): 861.67 ms
+Improvement: 0.30x

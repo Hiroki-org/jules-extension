@@ -1,0 +1,4 @@
+Testing with 250 remotes (more realistic size)
+Old approach: 230.23 ms
+New Map approach: 815.45 ms
+New Single Map approach: 825.30 ms

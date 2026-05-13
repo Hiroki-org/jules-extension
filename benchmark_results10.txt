@@ -1,0 +1,3 @@
+Old approach (N=5): 49.64 ms
+New Map approach (N=5): 194.32 ms
+Optimized Map approach (N=5): 163.51 ms

@@ -1,0 +1,2 @@
+Old approach (N=250): 223.27 ms
+New Map approach (N=250): 809.99 ms

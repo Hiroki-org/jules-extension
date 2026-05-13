@@ -1,0 +1,2 @@
+Old approach: 46.09 ms
+New Single Map approach: 186.49 ms

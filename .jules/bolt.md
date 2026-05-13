@@ -13,3 +13,6 @@
 ## 2024-05-12 - Handling Multiset arrays composed of Objects
 **Learning:** A simple tally map works well to compare arrays composed of strings or numbers, but you need to be careful when the array contains objects. Simply matching lengths and hashing the stringified keys or specific properties (e.g. `path + status`) correctly allows a Frequency Map representation of a Multiset of Objects without the memory allocation and O(N log N) overhead of sorts.
 **Action:** Always verify if arrays you are comparing allow duplicate items. Use `.length` validation, then build a Frequency map and decrement values when comparing.
+## 2026-05-13 - Array.find() optimizations
+**Learning:** Replacing multiple O(N) Array.find() calls sequentially with an O(1) Map lookup ensures worst-case performance bounds and scales better for larger collections, even if overhead might be slightly higher for very small collections.
+**Action:** Always prefer Maps when resolving objects across multiple fields iteratively if there are subsequent lookups on the same structure.

@@ -1,0 +1,4 @@
+Testing with 5 remotes (super realistic size)
+Old approach: 52.29 ms
+New Single Map approach: 200.60 ms
+Single Loop approach: 44.21 ms
