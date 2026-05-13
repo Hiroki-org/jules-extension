@@ -1,0 +1,1077 @@
+
+> jules-extension@1.5.0 pretest:coverage /app
+> npm run pretest:unit
+
+
+> jules-extension@1.5.0 pretest:unit
+> npm run compile-tests
+
+
+> jules-extension@1.5.0 compile-tests
+> tsc -p . --outDir out
+
+
+> jules-extension@1.5.0 test:coverage /app
+> c8 --all --src src --exclude "src/test/**" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --reporter mocha-multi-reporters --reporter-options configFile=reporter-config.json --ui tdd --require source-map-support/register --require out/test/vscodeMock.js "out/test/*.unit.test.js"
+
+
+
+  ✔ CHAT_JS should ignore clicks while copy feedback is active
+  activityUtils getActivityCategory
+    ✔ sessionFailed -> Errors (highest priority)
+    ✔ planGenerated -> Plan
+    ✔ planApproved -> Plan
+    ✔ progressUpdated -> Progress
+    ✔ sessionCompleted -> Progress
+    ✔ agentMessaged -> Messages
+    ✔ userMessaged -> Messages
+    ✔ artifacts with changeSet -> Artifacts
+    ✔ artifacts with bashOutput -> Artifacts
+    ✔ empty activity -> Messages fallback
+
+  activityUtils getActivityTypeLabel
+    ✔ planGenerated -> Plan generated
+    ✔ planApproved -> Plan approved
+    ✔ agentMessaged -> Agent messaged
+    ✔ userMessaged -> User messaged
+    ✔ progressUpdated -> Progress updated
+    ✔ sessionCompleted -> Session completed
+    ✔ sessionFailed -> Session failed
+    ✔ unknown key falls back to Activity
+
+  activityUtils getActivityLabelPrefix
+    ✔ planGenerated has Plan prefix
+    ✔ sessionFailed has FAILED prefix
+    ✔ planApproved -> Approved:
+    ✔ sessionCompleted -> Completed:
+    ✔ artifacts with changeSet -> (diff)
+    ✔ agentMessaged -> empty prefix
+
+  activityUtils getActivitySummaryText
+    ✔ uses progress title first
+    ✔ sessionFailed with reason
+    ✔ sessionFailed with empty reason
+    ✔ sessionFailed with whitespace-only reason
+    ✔ falls back to description
+    ✔ falls back to artifacts summary
+    ✔ falls back to active key label
+    ✔ falls back to metadata (originator and time)
+    ✔ falls back to metadata without createTime
+    ✔ falls back to metadata when multiple active keys present
+
+  activityUtils getActivityIcon
+    ✔ returns the plan generated icon
+    ✔ returns the plan approved icon
+    ✔ returns the progress updated icon
+    ✔ returns the session completed icon
+    ✔ returns the session failed icon
+    ✔ returns the agent messaged icon
+    ✔ returns the user messaged icon
+    ✔ returns the fallback icon when multiple active keys are present
+    ✔ returns the fallback icon when no active key is present
+
+  activityUtils summarizeArtifacts
+    ✔ returns null for empty inputs and summarizes unique artifact types in insertion order
+
+  activityUtils isActivityCorrupted
+    ✔ returns false for a completely valid activity with matching type and payload
+    ✔ returns true for a corrupted activity missing its payload
+    ✔ returns false when type is undefined but some other payload exists
+    ✔ returns false when type does not belong to union keys
+
+  activityUtils getActivityThemeIcon
+    ✔ sessionFailed maps to error icon
+    ✔ planGenerated maps to lightbulb icon
+    ✔ planApproved maps to check icon
+    ✔ sessionCompleted maps to pass icon
+    ✔ progressUpdated maps to pulse icon
+    ✔ agentMessaged maps to comment icon
+    ✔ userMessaged maps to account icon
+    ✔ artifacts with changeSet maps to diff icon
+    ✔ artifacts with bashOutput maps to terminal icon
+    ✔ unhandled activity returns undefined
+
+  applyPatchLocallyForSession ユニットテスト
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc-3
+[Jules] Applying patch from /tmp/jules-abc-1778675542999.patch...
+    ✔ ブランチ名衝突時にユニークなブランチ名で作成し、VS Code Git API の git path を使うこと
+[Jules] Fetching from remote...
+[Jules] Commit base-sha not found in repository after fetch.
+[Jules] Creating branch jules-patch-abc from main...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543013.patch...
+    ✔ baseCommitId が解決できない場合は startingBranch へのフォールバック確認を使うこと
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from main...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543019.patch...
+    ✔ baseCommitId が未指定の場合は未指定メッセージで startingBranch フォールバック確認を出すこと
+[Jules] Fetching from remote...
+[Jules] Commit base-sha not found in repository after fetch.
+[Jules] Resolved starting branch "main" to "origin/main".
+[Jules] Creating branch jules-patch-abc from origin/main...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543029.patch...
+    ✔ startingBranch のローカル branch がない場合は origin の追跡 ref にフォールバックすること
+    ✔ gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1234.patch...
+[Jules] Git apply failed for /tmp/jules-abc-1234.patch: fatal: patch failed
+[Jules] Restored original branch "main" after patch failure. Failed branch "jules-patch-abc" remains for inspection.
+[Jules] Patch file saved at: /tmp/jules-abc-1234.patch
+    ✔ git apply 失敗時は元ブランチへ戻し、保存済み patch パスをエラーに含めること
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-5678.patch...
+[Jules] Git apply failed for /tmp/jules-abc-5678.patch: Command failed: git apply timed out
+[Jules] Restored original branch "main" after patch failure. Failed branch "jules-patch-abc" remains for inspection.
+[Jules] Patch file saved at: /tmp/jules-abc-5678.patch
+    ✔ git apply タイムアウト時は元ブランチへ戻し、patch ファイルを保持すること
+    ✔ Git repository がない場合はエラーを表示して止めること
+    ✔ repository 選択がキャンセルされた場合は処理を止めること
+    ✔ 未コミット変更チェックで進行不可の場合は処理を止めること
+[Jules] Fetching from remote...
+    ✔ fetch が失敗した場合はエラーを表示して止めること
+[Jules] Fetching from remote...
+[Jules] Commit base-sha not found in repository after fetch.
+    ✔ fallback 確認でキャンセルされた場合は処理を止めること
+[Jules] Fetching from remote...
+[Jules] Commit base-sha not found in repository after fetch.
+    ✔ baseCommitId も startingBranch もない場合はエラーを表示すること
+[Jules] Fetching from remote...
+    ✔ baseCommitId 未指定かつ startingBranch もない場合は未指定エラーを表示すること
+[Jules] Fetching from remote...
+[Jules] Commit base-sha not found in repository after fetch.
+    ✔ startingBranch が空白だけの場合はエラーを表示すること
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+    ✔ createBranch が失敗した場合はエラーを表示すること
+[Jules] VS Code Git API did not expose git.path; falling back to 'git' on PATH.
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543080.patch...
+    ✔ Git API に git.path がない場合は git コマンド名へフォールバックすること
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543085.patch...
+    ✔ getBranch が undefined を返す場合はそのブランチ名を使うこと
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543090.patch...
+    ✔ getBranch の構造化された not found コードをブランチ不在として扱うこと
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Error applying patch locally: missing binary
+    ✔ getBranch の構造化 ENOENT はブランチ不在として扱わないこと
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Checked out to new branch: jules-patch-abc
+[Jules] Applying patch from /tmp/jules-abc-1778675543098.patch...
+    ✔ getBranch の日本語 not found メッセージをブランチ不在として扱うこと
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Error applying patch locally: repository is locked
+    ✔ getBranch が branch not found 以外のエラーを返す場合は全体エラーにすること
+[Jules] Fetching from remote...
+[Jules] Creating branch jules-patch-abc from base-sha...
+[Jules] Error applying patch locally: Could not find an available branch name after 20 attempts.
+    ✔ 利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること
+
+  AsyncUtils Test Suite
+    ✔ mapLimit processes all items and maintains order
+    ✔ mapLimit respects concurrency limit
+    ✔ mapLimit propagates errors
+    ✔ mapLimit handles empty array
+    ✔ mapLimit throws if limit is less than 1
+
+  branchUtils Unit Tests
+    getCurrentBranch
+      ✔ should return branch name when Git extension is available
+      ✔ should return null when Git extension is not available
+      ✔ should return null when no repositories found
+      ✔ should return null when HEAD is not available
+      ✔ should use provided repository when given
+      ✔ should handle errors gracefully
+      ✔ should select repository in single repository case
+      ✔ should infer repository from active text editor in silent mode
+      ✔ should return null when multiple repos exist, silent mode is true, but no matching active editor
+      ✔ should prompt user to select repository when silent mode is false
+      ✔ should return null if user cancels repository selection
+    areArraysEqual and areCacheContentsEqual Optimization
+      ✔ should correctly compare branch arrays and cache contents
+    getBranchesForSession
+      ✔ areArraysEqual covers full equivalence, subsets, and permutations
+      ✔ should use cached branches when cache is valid
+      ✔ should fetch fresh branches when forceRefresh is true
+      ✔ should fall back to default branch when API fails
+      ✔ should add current branch to list if not in remote branches
+      ✔ should handle case when source has no name
+      ✔ should update cache when data changes
+      ✔ should respect silent mode in single repository
+
+  Cache Test Suite
+    ✔ isCacheValid should return true for valid cache within TTL
+    ✔ isCacheValid should return false for expired cache
+    ✔ isCacheValid should return false for cache exactly at TTL boundary
+    ✔ isCacheValid should return false for cache just over TTL boundary
+    ✔ isCacheValid should use default TTL when not provided
+
+  chatAssets unit tests
+    ✔ CHAT_CSS should keep accessibility-focused selectors
+    ✔ CHAT_CSS should target typing-dot delays for rendered structure
+    ✔ CHAT_JS should include key webview message and copy handlers
+    ✔ CHAT_JS should sanitize rendered message HTML with the explicit URI allowlist
+    ✔ CHAT_JS should fail closed when DOMPurify is unavailable
+    ✔ CHAT_JS should constrain message role class names
+    ✔ CHAT_JS should cache sanitized HTML across renders
+    ✔ CHAT_JS should sanitize lazy-loaded details HTML
+    ✔ CHAT_CSS should include activity details layout styles
+    ✔ CHAT_CSS should keep shiki theme variable selectors
+    ✔ CHAT_CSS should keep session label truncation safeguards
+    ✔ CHAT_CSS should keep empty state accessible and reduced-motion friendly
+    ✔ CHAT_JS should render welcome empty state when no session is selected
+    ✔ CHAT_JS should render ready empty state when a session has no messages
+    ✔ CHAT_JS should not reinsert the same empty state repeatedly
+    ✔ CHAT_JS should reset copy button text after failure
+    ✔ CHAT_JS should adjust height to scrollHeight plus border height on input
+    ✔ CHAT_JS chatState should clear input and reset height to auto if no session
+    ✔ CHAT_JS submit should send trimmed message, clear input, and reset height to auto
+    ✔ CHAT_JS keydown Ctrl+Enter should send trimmed message, clear input, and reset height to auto
+    ✔ CHAT_JS updateUI should properly configure disabled states and ARIA attributes
+    ✔ CHAT_JS should preserve fractional border widths when auto-resizing
+
+  Chat View Unit Test Suite
+    ✔ buildChatMessagesFromActivities should include user/assistant messages and logs
+    ✔ renderChatMarkdown should render quote/list/code with copy button wrapper (146ms)
+    ✔ isGeneratingSessionState should detect active generation states
+    ✔ getChatWebviewHtml should include typing indicator and send flow script
+    ✔ buildChatMessagesFromActivities should generate lazy load placeholders for details
+    JulesChatViewProvider lazy loading
+      ✔ handleRequestDetails generates HTML and sends back via postMessage (48ms)
+
+  Composer Test Suite
+    showMessageComposer
+      ✔ should resolve submitted values and keep the first resolution
+      ✔ should resolve undefined on cancel
+      ✔ should resolve undefined when the panel is disposed externally
+    escapeHtml
+      ✔ should escape essential HTML characters
+    escapeAttribute
+      ✔ should escape characters for HTML attributes
+    getComposerHtml
+      ✔ should embed and escape title, placeholder, and value
+      ✔ should include accessibility attributes
+      ✔ should use default aria-label when placeholder is empty
+      ✔ should show create PR checkbox when option is true
+      ✔ should not show create PR checkbox when option is false or undefined
+      ✔ should show require approval checkbox when option is true
+      ✔ should not show require approval checkbox when option is false or undefined
+      ✔ should include checkbox styles
+      ✔ should include validation logic
+      ✔ should include validate function that checks trimmed textarea value
+      ✔ should call validate on initial load
+      ✔ should prevent submit when validation fails
+      ✔ should call validate when Cmd/Ctrl+Enter is pressed
+      ✔ should attach input listener to textarea for validation
+      ✔ should reference submitButton element in script
+      ✔ should include disabled button styles
+      ✔ should include secondary button hover styles
+      ✔ validation logic should work with empty initial value
+      ✔ validation logic should work with whitespace-only initial value
+      ✔ validation logic should work with valid initial value
+      ✔ should not allow keyboard shortcut submission when validation fails
+      ✔ should preserve Escape key handler for cancellation
+      ✔ validation should work with checkboxes present
+      ✔ should structure validation check before postMessage in submit function
+      ✔ should include complete validation flow in correct order
+      ✔ should handle edge case of single space character
+      ✔ should handle edge case of tabs and newlines only
+      ✔ should properly handle validation with special characters in value
+      ✔ should include nonce in all script and style tags
+      ✔ should include base-uri 'none' in Content-Security-Policy
+      ✔ should set submitButton disabled state based on validation result
+      ✔ should prevent default on Cmd/Ctrl+Enter before validation
+      ✔ should return validation result from validate function
+      ✔ should use correct validation threshold of greater than 0
+      ✔ should validate empty string value correctly
+      ✔ should have submitButton click listener use submit function
+      ✔ validation should not interfere with cancel button functionality
+      ✔ should show loading state on submit
+      ✔ should include prefers-reduced-motion media query for spinner
+      ✔ should update aria-label and title in validate function
+      ✔ should disable checkboxes in loading state when present
+
+  ErrorUtils Unit Test Suite
+    ✔ sanitizeError handles standard Error objects
+    ✔ sanitizeError escapes newlines in error message
+    ✔ sanitizeError preserves stack trace structure but sanitizes lines
+    ✔ sanitizeError handles non-Error objects (string)
+    ✔ sanitizeError handles non-Error objects (number)
+    ✔ sanitizeError handles null/undefined
+    ✔ sanitizeError truncates very long error messages
+
+  applyPatchLocally command ユニットテスト
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+    ✔ item がない場合は何もしないこと
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+    ✔ cached ChangeSet に patch がない場合は最新 artifacts を再取得してから適用すること
+
+  Extension helper unit tests
+    state and source helpers
+      ✔ mapApiStateToSessionState should map known and unknown states
+      ✔ source helpers should prefer githubRepo metadata and fall back safely
+      ✔ extractPRs should deduplicate PRs by URL and keep first-seen order
+    comparison and activity helpers
+      ✔ isInferredActivityLogKey should exclude known base and union keys
+      ✔ session comparison helpers should detect equality and mismatches
+      ✔ activity helpers should merge by identity and pick the latest timestamp
+      ✔ endpoint builders should include pagination parameters
+    checkPRStatus
+      ✔ should use token if provided and check github status without token if undefined
+Jules: Failed to fetch PR status: 404 Not Found
+      ✔ should handle 4xx/5xx API errors properly and cache as error
+Jules: Invalid GitHub PR URL format: https://evil-github.com/org/repo/pull/123
+Jules: Invalid GitHub PR URL format: https://github.com/org/repo/issue/123
+Jules: Invalid GitHub PR URL format: https://evil.com/github.com/org/repo/pull/123
+Jules: Invalid GitHub PR URL format: https://github.com.evil.com/org/repo/pull/123
+Jules: Invalid GitHub PR URL format: http://github.com/org/repo/pull/123
+Jules: Invalid GitHub PR URL format: ftp://github.com/org/repo/pull/123
+      ✔ should return false for invalid GitHub PR URLs without fetching
+      ✔ should parse GitHub API pull request URLs
+Jules: Invalid GitHub PR URL format: not-a-github-pr-url
+      ✔ should return false for completely malformed URLs without fetching
+      ✔ should handle fetch exceptions and cache as error (49ms)
+      ✔ should group only numeric pull request URLs by host and repository
+    updatePreviousStates
+Jules: Saved 2 session states to global state.
+      ✔ deduplicates PR status checks for shared PR URLs
+Jules: Session sessions/pr-status-throws-2 is now terminated because its PR is closed.
+Jules: Saved 2 session states to global state.
+      ✔ continues checking remaining URLs in a repo group when one status fetch fails (108ms)
+Jules: Session sessions/pr-status-closed-1 is now terminated because its PR is closed.
+Jules: Session sessions/pr-status-closed-2 is now terminated because its PR is closed.
+Jules: Saved 2 session states to global state.
+      ✔ reuses cached session PRs and terminates sessions when all PRs are closed
+Jules: Saved 1 session states to global state.
+      ✔ skips token fetch when all PRs are freshly cached
+Jules: Failed to fetch PR status: 404 Not Found
+Jules: Saved 1 session states to global state.
+Jules: Session sessions/error-cache is now terminated because its PR is closed.
+Jules: Saved 1 session states to global state.
+      ✔ re-fetches error cached entries after PR_ERROR_CACHE_DURATION
+Jules: Saved 1 session states to global state.
+      ✔ does not terminate COMPLETED session with no PRs
+    SessionTreeItem and openInWebApp
+      ✔ SessionTreeItem should expose artifacts, command, and tooltip metadata
+      ✔ handleOpenInWebApp should open URLs and report missing selections
+    createRemoteBranch
+[Jules] Getting current branch SHA...
+[Jules] Current branch SHA: fake-sha-123
+[Jules] Creating remote branch: new-branch
+[Jules] Remote branch created: refs/heads/new-branch
+      ✔ should create a remote branch successfully
+[Jules] Getting current branch SHA...
+[Jules] Current branch SHA: fake-sha-123
+[Jules] Creating remote branch: new-branch
+[Jules] GitHub API error response: {"message":"Validation Failed"}
+[Jules] Failed to create remote branch: GitHub API error: 422 - Validation Failed
+      ✔ should surface GitHub API errors from createRemoteBranch
+    Command Registration and Execution Tests
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.setApiKey executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.refreshSessions executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.createSession executes successfully without source
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.verifyApiKey executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.clearCache executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules.showFailureReason executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.openInWebApp executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.deleteSession executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.checkoutToBranch executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.openLatestDiff executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.openChangeset executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.applyPatchLocally executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.reviewPlan executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.approvePlan executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.sendMessage executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules.filterActivities executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.showActivities executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.refreshActivities executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.listSources executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.openSettings executes successfully
+Jules Extension is now active
+Jules: Loaded 0 previous session states from global state.
+Jules: TreeView created
+Jules: Starting initial refresh...
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+      ✔ jules-extension.openPRInBrowser executes successfully
+    Exported helper functions
+      ✔ mapApiStateToSessionState handles all states
+      ✔ extractPRs deduplicates PR URLs
+      ✔ extractPRs handles empty outputs
+      ✔ areOutputsEqual compares outputs correctly
+      ✔ areSessionListsEqual compares sessions correctly
+      ✔ isInferredActivityLogKey correctly identifies keys
+      ✔ getSourceIsPrivate correctly identifies private sources
+      ✔ getSourceDisplayName formats source names
+      ✔ buildSessionsListEndpoint constructs URL correctly
+      ✔ buildActivitiesListEndpoint constructs URL correctly
+      ✔ getLatestActivityCreateTime gets the latest time
+      ✔ mergeActivitiesByIdentity merges activities
+      ✔ buildActivitySummaryHeader creates summary
+
+  FetchUtils ユニットテスト
+    ✔ fetchWithTimeout はサポートされていないプロトコルの絶対URLでエラーをスローすること
+    ✔ fetchWithTimeout は相対パスのURLを正しく通過させること
+    ✔ fetchWithTimeout はタイムアウト内に完了した場合、成功すること
+    ✔ fetchWithTimeout はfetchが失敗した場合、エラーをスローすること
+    ✔ fetchWithTimeout はタイムアウト時にシグナルを中断（Abort）すること
+    ✔ HTTPプロキシ設定時はglobal fetchを使わずプロキシ接続を試行すること (44ms)
+    ✔ SOCKSプロキシ接続失敗時はエラーを伝搬すること
+    ✔ プロキシ経由リクエストはAbortSignalで中断できること
+    ✔ HTTPプロキシ設定を解除すると通常のfetchに戻ること
+
+  Galactic Operations Suite / 銀河演算スイート
+    ✔ calculateUniversalMeaningは42を返すべき (Returns 42)
+
+  GitHubAuth Unit Test Suite
+    ✔ signIn should request a session and return the access token
+    ✔ signIn should clear cache when returning no session
+    ✔ signIn should show an error and return undefined on failure
+    ✔ signIn should ignore stale session for cache after cache clear
+    ✔ getSession should request a non-creating session
+    ✔ getSession should return undefined when the request fails
+    ✔ getSession should dedupe concurrent session fetches
+    ✔ getSession should ignore stale results after cache clear
+    ✔ getSession should clear cache when GitHub sessions change
+    ✔ getSession should ignore auth change events for other providers or missing providers
+    ✔ getToken should return cached token if fresh
+    ✔ getToken should return undefined when no session exists
+    ✔ getUserInfo should return undefined when session is falsy
+    ✔ getUserInfo and isSignedIn should reflect the active session
+
+  githubUtils
+    parseGitHubUrl
+      ✔ should parse https url correctly
+      ✔ should parse https url with .git correctly
+      ✔ should parse ssh url correctly
+      ✔ should return null for invalid urls
+    getOctokitInstance
+      ✔ should use default factory to return an Octokit instance
+    getPullRequestBranchInfo
+      ✔ should return null if API request fails
+      ✔ should return null if API request fails with non-Error
+      ✔ should return null if PR head repo is null
+      ✔ should return branch info successfully
+      ✔ should return correct state when merged is true
+    createRemoteBranch
+      ✔ should create branch successfully
+      ✔ should throw error if factory throws
+      ✔ should throw error if repos.get rejects
+      ✔ should throw error if git.getRef rejects
+      ✔ should throw error if git.createRef rejects
+
+  gitUtils
+    getGitApi
+      ✔ should throw an error if vscode.git extension is not found
+      ✔ should throw an error if git extension does not return an API
+      ✔ should return git api successfully
+    getRepositoryForWorkspaceFolder
+      ✔ should return null if repository is not found
+      ✔ should return repository if found
+    getRemoteUrl
+      ✔ should return null if there are no remotes
+      ✔ should return null if no remote has fetchUrl or pushUrl
+      ✔ should return origin remote url
+      ✔ should fallback to first remote with url if origin not found
+    getCurrentBranchSha
+      ✔ should return null if no workspace folders exist
+      ✔ should handle errors thrown by getGitApi
+      ✔ should return null if repository not found
+      ✔ should return HEAD commit SHA
+
+  inlineCommands Test Suite
+    ✔ JulesCodeActionProvider returns actions for non-empty range
+    ✔ JulesCodeActionProvider returns undefined for empty range
+    ✔ buildInlineTaskPrompt should use a safe fence length for snippets with backticks
+    ✔ JulesCodeLensProvider returns no lenses and skips symbol lookup when disabled
+    ✔ JulesCodeLensProvider returns lenses for nested symbols
+    ✔ JulesCodeLensProvider logs and returns empty array when symbol lookup fails
+    ✔ handleInlineTask logs and reports when the target document cannot be opened
+    ✔ handleInlineTask shows an error when the file is outside the workspace
+    ✔ handleInlineTask stops before branch loading when the API key is missing
+    ✔ handleInlineTask stops when no specific source is selected
+    ✔ handleInlineTask stops when branch selection is cancelled
+    ✔ handleInlineTask creates a session when all inputs are valid
+    ✔ registerInlineCommands registers providers and commands
+
+  JulesApiClient Test Suite
+    getSource
+      ✔ should make correct request
+      ✔ should throw error on API failure
+    getActivity
+      ✔ should make correct request
+      ✔ should encode activity ID path segment
+      ✔ should throw error on API failure
+      ✔ should throw error on network failure
+    listAllSources
+      ✔ should paginate through all sources with pageSize=100
+      ✔ should pass filter parameter when provided
+
+  julesApiConstants Unit Tests
+    ✔ JULES_API_BASE_URL should be correctly defined
+    ✔ ALL_SOURCES_ID should be correctly defined
+
+  markdownFencing Unit Tests
+    ✔ buildFencedCodeBlock should build a basic code block
+    ✔ buildFencedCodeBlock should adjust backticks if code contains 3 backticks
+    ✔ buildFencedCodeBlock should handle empty code
+    ✔ buildFencedCodeBlock should work with no backticks in code
+
+  mergeActivitiesByIdentity Unit Tests
+    ✔ should return existing when incoming is empty
+    ✔ should correctly calculate counts and buildActivitySummaryHeader should use them
+    ✔ buildActivitySummaryHeader should refresh cached counts when the array length changes
+    ✔ should count only merged activities when existing contains duplicate keys
+    ✔ should merge unique activities and keep chronological order
+    ✔ buildActivitySummaryHeader should handle empty activities array
+    ✔ mergeActivitiesByIdentity should handle activities without name or id
+    ✔ mergeActivitiesByIdentity should fallback to localeCompare for sorting when times are equal or NaN
+    ✔ mergeActivitiesByIdentity should fallback to localeCompare when times are exactly equal
+    ✔ buildActivitySummaryHeader should handle activities with undefined createTime
+    ✔ buildActivitySummaryHeader should count raw activities without identity keys
+
+  Performance Optimization - getCurrentBranch
+    ✔ Baseline: showQuickPick is called when multiple repositories exist
+    ✔ Optimization: showQuickPick is NOT called when silent mode is enabled
+    ✔ Optimization: correctly infers repository from active editor in silent mode
+
+  Performance Benchmark - Prefetch Blocking
+Jules: refresh() called (isBackground: false, forceUIUpdate: false), starting fetch.
+Jules: Saved 5 session states to global state.
+    ✔ Benchmark: refresh() duration (non-blocking prefetch) (215ms)
+
+  formatFullPlan
+    ✔ formats plan with all fields
+    ✔ uses session title in header when provided
+    ✔ uses default header when session title is missing
+    ✔ formats steps with only title
+    ✔ formats steps with only description
+    ✔ handles string steps
+    ✔ skips empty steps
+    ✔ handles empty steps array
+    ✔ handles undefined steps
+    ✔ handles empty plan object gracefully
+
+  JulesPlanDocumentProvider
+    ✔ returns content for registered URI
+    ✔ returns empty string for unregistered URI
+    ✔ clears content for URI
+    ✔ buildUri creates correct URI format
+    ✔ handles multiple sessions independently
+
+  reviewPlanForSession
+    ✔ shows error if session ID is invalid
+    ✔ shows error if no plan is available
+    ✔ formats plan, opens document, and shows approve prompt
+    ✔ does not call onApprove if dismissed
+    ✔ handles errors gracefully
+
+  Plan Notification Formatting
+    ✔ uses title as fallback when description is missing
+    ✔ skips empty description steps and compacts numbering
+    ✔ ignores empty object steps
+    ✔ handles string steps
+    ✔ handles empty steps safely
+    ✔ clamps negative maxSteps to 0 and excludes steps
+    ✔ clamps zero maxSteps and excludes steps
+    ✔ clamps maxStepLength below 4 to ensure ... can fit
+    ✔ clamps maxStepLength=1 and handles truncation safely
+    ✔ handles non-array steps gracefully
+    ✔ skips empty title and only shows steps
+    ✔ handles floats in maxSteps and maxStepLength by flooring
+
+  planUtils Unit Tests
+    formatPlanStepText
+      ✔ should process valid string steps
+      ✔ should process object steps with description
+      ✔ should fallback to title if description is missing or empty
+      ✔ should return null for invalid object formats
+    formatPlanForNotification
+      ✔ should format plan with title and no steps
+      ✔ should format plan with title and steps
+      ✔ should truncate long steps
+      ✔ should truncate number of steps
+      ✔ should ignore empty steps
+      ✔ should clamp maxSteps to 0 and maxStepLength to 4
+      ✔ should handle completely empty plan gracefully
+    formatFullPlan
+      ✔ should format full plan with session title
+      ✔ should format full plan without session title
+      ✔ should handle empty plan or missing steps
+      ✔ should handle all steps being empty or invalid
+
+  promptUtils
+    ✔ enforceJapanese=true appends Japanese instruction
+    ✔ enforceJapanese=false returns base prompt without Japanese instruction
+    ✔ custom prompt is prepended when enforceJapanese=true
+    ✔ custom prompt is prepended when enforceJapanese=false
+    ✔ empty custom prompt is ignored
+    ✔ undefined custom prompt is treated as empty
+
+  Security Utils Test Suite
+    ✔ stripUrlCredentials should remove credentials from HTTPS URLs
+    ✔ stripUrlCredentials should remove username only from HTTPS URLs
+    ✔ stripUrlCredentials should handle URLs without credentials
+    ✔ stripUrlCredentials should handle HTTP URLs
+    ✔ stripUrlCredentials should keep path intact
+    ✔ stripUrlCredentials should return SSH URLs as is
+    ✔ stripUrlCredentials should return malformed URLs as is (fallback)
+    ✔ stripUrlCredentials should handle complex passwords
+    ✔ stripUrlCredentials should strip credentials from malformed URLs (fallback)
+    ✔ sanitizeForLogging should escape newlines and tabs
+    ✔ sanitizeForLogging should truncate long strings
+    ✔ sanitizeForLogging should handle null/undefined
+    ✔ sanitizeForLogging should handle numbers
+    ✔ sanitizeForLogging should remove non-printable control characters
+    ✔ sanitizeForLogging should strip ANSI escape codes
+    ✔ sanitizeForLogging should strip multiple ANSI codes in sequence
+    ✔ sanitizeForLogging should strip ANSI codes with various parameters
+    ✔ sanitizeForLogging should strip ANSI cursor movement codes
+    ✔ sanitizeForLogging should strip complex RGB ANSI codes
+    ✔ sanitizeForLogging should handle ANSI codes at string boundaries
+    ✔ sanitizeForLogging should strip ANSI codes and truncate correctly
+    ✔ sanitizeForLogging should handle ANSI codes with control characters
+    ✔ sanitizeForLogging should strip ANSI and remove non-printable chars together
+    ✔ sanitizeForLogging should handle empty ANSI sequences
+    ✔ sanitizeForLogging should handle OSC (Operating System Command) sequences
+    ✔ sanitizeForLogging should handle OSC sequences terminated by ST
+    ✔ sanitizeForLogging should handle repeated incomplete CSI prefixes
+    ✔ sanitizeForLogging should strip a trailing escape character
+    ✔ sanitizeForLogging should strip two-character escape sequences
+    ✔ sanitizeForLogging should preserve text after unknown escape prefixes
+    ✔ sanitizeForLogging should handle malformed ANSI-like sequences
+    ✔ sanitizeForLogging should use strict equality for null check
+    ✔ sanitizeForLogging should not treat 0 as null or undefined
+    ✔ sanitizeForLogging should not treat empty string as null or undefined
+    ✔ sanitizeForLogging should not treat false as null or undefined
+    ✔ sanitizeForLogging should handle maxLength of 0
+    ✔ sanitizeForLogging should handle maxLength of 1
+    ✔ sanitizeForLogging should handle maxLength of 2
+    ✔ sanitizeForLogging should handle exact length match
+    ✔ sanitizeForLogging should handle string one char longer than max
+    ✔ sanitizeForLogging should handle GitHub API error response with ANSI
+    ✔ sanitizeForLogging should handle stack traces with ANSI codes
+    ✔ sanitizeForLogging should handle JSON with ANSI formatting
+    ✔ sanitizeForLogging should handle boolean values
+    ✔ sanitizeForLogging should handle object values
+    ✔ sanitizeForLogging should handle array values
+    ✔ sanitizeForLogging should handle NaN
+    ✔ sanitizeForLogging should handle Infinity
+    ✔ sanitizeForLogging should strip ANSI before calculating length for truncation
+    ✔ sanitizeForLogging should handle multiple ANSI codes before truncating
+    ✔ sanitizeForLogging should handle very long strings efficiently
+    ✔ sanitizeForLogging should handle strings with only ANSI codes
+    ✔ sanitizeForLogging should handle alternating ANSI and text
+    ✔ sanitizeForLogging should handle mix of \n, \r, \t
+    ✔ sanitizeForLogging should handle \r\n (Windows line ending)
+    ✔ sanitizeForLogging should preserve spaces while removing control chars
+    ✔ sanitizeForLogging should preserve Unicode characters
+    ✔ sanitizeForLogging should handle Unicode with ANSI codes
+    ✔ sanitizeForLogging should handle emoji with ANSI codes
+    ✔ stripUrlCredentials should handle empty string
+    ✔ stripUrlCredentials should handle URL with port
+    ✔ stripUrlCredentials should handle URL with query parameters
+    ✔ stripUrlCredentials should handle URL with fragment
+    ✔ stripUrlCredentials should handle URL with special chars in password
+    ✔ stripUrlCredentials should handle URL with @ in path
+    ✔ stripUrlCredentials should handle ftp URLs as-is
+    ✔ stripUrlCredentials should handle git protocol URLs
+    ✔ stripUrlCredentials should handle file protocol URLs
+    ✔ stripUrlCredentials should handle URL with IPv4 address
+    ✔ stripUrlCredentials should handle URL with IPv6 address
+    ✔ stripUrlCredentials should handle multiple @ symbols in credentials
+    isValidSessionId
+      ✔ should return true for valid session IDs
+      ✔ should return false for path traversal
+      ✔ should return false for invalid characters
+      ✔ should return false for empty or non-string inputs
+
+  SessionArtifacts ユニットテスト
+    extractLatestArtifactsFromActivities
+      ✔ 空の配列を渡した場合、空のオブジェクトを返すこと
+      ✔ null や undefined を渡した場合でもエラーにならないこと
+      ✔ gitPatch.diff から最新の diff を抽出すること
+      ✔ artifacts.changeSet.gitPatch.unidiffPatch から diff を抽出すること
+      ✔ 複数のアクティビティがある場合、最新の diff を返すこと
+      ✔ 空の diff 文字列は無視されること
+      ✔ changeSet から files を抽出すること
+      ✔ changeSet.files が存在しない場合、changes から抽出すること
+      ✔ changeSet.entries から抽出すること
+      ✔ changeSet.changedFiles から抽出すること
+      ✔ null / undefined の artifact を含んでも安全にスキップすること
+      ✔ changeSet.paths から抽出すること
+      ✔ 文字列配列からファイルパスを抽出すること
+      ✔ path 以外の代替フィールド名（filePath, file, name, filename）からパスを抽出すること
+      ✔ status 以外の代替フィールド名（action, type）からステータスを抽出すること
+      ✔ 先頭のスラッシュを削除すること
+      ✔ 重複したパスを除外すること
+      ✔ 空文字列やホワイトスペースのみのパスを無視すること
+      ✔ changeSet が見つからない場合、フォールバックで diff から抽出すること
+      ✔ diff から複数のファイルを抽出すること
+      ✔ 引用符で囲まれたスペースを含むパスやエスケープされた文字を抽出すること
+      ✔ 引用符で囲まれた octal escape の Unicode パスを抽出すること
+      ✔ 無効な形式の diff を処理すること
+      ✔ 複数の artifacts から最新の changeSet を抽出すること
+    areChangeSetFilesEqual Optimization
+      ✔ should correctly compare multiset of files using Map lookup
+    updateSessionArtifactsCache
+      ✔ areChangeSetFilesEqual missing parameters and differing lengths
+      ✔ キャッシュが空の場合、新しいエントリを追加し true を返すこと
+      ✔ diff が変更されていない場合、false を返すこと
+      ✔ diff が変更された場合、true を返すこと
+      ✔ changeSet が変更された場合、true を返すこと
+      ✔ changeSet のファイル順序が異なっても同じとみなすこと
+      ✔ changeSet のファイル数が異なる場合、true を返すこと
+      ✔ changeSet のステータスが異なる場合、true を返すこと
+      ✔ changeSet のファイルが同じでも gitPatch が復元された場合は true を返すこと
+    getCachedSessionArtifacts
+      ✔ 存在しないセッション ID の場合、undefined を返すこと
+      ✔ キャッシュされたセッションの場合、正しい値を返すこと
+    globalState 永続化
+      ✔ 永続化データからキャッシュを復元できること
+      ✔ TTL超過エントリは復元時に破棄されること
+      ✔ 復元時に上限件数を超えたら古いものから落とすこと
+      ✔ evictOldestArtifactsEntryIfNeeded_new logic should correctly execute firstKey check
+      ✔ evictOldestArtifactsEntryIfNeeded correctly handles early return and branch coverage
+      ✔ 大きすぎるdiffは永続化されないこと
+    fetchLatestSessionArtifacts
+      ✔ API からアクティビティを取得し、キャッシュに保存すること
+      ✔ API が失敗した場合、エラーをスローすること
+      ✔ API が activities 配列以外を返した場合、エラーをスローすること
+      ✔ API が空のオブジェクトを返した場合、正常に処理されること
+      ✔ カスタム API ベース URL を使用できること
+      ✔ API キーがヘッダーに正しく設定されること
+    エッジケースとエラーハンドリング
+      ✔ ネストされた複雑な構造からもファイルを抽出できること
+      ✔ 非常に長いファイルパスを処理できること
+      ✔ 特殊文字を含むファイルパスを処理できること
+      ✔ Unicode 文字を含むファイルパスを処理できること
+      ✔ 数値型のプロパティを無視すること
+      ✔ null や undefined のプロパティを無視すること
+      ✔ 空の artifacts 配列を処理できること
+      ✔ artifacts が undefined の場合を処理できること
+      ✔ changeSet が null の場合を処理できること
+      ✔ 大量のアクティビティを効率的に処理できること
+    Performance Optimization
+      ✔ updateTimeが一致する場合、ネットワーク呼び出しをスキップしてキャッシュを返すこと
+      ✔ updateTimeが異なる場合、ネットワーク呼び出しを行うこと
+    Performance Optimization (Fetch Strategy)
+      ✔ 最適化フェッチが成功（降順）した場合、フォールバックせずに返却すること
+      ✔ 最適化フェッチが昇順（古い順）で返ってきた場合、フォールバックすること
+      ✔ 最適化フェッチでアーティファクトが見つからない場合、フォールバックすること
+      ✔ 最適化フェッチがエラーの場合、フォールバックすること
+    Phase 5-2: ChangeSetSummary extraction of baseCommitId and suggestedCommitMessage
+      ✔ extractLatestArtifactsFromActivities extracts baseCommitId and suggestedCommitMessage
+      ✔ gitPatch itself is missing
+      ✔ baseCommitId と suggestedCommitMessage が文字列でない場合は無視すること
+      ✔ old cache format (re-extracted from raw)
+    Coverage Bypass
+      ✔ impossible branch
+
+  sessionContextMenu checkout coverage suite
+    ✔ selectRepository returns the only repository without prompting
+    ✔ selectRepository returns null when multi-root selection is cancelled
+    ✔ selectRepository returns the chosen repository in multi-root workspaces
+    ✔ handleUncommittedChanges returns true when repository is clean
+    ✔ handleUncommittedChanges returns false when user cancels
+    ✔ handleUncommittedChanges stashes and proceeds when user selects stash
+    ✔ handleUncommittedChanges returns false when stash fails
+    ✔ checkoutToBranch returns false when the Git extension is unavailable
+[Jules] Repository selection cancelled
+    ✔ checkoutToBranch returns false when checkout is cancelled by repository selection
+[Jules] Checking out to branch: feature/test
+[Jules] Successfully checked out to branch: feature/test
+    ✔ checkoutToBranch performs a successful checkout when repository is clean
+[Jules] Checking out to branch: feature/test
+[Jules] Branch "feature/test" not found locally, attempting to fetch from remote...
+[Jules] Fetched from remotes successfully
+[Jules] Successfully checked out to branch: feature/test
+    ✔ checkoutToBranch falls back to fetch and checkout when the branch is missing locally
+[Jules] Checking out to branch: feature/test
+[Jules] Branch "feature/test" not found locally, attempting to fetch from remote...
+    ✔ checkoutToBranch returns false when fetch fallback is cancelled
+[Jules] Checking out to branch: feature/test
+[Jules] Checkout failed: permission denied
+    ✔ checkoutToBranch returns false for non-repository checkout failures
+[Jules] No PR URL found in session
+    ✔ fetchBranchInfoFromPR returns null when no PR URL is available
+[Jules] Fetching PR info from GitHub API: owner/repo#123
+[Jules] GitHub authentication not available, falling back to session data
+    ✔ fetchBranchInfoFromPR returns null when token is unavailable
+[Jules] Fetching PR info from GitHub API: owner/repo#123
+[Jules] PR branch info retrieved: head=feature/pr-123, owner=fork-owner/fork-repo
+    ✔ fetchBranchInfoFromPR returns branch info when API call succeeds
+[Jules] Attempting to fetch branch info from GitHub API...
+[Jules] Fetching PR info from GitHub API: owner/repo#123
+[Jules] GitHub authentication not available, falling back to session data
+[Jules] GitHub API unavailable or failed, using session data fallback...
+[Jules] Using fallback branch from session: feature/fallback
+[Jules] Successfully checked out to branch: feature/fallback
+    ✔ checkoutToBranchForSession falls back to the session branch when GitHub API is unavailable
+[Jules] Attempting to fetch branch info from GitHub API...
+[Jules] No PR URL found in session
+[Jules] GitHub API unavailable or failed, using session data fallback...
+    ✔ checkoutToBranchForSession returns false when no branch information exists anywhere
+[Jules] Attempting to fetch branch info from GitHub API...
+[Jules] Fetching PR info from GitHub API: owner/repo#123
+[Jules] PR branch info retrieved: head=feature/pr-123, owner=fork-owner/fork-repo
+[Jules] PR branch info found: feature/pr-123 from fork-owner/fork-repo
+[Jules] Fetching from remote "origin"...
+[Jules] Fetched from remote "origin" successfully
+[Jules] Local branch not found, trying tracking branch: origin/feature/pr-123
+[Jules] Created local branch "feature/pr-123" from "origin/feature/pr-123"
+    ✔ checkoutToBranchForSession uses PR branch info and remote tracking checkout
+[Jules] Attempting to fetch branch info from GitHub API...
+[Jules] Fetching PR info from GitHub API: owner/repo#123
+[Jules] PR branch info retrieved: head=feature/pr-123, owner=fork-owner/fork-repo
+[Jules] PR branch info found: feature/pr-123 from fork-owner/fork-repo
+[Jules] GitHub API checkout failed, falling back to session data...
+    ✔ checkoutToBranchForSession returns false when fork remote addition is cancelled
+    ✔ openPullRequestInBrowser handles success and failure paths
+
+  sessionContextMenu Test Suite
+    getBranchNameForSession
+      ✔ should return branch name when sourceContext.githubRepoContext.startingBranch is present
+      ✔ should trim whitespace from branch name
+      ✔ should return null when sourceContext is undefined
+      ✔ should return null when githubRepoContext is undefined
+      ✔ should return null when startingBranch is undefined
+      ✔ should return null when startingBranch is empty string
+      ✔ should return null when startingBranch is only whitespace
+      ✔ should handle various branch name formats
+    parsePullRequestUrl
+      ✔ should parse valid GitHub PR URL
+      ✔ should parse PR URL with trailing segments
+      ✔ should return null for non-GitHub URL
+      ✔ should return null for invalid URL format
+      ✔ should return null for GitHub URL without pull path
+      ✔ should return null for GitHub issue URL (not PR)
+      ✔ should return null for invalid PR number
+      ✔ should return null for zero PR number
+      ✔ should return null for negative PR number
+      ✔ should handle exception during parsePullRequestUrl
+    getPullRequestUrlForSession (Session fallback scenarios)
+      ✔ should return null when session is null or undefined
+      ✔ should return null for non-object inputs without throwing
+      ✔ should cache and return the same result on subsequent calls
+      ✔ should not cache null results when session data becomes available later
+      ✔ should handle exception during PR URL extraction and return null
+      ✔ should return null when session has no outputs
+      ✔ should return null when outputs array is empty
+      ✔ should return null when outputs have no pullRequest
+      ✔ should return canonical URL when pullRequest has valid URL
+      ✔ should return null for pullRequest with invalid URL
+      ✔ should return null for pullRequest with non-https URL
+      ✔ should return null for pullRequest with non-GitHub URL
+      ✔ should strip query string from PR URL
+      ✔ should find pullRequest in outputs array with multiple items
+    Fallback Behavior Integration Tests
+      ✔ getBranchNameForSession provides fallback when no PR URL available
+      ✔ getBranchNameForSession returns null when fallback is also unavailable
+      ✔ session with both PR and branch info should allow either path
+
+  Session Context Menu Artifacts Security Suite
+    ✔ should reject absolute paths
+    ✔ should reject path traversal attempts that go outside workspace
+    ✔ should allow valid paths within workspace
+    ✔ should handle missing files gracefully
+    ✔ should check multiple workspace folders
+
+  JulesDiffDocumentProvider
+    ✔ should return empty string for unknown URI
+    ✔ should store and retrieve content for URI
+    ✔ should build correct URI for before patch
+    ✔ should build correct URI for after patch
+    ✔ should normalize session ID by removing 'sessions/' prefix
+    ✔ should handle session ID without 'sessions/' prefix
+    ✔ should maintain separate content for different URIs
+    ✔ should overwrite existing content
+
+  Session Context Menu Artifacts Openers
+    ✔ openLatestDiffForSession rejects invalid session IDs
+    ✔ openLatestDiffForSession opens a cached diff document
+    ✔ openLatestDiffForSession shows an error when no diff is available
+    ✔ openChangesetForSession shows an error when no files exist
+    ✔ openChangesetForSession opens a selected file from the workspace
+    ✔ openChangesetForSession shows an error when the selected file is missing
+
+  sessionUtils Test Suite
+    ✔ createJulesSession succeeds when valid response is returned
+    ✔ createJulesSession throws error when response is not ok
+    ✔ sendMessage succeeds when API returns OK
+    ✔ sendMessage throws error when API fails
+    ✔ fetchSingleActivity returns activity details
+    ✔ fetchSingleActivity throws wrapped error on failure
+    ✔ fetchSingleActivity preserves original error as cause
+
+  sessionUtils recoverCorruptedActivities
+    ✔ should skip if no corrupted activities
+    ✔ should fetch and replace corrupted activities
+    ✔ should handle missing activities field in response
+    ✔ should paginate correctly when item is found on subsequent pages
+    ✔ should break early if MAX_PAGES exceeded
+    ✔ should skip non-corrupted activities in recovered loop
+    ✔ should handle missing activities field in response gracefully
+    ✔ should return early when activities length is 0
+    ✔ should handle fetch error response (!response.ok)
+    ✔ should fallback if fetch fails
+    handleUserFeedbackRequired
+      ✔ should use autoReplyMessage when configured
+      ✔ should fallback to manual prompt when autoReplyMessage throws
+      ✔ should fallback to manual prompt when autoReplyMessage is empty
+
+  tooltipUtils Unit Tests
+    privacy helpers
+      ✔ getPrivacyIcon returns expected icon
+      ✔ getPrivacyStatusText returns expected text
+    state description helper
+      ✔ getStateDescription returns known and unknown mappings
+    buildSessionTooltip
+      ✔ builds minimal tooltip and falls back to session name when title is missing
+      ✔ renders detailed tooltip with de-duplicated PRs, artifacts, source info, timestamps, and failure reason
+      ✔ renders diff-only artifacts when only hasDiff is true
+      ✔ renders manual and custom automation modes plus public source formatting
+
+  Types Test Suite
+    Source Type
+      ✔ should accept isPrivate field as true
+      ✔ should accept isPrivate field as false
+      ✔ should accept Source without isPrivate field (optional)
+      ✔ should work with all Source fields
+
+
+  650 passing (2s)
+
+
+=============================== Coverage summary ===============================
+Statements   : 77.33% ( 7449/9632 )
+Branches     : 84.17% ( 1394/1656 )
+Functions    : 82.3% ( 214/260 )
+Lines        : 77.33% ( 7449/9632 )
+================================================================================
