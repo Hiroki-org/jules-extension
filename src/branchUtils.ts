@@ -98,12 +98,18 @@ function areArraysEqual(a: string[], b: string[]): boolean {
     if (a.length !== b.length) {
         return false;
     }
-    const sortedA = [...a].sort();
-    const sortedB = [...b].sort();
-    for (let i = 0; i < sortedA.length; i++) {
-        if (sortedA[i] !== sortedB[i]) {
+    // ⚡ Bolt 最適化: O(N log N) のソート処理を O(N) の Map 集計に置換
+    // SetではなくMapを使用することで、多重集合（重複する要素を持つ配列）を正しく処理します。
+    const counts = new Map<string, number>();
+    for (const item of a) {
+        counts.set(item, (counts.get(item) || 0) + 1);
+    }
+    for (const item of b) {
+        const count = counts.get(item);
+        if (!count) {
             return false;
         }
+        counts.set(item, count - 1);
     }
     return true;
 }

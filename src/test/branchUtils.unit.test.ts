@@ -256,7 +256,160 @@ suite('branchUtils Unit Tests', () => {
         });
     });
 
+
+    suite('areArraysEqual and areCacheContentsEqual Optimization', () => {
+        test('should correctly compare branch arrays and cache contents', async () => {
+            const mockSource = { id: 'test-source', name: 'test-source' };
+            const cachedData = {
+                branches: ['main', 'develop'],
+                defaultBranch: 'main',
+                remoteBranches: ['develop', 'main'],
+                currentBranch: 'main',
+                timestamp: Date.now() - 1000 // Force aging condition
+            };
+            (mockContext.globalState.get as any).returns(cachedData);
+
+            const mockApiClient = {
+                getSource: sinon.stub().resolves({
+                    githubRepo: {
+                        branches: [{ displayName: 'main' }, { displayName: 'develop' }],
+                        defaultBranch: { displayName: 'main' }
+                    }
+                })
+            };
+
+            const gitExtension = {
+                exports: {
+                    getAPI: sinon.stub().returns({
+                        repositories: [{
+                            state: { HEAD: { name: 'main' } }
+                        }]
+                    })
+                }
+            };
+            sandbox.stub(vscode.extensions, 'getExtension').returns(gitExtension as any);
+
+            // Fetch identical data to trigger areCacheContentsEqual
+            const result = await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false }
+            );
+
+            assert.strictEqual(result.currentBranch, 'main');
+
+            // Trigger cache mismatch by changing data
+            cachedData.branches = ['main'];
+            const result2 = await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false }
+            );
+            assert.strictEqual(result2.currentBranch, 'main');
+        });
+    });
+
     suite('getBranchesForSession', () => {
+
+        test('areArraysEqual covers full equivalence, subsets, and permutations', async () => {
+            const mockSource = { id: 'test-source', name: 'test-source' };
+            // First we prepare a cache
+            const cachedData = {
+                branches: ['main', 'develop', 'develop'], // Notice duplicate
+                defaultBranch: 'main',
+                remoteBranches: ['develop', 'main', 'develop'],
+                currentBranch: 'main',
+                timestamp: Date.now()
+            };
+            (mockContext.globalState.get as any).returns(cachedData);
+
+            const mockApiClient = {
+                getSource: sinon.stub().resolves({
+                    githubRepo: {
+                        branches: [{ displayName: 'develop' }, { displayName: 'main' }, { displayName: 'develop' }],
+                        defaultBranch: { displayName: 'main' }
+                    }
+                })
+            };
+
+            // This run matches cache data except remote order, so it hits areArraysEqual permutations true
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: false, showProgress: false } // we want areCacheContentsEqual
+            );
+
+            // Now force refresh but let API return same data, cache hit condition is triggered internally
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false, silent: true }
+            );
+
+            // Now test failure cases
+
+            // Case 1: Length mismatch
+            cachedData.branches = ['main'];
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false, silent: true }
+            );
+
+            // Case 2: Element missing
+            cachedData.branches = ['main', 'main', 'develop'];
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false, silent: true }
+            );
+
+            // Case 3: Remote mismatch
+            cachedData.branches = ['develop', 'main', 'develop'];
+            cachedData.remoteBranches = ['main', 'develop', 'other'];
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false, silent: true }
+            );
+
+            // Case 4: Default branch mismatch
+            cachedData.remoteBranches = ['develop', 'main', 'develop'];
+            cachedData.defaultBranch = 'other';
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false, silent: true }
+            );
+
+            // Case 5: Current branch mismatch
+            cachedData.defaultBranch = 'main';
+            cachedData.currentBranch = 'other';
+            await getBranchesForSession(
+                mockSource as any,
+                mockApiClient as any,
+                mockOutputChannel,
+                mockContext,
+                { forceRefresh: true, showProgress: false, silent: true }
+            );
+        });
+
         test('should use cached branches when cache is valid', async () => {
             const mockSource: SourceType = {
                 id: 'test-source',

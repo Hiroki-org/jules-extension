@@ -564,7 +564,91 @@ index 123..abc 100644`;
     // updateSessionArtifactsCache のテスト
     // =========================================================================
 
+
+    suite('areChangeSetFilesEqual Optimization', () => {
+        test('should correctly compare multiset of files using Map lookup', () => {
+            const sessionId = 'session-multiset';
+            const activities1 = [
+                {
+                    createTime: '2024-01-01T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [
+                                    { path: 'file1.ts', status: 'modified' },
+                                    { path: 'file2.ts', status: 'added' }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ];
+
+            const activities2 = [
+                {
+                    createTime: '2024-01-02T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [
+                                    { path: 'file2.ts', status: 'added' },
+                                    { path: 'file1.ts', status: 'modified' }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ];
+
+            updateSessionArtifactsCache(sessionId, activities1);
+            const updated = updateSessionArtifactsCache(sessionId, activities2);
+            // Should be false because the files are technically the same (multiset match)
+            assert.strictEqual(updated, false);
+
+            // Now test inequality
+            const activities3 = [
+                {
+                    createTime: '2024-01-03T00:00:00Z',
+                    artifacts: [
+                        {
+                            changeSet: {
+                                files: [
+                                    { path: 'file1.ts', status: 'modified' },
+                                    { path: 'file2.ts', status: 'modified' } // Changed status
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ];
+            const updated2 = updateSessionArtifactsCache(sessionId, activities3);
+            assert.strictEqual(updated2, true);
+        });
+    });
+
     suite('updateSessionArtifactsCache', () => {
+
+        test('areChangeSetFilesEqual missing parameters and differing lengths', () => {
+            const sessionId = 'session-equality-edge-cases';
+
+            // Neither have changesets
+            const act1 = [{ createTime: '1', artifacts: [{}] }];
+            const act2 = [{ createTime: '2', artifacts: [{}] }];
+            updateSessionArtifactsCache(sessionId, act1);
+            const r1 = updateSessionArtifactsCache(sessionId, act2);
+            assert.strictEqual(r1, false); // No change
+
+            // Only one has changeset
+            const act3 = [{ createTime: '3', artifacts: [{ changeSet: { files: [{ path: 'a' }] } }] }];
+            const r2 = updateSessionArtifactsCache(sessionId, act3);
+            assert.strictEqual(r2, true); // Change detected
+
+            // Differing lengths
+            const act4 = [{ createTime: '4', artifacts: [{ changeSet: { files: [{ path: 'a' }, { path: 'b' }] } }] }];
+            const r3 = updateSessionArtifactsCache(sessionId, act4);
+            assert.strictEqual(r3, true); // Change detected
+        });
+
         test('キャッシュが空の場合、新しいエントリを追加し true を返すこと', () => {
             const sessionId = 'session-001';
             const activities = [
