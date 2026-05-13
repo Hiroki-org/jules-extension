@@ -2096,43 +2096,58 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       return [];
     }
 
-    // Now, use the cache to build the tree
-    let filteredSessions: Session[] = [];
-
-    if (selectedSource.id === ALL_SOURCES_ID) {
-      filteredSessions = this.sessionsCache;
-      console.log(
-        `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
-      );
-    } else {
-      filteredSessions = this.sessionsCache.filter(
-        (session) => session.sourceContext?.source === selectedSource.name,
-      );
-      console.log(
-        `Jules: Found ${filteredSessions.length} sessions for the selected source from cache`,
-      );
-    }
-
     // Filter out sessions with closed PRs if the setting is enabled
     const hideClosedPRs = vscode.workspace
       .getConfiguration("jules-extension")
       .get<boolean>("hideClosedPRSessions", true);
 
-    if (hideClosedPRs) {
-      // We no longer need to check PR status on every render.
-      // The `isTerminated` flag in `previousSessionStates` handles this.
-      const beforeFilterCount = filteredSessions.length;
-      filteredSessions = filteredSessions.filter((session) => {
-        const prevState = previousSessionStates.get(session.name);
-        // Hide if the session is marked as terminated.
-        return !prevState?.isTerminated;
+    // Now, use the cache to build the tree
+    const isAllSources = selectedSource.id === ALL_SOURCES_ID;
+
+    let filteredSessions: Session[];
+    let sourceFilteredCount: number;
+    let terminatedFilteredCount = 0;
+
+    // Fast path: Avoid allocation if no filtering is needed
+    if (isAllSources && !hideClosedPRs) {
+      filteredSessions = this.sessionsCache;
+      sourceFilteredCount = this.sessionsCache.length;
+    } else {
+      sourceFilteredCount = 0;
+      filteredSessions = this.sessionsCache.filter((session) => {
+        // 1. Source filter
+        if (!isAllSources && session.sourceContext?.source !== selectedSource.name) {
+          return false;
+        }
+        sourceFilteredCount++;
+
+        // 2. Closed PR filter
+        if (hideClosedPRs) {
+          const prevState = previousSessionStates.get(session.name);
+          if (prevState?.isTerminated) {
+            terminatedFilteredCount++;
+            return false;
+          }
+        }
+
+        return true;
       });
-      const filteredCount = beforeFilterCount - filteredSessions.length;
-      if (filteredCount > 0) {
-        console.log(
-          `Jules: Filtered out ${filteredCount} terminated sessions (${beforeFilterCount} -> ${filteredSessions.length})`,
-        );
-      }
+    }
+
+    if (isAllSources) {
+      console.log(
+        `Jules: Showing all ${sourceFilteredCount} sessions (All Repositories selected)`,
+      );
+    } else {
+      console.log(
+        `Jules: Found ${sourceFilteredCount} sessions for the selected source from cache`,
+      );
+    }
+
+    if (terminatedFilteredCount > 0) {
+      console.log(
+        `Jules: Filtered out ${terminatedFilteredCount} terminated sessions (${sourceFilteredCount} -> ${filteredSessions.length})`,
+      );
     }
 
     if (filteredSessions.length === 0) {
