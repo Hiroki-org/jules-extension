@@ -6,7 +6,7 @@
 ## 2024-05-13 - [DOMPurify MathML Profile Disable]
 **Vulnerability:** Unnecessary MathML parsing in DOMPurify could widen the attack surface for Cross-Site Scripting (XSS).
 **Learning:** DOMPurify's default configuration enables MathML. If math rendering is not required by the application (as in simple chat webviews), this unnecessary capability introduces risk, as MathML has historically been a vector for sanitizer bypasses.
-**Prevention:** Always explicitly disable unused DOMPurify profiles. Use USE_PROFILES: { mathML: false } or specify only the required profiles (e.g., { html: true }) as a defense-in-depth measure.
+**Prevention:** Always explicitly disable unused DOMPurify profiles. Use `USE_PROFILES: { math: false }` or specify only the required profiles (e.g., `{ html: true }`) as a defense-in-depth measure.
 
 ## 2024-05-13 - [DOMPurify MathML Tags Disable]
 **Vulnerability:** Unnecessary MathML parsing in DOMPurify could widen the attack surface for Cross-Site Scripting (XSS), but using `USE_PROFILES` incorrectly strips default HTML tags.
