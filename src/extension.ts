@@ -1620,7 +1620,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
   // Activity フィルタ関連のプロパティ
   private activityCategoryFilter: Set<ActivityCategory> = new Set();
-  private lastSelectedSessionId: string | undefined;
+  private lastSelectedSession: Session | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
   constructor(private context: vscode.ExtensionContext) {}
@@ -1634,8 +1634,8 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  setLastSelectedSessionId(sessionId: string | undefined): void {
-    this.lastSelectedSessionId = sessionId;
+  setLastSelectedSession(session: Session | undefined): void {
+    this.lastSelectedSession = session;
   }
 
   setProgressStatusBarItem(item: vscode.StatusBarItem): void {
@@ -1644,17 +1644,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
   private async updateProgressStatusBarForSelectedSession(
     apiKey: string,
-    sessions: Session[],
   ): Promise<void> {
-    if (!this.progressStatusBarItem || !this.lastSelectedSessionId) {
+    if (!this.progressStatusBarItem || !this.lastSelectedSession) {
       this.progressStatusBarItem?.hide();
       return;
     }
 
-    const selectedSession = sessions.find(
-      (session) => session.name === this.lastSelectedSessionId,
-    );
-    if (!selectedSession || !isSessionActive(selectedSession)) {
+    const selectedSession = this.lastSelectedSession;
+    if (!isSessionActive(selectedSession)) {
       this.progressStatusBarItem.hide();
       return;
     }
@@ -1770,16 +1767,22 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       // Filter out sessions that are currently being deleted to prevent race conditions
       // where a background refresh re-adds a session that was optimistically removed.
       const allSessionsMapped: Session[] = [];
+      let nextLastSelectedSession: Session | undefined = undefined;
       for (let i = 0; i < fetchedSessions.length; i++) {
         const session = fetchedSessions[i];
         if (!this.deletingSessions.has(session.name)) {
-          allSessionsMapped.push({
+          const mappedSession = {
             ...session,
             rawState: session.state,
             state: mapApiStateToSessionState(session.state),
-          });
+          };
+          allSessionsMapped.push(mappedSession);
+          if (this.lastSelectedSession?.name === mappedSession.name) {
+            nextLastSelectedSession = mappedSession;
+          }
         }
       }
+      this.lastSelectedSession = nextLastSelectedSession;
 
       // デバッグ: 全セッションのrawStateをログ出力
       logChannel.appendLine(
@@ -1893,7 +1896,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       await this.updateProgressStatusBarForSelectedSession(
         apiKey,
-        allSessionsMapped,
       );
 
       // Always try to prefetch artifacts for recent sessions to ensure context menus match user expectation.
@@ -2578,8 +2580,8 @@ export function activate(context: vscode.ExtensionContext) {
       const selectedSessionItem = event.selection.find(
         (item): item is SessionTreeItem => item instanceof SessionTreeItem,
       );
-      sessionsProvider.setLastSelectedSessionId(
-        selectedSessionItem?.session.name,
+      sessionsProvider.setLastSelectedSession(
+        selectedSessionItem?.session,
       );
       if (!selectedSessionItem) {
         progressStatusBarItem.hide();
