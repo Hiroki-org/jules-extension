@@ -239,7 +239,7 @@ export function getComposerHtml(
 </style>
 </head>
 <body>
-  <div id="sr-status" class="sr-only" aria-live="polite"></div>
+  <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <textarea id="message" aria-label="${placeholder || 'Message input'}" placeholder="${placeholder}" autofocus>${value}</textarea>
   <div class="actions">
     ${createPrCheckbox}
