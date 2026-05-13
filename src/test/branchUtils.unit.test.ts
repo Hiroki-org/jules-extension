@@ -337,7 +337,7 @@ suite('branchUtils Unit Tests', () => {
             };
 
             // This run matches cache data except remote order, so it hits areArraysEqual permutations true
-            const result1 = await getBranchesForSession(
+            await getBranchesForSession(
                 mockSource as any,
                 mockApiClient as any,
                 mockOutputChannel,

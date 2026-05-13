@@ -500,17 +500,21 @@ function areChangeSetFilesEqual(a?: ChangeSetSummary, b?: ChangeSetSummary): boo
         return false;
     }
 
-    // Sort files by path to ensure order-independence
-    // ⚡ Bolt 最適化: O(N log N) のソート処理を O(N) の Map ルックアップに置換
-    const bFilesMap = new Map<string, string | undefined>();
+        // ⚡ Bolt 最適化: O(N log N) のソート処理を O(N) の Map 集計に置換
+    // SetではなくMapを使用することで、多重集合（重複する要素を持つ配列）を正しく処理します。
+    const counts = new Map<string, number>();
     for (const f of bFiles) {
-        bFilesMap.set(f.path, f.status);
+        const key = f.path + "|" + f.status;
+        counts.set(key, (counts.get(key) || 0) + 1);
     }
 
     for (const f of aFiles) {
-        if (!bFilesMap.has(f.path) || bFilesMap.get(f.path) !== f.status) {
+        const key = f.path + "|" + f.status;
+        const count = counts.get(key);
+        if (!count) {
             return false;
         }
+        counts.set(key, count - 1);
     }
     return true;
 }
