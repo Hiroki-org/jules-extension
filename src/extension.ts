@@ -190,6 +190,12 @@ export function resetUpdatePreviousStatesCachesForTests(): void {
   prStatusCache = {};
 }
 
+export function setPreviousSessionStatesForTests(
+  states: Map<string, CachedSessionState>,
+): void {
+  previousSessionStates = new Map(states);
+}
+
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
 }
@@ -2073,6 +2079,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
   public unmarkSessionAsDeleting(sessionId: string): void {
     this.deletingSessions.delete(sessionId);
+  }
+
+  public setSessionsCacheForTests(sessions: Session[]): void {
+    this.sessionsCache = [...sessions];
   }
 
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
