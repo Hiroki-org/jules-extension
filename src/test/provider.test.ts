@@ -21,7 +21,82 @@ suite("JulesSessionsProvider Test Suite", () => {
             }
         } as any;
         fetchStub = sandbox.stub(global, 'fetch');
+
+    test("setLastSelectedSession should update lastSelectedSession", () => {
+        const provider = new JulesSessionsProvider(mockContext);
+        const session = { name: "test-session", state: "ACTIVE" } as any;
+        provider.setLastSelectedSession(session);
+        // Cast to any to access private property
+        assert.strictEqual((provider as any).lastSelectedSession, session);
     });
+
+    test("refresh should update lastSelectedSession reference and update status bar", async () => {
+        const provider = new JulesSessionsProvider(mockContext);
+
+        const mockStatusBar = {
+            hide: sandbox.stub(),
+            show: sandbox.stub(),
+            text: ""
+        } as any;
+        provider.setProgressStatusBarItem(mockStatusBar);
+
+        const session = { name: "test-session", state: "ACTIVE" } as any;
+        provider.setLastSelectedSession(session);
+
+        (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "source1" });
+
+        // First fetch will have the session as ACTIVE
+        fetchStub.onFirstCall().resolves({
+            ok: true,
+            json: async () => ({ sessions: [session] })
+        });
+
+        // Mock activities fetch
+        fetchStub.onSecondCall().resolves({
+            ok: true,
+            json: async () => ({ activities: [], nextPageToken: "" })
+        });
+
+        await provider.refresh(true, false);
+
+        // check if lastSelectedSession reference was updated
+        assert.ok((provider as any).lastSelectedSession);
+        assert.strictEqual((provider as any).lastSelectedSession.state, 'active');
+
+        // The mock statusBar shouldn't be hidden if the session is active
+        assert.ok(mockStatusBar.hide.notCalled, "Status bar should not be hidden for active session");
+    });
+
+    test("refresh should handle deleted session in lastSelectedSession", async () => {
+        const provider = new JulesSessionsProvider(mockContext);
+
+        const mockStatusBar = {
+            hide: sandbox.stub(),
+            show: sandbox.stub(),
+            text: ""
+        } as any;
+        provider.setProgressStatusBarItem(mockStatusBar);
+
+        const session = { name: "test-session", state: "ACTIVE" } as any;
+        provider.setLastSelectedSession(session);
+
+        (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "source1" });
+
+        // Fetch returns empty sessions (session was deleted/completed and not returned)
+        fetchStub.resolves({
+            ok: true,
+            json: async () => ({ sessions: [] })
+        });
+
+        await provider.refresh(true, false);
+
+        // check if lastSelectedSession was set to undefined
+        assert.strictEqual((provider as any).lastSelectedSession, undefined);
+
+        // Status bar should be hidden
+        assert.ok(mockStatusBar.hide.calledOnce);
+    });
+});
 
     teardown(() => {
         sandbox.restore();
