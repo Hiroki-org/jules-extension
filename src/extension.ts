@@ -1782,14 +1782,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
           }
         }
       }
-      if (nextLastSelectedSession) {
-        this.lastSelectedSession = nextLastSelectedSession;
-      } else if (
-        this.lastSelectedSession &&
-        this.deletingSessions.has(this.lastSelectedSession.name)
-      ) {
-        this.lastSelectedSession = undefined;
-      }
+      this.lastSelectedSession = nextLastSelectedSession;
 
       // デバッグ: 全セッションのrawStateをログ出力
       logChannel.appendLine(
