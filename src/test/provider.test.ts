@@ -74,7 +74,7 @@ suite("JulesSessionsProvider Test Suite", () => {
 
         (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "source1" });
 
-        // First fetch will have the session as ACTIVE
+        // First fetch will have the session as IN_PROGRESS
         fetchStub.onFirstCall().resolves({
             ok: true,
             json: async () => ({ sessions: [session] })
@@ -83,7 +83,7 @@ suite("JulesSessionsProvider Test Suite", () => {
         // Mock activities fetch
         fetchStub.onSecondCall().resolves({
             ok: true,
-            json: async () => ({ activities: [], nextPageToken: "" })
+            json: async () => ({ activities: [{ progressUpdated: { title: "Working..." }, createTime: new Date().toISOString() }], nextPageToken: "" })
         });
 
         await provider.refresh(true, false);
@@ -93,7 +93,7 @@ suite("JulesSessionsProvider Test Suite", () => {
         // mapApiStateToSessionState might return 'RUNNING'\n        assert.strictEqual((provider as any).lastSelectedSession.state, 'RUNNING');
 
         // The mock statusBar shouldn't be hidden if the session is active
-        assert.ok(mockStatusBar.hide.notCalled, "Status bar should not be hidden for active session");
+        assert.ok(mockStatusBar.show.called, "Status bar should be shown for active session");
     });
 
     test("refresh should handle deleted session in lastSelectedSession", async () => {
