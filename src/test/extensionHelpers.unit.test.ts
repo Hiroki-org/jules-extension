@@ -426,7 +426,7 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-2"].isTerminated, false);
     });
 
-    test("uses previous state PR outputs when current completed session has no outputs", async () => {
+    test("完了セッションの出力が空でも以前のPR情報でクローズ判定する", async () => {
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
         ok: true,
@@ -440,7 +440,7 @@ suite("Extension helper unit tests", () => {
         },
       } as unknown as vscode.ExtensionContext;
 
-      const sessionName = "sessions/legacy-empty-output";
+      const sessionName = "sessions/completed-empty-output";
       setPreviousSessionStatesForTests(
         new Map([
           [
@@ -461,7 +461,7 @@ suite("Extension helper unit tests", () => {
       const sessions: Session[] = [
         {
           name: sessionName,
-          title: "legacy-empty-output",
+          title: "completed-empty-output",
           state: "COMPLETED",
           rawState: "COMPLETED",
           outputs: [],

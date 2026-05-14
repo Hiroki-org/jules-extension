@@ -876,8 +876,10 @@ export async function updatePreviousStates(
       continue;
     }
     const prs = extractPRs(session);
-    const prsForCheck =
-      prs.length > 0 ? prs : prevState ? extractPRs(prevState) : [];
+    let prsForCheck = prs;
+    if (prs.length === 0 && prevState) {
+      prsForCheck = extractPRs(prevState);
+    }
     if (prsForCheck.length > 0) {
       sessionsToCheck.push(session);
       sessionPRsMap.set(session.name, prsForCheck);
