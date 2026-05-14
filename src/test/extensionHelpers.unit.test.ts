@@ -1149,6 +1149,38 @@ suite("Extension helper unit tests", () => {
       assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
     });
 
+    test("should clear active session and update view when activities fetch throws a non-Error object containing 404", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch (throws string)
+      fetchStub.onSecondCall().rejects({ toString: () => "Something bad happened: 404 Not Found" });
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities404string"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
     test("should clear active session and update view when activities fetch returns 404", async () => {
       const updateSessionStub = sandbox.stub();
 
