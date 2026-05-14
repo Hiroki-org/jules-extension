@@ -194,6 +194,10 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
 }
 
+export function setPreviousSessionStatesForTests(states: Map<string, CachedSessionState>): void {
+  previousSessionStates = states;
+}
+
 export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
   return getPRStatusFetchGroupKey(prUrl);
 }
