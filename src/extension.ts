@@ -221,7 +221,7 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
   const storedStates = context.globalState.get<{
     [key: string]: CachedSessionState;
   }>("jules.previousSessionStates", {});
-  previousSessionStates = new Map(Object.entries(storedStates));
+  previousSessionStates = new Map(Object.entries(storedStates ?? {}));
   previousSessionStatesLoaded = true;
   console.log(
     `Jules: Loaded ${previousSessionStates.size} previous session states from global state.`,
@@ -960,6 +960,7 @@ export async function updatePreviousStates(
 
   for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
+    const currentOutputs = session.outputs ?? [];
 
     // If already terminated, we don't need to check again.
     // Just update with the latest info from the server but keep it terminated.
@@ -967,13 +968,13 @@ export async function updatePreviousStates(
       if (
         prevState.state !== session.state ||
         prevState.rawState !== session.rawState ||
-        !areOutputsEqual(prevState.outputs, session.outputs)
+        !areOutputsEqual(prevState.outputs, currentOutputs)
       ) {
         previousSessionStates.set(session.name, {
           ...prevState,
           state: session.state,
           rawState: session.rawState,
-          outputs: session.outputs,
+          outputs: currentOutputs,
         });
         hasChanged = true;
       }
@@ -1002,19 +1003,27 @@ export async function updatePreviousStates(
       notifiedSessions.delete(session.name);
     }
 
+    let outputsForState = currentOutputs;
+    if (session.state === "COMPLETED" && currentOutputs.length === 0 && prevState) {
+      const previousPRs = extractPRs(prevState);
+      if (previousPRs.length > 0) {
+        outputsForState = prevState.outputs ?? [];
+      }
+    }
+
     // Check if state actually changed before updating map
     if (
       !prevState ||
       prevState.state !== session.state ||
       prevState.rawState !== session.rawState ||
       prevState.isTerminated !== isTerminated ||
-      !areOutputsEqual(prevState.outputs, session.outputs)
+      !areOutputsEqual(prevState.outputs, outputsForState)
     ) {
       previousSessionStates.set(session.name, {
         name: session.name,
         state: session.state,
         rawState: session.rawState,
-        outputs: session.outputs,
+        outputs: outputsForState,
         isTerminated: isTerminated,
       });
       hasChanged = true;

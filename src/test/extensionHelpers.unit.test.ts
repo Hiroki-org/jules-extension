@@ -484,6 +484,58 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(savedStates[sessionName].isTerminated, true);
     });
 
+    test("PRがopenのままでも空出力時にprevious stateのPR追跡を維持する", async () => {
+      const clock = sandbox.useFakeTimers(Date.now());
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "open" }),
+      } as any);
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessionName = "sessions/completed-empty-output-open";
+      const prUrl = "https://github.com/org/repo/pull/444";
+      setPreviousSessionStatesForTests(
+        new Map([
+          [
+            sessionName,
+            {
+              name: sessionName,
+              state: "COMPLETED",
+              rawState: "COMPLETED",
+              outputs: [{ pullRequest: { url: prUrl } } as any],
+              isTerminated: false,
+            },
+          ],
+        ]),
+      );
+
+      const sessions: Session[] = [
+        {
+          name: sessionName,
+          title: "completed-empty-output-open",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [],
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+
+      clock.tick(301000);
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 2);
+      assert.strictEqual(fetchStub.callCount, 2);
+    });
+
     test("continues checking remaining URLs in a repo group when one status fetch fails", async () => {
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").callsFake(async (url) => {
