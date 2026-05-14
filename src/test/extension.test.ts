@@ -1625,9 +1625,12 @@ suite("Extension Test Suite", () => {
       } as any;
       const provider = new JulesSessionsProvider(mockContext);
 
+      while (provider['isFetching']) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      fetchStub.resetHistory();
       await provider['fetchAndProcessSessions'](true);
-
-      assert.strictEqual(fetchStub.callCount, 4);
+      assert.strictEqual(fetchStub.callCount, 2);
       assert.strictEqual(showWarningMessageStub.called, false);
     });
 
@@ -1646,9 +1649,12 @@ suite("Extension Test Suite", () => {
       } as any;
       const provider = new JulesSessionsProvider(mockContext);
 
+      while (provider['isFetching']) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      fetchStub.resetHistory();
       await provider['fetchAndProcessSessions'](false);
-
-      assert.strictEqual(fetchStub.callCount, 4);
+      assert.strictEqual(fetchStub.callCount, 2);
       assert.strictEqual(showWarningMessageStub.calledOnce, true);
     });
 
