@@ -2145,17 +2145,17 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     }
 
     if (isAllSources) {
-      logChannel.appendLine(
+      console.log(
         `Jules: Showing all ${sourceFilteredCount} sessions (All Repositories selected)`,
       );
     } else {
-      logChannel.appendLine(
+      console.log(
         `Jules: Found ${sourceFilteredCount} sessions for the selected source from cache`,
       );
     }
 
     if (terminatedFilteredCount > 0) {
-      logChannel.appendLine(
+      console.log(
         `Jules: Filtered out ${terminatedFilteredCount} terminated sessions (${sourceFilteredCount} -> ${filteredSessions.length})`,
       );
     }
