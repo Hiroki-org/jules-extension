@@ -1228,6 +1228,12 @@ export async function refreshActiveChatSessionFromAutoRefresh(
       },
     );
     if (!sessionResponse.ok) {
+      if (sessionResponse.status === 404) {
+        logChannel.appendLine(`Jules: Active session ${activeSessionId} not found (404). Clearing active session.`);
+        await context.globalState.update("active-session-id", undefined);
+        chatViewProvider.updateSession("", [], undefined, undefined, undefined);
+        return;
+      }
       const errorText = await sessionResponse.text();
       throw new Error(
         `Failed to fetch active session for chat polling: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`,
@@ -1248,13 +1254,25 @@ export async function refreshActiveChatSessionFromAutoRefresh(
     const shouldMergeWithCache =
       !!previousLatestCreateTime && cachedActivities.length > 0;
 
-    const newActivities = await fetchSessionActivitiesPaginated(
-      apiKey,
-      activeSessionId,
-      {
-        showPaginationProgress: false,
-      },
-    );
+    let newActivities: Activity[] = [];
+    try {
+      newActivities = await fetchSessionActivitiesPaginated(
+        apiKey,
+        activeSessionId,
+        {
+          showPaginationProgress: false,
+        },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("404")) {
+        logChannel.appendLine(`Jules: Active session activities not found (404). Clearing active session.`);
+        await context.globalState.update("active-session-id", undefined);
+        chatViewProvider.updateSession("", [], undefined, undefined, undefined);
+        return;
+      }
+      throw error;
+    }
 
     const mergedActivities = shouldMergeWithCache
       ? mergeActivitiesByIdentity(cachedActivities, newActivities)
