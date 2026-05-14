@@ -397,6 +397,7 @@ suite("chatAssets unit tests", () => {
         value: "",
         disabled: false,
         placeholder: "",
+        title: "",
         style: { height: "" },
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
         addEventListener: () => {}
@@ -432,6 +433,8 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.messageInput.disabled, true);
     assert.strictEqual(elements.messageInput["aria-disabled"], "true");
     assert.ok(elements.messageInput.placeholder.startsWith("Select a session"));
+    assert.strictEqual(elements.messageInput["aria-label"], elements.messageInput.placeholder);
+    assert.strictEqual(elements.messageInput.title, elements.messageInput.placeholder);
     assert.strictEqual(elements.sendButton.disabled, true);
     assert.strictEqual(elements.sendButton["aria-disabled"], "true");
     assert.strictEqual(elements.sendButton.title, "Select a session to send a message");
@@ -450,6 +453,8 @@ suite("chatAssets unit tests", () => {
     // (3) sessionId present + non-empty input value
     elements.messageInput.value = "Hello";
     messageListener({ data: { type: "chatState", payload: { sessionId: "session-123", messages: [], isTyping: false } } });
+    assert.strictEqual(elements.messageInput["aria-label"], elements.messageInput.placeholder);
+    assert.strictEqual(elements.messageInput.title, elements.messageInput.placeholder);
     assert.strictEqual(elements.sendButton.disabled, false);
     assert.strictEqual(elements.sendButton["aria-disabled"], "false");
     assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");

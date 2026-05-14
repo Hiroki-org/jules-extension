@@ -130,6 +130,8 @@ export const CHAT_JS = `(function() {
     messageInput.placeholder = hasSession
       ? "Enter message (Ctrl/Cmd+Enter to send)"
       : "Select a session to start typing";
+    messageInput.setAttribute("aria-label", messageInput.placeholder);
+    messageInput.title = messageInput.placeholder;
 
     if (!hasSession) {
       sendButton.title = "Select a session to send a message";
