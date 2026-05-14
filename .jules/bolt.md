@@ -1,4 +1,20 @@
+## 2024-05-01 - Avoid loop recreation of Sets
+**Learning:** During review, we noticed `new Set([ ... ])` being instantiated inside a loop for activity logging in `extension.ts`. While it is just logging, moving static `Set` declarations out of repeated execution paths is a fundamental performance practice in V8.
+**Action:** Move the activity log key `Set` declarations to module-level constants in `extension.ts` to prevent redundant garbage collection and allocation on hot code paths.
+
+## 2025-02-23 - Avoid .map().filter() in Tooltip Rendering
+**Learning:** Chained `.map().filter()` followed by `Array.from(new Map(...))` in UI rendering functions like `buildSessionTooltip` cause unnecessary array allocations and iterations, which can negatively impact performance when rendering large lists of sessions.
+**Action:** Replace functional array chaining with direct single-pass `for` loops that populate the target collection (like a `Map`) directly when processing data for frequent UI rendering.
+
+## 2024-05-12 - Replacing .sort() for array equality checks
+**Learning:** Using `.sort()` followed by index-based iteration is a common, but slow O(N log N) way to determine multiset equality (when order doesn't matter). Replacing it with an O(N) Map lookup eliminates memory reallocation and algorithmic overhead.
+**Action:** When comparing arrays where element order is independent (e.g. file paths or branch names), build a Map of element counts rather than `.sort()`.
+
+## 2024-05-12 - Handling Multiset arrays composed of Objects
+**Learning:** A simple tally map works well to compare arrays composed of strings or numbers, but you need to be careful when the array contains objects. Simply matching lengths and hashing the stringified keys or specific properties (e.g. `path + status`) correctly allows a Frequency Map representation of a Multiset of Objects without the memory allocation and O(N log N) overhead of sorts.
+**Action:** Always verify if arrays you are comparing allow duplicate items. Use `.length` validation, then build a Frequency map and decrement values when comparing.
 
 ## 2025-05-13 - [Performance] Optimized Git repository resolution
+
 **Learning:** In multi-root workspaces with many repositories, finding the active repository by calling `path.relative` inside an `Array.find` loop over all repositories causes an O(N * M) performance bottleneck, where N is the number of repositories and M is the cost of computing relative paths.
-**Action:** When finding the parent repository of a file, pre-index the repositories into a `Map` keyed by their normalized root paths, and traverse the document's path up the directory tree using `path.dirname` until a match is found in the Map. This reduces the time complexity to O(D), where D is the depth of the document path.
+**Action:** When finding the parent repository of a file, pre-index the repositories into a `Map` keyed by their normalized root paths, and traverse the document's path up the directory tree using `path.dirname` until a match is found in the Map. This reduces the lookup complexity from O(N) to O(D), where D is the depth of the document path. Note: The overall complexity includes O(N) for Map construction.
