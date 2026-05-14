@@ -78,10 +78,9 @@ suite("JulesSessionsProvider Test Suite", () => {
 
         test("should use fast path when ALL_SOURCES_ID is selected and hideClosedPRSessions is false", async () => {
             (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ id: "all_repos" });
-            getConfigurationStub.returns({
+            getConfigurationStub.withArgs("jules-extension").returns({
                 get: sandbox.stub().withArgs("hideClosedPRSessions").returns(false)
             });
-
             const children = await provider.getChildren();
             assert.strictEqual(children.length, 3);
             // Verify TreeItems wrap the sessions correctly
@@ -106,10 +105,9 @@ suite("JulesSessionsProvider Test Suite", () => {
 
         test("should filter by specific source and not hide closed PRs if hideClosedPRSessions is false", async () => {
             (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "repoA" });
-            getConfigurationStub.returns({
+            getConfigurationStub.withArgs("jules-extension").returns({
                 get: sandbox.stub().withArgs("hideClosedPRSessions").returns(false)
             });
-
             const states = new Map();
             states.set("session1", { isTerminated: true }); // Should not be filtered out because hideClosedPRs is false
             extensionModule.setPreviousSessionStatesForTests(states);
