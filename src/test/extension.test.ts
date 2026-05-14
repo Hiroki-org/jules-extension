@@ -1631,7 +1631,7 @@ suite("Extension Test Suite", () => {
       fetchStub.resetHistory();
       await provider['fetchAndProcessSessions'](true);
       assert.strictEqual(fetchStub.callCount, 2);
-      assert.ok(showWarningMessageStub.notCalled);
+      assert.strictEqual(showWarningMessageStub.called, false);
     });
 
     test("should gracefully break sessions pagination loop and show warning if showPaginationProgress is true", async () => {
@@ -1655,7 +1655,7 @@ suite("Extension Test Suite", () => {
       fetchStub.resetHistory();
       await provider['fetchAndProcessSessions'](false);
       assert.strictEqual(fetchStub.callCount, 2);
-      assert.ok(showWarningMessageStub.calledOnce);
+      assert.strictEqual(showWarningMessageStub.calledOnce, true);
     });
 
     test("should gracefully break activities pagination loop and NOT show warning if showPaginationProgress is false", async () => {
@@ -1671,7 +1671,7 @@ suite("Extension Test Suite", () => {
 
       assert.strictEqual(activities.length, 2);
       assert.strictEqual(fetchStub.callCount, 2);
-      assert.ok(showWarningMessageStub.notCalled);
+      assert.strictEqual(showWarningMessageStub.called, false);
     });
 
     test("should gracefully break activities pagination loop and show warning if showPaginationProgress is true", async () => {
@@ -1687,7 +1687,7 @@ suite("Extension Test Suite", () => {
 
       assert.strictEqual(activities.length, 2);
       assert.strictEqual(fetchStub.callCount, 2);
-      assert.ok(showWarningMessageStub.calledOnce);
+      assert.strictEqual(showWarningMessageStub.calledOnce, true);
     });
   });
   });
