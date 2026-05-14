@@ -1067,7 +1067,7 @@ suite("Extension Test Suite", () => {
       );
     });
 
-    test("should throw when active session fetch fails", async () => {
+    test("should throw when active session fetch fails (non-404)", async () => {
       const updateSessionStub = sandbox.stub();
       fetchStub.onFirstCall().resolves({
         ok: false,
@@ -1095,6 +1095,71 @@ suite("Extension Test Suite", () => {
       );
 
       assert.strictEqual(updateSessionStub.callCount, 0);
+    });
+
+    test("should clear active session and update view when active session fetch returns 404", async () => {
+      const updateSessionStub = sandbox.stub();
+      fetchStub.onFirstCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "not found",
+      } as any);
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/fail404"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should clear active session and update view when activities fetch returns 404", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch
+      fetchStub.onSecondCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as any);
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities404"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
     });
 
     test("should discard stale result when active session changes during in-flight refresh", async () => {
