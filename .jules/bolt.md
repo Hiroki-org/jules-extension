@@ -13,3 +13,7 @@
 ## 2024-05-12 - Handling Multiset arrays composed of Objects
 **Learning:** A simple tally map works well to compare arrays composed of strings or numbers, but you need to be careful when the array contains objects. Simply matching lengths and hashing the stringified keys or specific properties (e.g. `path + status`) correctly allows a Frequency Map representation of a Multiset of Objects without the memory allocation and O(N log N) overhead of sorts.
 **Action:** Always verify if arrays you are comparing allow duplicate items. Use `.length` validation, then build a Frequency map and decrement values when comparing.
+
+## 2024-05-14 - Optimize Session Tree Rendering (Multiple iterations avoidance)
+**Learning:** In UI rendering code, multiple calls to `Array.prototype.filter()` and `Array.prototype.map()` cause unnecessary array allocations and sequential iterations. This can be especially problematic when rendering lists in tree views.
+**Action:** Replace multiple chained functional array methods like `filter()` and `map()` with a single `for...of` loop or single pass loop that combines filtering and mapping logic directly, returning the formatted items while only traversing the source list once.
