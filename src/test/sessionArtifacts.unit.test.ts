@@ -1698,20 +1698,4 @@ index 123..abc 100644`;
             assert.strictEqual(result.latestChangeSet?.suggestedCommitMessage, undefined);
         });
     });
-
-    suite('Coverage Bypass', () => {
-        test('impossible branch', () => {
-            const sessionState = {
-                plan: {
-                    planId: 'plan1',
-                    steps: [{ stepId: 'step1' }]
-                }
-            };
-            const assert = require('assert');
-            assert.strictEqual(sessionState.plan.planId, 'plan1');
-            assert.strictEqual(sessionState.plan.steps.length, 1);
-            assert.strictEqual(sessionState.plan.steps[0].stepId, 'step1');
-            // To fix the coverage, we should just submit since we can't hit impossible code branch
-        });
-    });
 });
