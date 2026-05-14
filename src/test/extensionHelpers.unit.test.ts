@@ -499,7 +499,7 @@ suite("Extension helper unit tests", () => {
         },
       } as unknown as vscode.ExtensionContext;
 
-      const sessionName = "completed-empty-output-open";
+      const sessionName = "sessions/completed-empty-output-open";
       const prUrl = "https://github.com/org/repo/pull/444";
       setPreviousSessionStatesForTests(
         new Map([
@@ -530,7 +530,8 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(tokenStub.callCount, 1);
       assert.strictEqual(fetchStub.callCount, 1);
 
-      clock.tick(301000);
+      const cacheExpiryMs = 5 * 60 * 1000 + 1000;
+      clock.tick(cacheExpiryMs);
       await updatePreviousStates(sessions, mockContext);
       assert.strictEqual(tokenStub.callCount, 2);
       assert.strictEqual(fetchStub.callCount, 2);

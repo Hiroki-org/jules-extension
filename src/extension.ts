@@ -961,6 +961,11 @@ export async function updatePreviousStates(
   for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
     const currentOutputs = session.outputs ?? [];
+    const outputsForState = getOutputsForStatePersistence(
+      session,
+      prevState,
+      currentOutputs,
+    );
 
     // If already terminated, we don't need to check again.
     // Just update with the latest info from the server but keep it terminated.
@@ -1003,14 +1008,6 @@ export async function updatePreviousStates(
       notifiedSessions.delete(session.name);
     }
 
-    let outputsForState = currentOutputs;
-    if (session.state === "COMPLETED" && currentOutputs.length === 0 && prevState) {
-      const previousPRs = extractPRs(prevState);
-      if (previousPRs.length > 0) {
-        outputsForState = prevState.outputs ?? [];
-      }
-    }
-
     // Check if state actually changed before updating map
     if (
       !prevState ||
@@ -1045,6 +1042,21 @@ export async function updatePreviousStates(
     await context.globalState.update("jules.prStatusCache", prStatusCache);
   }
   return hasChanged;
+}
+
+function getOutputsForStatePersistence(
+  session: Session,
+  prevState: CachedSessionState | undefined,
+  currentOutputs: SessionOutput[],
+): SessionOutput[] {
+  if (session.state !== "COMPLETED" || currentOutputs.length > 0 || !prevState) {
+    return currentOutputs;
+  }
+  const previousPRs = extractPRs(prevState);
+  if (previousPRs.length === 0) {
+    return currentOutputs;
+  }
+  return prevState.outputs ?? [];
 }
 
 function startAutoRefresh(
