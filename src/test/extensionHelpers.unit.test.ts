@@ -484,7 +484,7 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(savedStates[sessionName].isTerminated, true);
     });
 
-    test("maintains PR tracking from previous state when outputs stay empty and PR remains open", async () => {
+    test("maintains PR tracking when COMPLETED session has empty outputs but open PR", async () => {
       const clock = sandbox.useFakeTimers(Date.now());
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
