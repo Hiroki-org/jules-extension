@@ -182,10 +182,12 @@ interface CachedSessionState {
 }
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
+let previousSessionStatesLoaded = false;
 let notifiedSessions: Set<string> = new Set();
 
 export function resetUpdatePreviousStatesCachesForTests(): void {
   previousSessionStates = new Map();
+  previousSessionStatesLoaded = false;
   notifiedSessions = new Set();
   prStatusCache = {};
 }
@@ -196,6 +198,7 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
 
 export function setPreviousSessionStatesForTests(states: Map<string, CachedSessionState>): void {
   previousSessionStates = states;
+  previousSessionStatesLoaded = true;
 }
 
 export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
@@ -219,9 +222,18 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
     [key: string]: CachedSessionState;
   }>("jules.previousSessionStates", {});
   previousSessionStates = new Map(Object.entries(storedStates));
+  previousSessionStatesLoaded = true;
   console.log(
     `Jules: Loaded ${previousSessionStates.size} previous session states from global state.`,
   );
+}
+
+function ensurePreviousSessionStatesLoaded(
+  context: vscode.ExtensionContext,
+): void {
+  if (!previousSessionStatesLoaded) {
+    loadPreviousSessionStates(context);
+  }
 }
 let autoRefreshInterval: NodeJS.Timeout | undefined;
 let isFetchingSensitiveData = false;
@@ -1761,6 +1773,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     }
     this.isFetching = true;
     logChannel.appendLine("Jules: Starting to fetch and process sessions...");
+    ensurePreviousSessionStatesLoaded(this.context);
 
     try {
       const apiKey = await getStoredApiKey(this.context);
@@ -2107,6 +2120,8 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     if (!selectedSource) {
       return [];
     }
+
+    ensurePreviousSessionStatesLoaded(this.context);
 
     // Now, use the cache to build the tree
     const isAllSources = selectedSource.id === ALL_SOURCES_ID;
