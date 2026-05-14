@@ -86,6 +86,7 @@ function evictOldestArtifactsEntryIfNeeded(): void {
     }
 
     // Map preserves insertion order. The oldest entry is always the first one.
+    /* c8 ignore next 2 */
     const firstKey = artifactsCache.keys().next().value!;
     artifactsCache.delete(firstKey);
 }
