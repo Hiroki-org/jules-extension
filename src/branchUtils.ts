@@ -5,12 +5,6 @@ import { Source as SourceType } from './types';
 import { BranchesCache, isCacheValid } from './cache';
 import { sanitizeForLogging } from './securityUtils';
 
-/** Minimal shape of a Git repository used for repository resolution */
-interface GitRepositoryLike {
-    rootUri: vscode.Uri;
-    state: { HEAD?: { name?: string; commit?: string } };
-}
-
 const DEFAULT_FALLBACK_BRANCH = 'main';
 const BRANCH_CACHE_TIMESTAMP_REFRESH_THRESHOLD_MS = 3 * 60 * 1000;
 
@@ -37,9 +31,9 @@ async function getActiveRepository(outputChannel: vscode.OutputChannel, options:
             const activeEditor = vscode.window.activeTextEditor;
             if (activeEditor && activeEditor.document.uri.scheme === 'file') {
                 const docPath = path.resolve(activeEditor.document.uri.fsPath);
-                // ⚡ Bolt 最適化: Array.find + path.relative を Map 探索に置換
-                // Map構築: O(N), 探索: O(D) → 全体 O(N + D)
-                const repoMap = new Map<string, GitRepositoryLike>();
+                // ⚡ Bolt 最適化: O(N * M) の Array.find と path.relative を O(D) の Map 探索に置換
+                // N: リポジトリ数, M: path.relativeのコスト, D: docPathの深さ
+                const repoMap = new Map<string, any>();
                 for (const repo of git.repositories) {
                     repoMap.set(path.resolve(repo.rootUri.fsPath), repo);
                 }
