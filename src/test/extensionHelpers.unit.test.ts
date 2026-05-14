@@ -484,7 +484,7 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(savedStates[sessionName].isTerminated, true);
     });
 
-    test("PRがopenのままでも空出力時にprevious stateのPR追跡を維持する", async () => {
+    test("maintains PR tracking from previous state when outputs stay empty and PR remains open", async () => {
       const clock = sandbox.useFakeTimers(Date.now());
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
@@ -499,7 +499,7 @@ suite("Extension helper unit tests", () => {
         },
       } as unknown as vscode.ExtensionContext;
 
-      const sessionName = "sessions/completed-empty-output-open";
+      const sessionName = "completed-empty-output-open";
       const prUrl = "https://github.com/org/repo/pull/444";
       setPreviousSessionStatesForTests(
         new Map([
