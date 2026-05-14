@@ -1,7 +1,7 @@
-## 2024-05-01 - Avoid loop recreation of Sets
-**Learning:** During review, we noticed `new Set([ ... ])` being instantiated inside a loop for activity logging in `extension.ts`. While it is just logging, moving static `Set` declarations out of repeated execution paths is a fundamental performance practice in V8.
-**Action:** Move the activity log key `Set` declarations to module-level constants in `extension.ts` to prevent redundant garbage collection and allocation on hot code paths.
 
+## 2025-05-13 - [Performance] Optimized Git repository resolution
+**Learning:** In multi-root workspaces with many repositories, finding the active repository by calling `path.relative` inside an `Array.find` loop over all repositories causes an O(N * M) performance bottleneck, where N is the number of repositories and M is the cost of computing relative paths.
+**Action:** When finding the parent repository of a file, pre-index the repositories into a `Map` keyed by their normalized root paths, and traverse the document's path up the directory tree using `path.dirname` until a match is found in the Map. This reduces the time complexity to O(D), where D is the depth of the document path.
 ## 2025-02-23 - Avoid .map().filter() in Tooltip Rendering
 **Learning:** Chained `.map().filter()` followed by `Array.from(new Map(...))` in UI rendering functions like `buildSessionTooltip` cause unnecessary array allocations and iterations, which can negatively impact performance when rendering large lists of sessions.
 **Action:** Replace functional array chaining with direct single-pass `for` loops that populate the target collection (like a `Map`) directly when processing data for frequent UI rendering.
@@ -16,3 +16,6 @@
 ## 2026-05-13 - Array.find() optimizations
 **Learning:** Replacing multiple O(N) Array.find() calls sequentially with an O(1) Map lookup ensures worst-case performance bounds and scales better for larger collections. However, for very small collections (like Git remotes) that are only looked up once or twice, the Map allocation and hashing overhead usually outweighs the O(1) lookup benefit, causing performance degradation.
 **Action:** Always prefer Maps when resolving objects across multiple fields iteratively **only** if the collection is large or if there are many subsequent lookups on the same structure. For small, infrequent lookups, stick to `Array.find()` or simple `for` loops.
+## 2024-05-13 - Fast Path & Single-Pass Filtering for `JulesSessionsProvider.getChildren`
+**Learning:** Sequential `.filter()` calls, especially those dependent on settings (`hideClosedPRSessions`), can create multiple intermediate arrays and cause unnecessary O(N) iterations.
+**Action:** Implemented a 'Fast Path' to avoid allocations entirely when no filtering is needed (e.g., All Sources selected and hide closed PRs disabled). Consolidated remaining filter logic into a single loop, manually maintaining required counters (`sourceFilteredCount`, `terminatedFilteredCount`) to preserve telemetry/logging parity while optimizing speed and memory.
