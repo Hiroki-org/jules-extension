@@ -1768,6 +1768,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       // where a background refresh re-adds a session that was optimistically removed.
       const allSessionsMapped: Session[] = [];
       let nextLastSelectedSession: Session | undefined = undefined;
+      const lastSelectedName = this.lastSelectedSession?.name;
       for (let i = 0; i < fetchedSessions.length; i++) {
         const session = fetchedSessions[i];
         if (!this.deletingSessions.has(session.name)) {
@@ -1777,12 +1778,19 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
             state: mapApiStateToSessionState(session.state),
           };
           allSessionsMapped.push(mappedSession);
-          if (this.lastSelectedSession?.name === mappedSession.name) {
+          if (!nextLastSelectedSession && lastSelectedName === mappedSession.name) {
             nextLastSelectedSession = mappedSession;
           }
         }
       }
-      this.lastSelectedSession = nextLastSelectedSession;
+      if (nextLastSelectedSession) {
+        this.lastSelectedSession = nextLastSelectedSession;
+      } else if (
+        this.lastSelectedSession &&
+        this.deletingSessions.has(this.lastSelectedSession.name)
+      ) {
+        this.lastSelectedSession = undefined;
+      }
 
       // デバッグ: 全セッションのrawStateをログ出力
       logChannel.appendLine(

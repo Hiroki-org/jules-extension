@@ -53,7 +53,7 @@ suite("JulesSessionsProvider Test Suite", () => {
 
     test("setLastSelectedSession should update lastSelectedSession", () => {
         const provider = new JulesSessionsProvider(mockContext);
-        const session = { name: "test-session", state: "ACTIVE" } as any;
+        const session = { name: "test-session", state: "IN_PROGRESS" } as any;
         provider.setLastSelectedSession(session);
         // Cast to any to access private property
         assert.strictEqual((provider as any).lastSelectedSession, session);
@@ -69,7 +69,7 @@ suite("JulesSessionsProvider Test Suite", () => {
         } as any;
         provider.setProgressStatusBarItem(mockStatusBar);
 
-        const session = { name: "test-session", state: "ACTIVE" } as any;
+        const session = { name: "test-session", state: "IN_PROGRESS" } as any;
         provider.setLastSelectedSession(session);
 
         (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "source1" });
@@ -106,7 +106,7 @@ suite("JulesSessionsProvider Test Suite", () => {
         } as any;
         provider.setProgressStatusBarItem(mockStatusBar);
 
-        const session = { name: "test-session", state: "ACTIVE" } as any;
+        const session = { name: "test-session", state: "IN_PROGRESS" } as any;
         provider.setLastSelectedSession(session);
 
         (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "source1" });
