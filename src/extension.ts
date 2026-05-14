@@ -2109,8 +2109,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     let filteredSessions: Session[] = [];
 
     if (isAllSources && !hideClosedPRs) {
-      // Fast Path: フィルタリング不要時はキャッシュの参照を直接返す
-      // 注意: filteredSessions を破壊的に変更しないこと（キャッシュ汚染を防ぐため）
       filteredSessions = this.sessionsCache;
       console.log(
         `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
@@ -2120,28 +2118,38 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       let terminatedFilteredCount = 0;
 
       for (const session of this.sessionsCache) {
-        const matchesSource = isAllSources || session.sourceContext?.source === selectedSource.name;
-        if (!matchesSource) {
-          continue;
+        let keep = true;
+
+        if (!isAllSources) {
+          if (session.sourceContext?.source === selectedSource.name) {
+            sourceFilteredCount++;
+          } else {
+            keep = false;
+          }
+        } else {
+          sourceFilteredCount++;
         }
 
-        sourceFilteredCount++;
-
-        if (hideClosedPRs && previousSessionStates.get(session.name)?.isTerminated) {
-          terminatedFilteredCount++;
-          continue;
+        if (keep && hideClosedPRs) {
+          const prevState = previousSessionStates.get(session.name);
+          if (prevState?.isTerminated) {
+            terminatedFilteredCount++;
+            keep = false;
+          }
         }
 
-        filteredSessions.push(session);
+        if (keep) {
+          filteredSessions.push(session);
+        }
       }
 
       if (isAllSources) {
         console.log(
-          `Jules: Evaluated ${sourceFilteredCount} sessions (All Repositories selected)`,
+          `Jules: Showing all ${sourceFilteredCount} sessions (All Repositories selected)`,
         );
       } else {
         console.log(
-          `Jules: Evaluated ${sourceFilteredCount} sessions for the selected source from cache`,
+          `Jules: Found ${sourceFilteredCount} sessions for the selected source from cache`,
         );
       }
 
