@@ -173,7 +173,7 @@ function isSessionActive(session: Session): boolean {
   return activeStates.has(session.rawState);
 }
 
-interface CachedSessionState {
+export interface CachedSessionState {
   name: string;
   state: SessionState;
   rawState: string;
