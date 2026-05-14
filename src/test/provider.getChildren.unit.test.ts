@@ -57,7 +57,9 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
 
         getConfigurationStub.returns({
             get: (key: string) => {
-                if (key === "hideClosedPRSessions") { return false; }
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
                 return undefined;
             }
         } as any);
@@ -85,7 +87,9 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
 
         getConfigurationStub.returns({
             get: (key: string) => {
-                if (key === "hideClosedPRSessions") { return false; }
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
                 return undefined;
             }
         } as any);
@@ -112,7 +116,9 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
 
         getConfigurationStub.returns({
             get: (key: string) => {
-                if (key === "hideClosedPRSessions") { return true; }
+                if (key === "hideClosedPRSessions") {
+                    return true;
+                }
                 return undefined;
             }
         } as any);
@@ -145,7 +151,9 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
 
         getConfigurationStub.returns({
             get: (key: string) => {
-                if (key === "hideClosedPRSessions") { return true; }
+                if (key === "hideClosedPRSessions") {
+                    return true;
+                }
                 return undefined;
             }
         } as any);
