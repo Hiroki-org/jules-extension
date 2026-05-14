@@ -15,5 +15,6 @@
 **Action:** Always verify if arrays you are comparing allow duplicate items. Use `.length` validation, then build a Frequency map and decrement values when comparing.
 
 ## 2026-05-13 - Combine sequential .filter() and implement Fast Path
+
 **Learning:** Chained `.filter()` calls on large arrays (like `sessionsCache`) lead to redundant iterations and intermediate array allocations. Refactoring these into a single pass improves CPU and memory efficiency. Furthermore, adding a "Fast Path" for the common "no-filter" scenario (e.g., All Repositories + show closed PRs) avoids array copying entirely.
 **Action:** Consolidate multiple array filtering operations into a single `.filter()` predicate. Use internal counters within the predicate to preserve telemetry that previously relied on intermediate array lengths, and always consider a "Fast Path" to return the original array reference when no filtering is required.
