@@ -876,10 +876,12 @@ export async function updatePreviousStates(
       continue;
     }
     const prs = extractPRs(session);
-    if (prs.length > 0) {
+    const prsForCheck =
+      prs.length > 0 ? prs : prevState ? extractPRs(prevState) : [];
+    if (prsForCheck.length > 0) {
       sessionsToCheck.push(session);
-      sessionPRsMap.set(session.name, prs);
-      for (const pr of prs) {
+      sessionPRsMap.set(session.name, prsForCheck);
+      for (const pr of prsForCheck) {
         uniquePRUrls.add(pr.url);
       }
     }
