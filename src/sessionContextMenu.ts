@@ -555,28 +555,18 @@ async function fetchAndCheckoutFromPRInfo(
         // リポジトリのリモート一覧を取得
         const remotes: { remote: string; fetchUrl: string }[] = repository.state?.remotes || [];
 
-        // O(1) ルックアップのためのMap構築
-        const remoteByFetchUrl = new Map<string, { remote: string; fetchUrl?: string; pushUrl?: string }>();
-        const remoteByName = new Map<string, { remote: string; fetchUrl?: string; pushUrl?: string }>();
-
-        for (const r of remotes) {
-            remoteByName.set(r.remote, r);
-            if (r.fetchUrl) {
-                remoteByFetchUrl.set(r.fetchUrl, r);
-                // .gitなしのURLも登録して完全一致と前方一致の両方に対応
-                remoteByFetchUrl.set(r.fetchUrl.replace(/\.git$/, ''), r);
-            }
-        }
-
         const headCloneUrlNoGit = headCloneUrl.replace(/\.git$/, '');
 
-        // headCloneUrlに一致するリモートを探す (Mapルックアップ)
-        let targetRemote = remoteByFetchUrl.get(headCloneUrl) || remoteByFetchUrl.get(headCloneUrlNoGit);
+        // headCloneUrlに一致するリモートを探す
+        let targetRemote = remotes.find(r =>
+            r.fetchUrl === headCloneUrl ||
+            (r.fetchUrl && r.fetchUrl.replace(/\.git$/, '') === headCloneUrlNoGit)
+        );
 
         // フォークからのPRで、対応するリモートがない場合
         if (!targetRemote) {
             // origin/upstreamを確認
-            const originRemote = remoteByName.get('origin');
+            const originRemote = remotes.find(r => r.remote === 'origin');
 
             // originがheadCloneUrlと同じなら、originを使う
             if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {

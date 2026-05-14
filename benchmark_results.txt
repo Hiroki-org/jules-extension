@@ -1,5 +1,0 @@
-Testing with 12000 remotes
-Old approach: 14.33 ms
-New approach (lookup only): 0.44 ms
-New approach (building + lookup): 7.75 ms
-Improvement: 1.85x
