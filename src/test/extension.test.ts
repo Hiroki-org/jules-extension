@@ -1594,5 +1594,6 @@ suite("Extension Test Suite", () => {
     assert.ok(mergedResult[0].planGenerated);
     assert.strictEqual((mergedResult[0] as any).planGenerated.plan.title, "Healthy Plan");
     fetchStub.restore();
+
   });
 });
