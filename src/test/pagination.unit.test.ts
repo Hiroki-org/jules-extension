@@ -36,7 +36,7 @@ suite("Pagination limit tests", () => {
       secrets: { get: async () => "dummyApiKey" },
     } as any;
     const provider = new JulesSessionsProvider(mockContext);
-    localSandbox.stub(provider as any, "_prefetchArtifactsForRecentSessions").resolves();
+      localSandbox.stub(provider as any, "_prefetchArtifactsForRecentSessions").resolves();
 
     while (provider['isFetching']) {
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -62,7 +62,7 @@ suite("Pagination limit tests", () => {
       secrets: { get: async () => "dummyApiKey" },
     } as any;
     const provider = new JulesSessionsProvider(mockContext);
-    localSandbox.stub(provider as any, "_prefetchArtifactsForRecentSessions").resolves();
+      localSandbox.stub(provider as any, "_prefetchArtifactsForRecentSessions").resolves();
 
     while (provider['isFetching']) {
       await new Promise(resolve => setTimeout(resolve, 10));
