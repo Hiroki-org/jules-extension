@@ -340,6 +340,396 @@ suite('sessionContextMenu checkout coverage suite', () => {
         assert.strictEqual((repo.createBranch as sinon.SinonStub).calledOnce, true);
     });
 
+
+
+    test('checkoutToBranchForSession fetches successfully when remote is origin and matches owner/repo via includes', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                // fetchUrl uses SSH so it won't match headCloneUrl exactly, but will include owner/repo
+                remotes: [{ remote: 'origin', fetchUrl: 'git@github.com:fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            // headCloneUrl uses HTTPS
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+        const session: Partial<Session> = {
+            name: 'session-6-origin-includes',
+            title: 'Session 6 Origin Includes',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnceWithExactly('origin'), true);
+    });
+
+
+test('checkoutToBranchForSession fetches successfully when remote is origin and matches owner/repo', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+        const session: Partial<Session> = {
+            name: 'session-6-2',
+            title: 'Session 6.2',
+            outputs: [{ pullRequest: { url: 'https://github.com/fork-owner/fork-repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnceWithExactly('origin'), true);
+        assert.strictEqual((repo.checkout as sinon.SinonStub).calledWithExactly('feature/pr-123'), true);
+    });
+
+    test('checkoutToBranchForSession falls back to tracking checkout then final error if checkout fails completely', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().rejects(new Error('pathspec did not match any file(s)')),
+            fetch: sandbox.stub().resolves(),
+            createBranch: sandbox.stub().rejects(new Error('fatal: A branch named feature/pr-123 already exists.'))
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+        const session: Partial<Session> = {
+            name: 'session-6-3',
+            title: 'Session 6.3',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        assert.strictEqual(result, false);
+    });
+
+    test('checkoutToBranchForSession handles adding a new remote for fork successfully', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/owner/repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves(),
+            addRemote: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+        showInformationMessageStub.resolves('Add Remote & Fetch');
+        const session: Partial<Session> = {
+            name: 'session-7-2',
+            title: 'Session 7.2',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.addRemote as sinon.SinonStub).calledOnce, true);
+    });
+
+    test('checkoutToBranchForSession ignores existing remote error when adding a fork remote', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/owner/repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves(),
+            addRemote: sandbox.stub().rejects(new Error('remote fork-owner already exists.'))
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+        showInformationMessageStub.resolves('Add Remote & Fetch');
+        const session: Partial<Session> = {
+            name: 'session-7-3',
+            title: 'Session 7.3',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+    });
+
+    test('checkoutToBranchForSession propagates non-existing remote error when adding a fork remote', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/owner/repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves(),
+            addRemote: sandbox.stub().rejects(new Error('fatal error'))
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+        showInformationMessageStub.resolves('Add Remote & Fetch');
+        const session: Partial<Session> = {
+            name: 'session-7-4',
+            title: 'Session 7.4',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        assert.strictEqual(result, false);
+    });
+
+
+
+    test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo success when headCloneUrl matches exactly without replace', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-remote', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session: Partial<Session> = {
+            name: 'session-match-exact',
+            title: 'Session Match Exact',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+        assert.strictEqual(result, true);
+    });
+
+
+    test('checkoutToBranchForSession succeeds via detached HEAD when createBranch fails', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().onFirstCall().rejects(new Error('branch not found')).onSecondCall().resolves(),
+            fetch: sandbox.stub().resolves(),
+            createBranch: sandbox.stub().rejects(new Error('create branch failed'))
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session: Partial<Session> = {
+            name: 'session-detached-head-success',
+            title: 'Session Detached Head',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.checkout as sinon.SinonStub).callCount, 2);
+    });
+
+
+test('checkoutToBranchForSession handles createBranch failure missing message property gracefully', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().rejects(new Error('pathspec did not match any file(s)')),
+            fetch: sandbox.stub().resolves(),
+            createBranch: sandbox.stub().rejects('String error without message property')
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session: Partial<Session> = {
+            name: 'session-catch-string-error',
+            title: 'Session Catch String Error',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+        assert.strictEqual(result, false);
+    });
+
+    test('checkoutToBranchForSession handles fetchAndCheckoutFromPRInfo catch block with string error', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                get remotes() {
+                    throw 'Just a string error';
+                }
+            }
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session: Partial<Session> = {
+            name: 'session-catch-block-string',
+            title: 'Session Catch Block String',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+        assert.strictEqual(result, false);
+    });
+
+
+test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo catch block on exception', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                // This getter will throw an exception when repository.state.remotes is accessed,
+                // triggering the catch block in fetchAndCheckoutFromPRInfo.
+                get remotes() {
+                    throw new Error('Test exception in remotes getter');
+                }
+            }
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session: Partial<Session> = {
+            name: 'session-catch-block',
+            title: 'Session Catch Block',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        // Since API fails, it will try fallback
+        // we'll just check it doesn't crash and returns false or handles it
+        assert.strictEqual(result, false);
+    });
+
     test('checkoutToBranchForSession returns false when fork remote addition is cancelled', async () => {
         const repo = createRepository({
             state: {

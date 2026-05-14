@@ -298,7 +298,62 @@ suite('sessionContextMenu Test Suite', () => {
             assert.strictEqual(result, null);
         });
 
-        test('should return canonical URL when pullRequest has valid URL', () => {
+
+        test('should return null when URL parsing throws an exception (invalid URL)', () => {
+            const session: Partial<Session> = {
+                name: 'test-session',
+                title: 'Test Session',
+                state: 'COMPLETED',
+                rawState: 'COMPLETED',
+                outputs: [
+                    {
+                        pullRequest: {
+                            url: 'http://foo.bar:-1/' // this throws when passed to new URL()
+                        }
+                    }
+                ]
+            };
+            const result = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(result, null);
+        });
+
+        test('should return null when URL path does not match PR format', () => {
+            const session: Partial<Session> = {
+                name: 'test-session',
+                title: 'Test Session',
+                state: 'COMPLETED',
+                rawState: 'COMPLETED',
+                outputs: [
+                    {
+                        pullRequest: {
+                            url: 'https://github.com/owner/repo/issues/1'
+                        }
+                    }
+                ]
+            };
+            const result = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(result, null);
+        });
+
+        test('should return null when PR number is invalid/NaN', () => {
+            const session: Partial<Session> = {
+                name: 'test-session',
+                title: 'Test Session',
+                state: 'COMPLETED',
+                rawState: 'COMPLETED',
+                outputs: [
+                    {
+                        pullRequest: {
+                            url: 'https://github.com/owner/repo/pull/not-a-number'
+                        }
+                    }
+                ]
+            };
+            const result = getPullRequestUrlForSession(session as Session);
+            assert.strictEqual(result, null);
+        });
+
+test('should return canonical URL when pullRequest has valid URL', () => {
             const session: Partial<Session> = {
                 name: 'test-session',
                 title: 'Test Session',
