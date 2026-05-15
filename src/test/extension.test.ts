@@ -1067,7 +1067,7 @@ suite("Extension Test Suite", () => {
       );
     });
 
-    test("should throw when active session fetch fails", async () => {
+    test("should throw when active session fetch fails (non-404)", async () => {
       const updateSessionStub = sandbox.stub();
       fetchStub.onFirstCall().resolves({
         ok: false,
