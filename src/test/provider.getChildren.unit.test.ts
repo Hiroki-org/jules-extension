@@ -105,6 +105,7 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
     });
 
     test("getChildren should filter out terminated sessions when hideClosedPRs=true", async () => {
+        const consoleLogStub = sandbox.stub(console, "log");
         const sessions = [
             createMockSession("s1", "repo1"),
             createMockSession("s2", "repo1"),
@@ -136,6 +137,43 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         assert.strictEqual(children.length, 2);
         assert.strictEqual((children[0] as SessionTreeItem).label, "Title s1");
         assert.strictEqual((children[1] as SessionTreeItem).label, "Title s3");
+        assert.ok(
+            consoleLogStub.calledWith(
+                "Jules: Showing all 2 sessions (All Repositories selected)"
+            )
+        );
+    });
+
+    test("setPreviousSessionStatesForTests should copy input state maps", async () => {
+        const sessions = [
+            createMockSession("s1", "repo1"),
+            createMockSession("s2", "repo1")
+        ];
+
+        const globalStateGet = mockContext.globalState.get as sinon.SinonStub;
+        globalStateGet.withArgs("selected-source").returns({ id: ALL_SOURCES_ID, name: "All repositories" });
+
+        getConfigurationStub.returns({
+            get: (key: string) => {
+                if (key === "hideClosedPRSessions") {
+                    return true;
+                }
+                return undefined;
+            }
+        } as any);
+
+        const previousStates = new Map();
+        previousStates.set("s2", { isTerminated: true });
+        setPreviousSessionStatesForTests(previousStates);
+        previousStates.clear();
+
+        const provider = new JulesSessionsProvider(mockContext);
+        provider.setSessionsCacheForTests(sessions);
+
+        const children = await provider.getChildren();
+
+        assert.strictEqual(children.length, 1);
+        assert.strictEqual((children[0] as SessionTreeItem).label, "Title s1");
     });
 
     test("getChildren should filter both by source and terminated status in one pass", async () => {
