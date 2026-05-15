@@ -807,12 +807,14 @@ suite("Extension helper unit tests", () => {
   suite("Command Registration and Execution Tests", () => {
     let localSandbox: sinon.SinonSandbox;
     let registeredCommands: Record<string, Function>;
+    let commandMockContext: any;
+    let mockContext: any;
 
     setup(() => {
       localSandbox = sinon.createSandbox();
       registeredCommands = {};
 
-      const mockContext = {
+      const mockContext = commandMockContext = {
         globalState: {
           get: localSandbox.stub().callsFake((key) => {
             if (key === 'selected-source') {
@@ -921,9 +923,37 @@ suite("Extension helper unit tests", () => {
       await registeredCommands['jules-extension.openInWebApp'](null);
     });
 
-    test("jules-extension.deleteSession executes successfully", async () => {
+    test("jules-extension.deleteSession executes successfully with null", async () => {
       assert.ok(registeredCommands['jules-extension.deleteSession']);
       await registeredCommands['jules-extension.deleteSession'](null);
+    });
+
+    test("jules-extension.deleteSession executes successfully and clears pagination warnings", async () => {
+      commandMockContext.secrets.get.resolves("dummyApiKey");
+      commandMockContext.secrets.get.resolves("dummyApiKey");
+      mockContext.secrets.get.resolves("dummyApiKey");
+      assert.ok(registeredCommands['jules-extension.deleteSession']);
+      const mockSession = { name: "sessions/test-delete", title: "Test Session", state: "COMPLETED" } as any;
+      const item = new SessionTreeItem(mockSession);
+
+      const showWarningStub = localSandbox.stub(vscode.window, "showWarningMessage").resolves("Delete" as any);
+      const showInfoStub = localSandbox.stub(vscode.window, "showInformationMessage").resolves();
+
+      const fetchStub = localSandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        status: 200,
+        json: async () => ({})
+      } as any);
+
+      // We need mockContext to be available in the command handler scope, but since we are just calling the registered command
+      // it uses the context provided during activate().
+
+      await registeredCommands['jules-extension.deleteSession'](item);
+
+      assert.strictEqual(fetchStub.calledOnce, true);
+      assert.strictEqual(fetchStub.firstCall.args[1]?.method, "DELETE");
+
+      // localSandbox will restore automatically
     });
 
     test("jules-extension.checkoutToBranch executes successfully", async () => {
