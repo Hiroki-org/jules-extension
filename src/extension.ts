@@ -2634,6 +2634,88 @@ export async function deleteSingleSession(
   sessionsProvider.unmarkSessionAsDeleting(session.name);
 }
 
+
+export async function executeDeleteSessionCommand(
+  context: vscode.ExtensionContext,
+  sessionsProvider: JulesSessionsProvider,
+  item?: SessionTreeItem,
+  selectedItems?: readonly unknown[]
+) {
+  const targets = resolveSelectedSessionItems(item, selectedItems);
+  if (targets.length === 0) {
+    vscode.window.showWarningMessage("No sessions selected.");
+    return;
+  }
+
+  let confirmTitle = "";
+  if (targets.length === 1) {
+    confirmTitle = `Are you sure you want to delete session "${targets[0].session.title}"?\n\nThis will permanently delete the session from the server.`;
+  } else {
+    const displayTitles = targets.slice(0, 3).map(t => ` - ${t.session.title}`).join("\n");
+    const moreCount = targets.length - 3;
+    const moreText = moreCount > 0 ? `\n and ${moreCount} more...` : "";
+    confirmTitle = `Delete ${targets.length} sessions?\n\n${displayTitles}${moreText}\n\nThis will permanently delete these sessions from the server.`;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    confirmTitle,
+    { modal: true },
+    "Delete",
+  );
+
+  if (confirm !== "Delete") {
+    return;
+  }
+
+  const apiKey = await getStoredApiKey(context);
+  if (!apiKey) {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Deleting Jules sessions...",
+      cancellable: false
+    },
+    async (progress) => {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
+        const session = target.session;
+
+        if (!isValidSessionId(session.name)) {
+          vscode.window.showErrorMessage(`Invalid session ID: ${session.name}`);
+          failCount++;
+          continue;
+        }
+
+        progress.report({ message: `Deleting ${i + 1} of ${targets.length}...` });
+
+        try {
+          await deleteSingleSession(context, sessionsProvider, session, apiKey);
+          successCount++;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          console.error(`Failed to delete session ${session.name}: ${message}`);
+          failCount++;
+
+          sessionsProvider.unmarkSessionAsDeleting(session.name);
+        }
+      }
+
+      if (failCount > 0) {
+        vscode.window.showWarningMessage(`Deleted ${successCount} sessions, but failed to delete ${failCount} sessions.`);
+        sessionsProvider.refresh(true);
+      } else if (successCount > 0) {
+        vscode.window.showInformationMessage(`Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`);
+      }
+    }
+  );
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
 
@@ -3650,86 +3732,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
+
   const deleteSessionDisposable = vscode.commands.registerCommand(
     "jules-extension.deleteSession",
-    async (item?: SessionTreeItem, selectedItems?: readonly unknown[]) => {
-      const targets = resolveSelectedSessionItems(item, selectedItems);
-
-      if (targets.length === 0) {
-        vscode.window.showWarningMessage("No sessions selected.");
-        return;
-      }
-
-      let confirmTitle = "";
-      if (targets.length === 1) {
-        confirmTitle = `Are you sure you want to delete session "${targets[0].session.title}"?\n\nThis will permanently delete the session from the server.`;
-      } else {
-        const displayTitles = targets.slice(0, 3).map(t => ` - ${t.session.title}`).join("\n");
-        const moreCount = targets.length - 3;
-        const moreText = moreCount > 0 ? `\n and ${moreCount} more...` : "";
-        confirmTitle = `Delete ${targets.length} sessions?\n\n${displayTitles}${moreText}\n\nThis will permanently delete these sessions from the server.`;
-      }
-
-      const confirm = await vscode.window.showWarningMessage(
-        confirmTitle,
-        { modal: true },
-        "Delete",
-      );
-
-      if (confirm !== "Delete") {
-        return;
-      }
-
-      const apiKey = await getStoredApiKey(context);
-      if (!apiKey) {
-        return;
-      }
-
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "Deleting Jules sessions...",
-          cancellable: false
-        },
-        async (progress) => {
-          let successCount = 0;
-          let failCount = 0;
-
-          for (let i = 0; i < targets.length; i++) {
-            const target = targets[i];
-            const session = target.session;
-
-            if (!isValidSessionId(session.name)) {
-              vscode.window.showErrorMessage(`Invalid session ID: ${session.name}`);
-              failCount++;
-              continue;
-            }
-
-            progress.report({ message: `Deleting ${i + 1} of ${targets.length}...` });
-
-            try {
-              await deleteSingleSession(context, sessionsProvider, session, apiKey);
-              successCount++;
-            } catch (error) {
-              const message = error instanceof Error ? error.message : "Unknown error";
-              console.error(`Failed to delete session ${session.name}: ${message}`);
-              failCount++;
-
-              // Unmark so it can be restored on refresh
-              sessionsProvider.unmarkSessionAsDeleting(session.name);
-            }
-          }
-
-          if (failCount > 0) {
-            vscode.window.showWarningMessage(`Deleted ${successCount} sessions, but failed to delete ${failCount} sessions.`);
-            // Refresh to restore failed deletions from the server
-            sessionsProvider.refresh(true);
-          } else if (successCount > 0) {
-            vscode.window.showInformationMessage(`Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`);
-          }
-        }
-      );
-    },
+    (item?: SessionTreeItem, selectedItems?: readonly unknown[]) => executeDeleteSessionCommand(context, sessionsProvider, item, selectedItems)
   );
 
   const clearCacheDisposable = vscode.commands.registerCommand(

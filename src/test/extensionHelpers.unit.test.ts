@@ -27,8 +27,9 @@ import {
   buildActivitySummaryHeader,
   refreshActiveChatSessionFromAutoRefresh,
   resolveSelectedSessionItems,
-  deleteSingleSession
-} from "../extension";
+  deleteSingleSession,
+  executeDeleteSessionCommand,
+  } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
 import { GitHubAuth } from "../githubAuth";
@@ -1493,6 +1494,105 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(mockSessionsProvider.removeSession.calledWith("test-session-123"), true);
       // but should NOT clear active session since it threw
       assert.strictEqual(mockContext.globalState.update.calledWith("active-session-id", undefined), false);
+    });
+  });
+
+  suite("executeDeleteSessionCommand", () => {
+    let mockContext: any;
+    let mockSessionsProvider: any;
+    let mockItem1: any;
+    let mockItem2: any;
+    let windowMock: sinon.SinonMock;
+    let commandsMock: sinon.SinonMock;
+
+    setup(() => {
+      mockContext = {
+        globalState: {
+          get: sinon.stub(),
+          update: sinon.stub().resolves()
+        },
+        secrets: {
+          get: sinon.stub().resolves("dummy-api-key")
+        }
+      };
+
+      mockSessionsProvider = {
+        markSessionAsDeleting: sinon.stub(),
+        unmarkSessionAsDeleting: sinon.stub(),
+        removeSession: sinon.stub(),
+        refresh: sinon.stub()
+      };
+
+      mockItem1 = { session: { name: "session-1", title: "S1" } };
+      mockItem2 = { session: { name: "session-2", title: "S2" } };
+
+      // We fake instanceof SessionTreeItem for resolveSelectedSessionItems
+      sinon.stub(mockItem1, "constructor").get(() => SessionTreeItem);
+      Object.setPrototypeOf(mockItem1, SessionTreeItem.prototype);
+      Object.setPrototypeOf(mockItem2, SessionTreeItem.prototype);
+
+      windowMock = sinon.mock(vscode.window);
+    });
+
+    teardown(() => {
+      sinon.restore();
+    });
+
+    test("should show warning when no sessions selected", async () => {
+      windowMock.expects("showWarningMessage").withArgs("No sessions selected.").once().resolves();
+      await executeDeleteSessionCommand(mockContext, mockSessionsProvider, undefined, []);
+      windowMock.verify();
+    });
+
+    test("should handle user cancel", async () => {
+      windowMock.expects("showWarningMessage").once().resolves(undefined); // user cancelled
+      await executeDeleteSessionCommand(mockContext, mockSessionsProvider, mockItem1, []);
+      windowMock.verify();
+    });
+
+    test("should delete single session successfully", async () => {
+      windowMock.expects("showWarningMessage").once().resolves("Delete");
+      windowMock.expects("withProgress").once().callsFake(async (opts: any, task: any) => {
+        const progress = { report: sinon.stub() };
+        await task(progress);
+      });
+      windowMock.expects("showInformationMessage").once().resolves();
+
+      const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        status: 200
+      } as any);
+
+      await executeDeleteSessionCommand(mockContext, mockSessionsProvider, mockItem1, []);
+      windowMock.verify();
+      assert.strictEqual(fetchStub.calledOnce, true);
+    });
+
+    test("should handle multiple session deletion with some failures", async () => {
+      windowMock.expects("showWarningMessage").withExactArgs(
+        sinon.match(/Delete 2 sessions?/),
+        { modal: true },
+        "Delete"
+      ).once().resolves("Delete");
+
+      windowMock.expects("withProgress").once().callsFake(async (opts: any, task: any) => {
+        const progress = { report: sinon.stub() };
+        await task(progress);
+      });
+      windowMock.expects("showWarningMessage").withExactArgs(sinon.match(/Deleted 1 sessions, but failed to delete 1 sessions/)).once().resolves();
+
+      const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout");
+      fetchStub.onFirstCall().resolves({ ok: true, status: 200 } as any);
+      fetchStub.onSecondCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: sinon.stub().resolves("Not Found")
+      } as any);
+
+      await executeDeleteSessionCommand(mockContext, mockSessionsProvider, mockItem1, [mockItem1, mockItem2]);
+      windowMock.verify();
+      assert.strictEqual(fetchStub.calledTwice, true);
     });
   });
 });
