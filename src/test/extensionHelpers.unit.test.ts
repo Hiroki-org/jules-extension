@@ -920,10 +920,13 @@ suite("Extension helper unit tests", () => {
   suite("Command Registration and Execution Tests", () => {
     let localSandbox: sinon.SinonSandbox;
     let registeredCommands: Record<string, Function>;
+    let getSecretStub: sinon.SinonStub;
+    let extensionModule: typeof import("../extension");
 
     setup(() => {
       localSandbox = sinon.createSandbox();
       registeredCommands = {};
+      getSecretStub = localSandbox.stub().resolves(undefined);
 
       const mockContext = {
         globalState: {
@@ -937,7 +940,7 @@ suite("Extension helper unit tests", () => {
           keys: localSandbox.stub().returns([]),
         },
         subscriptions: [],
-        secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() }
+        secrets: { get: getSecretStub, store: localSandbox.stub().resolves() }
       } as any as vscode.ExtensionContext;
 
       localSandbox.stub(vscode.window, "createTreeView").callsFake(() => ({
@@ -978,8 +981,8 @@ suite("Extension helper unit tests", () => {
 
       // Require the activate function dynamically to ensure fresh registration
       delete require.cache[require.resolve("../extension")];
-      const extension = require("../extension");
-      extension.activate(mockContext);
+      extensionModule = require("../extension");
+      extensionModule.activate(mockContext);
     });
 
     teardown(() => {
@@ -1037,6 +1040,80 @@ suite("Extension helper unit tests", () => {
     test("jules-extension.deleteSession executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.deleteSession']);
       await registeredCommands['jules-extension.deleteSession'](null);
+    });
+
+    test("jules-extension.deleteSession clears pagination warning state for the deleted session", async () => {
+      assert.ok(registeredCommands['jules-extension.deleteSession']);
+      const fetchStub = localSandbox.stub(fetchUtils, "fetchWithTimeout");
+      const showWarningStub = localSandbox.stub(vscode.window, "showWarningMessage");
+      const showInfoStub = localSandbox.stub(vscode.window, "showInformationMessage").resolves();
+
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { name: "activities/1", createTime: "2024-01-01T00:00:00Z" },
+          ],
+          nextPageToken: "always-more-tokens",
+        }),
+      } as any);
+
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+
+      assert.strictEqual(showWarningStub.callCount, 1);
+
+      showWarningStub.onCall(1).resolves("Delete" as any);
+      getSecretStub.resolves("dummyApiKey");
+      fetchStub.reset();
+      fetchStub.resolves({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => "",
+      } as any);
+
+      const item = new extensionModule.SessionTreeItem({
+        name: "sessions/delete-me",
+        title: "Delete Me",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+      });
+
+      await registeredCommands['jules-extension.deleteSession'](item);
+
+      assert.strictEqual(showInfoStub.calledOnce, true);
+
+      fetchStub.reset();
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { name: "activities/1", createTime: "2024-01-01T00:00:00Z" },
+          ],
+          nextPageToken: "always-more-tokens",
+        }),
+      } as any);
+
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+
+      assert.strictEqual(showWarningStub.callCount, 3);
+      assert.match(
+        showWarningStub.lastCall.args[0],
+        /Pagination limit exceeded while loading activities/,
+      );
     });
 
     test("jules-extension.checkoutToBranch executes successfully", async () => {
