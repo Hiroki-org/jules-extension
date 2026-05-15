@@ -2,7 +2,7 @@
   "name": "jules-extension",
   "displayName": "Jules Extension",
   "description": "Control Google Jules AI coding agent directly from VS Code",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "publisher": "HirokiMukai",
   "license": "MIT",
   "icon": "icon.png",
@@ -301,6 +301,11 @@
           "command": "jules-extension.refreshActivities",
           "when": "view == julesChatView",
           "group": "navigation@1"
+        },
+        {
+          "command": "jules-extension.deleteSession",
+          "when": "view == julesSessionsView",
+          "group": "navigation@7"
         }
       ],
       "view/item/context": [

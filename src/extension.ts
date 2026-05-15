@@ -83,6 +83,14 @@ import { registerInlineCommands } from "./inlineCommands";
 const VIEW_DETAILS_ACTION = "View Details";
 const SHOW_ACTIVITIES_COMMAND = "jules-extension.showActivities";
 const MAX_PAGE_SIZE = 5000;
+let hasShownSessionsPaginationWarning = false;
+const sessionsWithPaginationWarningShown = new Set<string>();
+
+export function resetPaginationWarningState(): void {
+  hasShownSessionsPaginationWarning = false;
+  sessionsWithPaginationWarningShown.clear();
+}
+
 const MAX_PAGINATION_PAGES = 2;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
 const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
@@ -182,10 +190,12 @@ export interface CachedSessionState {
 }
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
+let previousSessionStatesLoaded = false;
 let notifiedSessions: Set<string> = new Set();
 
 export function resetUpdatePreviousStatesCachesForTests(): void {
   previousSessionStates = new Map();
+  previousSessionStatesLoaded = false;
   notifiedSessions = new Set();
   prStatusCache = {};
 }
@@ -194,6 +204,7 @@ export function setPreviousSessionStatesForTests(
   states: Map<string, CachedSessionState>,
 ): void {
   previousSessionStates = new Map(states);
+  previousSessionStatesLoaded = true;
 }
 
 export function setPRStatusCacheForTests(cache: PRStatusCache): void {
@@ -220,10 +231,19 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
   const storedStates = context.globalState.get<{
     [key: string]: CachedSessionState;
   }>("jules.previousSessionStates", {});
-  previousSessionStates = new Map(Object.entries(storedStates));
+  previousSessionStates = new Map(Object.entries(storedStates ?? {}));
+  previousSessionStatesLoaded = true;
   console.log(
     `Jules: Loaded ${previousSessionStates.size} previous session states from global state.`,
   );
+}
+
+function ensurePreviousSessionStatesLoaded(
+  context: vscode.ExtensionContext,
+): void {
+  if (!previousSessionStatesLoaded) {
+    loadPreviousSessionStates(context);
+  }
 }
 let autoRefreshInterval: NodeJS.Timeout | undefined;
 let isFetchingSensitiveData = false;
@@ -878,10 +898,14 @@ export async function updatePreviousStates(
       continue;
     }
     const prs = extractPRs(session);
-    if (prs.length > 0) {
+    let prsForCheck = prs;
+    if (prs.length === 0 && prevState) {
+      prsForCheck = extractPRs(prevState);
+    }
+    if (prsForCheck.length > 0) {
       sessionsToCheck.push(session);
-      sessionPRsMap.set(session.name, prs);
-      for (const pr of prs) {
+      sessionPRsMap.set(session.name, prsForCheck);
+      for (const pr of prsForCheck) {
         uniquePRUrls.add(pr.url);
       }
     }
@@ -946,6 +970,12 @@ export async function updatePreviousStates(
 
   for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
+    const currentOutputs = session.outputs ?? [];
+    const outputsForState = getOutputsForStatePersistence(
+      session,
+      prevState,
+      currentOutputs,
+    );
 
     // If already terminated, we don't need to check again.
     // Just update with the latest info from the server but keep it terminated.
@@ -953,13 +983,13 @@ export async function updatePreviousStates(
       if (
         prevState.state !== session.state ||
         prevState.rawState !== session.rawState ||
-        !areOutputsEqual(prevState.outputs, session.outputs)
+        !areOutputsEqual(prevState.outputs, currentOutputs)
       ) {
         previousSessionStates.set(session.name, {
           ...prevState,
           state: session.state,
           rawState: session.rawState,
-          outputs: session.outputs,
+          outputs: currentOutputs,
         });
         hasChanged = true;
       }
@@ -994,13 +1024,13 @@ export async function updatePreviousStates(
       prevState.state !== session.state ||
       prevState.rawState !== session.rawState ||
       prevState.isTerminated !== isTerminated ||
-      !areOutputsEqual(prevState.outputs, session.outputs)
+      !areOutputsEqual(prevState.outputs, outputsForState)
     ) {
       previousSessionStates.set(session.name, {
         name: session.name,
         state: session.state,
         rawState: session.rawState,
-        outputs: session.outputs,
+        outputs: outputsForState,
         isTerminated: isTerminated,
       });
       hasChanged = true;
@@ -1022,6 +1052,21 @@ export async function updatePreviousStates(
     await context.globalState.update("jules.prStatusCache", prStatusCache);
   }
   return hasChanged;
+}
+
+function getOutputsForStatePersistence(
+  session: Session,
+  prevState: CachedSessionState | undefined,
+  currentOutputs: SessionOutput[],
+): SessionOutput[] {
+  if (session.state !== "COMPLETED" || currentOutputs.length > 0 || !prevState) {
+    return currentOutputs;
+  }
+  const previousPRs = extractPRs(prevState);
+  if (previousPRs.length === 0) {
+    return currentOutputs;
+  }
+  return prevState.outputs ?? [];
 }
 
 function startAutoRefresh(
@@ -1230,6 +1275,12 @@ export async function refreshActiveChatSessionFromAutoRefresh(
       },
     );
     if (!sessionResponse.ok) {
+      if (sessionResponse.status === 404) {
+        logChannel.appendLine(`Jules: Active session ${activeSessionId} not found (404). Clearing active session.`);
+        await context.globalState.update("active-session-id", undefined);
+        chatViewProvider.updateSession("", [], undefined, undefined, undefined);
+        return;
+      }
       const errorText = await sessionResponse.text();
       throw new Error(
         `Failed to fetch active session for chat polling: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`,
@@ -1250,13 +1301,25 @@ export async function refreshActiveChatSessionFromAutoRefresh(
     const shouldMergeWithCache =
       !!previousLatestCreateTime && cachedActivities.length > 0;
 
-    const newActivities = await fetchSessionActivitiesPaginated(
-      apiKey,
-      activeSessionId,
-      {
-        showPaginationProgress: false,
-      },
-    );
+    let newActivities: Activity[] = [];
+    try {
+      newActivities = await fetchSessionActivitiesPaginated(
+        apiKey,
+        activeSessionId,
+        {
+          showPaginationProgress: false,
+        },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("404")) {
+        logChannel.appendLine(`Jules: Active session activities not found (404). Clearing active session.`);
+        await context.globalState.update("active-session-id", undefined);
+        chatViewProvider.updateSession("", [], undefined, undefined, undefined);
+        return;
+      }
+      throw error;
+    }
 
     const mergedActivities = shouldMergeWithCache
       ? mergeActivitiesByIdentity(cachedActivities, newActivities)
@@ -1471,7 +1534,12 @@ async function fetchAllSessionsPaginated(
       if (page > MAX_PAGINATION_PAGES) {
         const msg = `Jules: Pagination limit exceeded while loading sessions (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`;
         logChannel.appendLine(msg);
-        vscode.window.showWarningMessage(`Pagination limit exceeded while loading sessions. Partial results returned.`);
+        if (showPaginationProgress) {
+          if (!hasShownSessionsPaginationWarning) {
+            vscode.window.showWarningMessage(`Pagination limit exceeded while loading sessions. Partial results returned.`);
+            hasShownSessionsPaginationWarning = true;
+          }
+        }
         break;
       }
       if (page > 1) {
@@ -1507,6 +1575,10 @@ async function fetchAllSessionsPaginated(
       pageToken = data.nextPageToken;
     } while (pageToken);
 
+    if (page <= MAX_PAGINATION_PAGES) {
+      hasShownSessionsPaginationWarning = false;
+    }
+
     return allSessions;
   };
 
@@ -1540,7 +1612,12 @@ export async function fetchSessionActivitiesPaginated(
       if (page > MAX_PAGINATION_PAGES) {
         const msg = `Jules: Pagination limit exceeded while loading activities (>${MAX_PAGINATION_PAGES} pages). Breaking loop to prevent memory issues.`;
         logChannel.appendLine(msg);
-        vscode.window.showWarningMessage(`Pagination limit exceeded while loading activities. Partial results returned.`);
+        if (options?.showPaginationProgress) {
+          if (!sessionsWithPaginationWarningShown.has(sessionId)) {
+            vscode.window.showWarningMessage(`Pagination limit exceeded while loading activities. Partial results returned.`);
+            sessionsWithPaginationWarningShown.add(sessionId);
+          }
+        }
         break;
       }
       if (page > 1) {
@@ -1578,6 +1655,10 @@ export async function fetchSessionActivitiesPaginated(
       }
       pageToken = data.nextPageToken;
     } while (pageToken);
+
+    if (page <= MAX_PAGINATION_PAGES) {
+      sessionsWithPaginationWarningShown.delete(sessionId);
+    }
 
     await recoverCorruptedActivities(apiKey, sessionId, activities, progress);
 
@@ -1755,6 +1836,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     }
     this.isFetching = true;
     logChannel.appendLine("Jules: Starting to fetch and process sessions...");
+    ensurePreviousSessionStatesLoaded(this.context);
 
     try {
       const apiKey = await getStoredApiKey(this.context);
@@ -2106,58 +2188,67 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       return [];
     }
 
-    // Filter out sessions with closed PRs if the setting is enabled
+    ensurePreviousSessionStatesLoaded(this.context);
+
+    // Now, use the cache to build the tree
+    const isAllSources = selectedSource.id === ALL_SOURCES_ID;
     const hideClosedPRs = vscode.workspace
       .getConfiguration("jules-extension")
       .get<boolean>("hideClosedPRSessions", true);
 
-    // Now, use the cache to build the tree
-    const isAllSources = selectedSource.id === ALL_SOURCES_ID;
+    let filteredSessions: Session[] = [];
 
-    let filteredSessions: Session[];
-    let sourceFilteredCount: number;
-    let terminatedFilteredCount = 0;
-
-    // Fast path: Avoid allocation if no filtering is needed
     if (isAllSources && !hideClosedPRs) {
       filteredSessions = this.sessionsCache;
-      sourceFilteredCount = this.sessionsCache.length;
+      console.log(
+        `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
+      );
     } else {
-      sourceFilteredCount = 0;
-      filteredSessions = this.sessionsCache.filter((session) => {
-        // 1. Source filter
-        if (!isAllSources && session.sourceContext?.source !== selectedSource.name) {
-          return false;
-        }
-        sourceFilteredCount++;
+      let sourceFilteredCount = 0;
+      let terminatedFilteredCount = 0;
 
-        // 2. Closed PR filter
-        if (hideClosedPRs) {
+      for (const session of this.sessionsCache) {
+        let keep = true;
+
+        if (!isAllSources) {
+          if (session.sourceContext?.source === selectedSource.name) {
+            sourceFilteredCount++;
+          } else {
+            keep = false;
+          }
+        } else {
+          sourceFilteredCount++;
+        }
+
+        if (keep && hideClosedPRs) {
           const prevState = previousSessionStates.get(session.name);
           if (prevState?.isTerminated) {
             terminatedFilteredCount++;
-            return false;
+            keep = false;
           }
         }
 
-        return true;
-      });
-    }
+        if (keep) {
+          filteredSessions.push(session);
+        }
+      }
 
-    if (isAllSources) {
-      console.log(
-        `Jules: Showing all ${sourceFilteredCount} sessions (All Repositories selected)`,
-      );
-    } else {
-      console.log(
-        `Jules: Found ${sourceFilteredCount} sessions for the selected source from cache`,
-      );
-    }
+      if (isAllSources) {
+        console.log(
+          `Jules: Showing all ${sourceFilteredCount} sessions (All Repositories selected)`,
+        );
+      } else {
+        console.log(
+          `Jules: Found ${sourceFilteredCount} sessions for the selected source from cache`,
+        );
+      }
 
-    if (terminatedFilteredCount > 0) {
-      console.log(
-        `Jules: Filtered out ${terminatedFilteredCount} terminated sessions (${sourceFilteredCount} -> ${filteredSessions.length})`,
-      );
+      if (hideClosedPRs && terminatedFilteredCount > 0) {
+        const beforeFilterCount = sourceFilteredCount;
+        console.log(
+          `Jules: Filtered out ${terminatedFilteredCount} terminated sessions (${beforeFilterCount} -> ${filteredSessions.length})`,
+        );
+      }
     }
 
     if (filteredSessions.length === 0) {
@@ -2499,6 +2590,176 @@ function detectProxy(): { type: 'socks' | 'http', url: string } | null {
   return null;
 }
 
+
+export function resolveSelectedSessionItems(
+  primary?: SessionTreeItem,
+  selected?: readonly unknown[],
+): SessionTreeItem[] {
+  // Keep the right-clicked item first so future bulk actions have a stable
+  // primary target while still deduplicating it from the selection.
+  const items = [
+    ...(primary instanceof SessionTreeItem ? [primary] : []),
+    ...(selected ?? []).filter((item): item is SessionTreeItem => item instanceof SessionTreeItem),
+  ];
+
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const id = item.session.name;
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
+
+export async function deleteSingleSession(
+  context: vscode.ExtensionContext,
+  sessionsProvider: JulesSessionsProvider,
+  session: Session,
+  apiKey: string,
+): Promise<void> {
+  // Mark as deleting to prevent background refresh from restoring it
+  sessionsProvider.markSessionAsDeleting(session.name);
+
+  // Optimistic UI update: Remove from local view immediately
+  sessionsProvider.removeSession(session.name);
+
+  const response = await fetchWithTimeout(
+    `${JULES_API_BASE_URL}/${session.name}`,
+    {
+      method: "DELETE",
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    const safeDisplayText = truncateForDisplay(
+      sanitizeForLogging(errorText),
+    );
+    throw new Error(
+      `Failed to delete session on server: ${response.status} ${response.statusText} - ${safeDisplayText}`,
+    );
+  }
+
+  // On success, permanently remove from previous states to prevent re-notification.
+  previousSessionStates.delete(session.name);
+  notifiedSessions.delete(session.name);
+  sessionsWithPaginationWarningShown.delete(session.name);
+  await context.globalState.update(
+    "jules.previousSessionStates",
+    Object.fromEntries(previousSessionStates),
+  );
+
+  // Clear active session if the deleted session was the active one
+  const activeSessionId = context.globalState.get<string>("active-session-id");
+  if (activeSessionId === session.name) {
+    await context.globalState.update("active-session-id", undefined);
+  }
+
+  // Remove from deleting set (it's gone now, so filter doesn't matter, but good cleanup)
+  sessionsProvider.unmarkSessionAsDeleting(session.name);
+}
+
+
+export async function executeDeleteSessionCommand(
+  context: vscode.ExtensionContext,
+  sessionsProvider: JulesSessionsProvider,
+  item?: SessionTreeItem,
+  selectedItems?: readonly unknown[],
+): Promise<void> {
+  const targets = resolveSelectedSessionItems(item, selectedItems);
+  if (targets.length === 0) {
+    vscode.window.showWarningMessage("No sessions selected.");
+    return;
+  }
+
+  const invalidTarget = targets.find(
+    (target) => !isValidSessionId(target.session.name),
+  );
+  if (invalidTarget) {
+    vscode.window.showErrorMessage(
+      `Invalid session ID: ${invalidTarget.session.name}`,
+    );
+    return;
+  }
+
+  let confirmTitle = "";
+  if (targets.length === 1) {
+    confirmTitle = `Are you sure you want to delete session "${targets[0].session.title}"?\n\nThis will permanently delete the session from the server.`;
+  } else {
+    const displayTitles = targets.slice(0, 3).map(t => ` - ${t.session.title}`).join("\n");
+    const moreCount = Math.max(0, targets.length - 3);
+    const moreText = moreCount > 0 ? `\nand ${moreCount} more...` : "";
+    confirmTitle = `Delete ${targets.length} sessions?\n\n${displayTitles}${moreText}\n\nThis will permanently delete these sessions from the server.`;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    confirmTitle,
+    { modal: true },
+    "Delete",
+  );
+
+  if (confirm !== "Delete") {
+    return;
+  }
+
+  const apiKey = await getStoredApiKey(context);
+  if (!apiKey) {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Deleting Jules sessions...",
+      cancellable: false
+    },
+    async (progress) => {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
+        const session = target.session;
+
+        progress.report({ message: `Deleting ${i + 1} of ${targets.length}...` });
+
+        try {
+          await deleteSingleSession(context, sessionsProvider, session, apiKey);
+          successCount++;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          console.error(`Failed to delete session ${session.name}: ${message}`);
+          failCount++;
+
+          sessionsProvider.unmarkSessionAsDeleting(session.name);
+        }
+      }
+
+      if (failCount > 0) {
+        const failedLabel = `session${failCount === 1 ? "" : "s"}`;
+        if (successCount > 0) {
+          vscode.window.showWarningMessage(
+            `Deleted ${successCount} session${successCount === 1 ? "" : "s"}, but failed to delete ${failCount} ${failedLabel}.`,
+          );
+        } else {
+          vscode.window.showErrorMessage(
+            `Failed to delete ${failCount} ${failedLabel}.`,
+          );
+        }
+        sessionsProvider.refresh(true);
+      } else if (successCount > 0) {
+        vscode.window.showInformationMessage(`Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`);
+      }
+    }
+  );
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("Jules Extension is now active");
 
@@ -2559,6 +2820,7 @@ export function activate(context: vscode.ExtensionContext) {
   const sessionsTreeView = vscode.window.createTreeView("julesSessionsView", {
     treeDataProvider: sessionsProvider,
     showCollapseAll: false,
+    canSelectMany: true,
   });
   console.log("Jules: TreeView created");
 
@@ -2661,6 +2923,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
       if (apiKey) {
         await context.secrets.store("jules-api-key", apiKey);
+        resetPaginationWarningState();
         vscode.window.showInformationMessage("API Key saved securely.");
       }
     },
@@ -3511,97 +3774,19 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
+
+
+
+
   const deleteSessionDisposable = vscode.commands.registerCommand(
     "jules-extension.deleteSession",
-    async (item?: SessionTreeItem) => {
-      if (!item || !(item instanceof SessionTreeItem)) {
-        vscode.window.showErrorMessage("No session selected.");
-        return;
-      }
-
-      const session = item.session;
-      const confirm = await vscode.window.showWarningMessage(
-        `Are you sure you want to delete session "${session.title}"?\n\nThis will permanently delete the session from the server.`,
-        { modal: true },
-        "Delete",
-      );
-
-      if (confirm !== "Delete") {
-        return;
-      }
-
-      if (!isValidSessionId(session.name)) {
-        vscode.window.showErrorMessage(`Invalid session ID: ${session.name}`);
-        return;
-      }
-
-      const apiKey = await getStoredApiKey(context);
-      if (!apiKey) {
-        return;
-      }
-
-      // Perform background server deletion
-      try {
-        // Mark as deleting to prevent background refresh from restoring it
-        sessionsProvider.markSessionAsDeleting(session.name);
-
-        // Optimistic UI update: Remove from local view immediately
-        sessionsProvider.removeSession(session.name);
-
-        const response = await fetchWithTimeout(
-          `${JULES_API_BASE_URL}/${session.name}`,
-          {
-            method: "DELETE",
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-            },
-          },
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const safeDisplayText = truncateForDisplay(
-            sanitizeForLogging(errorText),
-          );
-          throw new Error(
-            `Failed to delete session on server: ${response.status} ${response.statusText} - ${safeDisplayText}`,
-          );
-        }
-
-        // On success, permanently remove from previous states to prevent re-notification.
-        previousSessionStates.delete(session.name);
-        notifiedSessions.delete(session.name);
-        await context.globalState.update(
-          "jules.previousSessionStates",
-          Object.fromEntries(previousSessionStates),
-        );
-
-        // Clear active session if the deleted session was the active one
-        const activeSessionId =
-          context.globalState.get<string>("active-session-id");
-        if (activeSessionId === session.name) {
-          await context.globalState.update("active-session-id", undefined);
-        }
-
-        // Remove from deleting set (it's gone now, so filter doesn't matter, but good cleanup)
-        sessionsProvider.unmarkSessionAsDeleting(session.name);
-
-        vscode.window.showInformationMessage(
-          `Session "${session.title}" deleted successfully.`,
-        );
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        vscode.window.showErrorMessage(`Error deleting session: ${message}`);
-
-        // Unmark so it can be restored
-        sessionsProvider.unmarkSessionAsDeleting(session.name);
-
-        // Revert/Refresh to restore state from server if delete failed
-        // Use background=true to avoid duplicate error messages about missing API key (though we checked it above)
-        sessionsProvider.refresh(true);
-      }
-    },
+    (item?: SessionTreeItem, selectedItems?: readonly unknown[]) =>
+      executeDeleteSessionCommand(
+        context,
+        sessionsProvider,
+        item,
+        selectedItems ?? sessionsTreeView.selection,
+      ),
   );
 
   const clearCacheDisposable = vscode.commands.registerCommand(
@@ -3846,4 +4031,5 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   stopAutoRefresh();
   GitHubAuth.dispose();
+  resetPaginationWarningState();
 }
