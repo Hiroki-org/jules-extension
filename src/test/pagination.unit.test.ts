@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import {
+  deactivate,
   fetchSessionActivitiesPaginated,
   JulesSessionsProvider
 } from "../extension";
@@ -19,6 +20,7 @@ suite("Pagination limit tests", () => {
   });
 
   teardown(() => {
+    deactivate();
     localSandbox.restore();
   });
 
@@ -191,6 +193,27 @@ suite("Pagination limit tests", () => {
     } as any);
     await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
     assert.strictEqual(showWarningMessageStub.callCount, 3);
+  });
+
+  test("should clear activity warning suppression on deactivate", async () => {
+    fetchStub.resolves({
+      ok: true,
+      json: async () => ({
+        activities: [{ name: "activities/1", createTime: "2024-01-01T00:00:00Z" }],
+        nextPageToken: "always-more-tokens",
+      }),
+    } as any);
+
+    await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
+    assert.strictEqual(showWarningMessageStub.callCount, 1);
+
+    await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
+    assert.strictEqual(showWarningMessageStub.callCount, 1);
+
+    deactivate();
+
+    await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
+    assert.strictEqual(showWarningMessageStub.callCount, 2);
   });
 
   test("should gracefully break activities pagination loop and show warning if showPaginationProgress is true", async () => {

@@ -86,6 +86,11 @@ const MAX_PAGE_SIZE = 5000;
 let hasShownSessionsPaginationWarning = false;
 const sessionsWithPaginationWarningShown = new Set<string>();
 
+function resetPaginationWarningState(): void {
+  hasShownSessionsPaginationWarning = false;
+  sessionsWithPaginationWarningShown.clear();
+}
+
 const MAX_PAGINATION_PAGES = 2;
 const MAX_ACTIVITIES_CACHE_SIZE = 50;
 const ACTIVITIES_LATEST_CREATE_TIME_KEY_PREFIX =
@@ -3651,6 +3656,7 @@ export function activate(context: vscode.ExtensionContext) {
         // On success, permanently remove from previous states to prevent re-notification.
         previousSessionStates.delete(session.name);
         notifiedSessions.delete(session.name);
+        sessionsWithPaginationWarningShown.delete(session.name);
         await context.globalState.update(
           "jules.previousSessionStates",
           Object.fromEntries(previousSessionStates),
@@ -3926,4 +3932,5 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   stopAutoRefresh();
   GitHubAuth.dispose();
+  resetPaginationWarningState();
 }
