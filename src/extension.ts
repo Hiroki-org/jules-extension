@@ -3746,7 +3746,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   const deleteSessionDisposable = vscode.commands.registerCommand(
     "jules-extension.deleteSession",
-    (item?: SessionTreeItem, selectedItems?: readonly unknown[]) => executeDeleteSessionCommand(context, sessionsProvider, item, selectedItems)
+    (item?: SessionTreeItem, selectedItems?: readonly unknown[]) =>
+      executeDeleteSessionCommand(
+        context,
+        sessionsProvider,
+        item,
+        selectedItems ?? sessionsTreeView.selection,
+      ),
   );
 
   const clearCacheDisposable = vscode.commands.registerCommand(

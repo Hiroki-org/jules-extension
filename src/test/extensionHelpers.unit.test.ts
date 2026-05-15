@@ -923,10 +923,12 @@ suite("Extension helper unit tests", () => {
   suite("Command Registration and Execution Tests", () => {
     let localSandbox: sinon.SinonSandbox;
     let registeredCommands: Record<string, Function>;
+    let treeViewSelection: readonly vscode.TreeItem[];
 
     setup(() => {
       localSandbox = sinon.createSandbox();
       registeredCommands = {};
+      treeViewSelection = [];
 
       const mockContext = {
         globalState: {
@@ -944,6 +946,9 @@ suite("Extension helper unit tests", () => {
       } as any as vscode.ExtensionContext;
 
       localSandbox.stub(vscode.window, "createTreeView").callsFake(() => ({
+        get selection() {
+          return treeViewSelection;
+        },
         onDidChangeSelection: () => ({ dispose: () => { } }),
         dispose: () => { },
       } as any));
@@ -1040,6 +1045,27 @@ suite("Extension helper unit tests", () => {
     test("jules-extension.deleteSession executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.deleteSession']);
       await registeredCommands['jules-extension.deleteSession'](null);
+    });
+
+    test("jules-extension.deleteSession falls back to the current TreeView selection", async () => {
+      assert.ok(registeredCommands['jules-extension.deleteSession']);
+      const { SessionTreeItem: RegisteredSessionTreeItem } = require("../extension");
+      treeViewSelection = [
+        new RegisteredSessionTreeItem({
+          name: "sessions/tree-selected",
+          title: "Tree Selected",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+        }),
+      ];
+      const showWarningStub = localSandbox
+        .stub(vscode.window, "showWarningMessage")
+        .resolves(undefined as any);
+
+      await registeredCommands['jules-extension.deleteSession']();
+
+      assert.strictEqual(showWarningStub.calledOnce, true);
+      assert.match(showWarningStub.firstCall.args[0], /Tree Selected/);
     });
 
     test("jules-extension.checkoutToBranch executes successfully", async () => {
