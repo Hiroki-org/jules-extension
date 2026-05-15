@@ -1407,15 +1407,15 @@ suite("Extension helper unit tests", () => {
     test("should deduplicate items if primary is also in selected array", () => {
       const result = resolveSelectedSessionItems(item1, [item2, item1]);
       assert.strictEqual(result.length, 2);
-      assert.strictEqual(result[0], item2);
-      assert.strictEqual(result[1], item1);
+      assert.strictEqual(result[0], item1);
+      assert.strictEqual(result[1], item2);
     });
 
     test("should filter out unknown/non-SessionTreeItem objects from selected array", () => {
       const result = resolveSelectedSessionItems(item1, [item2, { name: "not-an-item" } as any, "string"]);
       assert.strictEqual(result.length, 2);
-      assert.strictEqual(result[0], item2);
-      assert.strictEqual(result[1], item1);
+      assert.strictEqual(result[0], item1);
+      assert.strictEqual(result[1], item2);
     });
 
     test("should ignore primary if it is not a SessionTreeItem", () => {
@@ -1606,7 +1606,7 @@ suite("Extension helper unit tests", () => {
         const progress = { report: sinon.stub() };
         await task(progress);
       });
-      windowMock.expects("showWarningMessage").withExactArgs(sinon.match(/^Failed to delete 1 session\.$/)).once().resolves();
+      windowMock.expects("showErrorMessage").withExactArgs(sinon.match(/^Failed to delete 1 session\.$/)).once().resolves();
 
       sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
         ok: false,

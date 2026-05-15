@@ -2567,9 +2567,11 @@ export function resolveSelectedSessionItems(
   primary?: SessionTreeItem,
   selected?: readonly unknown[],
 ): SessionTreeItem[] {
+  // Keep the right-clicked item first so future bulk actions have a stable
+  // primary target while still deduplicating it from the selection.
   const items = [
-    ...(selected ?? []).filter((item): item is SessionTreeItem => item instanceof SessionTreeItem),
     ...(primary instanceof SessionTreeItem ? [primary] : []),
+    ...(selected ?? []).filter((item): item is SessionTreeItem => item instanceof SessionTreeItem),
   ];
 
   const seen = new Set<string>();
@@ -2708,13 +2710,15 @@ export async function executeDeleteSessionCommand(
 
       if (failCount > 0) {
         const failedLabel = `session${failCount === 1 ? "" : "s"}`;
-        const successPart =
-          successCount > 0
-            ? `Deleted ${successCount} session${successCount === 1 ? "" : "s"}, but failed`
-            : "Failed";
-        vscode.window.showWarningMessage(
-          `${successPart} to delete ${failCount} ${failedLabel}.`,
-        );
+        if (successCount > 0) {
+          vscode.window.showWarningMessage(
+            `Deleted ${successCount} session${successCount === 1 ? "" : "s"}, but failed to delete ${failCount} ${failedLabel}.`,
+          );
+        } else {
+          vscode.window.showErrorMessage(
+            `Failed to delete ${failCount} ${failedLabel}.`,
+          );
+        }
         sessionsProvider.refresh(true);
       } else if (successCount > 0) {
         vscode.window.showInformationMessage(`Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`);
