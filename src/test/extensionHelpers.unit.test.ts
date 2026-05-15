@@ -1579,7 +1579,7 @@ suite("Extension helper unit tests", () => {
         const progress = { report: sinon.stub() };
         await task(progress);
       });
-      windowMock.expects("showWarningMessage").withExactArgs(sinon.match(/Deleted 1 sessions, but failed to delete 1 sessions/)).once().resolves();
+      windowMock.expects("showWarningMessage").withExactArgs(sinon.match(/Deleted 1 session, but failed to delete 1 session\./)).once().resolves();
 
       const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout");
       fetchStub.onFirstCall().resolves({ ok: true, status: 200 } as any);
@@ -1593,6 +1593,32 @@ suite("Extension helper unit tests", () => {
       await executeDeleteSessionCommand(mockContext, mockSessionsProvider, mockItem1, [mockItem1, mockItem2]);
       windowMock.verify();
       assert.strictEqual(fetchStub.calledTwice, true);
+    });
+
+    test("should show failure-only message when no sessions were deleted", async () => {
+      windowMock.expects("showWarningMessage").withExactArgs(
+        sinon.match(/delete session "S1"/),
+        { modal: true },
+        "Delete"
+      ).once().resolves("Delete");
+
+      windowMock.expects("withProgress").once().callsFake(async (opts: any, task: any) => {
+        const progress = { report: sinon.stub() };
+        await task(progress);
+      });
+      windowMock.expects("showWarningMessage").withExactArgs(sinon.match(/^Failed to delete 1 session\.$/)).once().resolves();
+
+      sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: sinon.stub().resolves("Not Found")
+      } as any);
+
+      await executeDeleteSessionCommand(mockContext, mockSessionsProvider, mockItem1, []);
+
+      windowMock.verify();
+      assert.strictEqual(mockSessionsProvider.refresh.calledWith(true), true);
     });
   });
 });

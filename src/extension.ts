@@ -2707,7 +2707,14 @@ export async function executeDeleteSessionCommand(
       }
 
       if (failCount > 0) {
-        vscode.window.showWarningMessage(`Deleted ${successCount} sessions, but failed to delete ${failCount} sessions.`);
+        const failedLabel = `session${failCount === 1 ? "" : "s"}`;
+        const successPart =
+          successCount > 0
+            ? `Deleted ${successCount} session${successCount === 1 ? "" : "s"}, but failed`
+            : "Failed";
+        vscode.window.showWarningMessage(
+          `${successPart} to delete ${failCount} ${failedLabel}.`,
+        );
         sessionsProvider.refresh(true);
       } else if (successCount > 0) {
         vscode.window.showInformationMessage(`Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`);
