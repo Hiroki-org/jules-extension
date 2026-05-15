@@ -2746,6 +2746,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
       if (apiKey) {
         await context.secrets.store("jules-api-key", apiKey);
+        resetPaginationWarningState();
         vscode.window.showInformationMessage("API Key saved securely.");
       }
     },
