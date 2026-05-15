@@ -6,6 +6,7 @@ import {
     resetUpdatePreviousStatesCachesForTests,
     SessionTreeItem
 } from "../extension";
+import type { CachedSessionState } from "../extension";
 import { ALL_SOURCES_ID } from "../julesApiConstants";
 import * as sinon from "sinon";
 
@@ -44,6 +45,15 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
             rawState: "IN_PROGRESS",
             sourceContext: { source }
         } as any;
+    }
+
+    function createCachedSessionState(name: string, isTerminated = true): CachedSessionState {
+        return {
+            name,
+            state: "FAILED",
+            rawState: "TERMINATED",
+            isTerminated
+        };
     }
 
     test("getChildren should return all sessions (Fast Path: All Sources, hideClosedPRs=false)", async () => {
@@ -124,8 +134,8 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         } as any);
 
         // Mark s2 as terminated
-        const previousStates = new Map();
-        previousStates.set("s2", { isTerminated: true });
+        const previousStates = new Map<string, CachedSessionState>();
+        previousStates.set("s2", createCachedSessionState("s2"));
         setPreviousSessionStatesForTests(previousStates);
 
         const provider = new JulesSessionsProvider(mockContext);
@@ -156,8 +166,8 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
             }
         } as any);
 
-        const previousStates = new Map();
-        previousStates.set("s2", { isTerminated: true });
+        const previousStates = new Map<string, CachedSessionState>();
+        previousStates.set("s2", createCachedSessionState("s2"));
         setPreviousSessionStatesForTests(previousStates);
         previousStates.clear();
 
@@ -191,8 +201,8 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         } as any);
 
         // Mark s2 as terminated
-        const previousStates = new Map();
-        previousStates.set("s2", { isTerminated: true });
+        const previousStates = new Map<string, CachedSessionState>();
+        previousStates.set("s2", createCachedSessionState("s2"));
         setPreviousSessionStatesForTests(previousStates);
 
         const provider = new JulesSessionsProvider(mockContext);
