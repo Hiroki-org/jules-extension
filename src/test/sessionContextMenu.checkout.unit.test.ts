@@ -665,6 +665,7 @@ test('checkoutToBranchForSession handles createBranch failure missing message pr
                 workingTreeChanges: [],
                 indexChanges: [],
                 get remotes() {
+                    // eslint-disable-next-line no-throw-literal
                     throw 'Just a string error';
                 }
             }
