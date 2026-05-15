@@ -214,4 +214,85 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         assert.strictEqual((children[0] as SessionTreeItem).label, "Title s1");
         assert.strictEqual((children[1] as SessionTreeItem).label, "Title s4");
     });
+
+    test("getChildren should return empty array when sessions cache is empty", async () => {
+        const globalStateGet = mockContext.globalState.get as sinon.SinonStub;
+        globalStateGet.withArgs("selected-source").returns({ id: ALL_SOURCES_ID, name: "All repositories" });
+
+        getConfigurationStub.returns({
+            get: (key: string) => {
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
+                return undefined;
+            }
+        } as any);
+
+        const provider = new JulesSessionsProvider(mockContext);
+        provider.setSessionsCacheForTests([]);
+
+        const children = await provider.getChildren();
+
+        assert.strictEqual(children.length, 0);
+    });
+
+    test("getChildren should exclude sessions missing sourceContext", async () => {
+        const validSession = createMockSession("s1", "repo1");
+        const malformedSession = {
+            name: "s2",
+            title: "Title s2",
+            state: "RUNNING",
+            rawState: "IN_PROGRESS"
+            // sourceContext is missing
+        } as any;
+
+        const sessions = [validSession, malformedSession];
+
+        const globalStateGet = mockContext.globalState.get as sinon.SinonStub;
+        globalStateGet.withArgs("selected-source").returns({ id: "repo1-id", name: "repo1" });
+
+        getConfigurationStub.returns({
+            get: (key: string) => {
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
+                return undefined;
+            }
+        } as any);
+
+        const provider = new JulesSessionsProvider(mockContext);
+        provider.setSessionsCacheForTests(sessions);
+
+        const children = await provider.getChildren();
+
+        // Only the valid session with matching source should be included
+        assert.strictEqual(children.length, 1);
+        assert.strictEqual((children[0] as SessionTreeItem).label, "Title s1");
+    });
+
+    test("getChildren should return empty array when selected-source is undefined", async () => {
+        const sessions = [
+            createMockSession("s1", "repo1"),
+            createMockSession("s2", "repo2")
+        ];
+
+        const globalStateGet = mockContext.globalState.get as sinon.SinonStub;
+        globalStateGet.withArgs("selected-source").returns(undefined);
+
+        getConfigurationStub.returns({
+            get: (key: string) => {
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
+                return undefined;
+            }
+        } as any);
+
+        const provider = new JulesSessionsProvider(mockContext);
+        provider.setSessionsCacheForTests(sessions);
+
+        const children = await provider.getChildren();
+
+        assert.strictEqual(children.length, 0);
+    });
 });
