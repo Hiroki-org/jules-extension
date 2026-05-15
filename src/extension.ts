@@ -182,10 +182,12 @@ interface CachedSessionState {
 }
 
 let previousSessionStates: Map<string, CachedSessionState> = new Map();
+let previousSessionStatesLoaded = false;
 let notifiedSessions: Set<string> = new Set();
 
 export function resetUpdatePreviousStatesCachesForTests(): void {
   previousSessionStates = new Map();
+  previousSessionStatesLoaded = false;
   notifiedSessions = new Set();
   prStatusCache = {};
 }
@@ -196,6 +198,7 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
 
 export function setPreviousSessionStatesForTests(states: Map<string, CachedSessionState>): void {
   previousSessionStates = states;
+  previousSessionStatesLoaded = true;
 }
 
 export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
@@ -218,10 +221,19 @@ function loadPreviousSessionStates(context: vscode.ExtensionContext): void {
   const storedStates = context.globalState.get<{
     [key: string]: CachedSessionState;
   }>("jules.previousSessionStates", {});
-  previousSessionStates = new Map(Object.entries(storedStates));
+  previousSessionStates = new Map(Object.entries(storedStates ?? {}));
+  previousSessionStatesLoaded = true;
   console.log(
     `Jules: Loaded ${previousSessionStates.size} previous session states from global state.`,
   );
+}
+
+function ensurePreviousSessionStatesLoaded(
+  context: vscode.ExtensionContext,
+): void {
+  if (!previousSessionStatesLoaded) {
+    loadPreviousSessionStates(context);
+  }
 }
 let autoRefreshInterval: NodeJS.Timeout | undefined;
 let isFetchingSensitiveData = false;
@@ -876,10 +888,14 @@ export async function updatePreviousStates(
       continue;
     }
     const prs = extractPRs(session);
-    if (prs.length > 0) {
+    let prsForCheck = prs;
+    if (prs.length === 0 && prevState) {
+      prsForCheck = extractPRs(prevState);
+    }
+    if (prsForCheck.length > 0) {
       sessionsToCheck.push(session);
-      sessionPRsMap.set(session.name, prs);
-      for (const pr of prs) {
+      sessionPRsMap.set(session.name, prsForCheck);
+      for (const pr of prsForCheck) {
         uniquePRUrls.add(pr.url);
       }
     }
@@ -944,6 +960,12 @@ export async function updatePreviousStates(
 
   for (const session of currentSessions) {
     const prevState = previousSessionStates.get(session.name);
+    const currentOutputs = session.outputs ?? [];
+    const outputsForState = getOutputsForStatePersistence(
+      session,
+      prevState,
+      currentOutputs,
+    );
 
     // If already terminated, we don't need to check again.
     // Just update with the latest info from the server but keep it terminated.
@@ -951,13 +973,13 @@ export async function updatePreviousStates(
       if (
         prevState.state !== session.state ||
         prevState.rawState !== session.rawState ||
-        !areOutputsEqual(prevState.outputs, session.outputs)
+        !areOutputsEqual(prevState.outputs, currentOutputs)
       ) {
         previousSessionStates.set(session.name, {
           ...prevState,
           state: session.state,
           rawState: session.rawState,
-          outputs: session.outputs,
+          outputs: currentOutputs,
         });
         hasChanged = true;
       }
@@ -992,13 +1014,13 @@ export async function updatePreviousStates(
       prevState.state !== session.state ||
       prevState.rawState !== session.rawState ||
       prevState.isTerminated !== isTerminated ||
-      !areOutputsEqual(prevState.outputs, session.outputs)
+      !areOutputsEqual(prevState.outputs, outputsForState)
     ) {
       previousSessionStates.set(session.name, {
         name: session.name,
         state: session.state,
         rawState: session.rawState,
-        outputs: session.outputs,
+        outputs: outputsForState,
         isTerminated: isTerminated,
       });
       hasChanged = true;
@@ -1020,6 +1042,21 @@ export async function updatePreviousStates(
     await context.globalState.update("jules.prStatusCache", prStatusCache);
   }
   return hasChanged;
+}
+
+function getOutputsForStatePersistence(
+  session: Session,
+  prevState: CachedSessionState | undefined,
+  currentOutputs: SessionOutput[],
+): SessionOutput[] {
+  if (session.state !== "COMPLETED" || currentOutputs.length > 0 || !prevState) {
+    return currentOutputs;
+  }
+  const previousPRs = extractPRs(prevState);
+  if (previousPRs.length === 0) {
+    return currentOutputs;
+  }
+  return prevState.outputs ?? [];
 }
 
 function startAutoRefresh(
@@ -1775,6 +1812,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     }
     this.isFetching = true;
     logChannel.appendLine("Jules: Starting to fetch and process sessions...");
+    ensurePreviousSessionStatesLoaded(this.context);
 
     try {
       const apiKey = await getStoredApiKey(this.context);
@@ -2121,6 +2159,8 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     if (!selectedSource) {
       return [];
     }
+
+    ensurePreviousSessionStatesLoaded(this.context);
 
     // Now, use the cache to build the tree
     const isAllSources = selectedSource.id === ALL_SOURCES_ID;

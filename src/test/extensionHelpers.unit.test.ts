@@ -21,6 +21,7 @@ import {
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
   resetUpdatePreviousStatesCachesForTests,
+  setPreviousSessionStatesForTests,
   updatePreviousStates,
   checkPRStatus,
   buildActivitySummaryHeader,
@@ -424,6 +425,117 @@ suite("Extension helper unit tests", () => {
       >;
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-1"].isTerminated, false);
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-2"].isTerminated, false);
+    });
+
+    test("完了セッションの出力が空でも以前のPR情報でクローズ判定する", async () => {
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "closed" }),
+      } as any);
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessionName = "sessions/completed-empty-output";
+      setPreviousSessionStatesForTests(
+        new Map([
+          [
+            sessionName,
+            {
+              name: sessionName,
+              state: "COMPLETED",
+              rawState: "COMPLETED",
+              outputs: [
+                { pullRequest: { url: "https://github.com/org/repo/pull/333" } } as any,
+              ],
+              isTerminated: false,
+            },
+          ],
+        ]),
+      );
+
+      const sessions: Session[] = [
+        {
+          name: sessionName,
+          title: "completed-empty-output",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [],
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+      const stateUpdate = updateStub
+        .getCalls()
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
+      assert.ok(stateUpdate);
+      const savedStates = stateUpdate?.args[1] as Record<
+        string,
+        { isTerminated?: boolean }
+      >;
+      assert.strictEqual(savedStates[sessionName].isTerminated, true);
+    });
+
+    test("maintains PR tracking when COMPLETED session has empty outputs but open PR", async () => {
+      const clock = sandbox.useFakeTimers(Date.now());
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "open" }),
+      } as any);
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessionName = "sessions/completed-empty-output-open";
+      const prUrl = "https://github.com/org/repo/pull/444";
+      setPreviousSessionStatesForTests(
+        new Map([
+          [
+            sessionName,
+            {
+              name: sessionName,
+              state: "COMPLETED",
+              rawState: "COMPLETED",
+              outputs: [{ pullRequest: { url: prUrl } } as any],
+              isTerminated: false,
+            },
+          ],
+        ]),
+      );
+
+      const sessions: Session[] = [
+        {
+          name: sessionName,
+          title: "completed-empty-output-open",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [],
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+
+      const cacheExpiryMs = 5 * 60 * 1000 + 1000;
+      clock.tick(cacheExpiryMs);
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 2);
+      assert.strictEqual(fetchStub.callCount, 2);
     });
 
     test("continues checking remaining URLs in a repo group when one status fetch fails", async () => {
