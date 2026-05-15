@@ -181,7 +181,7 @@ function isSessionActive(session: Session): boolean {
   return activeStates.has(session.rawState);
 }
 
-interface CachedSessionState {
+export interface CachedSessionState {
   name: string;
   state: SessionState;
   rawState: string;
@@ -204,8 +204,10 @@ export function setPRStatusCacheForTests(cache: PRStatusCache): void {
   prStatusCache = { ...cache };
 }
 
-export function setPreviousSessionStatesForTests(states: Map<string, CachedSessionState>): void {
-  previousSessionStates = states;
+export function setPreviousSessionStatesForTests(
+  states: Map<string, CachedSessionState>,
+): void {
+  previousSessionStates = new Map(states);
   previousSessionStatesLoaded = true;
 }
 
@@ -2161,6 +2163,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     this.deletingSessions.delete(sessionId);
   }
 
+  public setSessionsCacheForTests(sessions: Session[]): void {
+    this.sessionsCache = [...sessions];
+  }
+
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
     return element;
   }
@@ -2190,7 +2196,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       .getConfiguration("jules-extension")
       .get<boolean>("hideClosedPRSessions", true);
 
-    let filteredSessions: Session[] = [];
+    let filteredSessions: readonly Session[] = [];
 
     if (isAllSources && !hideClosedPRs) {
       filteredSessions = this.sessionsCache;
@@ -2198,6 +2204,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
       );
     } else {
+      const filteredSessionResults: Session[] = [];
       let sourceFilteredCount = 0;
       let terminatedFilteredCount = 0;
 
@@ -2223,13 +2230,15 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         }
 
         if (keep) {
-          filteredSessions.push(session);
+          filteredSessionResults.push(session);
         }
       }
 
+      filteredSessions = filteredSessionResults;
+
       if (isAllSources) {
         console.log(
-          `Jules: Showing all ${sourceFilteredCount} sessions (All Repositories selected)`,
+          `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
         );
       } else {
         console.log(
