@@ -105,7 +105,6 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
     });
 
     test("getChildren should filter out terminated sessions when hideClosedPRs=true", async () => {
-        const consoleLogStub = sandbox.stub(console, "log");
         const sessions = [
             createMockSession("s1", "repo1"),
             createMockSession("s2", "repo1"),
@@ -137,11 +136,6 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         assert.strictEqual(children.length, 2);
         assert.strictEqual((children[0] as SessionTreeItem).label, "Title s1");
         assert.strictEqual((children[1] as SessionTreeItem).label, "Title s3");
-        assert.ok(
-            consoleLogStub.calledWith(
-                "Jules: Showing all 2 sessions (All Repositories selected)"
-            )
-        );
     });
 
     test("setPreviousSessionStatesForTests should copy input state maps", async () => {

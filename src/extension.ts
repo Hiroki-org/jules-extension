@@ -200,15 +200,15 @@ export function resetUpdatePreviousStatesCachesForTests(): void {
   prStatusCache = {};
 }
 
+export function setPRStatusCacheForTests(cache: PRStatusCache): void {
+  prStatusCache = { ...cache };
+}
+
 export function setPreviousSessionStatesForTests(
   states: Map<string, CachedSessionState>,
 ): void {
   previousSessionStates = new Map(states);
   previousSessionStatesLoaded = true;
-}
-
-export function setPRStatusCacheForTests(cache: PRStatusCache): void {
-  prStatusCache = { ...cache };
 }
 
 export function getPRStatusFetchGroupKeyForTests(prUrl: string): string {
@@ -2199,7 +2199,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
     let filteredSessions: Session[] = [];
 
     if (isAllSources && !hideClosedPRs) {
-      filteredSessions = [...this.sessionsCache];
+      filteredSessions = this.sessionsCache;
       console.log(
         `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
       );
