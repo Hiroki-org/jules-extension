@@ -27,6 +27,7 @@ import {
   buildActivitySummaryHeader,
   refreshActiveChatSessionFromAutoRefresh,
   resolveSelectedSessionItems,
+  deleteSingleSession
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -1421,6 +1422,77 @@ suite("Extension helper unit tests", () => {
       const result = resolveSelectedSessionItems(invalidPrimary, [item2]);
       assert.strictEqual(result.length, 1);
       assert.strictEqual(result[0], item2);
+    });
+  });
+
+  suite("deleteSingleSession", () => {
+    let mockContext: any;
+    let mockSessionsProvider: any;
+    let mockSession: any;
+
+    setup(() => {
+      mockContext = {
+        globalState: {
+          get: sinon.stub(),
+          update: sinon.stub().resolves()
+        }
+      };
+
+      mockSessionsProvider = {
+        markSessionAsDeleting: sinon.stub(),
+        unmarkSessionAsDeleting: sinon.stub(),
+        removeSession: sinon.stub(),
+        refresh: sinon.stub()
+      };
+
+      mockSession = { name: "test-session-123" };
+    });
+
+    teardown(() => {
+      sinon.restore();
+    });
+
+    test("should successfully delete session and perform cleanups", async () => {
+      const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        status: 200
+      } as any);
+
+      // Mock previous session states
+      mockContext.globalState.get.withArgs("active-session-id").returns("test-session-123");
+
+      await deleteSingleSession(mockContext, mockSessionsProvider, mockSession, "test-api-key");
+
+      assert.strictEqual(mockSessionsProvider.markSessionAsDeleting.calledWith("test-session-123"), true);
+      assert.strictEqual(mockSessionsProvider.removeSession.calledWith("test-session-123"), true);
+      assert.strictEqual(fetchStub.calledOnce, true);
+      assert.strictEqual(mockContext.globalState.update.calledWith("active-session-id", undefined), true);
+      assert.strictEqual(mockSessionsProvider.unmarkSessionAsDeleting.calledWith("test-session-123"), true);
+    });
+
+    test("should throw error when API response is not ok", async () => {
+      const fetchStub = sinon.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: sinon.stub().resolves("Session not found")
+      } as any);
+
+      let error: any;
+      try {
+        await deleteSingleSession(mockContext, mockSessionsProvider, mockSession, "test-api-key");
+      } catch (e) {
+        error = e;
+      }
+
+      assert.notStrictEqual(error, undefined);
+      assert.strictEqual(error.message.includes("Failed to delete session on server"), true);
+
+      // Still marks and optimistically removes
+      assert.strictEqual(mockSessionsProvider.markSessionAsDeleting.calledWith("test-session-123"), true);
+      assert.strictEqual(mockSessionsProvider.removeSession.calledWith("test-session-123"), true);
+      // but should NOT clear active session since it threw
+      assert.strictEqual(mockContext.globalState.update.calledWith("active-session-id", undefined), false);
     });
   });
 });
