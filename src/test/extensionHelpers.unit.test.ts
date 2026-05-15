@@ -1158,8 +1158,9 @@ suite("Extension helper unit tests", () => {
         json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
       } as any);
 
-      // Second call for activities fetch (throws string)
-      fetchStub.onSecondCall().rejects({ toString: () => "Something bad happened: 404 Not Found" });
+      // Second call for activities fetch (throws string).
+      // Use callsFake to return a rejected promise with a bare string
+      fetchStub.onSecondCall().callsFake(() => Promise.reject("404 Not Found Object"));
 
       const updateGlobalStateStub = sandbox.stub().resolves();
       const context = {
@@ -1215,6 +1216,40 @@ suite("Extension helper unit tests", () => {
       assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
       assert.strictEqual(updateSessionStub.callCount, 1);
       assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should throw when activities fetch throws a non-404 error", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch (throws 500 Error)
+      fetchStub.onSecondCall().rejects(new Error("500 Internal Server Error"));
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities500"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await assert.rejects(
+        () => refreshActiveChatSessionFromAutoRefresh(context, {
+          updateSession: updateSessionStub,
+        }),
+        /500 Internal Server Error/
+      );
+
+      assert.strictEqual(updateGlobalStateStub.callCount, 0);
+      assert.strictEqual(updateSessionStub.callCount, 0);
     });
   });
 });
