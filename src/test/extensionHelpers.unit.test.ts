@@ -29,7 +29,7 @@ import {
   resolveSelectedSessionItems,
   deleteSingleSession,
   executeDeleteSessionCommand,
-  } from "../extension";
+} from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
 import { GitHubAuth } from "../githubAuth";

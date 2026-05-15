@@ -2641,8 +2641,8 @@ export async function executeDeleteSessionCommand(
   context: vscode.ExtensionContext,
   sessionsProvider: JulesSessionsProvider,
   item?: SessionTreeItem,
-  selectedItems?: readonly unknown[]
-) {
+  selectedItems?: readonly unknown[],
+): Promise<void> {
   const targets = resolveSelectedSessionItems(item, selectedItems);
   if (targets.length === 0) {
     vscode.window.showWarningMessage("No sessions selected.");
