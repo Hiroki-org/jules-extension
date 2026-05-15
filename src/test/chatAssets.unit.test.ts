@@ -203,7 +203,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
-    const contentDiv = { innerHTML: "" };
+    const contentDiv = { innerHTML: "", setAttribute: () => {} };
     const details = {
       getAttribute: (name: string) => {
         if (name === "data-index") {

@@ -233,13 +233,13 @@ export function buildChatMessagesFromActivities(
     }
     if (activity.planGenerated?.plan) {
       detailsHtml +=
-        '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="plan"><summary>View Plan</summary><div class="details-content">Loading...</div></details>';
+        '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="plan"><summary>View Plan</summary><div class="details-content" aria-busy="true">Loading...<span class="spinner"></span></div></details>';
     }
     if ((activity as any).gitPatch?.diff) {
       const diff = (activity as any).gitPatch.diff;
       if (typeof diff === "string" && diff.trim().length > 0) {
         detailsHtml +=
-          '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="diff"><summary>View Diff</summary><div class="details-content">Loading...</div></details>';
+          '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="diff"><summary>View Diff</summary><div class="details-content" aria-busy="true">Loading...<span class="spinner"></span></div></details>';
       }
     }
     if (activity.artifacts && activity.artifacts.length > 0) {
@@ -250,12 +250,12 @@ export function buildChatMessagesFromActivities(
             detailsHtml +=
               '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="changeset" data-index="' + i + '"><summary>View ChangeSet (' +
               (i + 1) +
-              ')</summary><div class="details-content">Loading...</div></details>';
+              ')</summary><div class="details-content" aria-busy="true">Loading...<span class="spinner"></span></div></details>';
           } else {
             detailsHtml +=
               '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="changeset-raw" data-index="' + i + '"><summary>View ChangeSet Details (' +
               (i + 1) +
-              ')</summary><div class="details-content">Loading...</div></details>';
+              ')</summary><div class="details-content" aria-busy="true">Loading...<span class="spinner"></span></div></details>';
           }
         }
         if (artifact.bashOutput) {
@@ -271,7 +271,7 @@ export function buildChatMessagesFromActivities(
             detailsHtml +=
               '<details class="activity-details" data-activity-id="' + actId + '" data-detail-type="bash" data-index="' + i + '"><summary>View Bash Output (' +
               (i + 1) +
-              ')</summary><div class="details-content">Loading...</div></details>';
+              ')</summary><div class="details-content" aria-busy="true">Loading...<span class="spinner"></span></div></details>';
           }
         }
       });

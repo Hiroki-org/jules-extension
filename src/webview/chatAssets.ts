@@ -45,6 +45,9 @@ p { margin: 0 0 8px; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
 .message-unavailable { opacity: 0.75; font-style: italic; }
+.spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.75s linear infinite; vertical-align: middle; margin-left: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 .shiki { background-color: transparent !important; }
 .shiki span { color: var(--shiki-light); }
 [data-vscode-theme-kind="vscode-dark"] .shiki span { color: var(--shiki-dark); }
@@ -285,6 +288,7 @@ export const CHAT_JS = `(function() {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
             contentDiv.innerHTML = sanitizeHtml(html);
+            contentDiv.setAttribute("aria-busy", "false");
           }
         }
       });
