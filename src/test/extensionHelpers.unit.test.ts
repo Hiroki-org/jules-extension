@@ -924,11 +924,14 @@ suite("Extension helper unit tests", () => {
     let localSandbox: sinon.SinonSandbox;
     let registeredCommands: Record<string, Function>;
     let treeViewSelection: readonly vscode.TreeItem[];
+    let getSecretStub: sinon.SinonStub;
+    let extensionModule: typeof import("../extension");
 
     setup(() => {
       localSandbox = sinon.createSandbox();
       registeredCommands = {};
       treeViewSelection = [];
+      getSecretStub = localSandbox.stub().resolves(undefined);
 
       const mockContext = {
         globalState: {
@@ -942,7 +945,7 @@ suite("Extension helper unit tests", () => {
           keys: localSandbox.stub().returns([]),
         },
         subscriptions: [],
-        secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() }
+        secrets: { get: getSecretStub, store: localSandbox.stub().resolves() }
       } as any as vscode.ExtensionContext;
 
       localSandbox.stub(vscode.window, "createTreeView").callsFake(() => ({
@@ -966,7 +969,9 @@ suite("Extension helper unit tests", () => {
         dispose: () => { },
       } as any);
       localSandbox.stub(vscode.window, "showQuickPick").resolves(undefined);
-      localSandbox.stub(vscode.window, "withProgress").callsFake((options: any, task: any) => task(null));
+      localSandbox
+        .stub(vscode.window, "withProgress")
+        .callsFake((options: any, task: any) => task({ report: () => { } }));
       localSandbox.stub(vscode.workspace, "getConfiguration").returns({
         get: () => undefined,
       } as any);
@@ -986,8 +991,8 @@ suite("Extension helper unit tests", () => {
 
       // Require the activate function dynamically to ensure fresh registration
       delete require.cache[require.resolve("../extension")];
-      const extension = require("../extension");
-      extension.activate(mockContext);
+      extensionModule = require("../extension");
+      extensionModule.activate(mockContext);
     });
 
     teardown(() => {
@@ -1066,6 +1071,80 @@ suite("Extension helper unit tests", () => {
 
       assert.strictEqual(showWarningStub.calledOnce, true);
       assert.match(showWarningStub.firstCall.args[0], /Tree Selected/);
+    });
+
+    test("jules-extension.deleteSession clears pagination warning state for the deleted session", async () => {
+      assert.ok(registeredCommands['jules-extension.deleteSession']);
+      const fetchStub = localSandbox.stub(fetchUtils, "fetchWithTimeout");
+      const showWarningStub = localSandbox.stub(vscode.window, "showWarningMessage");
+      const showInfoStub = localSandbox.stub(vscode.window, "showInformationMessage").resolves();
+
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { name: "activities/1", createTime: "2024-01-01T00:00:00Z" },
+          ],
+          nextPageToken: "always-more-tokens",
+        }),
+      } as any);
+
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+
+      assert.strictEqual(showWarningStub.callCount, 1);
+
+      showWarningStub.onCall(1).resolves("Delete" as any);
+      getSecretStub.resolves("dummyApiKey");
+      fetchStub.reset();
+      fetchStub.resolves({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => "",
+      } as any);
+
+      const item = new extensionModule.SessionTreeItem({
+        name: "sessions/delete-me",
+        title: "Delete Me",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+      });
+
+      await registeredCommands['jules-extension.deleteSession'](item);
+
+      assert.strictEqual(showInfoStub.calledOnce, true);
+
+      fetchStub.reset();
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { name: "activities/1", createTime: "2024-01-01T00:00:00Z" },
+          ],
+          nextPageToken: "always-more-tokens",
+        }),
+      } as any);
+
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+
+      assert.strictEqual(showWarningStub.callCount, 3);
+      assert.match(
+        showWarningStub.lastCall.args[0],
+        /Pagination limit exceeded while loading activities/,
+      );
     });
 
     test("jules-extension.checkoutToBranch executes successfully", async () => {
@@ -1568,6 +1647,29 @@ suite("Extension helper unit tests", () => {
       windowMock.expects("showWarningMessage").withArgs("No sessions selected.").once().resolves();
       await executeDeleteSessionCommand(mockContext, mockSessionsProvider, undefined, []);
       windowMock.verify();
+    });
+
+    test("should reject invalid session ids before confirmation", async () => {
+      const invalidItem = {
+        session: { name: "sessions/../invalid", title: "Invalid" },
+      };
+      Object.setPrototypeOf(invalidItem, SessionTreeItem.prototype);
+
+      windowMock
+        .expects("showErrorMessage")
+        .withExactArgs("Invalid session ID: sessions/../invalid")
+        .once()
+        .resolves();
+
+      await executeDeleteSessionCommand(
+        mockContext,
+        mockSessionsProvider,
+        invalidItem as SessionTreeItem,
+        [],
+      );
+
+      windowMock.verify();
+      assert.strictEqual(mockSessionsProvider.refresh.called, false);
     });
 
     test("should handle user cancel", async () => {
