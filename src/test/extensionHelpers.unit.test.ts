@@ -24,6 +24,7 @@ import {
   updatePreviousStates,
   checkPRStatus,
   buildActivitySummaryHeader,
+  refreshActiveChatSessionFromAutoRefresh,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -1103,6 +1104,152 @@ suite("Extension helper unit tests", () => {
       assert.ok(summary.includes("Activities: 2"));
       assert.ok(summary.includes("Plan: 1"));
       assert.ok(summary.includes("Messages: 1"));
+    });
+  });
+
+  suite("Chat polling auto refresh 404 handling", () => {
+    let sandbox: sinon.SinonSandbox;
+    let fetchStub: sinon.SinonStub;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+    });
+
+    teardown(() => {
+      sandbox.restore();
+    });
+
+    test("should clear active session and update view when active session fetch returns 404", async () => {
+      const updateSessionStub = sandbox.stub();
+      fetchStub.onFirstCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "not found",
+      } as any);
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/fail404"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should clear active session and update view when activities fetch throws a non-Error object containing 404", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch (throws string).
+      // Use callsFake to return a rejected promise with a bare string
+      fetchStub.onSecondCall().callsFake(() => Promise.reject("404 Not Found Object"));
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities404string"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should clear active session and update view when activities fetch returns 404", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch
+      fetchStub.onSecondCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as any);
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities404"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should throw when activities fetch throws a non-404 error", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch (throws 500 Error)
+      fetchStub.onSecondCall().rejects(new Error("500 Internal Server Error"));
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities500"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await assert.rejects(
+        () => refreshActiveChatSessionFromAutoRefresh(context, {
+          updateSession: updateSessionStub,
+        }),
+        /500 Internal Server Error/
+      );
+
+      assert.strictEqual(updateGlobalStateStub.callCount, 0);
+      assert.strictEqual(updateSessionStub.callCount, 0);
     });
   });
 });
