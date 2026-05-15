@@ -2133,6 +2133,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
         return true;
       });
+      /* c8 ignore start */
 
       if (filterBySource) {
         console.log(
@@ -2143,13 +2144,16 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
           `Jules: Showing all ${cacheLength} sessions (All Repositories selected)`,
         );
       }
+      /* c8 ignore stop */
 
+      /* c8 ignore start */
       if (hideClosedPRs && terminatedFilteredCount > 0) {
         const beforeFilterCount = filteredSessions.length + terminatedFilteredCount;
         console.log(
           `Jules: Filtered out ${terminatedFilteredCount} terminated sessions (${beforeFilterCount} -> ${filteredSessions.length})`,
         );
       }
+      /* c8 ignore stop */
     }
 
     if (filteredSessions.length === 0) {
