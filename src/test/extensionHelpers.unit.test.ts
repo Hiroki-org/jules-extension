@@ -1488,6 +1488,7 @@ suite("Extension helper unit tests", () => {
 
       assert.notStrictEqual(error, undefined);
       assert.strictEqual(error.message.includes("Failed to delete session on server"), true);
+      assert.strictEqual(fetchStub.calledOnce, true);
 
       // Still marks and optimistically removes
       assert.strictEqual(mockSessionsProvider.markSessionAsDeleting.calledWith("test-session-123"), true);
@@ -1503,7 +1504,6 @@ suite("Extension helper unit tests", () => {
     let mockItem1: any;
     let mockItem2: any;
     let windowMock: sinon.SinonMock;
-    let commandsMock: sinon.SinonMock;
 
     setup(() => {
       mockContext = {

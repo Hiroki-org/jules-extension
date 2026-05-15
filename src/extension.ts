@@ -2653,7 +2653,7 @@ export async function executeDeleteSessionCommand(
   } else {
     const displayTitles = targets.slice(0, 3).map(t => ` - ${t.session.title}`).join("\n");
     const moreCount = targets.length - 3;
-    const moreText = moreCount > 0 ? `\n and ${moreCount} more...` : "";
+    const moreText = moreCount > 0 ? `\nand ${moreCount} more...` : "";
     confirmTitle = `Delete ${targets.length} sessions?\n\n${displayTitles}${moreText}\n\nThis will permanently delete these sessions from the server.`;
   }
 
