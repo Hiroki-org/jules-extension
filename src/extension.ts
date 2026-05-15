@@ -86,7 +86,7 @@ const MAX_PAGE_SIZE = 5000;
 let hasShownSessionsPaginationWarning = false;
 const sessionsWithPaginationWarningShown = new Set<string>();
 
-function resetPaginationWarningState(): void {
+export function resetPaginationWarningState(): void {
   hasShownSessionsPaginationWarning = false;
   sessionsWithPaginationWarningShown.clear();
 }
