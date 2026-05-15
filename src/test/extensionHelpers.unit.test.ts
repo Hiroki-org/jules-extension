@@ -21,9 +21,11 @@ import {
   mapApiStateToSessionState,
   mergeActivitiesByIdentity,
   resetUpdatePreviousStatesCachesForTests,
+  setPreviousSessionStatesForTests,
   updatePreviousStates,
   checkPRStatus,
   buildActivitySummaryHeader,
+  refreshActiveChatSessionFromAutoRefresh,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -425,6 +427,117 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(savedStates["sessions/pr-status-dedupe-2"].isTerminated, false);
     });
 
+    test("完了セッションの出力が空でも以前のPR情報でクローズ判定する", async () => {
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "closed" }),
+      } as any);
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessionName = "sessions/completed-empty-output";
+      setPreviousSessionStatesForTests(
+        new Map([
+          [
+            sessionName,
+            {
+              name: sessionName,
+              state: "COMPLETED",
+              rawState: "COMPLETED",
+              outputs: [
+                { pullRequest: { url: "https://github.com/org/repo/pull/333" } } as any,
+              ],
+              isTerminated: false,
+            },
+          ],
+        ]),
+      );
+
+      const sessions: Session[] = [
+        {
+          name: sessionName,
+          title: "completed-empty-output",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [],
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+      const stateUpdate = updateStub
+        .getCalls()
+        .filter((call) => call.args[0] === "jules.previousSessionStates")
+        .at(-1);
+      assert.ok(stateUpdate);
+      const savedStates = stateUpdate?.args[1] as Record<
+        string,
+        { isTerminated?: boolean }
+      >;
+      assert.strictEqual(savedStates[sessionName].isTerminated, true);
+    });
+
+    test("maintains PR tracking when COMPLETED session has empty outputs but open PR", async () => {
+      const clock = sandbox.useFakeTimers(Date.now());
+      const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
+      const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+        ok: true,
+        json: async () => ({ state: "open" }),
+      } as any);
+      const updateStub = sandbox.stub().resolves();
+      const mockContext = {
+        globalState: {
+          get: sandbox.stub().returns(undefined),
+          update: updateStub,
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      const sessionName = "sessions/completed-empty-output-open";
+      const prUrl = "https://github.com/org/repo/pull/444";
+      setPreviousSessionStatesForTests(
+        new Map([
+          [
+            sessionName,
+            {
+              name: sessionName,
+              state: "COMPLETED",
+              rawState: "COMPLETED",
+              outputs: [{ pullRequest: { url: prUrl } } as any],
+              isTerminated: false,
+            },
+          ],
+        ]),
+      );
+
+      const sessions: Session[] = [
+        {
+          name: sessionName,
+          title: "completed-empty-output-open",
+          state: "COMPLETED",
+          rawState: "COMPLETED",
+          outputs: [],
+        } as Session,
+      ];
+
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 1);
+      assert.strictEqual(fetchStub.callCount, 1);
+
+      const cacheExpiryMs = 5 * 60 * 1000 + 1000;
+      clock.tick(cacheExpiryMs);
+      await updatePreviousStates(sessions, mockContext);
+      assert.strictEqual(tokenStub.callCount, 2);
+      assert.strictEqual(fetchStub.callCount, 2);
+    });
+
     test("continues checking remaining URLs in a repo group when one status fetch fails", async () => {
       const tokenStub = sandbox.stub(GitHubAuth, "getToken").resolves("token");
       const fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout").callsFake(async (url) => {
@@ -807,10 +920,13 @@ suite("Extension helper unit tests", () => {
   suite("Command Registration and Execution Tests", () => {
     let localSandbox: sinon.SinonSandbox;
     let registeredCommands: Record<string, Function>;
+    let getSecretStub: sinon.SinonStub;
+    let extensionModule: typeof import("../extension");
 
     setup(() => {
       localSandbox = sinon.createSandbox();
       registeredCommands = {};
+      getSecretStub = localSandbox.stub().resolves(undefined);
 
       const mockContext = {
         globalState: {
@@ -824,7 +940,7 @@ suite("Extension helper unit tests", () => {
           keys: localSandbox.stub().returns([]),
         },
         subscriptions: [],
-        secrets: { get: localSandbox.stub().resolves(undefined), store: localSandbox.stub().resolves() }
+        secrets: { get: getSecretStub, store: localSandbox.stub().resolves() }
       } as any as vscode.ExtensionContext;
 
       localSandbox.stub(vscode.window, "createTreeView").callsFake(() => ({
@@ -865,8 +981,8 @@ suite("Extension helper unit tests", () => {
 
       // Require the activate function dynamically to ensure fresh registration
       delete require.cache[require.resolve("../extension")];
-      const extension = require("../extension");
-      extension.activate(mockContext);
+      extensionModule = require("../extension");
+      extensionModule.activate(mockContext);
     });
 
     teardown(() => {
@@ -921,34 +1037,83 @@ suite("Extension helper unit tests", () => {
       await registeredCommands['jules-extension.openInWebApp'](null);
     });
 
-    test("jules-extension.deleteSession executes successfully with null", async () => {
+    test("jules-extension.deleteSession executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.deleteSession']);
       await registeredCommands['jules-extension.deleteSession'](null);
     });
 
-    test("jules-extension.deleteSession executes successfully and clears pagination warnings", async () => {
+    test("jules-extension.deleteSession clears pagination warning state for the deleted session", async () => {
       assert.ok(registeredCommands['jules-extension.deleteSession']);
-      const mockSession = { name: "sessions/test-delete", title: "Test Session", state: "COMPLETED" } as any;
-      const item = new SessionTreeItem(mockSession);
-
-      const showWarningStub = localSandbox.stub(vscode.window, "showWarningMessage").resolves("Delete" as any);
+      const fetchStub = localSandbox.stub(fetchUtils, "fetchWithTimeout");
+      const showWarningStub = localSandbox.stub(vscode.window, "showWarningMessage");
       const showInfoStub = localSandbox.stub(vscode.window, "showInformationMessage").resolves();
 
-      const fetchStub = localSandbox.stub(fetchUtils, "fetchWithTimeout").resolves({
+      fetchStub.resolves({
         ok: true,
-        status: 200,
-        json: async () => ({})
+        json: async () => ({
+          activities: [
+            { name: "activities/1", createTime: "2024-01-01T00:00:00Z" },
+          ],
+          nextPageToken: "always-more-tokens",
+        }),
       } as any);
 
-      // We need mockContext to be available in the command handler scope, but since we are just calling the registered command
-      // it uses the context provided during activate().
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+
+      assert.strictEqual(showWarningStub.callCount, 1);
+
+      showWarningStub.onCall(1).resolves("Delete" as any);
+      getSecretStub.resolves("dummyApiKey");
+      fetchStub.reset();
+      fetchStub.resolves({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => "",
+      } as any);
+
+      const item = new extensionModule.SessionTreeItem({
+        name: "sessions/delete-me",
+        title: "Delete Me",
+        state: "COMPLETED",
+        rawState: "COMPLETED",
+      });
 
       await registeredCommands['jules-extension.deleteSession'](item);
 
-      assert.strictEqual(fetchStub.calledOnce, true);
-      assert.strictEqual(fetchStub.firstCall.args[1]?.method, "DELETE");
+      assert.strictEqual(showInfoStub.calledOnce, true);
 
-      // localSandbox will restore automatically
+      fetchStub.reset();
+      fetchStub.resolves({
+        ok: true,
+        json: async () => ({
+          activities: [
+            { name: "activities/1", createTime: "2024-01-01T00:00:00Z" },
+          ],
+          nextPageToken: "always-more-tokens",
+        }),
+      } as any);
+
+      await extensionModule.fetchSessionActivitiesPaginated(
+        "dummyKey",
+        "sessions/delete-me",
+        { showPaginationProgress: true },
+      );
+
+      assert.strictEqual(showWarningStub.callCount, 3);
+      assert.match(
+        showWarningStub.lastCall.args[0],
+        /Pagination limit exceeded while loading activities/,
+      );
     });
 
     test("jules-extension.checkoutToBranch executes successfully", async () => {
@@ -1128,6 +1293,152 @@ suite("Extension helper unit tests", () => {
       assert.ok(summary.includes("Activities: 2"));
       assert.ok(summary.includes("Plan: 1"));
       assert.ok(summary.includes("Messages: 1"));
+    });
+  });
+
+  suite("Chat polling auto refresh 404 handling", () => {
+    let sandbox: sinon.SinonSandbox;
+    let fetchStub: sinon.SinonStub;
+
+    setup(() => {
+      sandbox = sinon.createSandbox();
+      fetchStub = sandbox.stub(fetchUtils, "fetchWithTimeout");
+    });
+
+    teardown(() => {
+      sandbox.restore();
+    });
+
+    test("should clear active session and update view when active session fetch returns 404", async () => {
+      const updateSessionStub = sandbox.stub();
+      fetchStub.onFirstCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        text: async () => "not found",
+      } as any);
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/fail404"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should clear active session and update view when activities fetch throws a non-Error object containing 404", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch (throws string).
+      // Use callsFake to return a rejected promise with a bare string
+      fetchStub.onSecondCall().callsFake(() => Promise.reject("404 Not Found Object"));
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities404string"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should clear active session and update view when activities fetch returns 404", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch
+      fetchStub.onSecondCall().resolves({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as any);
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities404"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await refreshActiveChatSessionFromAutoRefresh(context, {
+        updateSession: updateSessionStub,
+      });
+
+      assert.ok(updateGlobalStateStub.calledWith("active-session-id", undefined));
+      assert.strictEqual(updateSessionStub.callCount, 1);
+      assert.ok(updateSessionStub.calledWith("", [], undefined, undefined, undefined));
+    });
+
+    test("should throw when activities fetch throws a non-404 error", async () => {
+      const updateSessionStub = sandbox.stub();
+
+      // First call for session fetch
+      fetchStub.onFirstCall().resolves({
+        ok: true,
+        json: async () => ({ state: "IN_PROGRESS", title: "Test Session" }),
+      } as any);
+
+      // Second call for activities fetch (throws 500 Error)
+      fetchStub.onSecondCall().rejects(new Error("500 Internal Server Error"));
+
+      const updateGlobalStateStub = sandbox.stub().resolves();
+      const context = {
+        globalState: {
+          get: sandbox.stub().withArgs("active-session-id").returns("sessions/activities500"),
+          update: updateGlobalStateStub,
+        },
+        secrets: {
+          get: sandbox.stub().resolves("api-key"),
+        },
+      } as any as vscode.ExtensionContext;
+
+      await assert.rejects(
+        () => refreshActiveChatSessionFromAutoRefresh(context, {
+          updateSession: updateSessionStub,
+        }),
+        /500 Internal Server Error/
+      );
+
+      assert.strictEqual(updateGlobalStateStub.callCount, 0);
+      assert.strictEqual(updateSessionStub.callCount, 0);
     });
   });
 });

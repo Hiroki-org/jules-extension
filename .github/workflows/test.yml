@@ -3,6 +3,9 @@ name: Tests
 on:
   workflow_call:
 
+env:
+  JULES_E2E_VSCODE_VERSION: "1.113.0"
+
 jobs:
   test-unit:
     runs-on: ubuntu-latest
@@ -102,8 +105,6 @@ jobs:
   integration:
     needs: [test-unit, build-check]
     runs-on: ${{ matrix.os }}
-    env:
-      JULES_E2E_VSCODE_VERSION: "1.113.0"
     strategy:
       fail-fast: false
       matrix:
@@ -156,11 +157,47 @@ jobs:
         shell: bash
         run: pnpm test
 
-      # The regular integration matrix already exercises the extension host across
-      # Linux, macOS, and Windows. Keep this second-VS-Code smoke narrow to the
-      # most stable lane so CI cost stays bounded and the UI selectors remain
-      # deterministic.
-      - name: Run E2E smoke test (macOS)
-        if: runner.os == 'macOS' && matrix.node-version == 20
+  e2e-smoke:
+    needs: [test-unit, build-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.28.0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Cache VS Code Test Downloads (.vscode-test)
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.vscode-test
+            ~/.vscode
+            .vscode-test
+          key: ${{ runner.os }}-vscode-test-${{ env.JULES_E2E_VSCODE_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-vscode-test-
+
+      - name: Ensure display available
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile
+        run: pnpm run compile
+
+      # Run the E2E smoke test on Linux in this dedicated job
+      - name: Run E2E smoke test
         shell: bash
-        run: pnpm run test:e2e
+        run: xvfb-run -a pnpm run test:e2e
