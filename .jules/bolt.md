@@ -19,3 +19,6 @@
 ## 2024-05-13 - Fast Path & Single-Pass Filtering for `JulesSessionsProvider.getChildren`
 **Learning:** Sequential `.filter()` calls, especially those dependent on settings (`hideClosedPRSessions`), can create multiple intermediate arrays and cause unnecessary O(N) iterations.
 **Action:** Implemented a 'Fast Path' to avoid allocations entirely when no filtering is needed (e.g., All Sources selected and hide closed PRs disabled). Consolidated remaining filter logic into a single loop, manually maintaining required counters (`sourceFilteredCount`, `terminatedFilteredCount`) to preserve telemetry/logging parity while optimizing speed and memory.
+## 2026-05-15 - Map optimization for fetchAndCheckoutFromPRInfo Git remote resolution
+**Learning:** Sequential `Array.find()` calls with regular expression replacements inside the predicate (e.g. `replace(/\.git$/, '')`) cause unnecessary Regex allocations and O(N) traversals for each lookup.
+**Action:** Replace multiple `Array.find()` calls with a single-pass `for` loop that populates a `Map` for both exact URL matches and `.git`-stripped fallback matches, allowing subsequent O(1) lookups and avoiding redundant Regex allocations.
