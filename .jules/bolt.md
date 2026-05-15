@@ -19,3 +19,10 @@
 ## 2024-05-13 - Fast Path & Single-Pass Filtering for `JulesSessionsProvider.getChildren`
 **Learning:** Sequential `.filter()` calls, especially those dependent on settings (`hideClosedPRSessions`), can create multiple intermediate arrays and cause unnecessary O(N) iterations.
 **Action:** Implemented a 'Fast Path' to avoid allocations entirely when no filtering is needed (e.g., All Sources selected and hide closed PRs disabled). Consolidated remaining filter logic into a single loop, manually maintaining required counters (`sourceFilteredCount`, `terminatedFilteredCount`) to preserve telemetry/logging parity while optimizing speed and memory.
+## 2026-05-15 - [test] E2EテストをLinuxと仮想ディスプレイ上で実行するように変更
+**Learning:** CI環境においてElectron/PlaywrightのUIベースE2Eテストは仮想ディスプレイ(xvfb)がないと初期化エラーになる。
+**Action:** CIでVSCode/Electron E2Eテストを動かすときはmacOSではなく、Linux環境にxvfbを導入し `xvfb-run -a <command>` を使う。
+
+## 2026-05-15 - [test] E2EテストのVSCode起動安定化
+**Learning:** macOS(arm64等)でElectronアプリ(VSCode E2Eテスト)を起動する際、共有メモリ不足やGPU関連の初期化エラーで即クラッシュし `Target page closed` エラーになることがある。
+**Action:** PlaywrightからVSCodeをlaunchする引数に `--disable-dev-shm-usage` と `--disable-software-rasterizer` を追加してクラッシュを回避する。

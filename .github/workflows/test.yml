@@ -12,15 +12,15 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v3
         with:
           version: 10.28.0
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -50,14 +50,14 @@ jobs:
 
       - name: Upload test results to Codecov
         if: always() && matrix.node-version == 20 && steps.verify-junit.outcome == 'success'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./test-results/junit.xml
           report_type: test_results
       - name: Upload coverage to Codecov
         if: matrix.node-version == 20
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
@@ -73,15 +73,15 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v3
         with:
           version: 10.28.0
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -111,22 +111,22 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v3
         with:
           version: 10.28.0
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Cache VS Code Test Downloads (.vscode-test)
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
             ~/.vscode-test
@@ -156,11 +156,48 @@ jobs:
         shell: bash
         run: pnpm test
 
-      # The regular integration matrix already exercises the extension host across
-      # Linux, macOS, and Windows. Keep this second-VS-Code smoke narrow to the
-      # most stable lane so CI cost stays bounded and the UI selectors remain
-      # deterministic.
-      - name: Run E2E smoke test (macOS)
-        if: runner.os == 'macOS' && matrix.node-version == 20
+  e2e-smoke:
+    needs: [test-unit, build-check]
+    runs-on: ubuntu-latest
+    env:
+      JULES_E2E_VSCODE_VERSION: "1.113.0"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.28.0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Cache VS Code Test Downloads (.vscode-test)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.vscode-test
+            ~/.vscode
+            .vscode-test
+          key: Linux-vscode-test-${{ env.JULES_E2E_VSCODE_VERSION }}
+          restore-keys: |
+            Linux-vscode-test-
+
+      - name: Ensure display available
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile
+        run: pnpm run compile
+
+      # Run the E2E smoke test on Linux in this dedicated job
+      - name: Run E2E smoke test
         shell: bash
-        run: pnpm run test:e2e
+        run: xvfb-run -a pnpm run test:e2e
