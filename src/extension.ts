@@ -2567,11 +2567,9 @@ export function resolveSelectedSessionItems(
   primary?: SessionTreeItem,
   selected?: readonly unknown[],
 ): SessionTreeItem[] {
-  // Keep the right-clicked item first so future bulk actions have a stable
-  // primary target while still deduplicating it from the selection.
   const items = [
-    ...(primary instanceof SessionTreeItem ? [primary] : []),
     ...(selected ?? []).filter((item): item is SessionTreeItem => item instanceof SessionTreeItem),
+    ...(primary instanceof SessionTreeItem ? [primary] : []),
   ];
 
   const seen = new Set<string>();
@@ -2641,8 +2639,8 @@ export async function executeDeleteSessionCommand(
   context: vscode.ExtensionContext,
   sessionsProvider: JulesSessionsProvider,
   item?: SessionTreeItem,
-  selectedItems?: readonly unknown[],
-): Promise<void> {
+  selectedItems?: readonly unknown[]
+) {
   const targets = resolveSelectedSessionItems(item, selectedItems);
   if (targets.length === 0) {
     vscode.window.showWarningMessage("No sessions selected.");
@@ -2655,7 +2653,7 @@ export async function executeDeleteSessionCommand(
   } else {
     const displayTitles = targets.slice(0, 3).map(t => ` - ${t.session.title}`).join("\n");
     const moreCount = targets.length - 3;
-    const moreText = moreCount > 0 ? `\nand ${moreCount} more...` : "";
+    const moreText = moreCount > 0 ? `\n and ${moreCount} more...` : "";
     confirmTitle = `Delete ${targets.length} sessions?\n\n${displayTitles}${moreText}\n\nThis will permanently delete these sessions from the server.`;
   }
 
@@ -2709,16 +2707,7 @@ export async function executeDeleteSessionCommand(
       }
 
       if (failCount > 0) {
-        const failedLabel = `session${failCount === 1 ? "" : "s"}`;
-        if (successCount > 0) {
-          vscode.window.showWarningMessage(
-            `Deleted ${successCount} session${successCount === 1 ? "" : "s"}, but failed to delete ${failCount} ${failedLabel}.`,
-          );
-        } else {
-          vscode.window.showErrorMessage(
-            `Failed to delete ${failCount} ${failedLabel}.`,
-          );
-        }
+        vscode.window.showWarningMessage(`Deleted ${successCount} sessions, but failed to delete ${failCount} sessions.`);
         sessionsProvider.refresh(true);
       } else if (successCount > 0) {
         vscode.window.showInformationMessage(`Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`);
