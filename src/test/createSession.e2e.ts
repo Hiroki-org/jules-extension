@@ -56,8 +56,6 @@ async function launchExtensionHost(): Promise<LaunchResult> {
         "--disable-gpu",
         "--disable-workspace-trust",
         "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-software-rasterizer",
         "--skip-release-notes",
         "--skip-welcome",
       ],
