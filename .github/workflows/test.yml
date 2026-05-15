@@ -3,6 +3,9 @@ name: Tests
 on:
   workflow_call:
 
+env:
+  JULES_E2E_VSCODE_VERSION: "1.113.0"
+
 jobs:
   test-unit:
     runs-on: ubuntu-latest
@@ -102,8 +105,6 @@ jobs:
   integration:
     needs: [test-unit, build-check]
     runs-on: ${{ matrix.os }}
-    env:
-      JULES_E2E_VSCODE_VERSION: "1.113.0"
     strategy:
       fail-fast: false
       matrix:
@@ -159,8 +160,7 @@ jobs:
   e2e-smoke:
     needs: [test-unit, build-check]
     runs-on: ubuntu-latest
-    env:
-      JULES_E2E_VSCODE_VERSION: "1.113.0"
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -184,9 +184,9 @@ jobs:
             ~/.vscode-test
             ~/.vscode
             .vscode-test
-          key: Linux-vscode-test-${{ env.JULES_E2E_VSCODE_VERSION }}
+          key: ${{ runner.os }}-vscode-test-${{ env.JULES_E2E_VSCODE_VERSION }}
           restore-keys: |
-            Linux-vscode-test-
+            ${{ runner.os }}-vscode-test-
 
       - name: Ensure display available
         run: sudo apt-get update && sudo apt-get install -y xvfb
