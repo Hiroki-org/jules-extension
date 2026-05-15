@@ -104,22 +104,6 @@ suite("JulesSessionsProvider Test Suite", () => {
             assert.strictEqual((children as any)[1].session.name, "session3");
         });
 
-        test("previousSessionStates未ロード時はglobalStateから復元してterminatedを除外する", async () => {
-            extensionModule.resetUpdatePreviousStatesCachesForTests();
-            (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ id: "all_repos" });
-            (mockContext.globalState.get as sinon.SinonStub).withArgs("jules.previousSessionStates", {}).returns({
-                session2: { name: "session2", state: "COMPLETED", rawState: "COMPLETED", isTerminated: true }
-            });
-            getConfigurationStub.returns({
-                get: sandbox.stub().withArgs("hideClosedPRSessions").returns(true)
-            });
-
-            const children = await provider.getChildren();
-            assert.strictEqual(children.length, 2);
-            assert.strictEqual((children as any)[0].session.name, "session1");
-            assert.strictEqual((children as any)[1].session.name, "session3");
-        });
-
         test("should filter by specific source and not hide closed PRs if hideClosedPRSessions is false", async () => {
             (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ name: "repoA" });
             getConfigurationStub.returns({

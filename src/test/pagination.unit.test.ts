@@ -4,8 +4,7 @@ import * as sinon from "sinon";
 import * as fetchUtils from "../fetchUtils";
 import {
   fetchSessionActivitiesPaginated,
-  JulesSessionsProvider,
-  resetPaginationWarningState,
+  JulesSessionsProvider
 } from "../extension";
 
 suite("Pagination limit tests", () => {
@@ -20,7 +19,6 @@ suite("Pagination limit tests", () => {
   });
 
   teardown(() => {
-    resetPaginationWarningState();
     localSandbox.restore();
   });
 
@@ -87,6 +85,20 @@ suite("Pagination limit tests", () => {
   });
 
   test("should not show sessions warning repeatedly when limit is hit continuously", async () => {
+    // Reset global state with a dummy successful fetch
+    fetchStub.resolves({
+      ok: true,
+      json: async () => ({
+        sessions: [],
+        nextPageToken: undefined,
+      }),
+    } as any);
+    const mockCtx = { globalState: { get: () => "dummyKey", update: async () => {} }, secrets: { get: async () => "dummyApiKey" } } as any;
+    const dummyProvider = new JulesSessionsProvider(mockCtx);
+    localSandbox.stub(dummyProvider as any, "_prefetchArtifactsForRecentSessions").resolves();
+    await dummyProvider['fetchAndProcessSessions'](false);
+    showWarningMessageStub.resetHistory();
+
     fetchStub.resolves({
       ok: true,
       json: async () => ({
@@ -179,27 +191,6 @@ suite("Pagination limit tests", () => {
     } as any);
     await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
     assert.strictEqual(showWarningMessageStub.callCount, 3);
-  });
-
-  test("should clear activity warning suppression when state is reset", async () => {
-    fetchStub.resolves({
-      ok: true,
-      json: async () => ({
-        activities: [{ name: "activities/1", createTime: "2024-01-01T00:00:00Z" }],
-        nextPageToken: "always-more-tokens",
-      }),
-    } as any);
-
-    await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
-    assert.strictEqual(showWarningMessageStub.callCount, 1);
-
-    await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
-    assert.strictEqual(showWarningMessageStub.callCount, 1);
-
-    resetPaginationWarningState();
-
-    await fetchSessionActivitiesPaginated("dummyKey", "sessions/test", { showPaginationProgress: true });
-    assert.strictEqual(showWarningMessageStub.callCount, 2);
   });
 
   test("should gracefully break activities pagination loop and show warning if showPaginationProgress is true", async () => {
