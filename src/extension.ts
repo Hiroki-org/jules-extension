@@ -2196,7 +2196,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       .getConfiguration("jules-extension")
       .get<boolean>("hideClosedPRSessions", true);
 
-    let filteredSessions: Session[] = [];
+    let filteredSessions: readonly Session[] = [];
 
     if (isAllSources && !hideClosedPRs) {
       filteredSessions = this.sessionsCache;
@@ -2204,6 +2204,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         `Jules: Showing all ${filteredSessions.length} sessions (All Repositories selected)`,
       );
     } else {
+      const filteredSessionResults: Session[] = [];
       let sourceFilteredCount = 0;
       let terminatedFilteredCount = 0;
 
@@ -2229,9 +2230,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         }
 
         if (keep) {
-          filteredSessions.push(session);
+          filteredSessionResults.push(session);
         }
       }
+
+      filteredSessions = filteredSessionResults;
 
       if (isAllSources) {
         console.log(
