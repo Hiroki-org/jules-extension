@@ -2687,7 +2687,7 @@ export async function executeDeleteSessionCommand(
     confirmTitle = `Are you sure you want to delete session "${targets[0].session.title}"?\n\nThis will permanently delete the session from the server.`;
   } else {
     const displayTitles = targets.slice(0, 3).map(t => ` - ${t.session.title}`).join("\n");
-    const moreCount = targets.length - 3;
+    const moreCount = Math.max(0, targets.length - 3);
     const moreText = moreCount > 0 ? `\nand ${moreCount} more...` : "";
     confirmTitle = `Delete ${targets.length} sessions?\n\n${displayTitles}${moreText}\n\nThis will permanently delete these sessions from the server.`;
   }
