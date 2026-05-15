@@ -301,6 +301,11 @@
           "command": "jules-extension.refreshActivities",
           "when": "view == julesChatView",
           "group": "navigation@1"
+        },
+        {
+          "command": "jules-extension.deleteSession",
+          "when": "view == julesSessionsView",
+          "group": "navigation@7"
         }
       ],
       "view/item/context": [

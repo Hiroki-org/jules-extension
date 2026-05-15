@@ -26,6 +26,7 @@ import {
   checkPRStatus,
   buildActivitySummaryHeader,
   refreshActiveChatSessionFromAutoRefresh,
+  resolveSelectedSessionItems,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -1362,6 +1363,64 @@ suite("Extension helper unit tests", () => {
 
       assert.strictEqual(updateGlobalStateStub.callCount, 0);
       assert.strictEqual(updateSessionStub.callCount, 0);
+    });
+  });
+
+  suite("resolveSelectedSessionItems", () => {
+    let mockSession1: any;
+    let mockSession2: any;
+    let mockSession3: any;
+    let item1: any;
+    let item2: any;
+    let item3: any;
+
+    setup(() => {
+      mockSession1 = { name: "session-1", title: "S1" };
+      mockSession2 = { name: "session-2", title: "S2" };
+      mockSession3 = { name: "session-3", title: "S3" };
+
+      item1 = new SessionTreeItem(mockSession1 as any);
+      item2 = new SessionTreeItem(mockSession2 as any);
+      item3 = new SessionTreeItem(mockSession3 as any);
+    });
+
+    test("should return empty array when no inputs provided", () => {
+      const result = resolveSelectedSessionItems();
+      assert.strictEqual(result.length, 0);
+    });
+
+    test("should return primary item when only primary is provided", () => {
+      const result = resolveSelectedSessionItems(item1);
+      assert.strictEqual(result.length, 1);
+      assert.strictEqual(result[0], item1);
+    });
+
+    test("should return array of selected items when primary is missing", () => {
+      const result = resolveSelectedSessionItems(undefined, [item1, item2]);
+      assert.strictEqual(result.length, 2);
+      assert.strictEqual(result[0], item1);
+      assert.strictEqual(result[1], item2);
+    });
+
+    test("should deduplicate items if primary is also in selected array", () => {
+      const result = resolveSelectedSessionItems(item1, [item2, item1]);
+      assert.strictEqual(result.length, 2);
+      assert.strictEqual(result[0], item2);
+      assert.strictEqual(result[1], item1);
+    });
+
+    test("should filter out unknown/non-SessionTreeItem objects from selected array", () => {
+      const result = resolveSelectedSessionItems(item1, [item2, { name: "not-an-item" } as any, "string"]);
+      assert.strictEqual(result.length, 2);
+      assert.strictEqual(result[0], item2);
+      assert.strictEqual(result[1], item1);
+    });
+
+    test("should ignore primary if it is not a SessionTreeItem", () => {
+      const invalidPrimary = { session: mockSession1 } as any;
+      const result = resolveSelectedSessionItems(invalidPrimary, [item2]);
+      assert.strictEqual(result.length, 1);
+      assert.strictEqual(result[0], item2);
     });
   });
 });
