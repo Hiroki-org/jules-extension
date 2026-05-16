@@ -15,7 +15,7 @@ async function startProxyServer(
     return { server, url: `http://127.0.0.1:${address.port}` };
 }
 
-suite('FetchUtils ユニットテスト', () => {
+suite('FetchUtils Unit Tests', () => {
     let sandbox: sinon.SinonSandbox;
     let fetchStub: sinon.SinonStub;
 
@@ -32,7 +32,7 @@ suite('FetchUtils ユニットテスト', () => {
         sandbox.restore();
     });
 
-    test('fetchWithTimeout はサポートされていないプロトコルの絶対URLでエラーをスローすること', async () => {
+    test('fetchWithTimeout should throw error for absolute URL with unsupported protocol', async () => {
         await assert.rejects(async () => {
             await fetchWithTimeout('file:///etc/passwd');
         }, /Unsupported protocol: file:/);
@@ -57,7 +57,7 @@ suite('FetchUtils ユニットテスト', () => {
         assert.strictEqual(fetchStub.called, false);
     });
 
-    test('fetchWithTimeout は相対パスのURLを正しく通過させること', async () => {
+    test('fetchWithTimeout should pass relative path URL correctly', async () => {
         const mockResponse = { ok: true, status: 200 } as Response;
         fetchStub.resolves(mockResponse);
 
@@ -66,7 +66,7 @@ suite('FetchUtils ユニットテスト', () => {
         assert.strictEqual(fetchStub.calledOnce, true);
     });
 
-    test('fetchWithTimeout はタイムアウト内に完了した場合、成功すること', async () => {
+    test('fetchWithTimeout should succeed when completed within timeout', async () => {
         const mockResponse = { ok: true, status: 200 } as Response;
         fetchStub.resolves(mockResponse);
 
@@ -74,7 +74,7 @@ suite('FetchUtils ユニットテスト', () => {
         assert.strictEqual(response, mockResponse);
     });
 
-    test('fetchWithTimeout はfetchが失敗した場合、エラーをスローすること', async () => {
+    test('fetchWithTimeout should throw error when fetch fails', async () => {
         const error = new Error('Network error');
         fetchStub.rejects(error);
 
@@ -83,7 +83,7 @@ suite('FetchUtils ユニットテスト', () => {
         }, error);
     });
 
-    test('fetchWithTimeout はタイムアウト時にシグナルを中断（Abort）すること', async () => {
+    test('fetchWithTimeout should abort signal on timeout', async () => {
         const clock = sandbox.useFakeTimers();
 
         let capturedSignal: AbortSignal | undefined;
@@ -107,19 +107,19 @@ suite('FetchUtils ユニットテスト', () => {
 
         const promise = fetchWithTimeout('https://example.com', { timeout: 1000 });
 
-        assert.ok(capturedSignal, 'シグナルがfetchに渡されるべき');
+        assert.ok(capturedSignal, 'Signal should be passed to fetch');
         assert.strictEqual(capturedSignal.aborted, false);
 
         await clock.tickAsync(1001);
 
-        assert.strictEqual(capturedSignal.aborted, true, 'タイムアウト後にシグナルが中断されるべき');
+        assert.strictEqual(capturedSignal.aborted, true, 'Signal should be aborted after timeout');
 
         await assert.rejects(promise, /Timeout/);
     });
 
-    test('HTTPプロキシ設定時はglobal fetchを使わずプロキシ接続を試行すること', async () => {
+    test('should attempt proxy connection without using global fetch when HTTP proxy is set', async () => {
         const { server, url } = await startProxyServer((_req, _res) => {
-            // CONNECTを返さない簡易サーバー。プロキシ接続試行時に失敗させる。
+            // Simple server that does not return CONNECT. Fail on proxy connection attempt.
         });
 
         try {
@@ -135,13 +135,13 @@ suite('FetchUtils ユニットテスト', () => {
 
             // Note: The assertion is omitted for proxy errors that may be transiently suppressed
             // or differ between Node test environments.
-            assert.strictEqual(fetchStub.called, false, 'プロキシ設定時はglobal fetchを利用しない');
+            assert.strictEqual(fetchStub.called, false, 'global fetch should not be used when proxy is configured');
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         }
     });
 
-    test('SOCKSプロキシ接続失敗時はエラーを伝搬すること', async () => {
+    test('should propagate error when SOCKS proxy connection fails', async () => {
         setSocksProxy('socks5://127.0.0.1:9');
         fetchStub.rejects(new Error('global fetch should not be used'));
 
@@ -154,9 +154,9 @@ suite('FetchUtils ユニットテスト', () => {
         assert.strictEqual(fetchStub.called, false);
     });
 
-    test('プロキシ経由リクエストはAbortSignalで中断できること', async () => {
+    test('request via proxy should be abortable with AbortSignal', async () => {
         const { server, url } = await startProxyServer((_req, _res) => {
-            // 応答を返さずぶら下げる
+            // Hang response without returning
         });
 
         try {
@@ -179,7 +179,7 @@ suite('FetchUtils ユニットテスト', () => {
         }
     });
 
-    test('HTTPプロキシ設定を解除すると通常のfetchに戻ること', async () => {
+    test('should revert to normal fetch when HTTP proxy setting is cleared', async () => {
         setHttpProxy('http://127.0.0.1:9');
         setHttpProxy(null);
 

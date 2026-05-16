@@ -95,10 +95,9 @@
         "jules-extension.autoReplyMessage": {
           "type": "string",
           "default": "",
-          "description": "Julesがユーザーのフィードバックを待機している状態（AWAITING_USER_FEEDBACK）になった際、自動的に送信するメッセージを指定します。空の場合は自動返信は無効になります。",
-          "markdownDescription": "Julesがユーザーのフィードバックを待機している状態（AWAITING_USER_FEEDBACK）になった際、自動的に送信するメッセージを指定します。空の場合は自動返信は無効になります。\n\n**例:**\n`内容を確認しました。PRを作成してください。`"
-        }
-      }
+          "description": "Specifies a message to be automatically sent when Jules enters the AWAITING_USER_FEEDBACK state. Auto-reply is disabled if empty.",
+          "markdownDescription": "Specifies a message that Jules will automatically send whenever it transitions to the AWAITING_USER_FEEDBACK state. Leaving this empty disables automatic replies.\n\n**Example:**\n`I have reviewed the changes. Please create the PR.`"
+        }      }
     },
     "commands": [
       {
