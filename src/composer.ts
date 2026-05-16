@@ -268,7 +268,10 @@ export function getComposerHtml(
       }
 
       submitButton.disabled = true;
-      submitButton.innerHTML = 'Sending... <span class="spinner"></span>';
+      submitButton.textContent = 'Sending... ';
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+      submitButton.appendChild(spinner);
       submitButton.setAttribute('aria-busy', 'true');
       submitButton.title = 'Sending message...';
       submitButton.setAttribute('aria-label', 'Sending message...');

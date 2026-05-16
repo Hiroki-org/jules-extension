@@ -592,7 +592,10 @@ suite("Composer Test Suite", () => {
         "nonce-123"
       );
       // Check for loading state logic
-      assert.ok(html.includes("submitButton.innerHTML = 'Sending... <span class=\"spinner\"></span>';"));
+      assert.ok(html.includes("submitButton.textContent = 'Sending... ';"));
+      assert.ok(html.includes("const spinner = document.createElement('span');"));
+      assert.ok(html.includes("spinner.className = 'spinner';"));
+      assert.ok(html.includes("submitButton.appendChild(spinner);"));
       assert.ok(html.includes("submitButton.setAttribute('aria-busy', 'true');"));
       assert.ok(html.includes("submitButton.title = 'Sending message...';"));
       assert.ok(html.includes("submitButton.setAttribute('aria-label', 'Sending message...');"));
