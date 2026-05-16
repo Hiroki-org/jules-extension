@@ -173,6 +173,28 @@ export const CHAT_JS = `(function() {
         </div>
       \`;
       }).join("");
+
+      // 展開状態とキャッシュされた詳細コンテンツを復元する
+      const detailsEls = chatContainer.querySelectorAll("details.activity-details");
+      detailsEls.forEach(details => {
+        const activityId = details.getAttribute("data-activity-id");
+        const detailType = details.getAttribute("data-detail-type");
+        if (activityId && detailType) {
+          const indexStr = details.getAttribute("data-index");
+          const key = activityId + "|" + detailType + "|" + (indexStr || "");
+
+          if (detailsCache[key]) {
+            const contentDiv = details.querySelector(".details-content");
+            if (contentDiv) {
+              contentDiv.innerHTML = sanitizeHtml(detailsCache[key]);
+            }
+          }
+
+          if (expandedDetails.has(key)) {
+            details.open = true;
+          }
+        }
+      });
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
     chatContainer.scrollTop = chatContainer.scrollHeight;
