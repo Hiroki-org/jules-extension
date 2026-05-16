@@ -124,6 +124,13 @@ export function renderChatMarkdown(markdown: string): string {
       "*": ["class", "id", "data-*", "aria-*"],
       button: ["type", "title"],
     },
+    nonTextTags: [
+      "script",
+      "style",
+      "textarea",
+      "option",
+      "xmp"
+    ],
   });
 }
 
@@ -294,6 +301,13 @@ export function buildChatMessagesFromActivities(
             "*": ["class", "id", "data-*", "aria-*"],
             button: ["type", "title"],
           },
+          nonTextTags: [
+            "script",
+            "style",
+            "textarea",
+            "option",
+            "xmp"
+          ],
         }
       ),
     });
