@@ -1,7 +1,8 @@
 import * as assert from "assert";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { activate } from "../extension";
+import { activate, resetUpdatePreviousStatesCachesForTests, JulesSessionsProvider } from "../extension";
+import * as fetchUtils from "../fetchUtils";
 
 suite("Command Coverage Unit Tests", () => {
   let sandbox: sinon.SinonSandbox;
@@ -9,6 +10,7 @@ suite("Command Coverage Unit Tests", () => {
 
   setup(() => {
     sandbox = sinon.createSandbox();
+    resetUpdatePreviousStatesCachesForTests();
     mockContext = {
       subscriptions: [],
       globalState: {
@@ -29,8 +31,7 @@ suite("Command Coverage Unit Tests", () => {
   test("jules.filterActivities should show quick pick with English placeholder", async () => {
     const showQuickPickStub = sandbox.stub(vscode.window, "showQuickPick");
     // Mock fetch for activate
-    const fetchStub = sandbox.stub(global, "fetch" as any);
-    fetchStub.resolves({ ok: true, json: async () => ({ sessions: [] }) } as any);
+    sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({ ok: true, json: async () => ({ sessions: [] }) } as any);
     
     const registerCommandStub = sandbox.stub(vscode.commands, "registerCommand");
     
@@ -56,15 +57,18 @@ suite("Command Coverage Unit Tests", () => {
     ] as any);
 
     // Mock fetch for activate
-    const fetchStub = sandbox.stub(global, "fetch" as any);
-    fetchStub.resolves({ ok: true, json: async () => ({ sessions: [] }) } as any);
+    sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({ ok: true, json: async () => ({ sessions: [] }) } as any);
     
     const registerCommandStub = sandbox.stub(vscode.commands, "registerCommand");
     
     // Call activate
     await activate(mockContext);
 
-    // Find the handler for jules.filterActivities
+    // We need to capture the sessionsProvider instance created inside activate.
+    // In our case, the filterHandler closure captures it.
+    // To verify side effects, we'd need to mock JulesSessionsProvider constructor if possible, 
+    // or verify that the handler logic works.
+    
     const filterHandler = registerCommandStub.args.find(args => args[0] === "jules.filterActivities")?.[1];
     assert.ok(filterHandler);
 
@@ -73,5 +77,7 @@ suite("Command Coverage Unit Tests", () => {
 
     // Verify it reached the branches
     assert.ok(showQuickPickStub.calledOnce);
+    // Since we can't easily access the internal sessionsProvider instance here without further refactoring of extension.ts,
+    // we at least ensure it doesn't crash and follows the English path.
   });
 });

@@ -97,7 +97,8 @@
           "default": "",
           "description": "Specifies a message to be automatically sent when Jules enters the AWAITING_USER_FEEDBACK state. Auto-reply is disabled if empty.",
           "markdownDescription": "Specifies a message that Jules will automatically send whenever it transitions to the AWAITING_USER_FEEDBACK state. Leaving this empty disables automatic replies.\n\n**Example:**\n`I have reviewed the changes. Please create the PR.`"
-        }      }
+        }
+      }
     },
     "commands": [
       {
