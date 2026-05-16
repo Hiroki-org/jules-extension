@@ -1711,7 +1711,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   private lastSelectedSourceId: string | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
-  constructor(private context: vscode.ExtensionContext) {}
+  constructor(private context: vscode.ExtensionContext) {
+    const currentSelectedSource =
+      this.context.globalState.get<SourceType>("selected-source");
+    this.lastSelectedSourceId = currentSelectedSource?.id;
+  }
 
   getActivityCategoryFilter(): Set<ActivityCategory> {
     return this.activityCategoryFilter;
@@ -2013,7 +2017,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         if (forceUIUpdate && !sessionsChanged && !statesChanged && !sourceChanged) {
           logChannel.appendLine("Jules: Forcing UI update (artifacts changed)");
         }
-        if (sourceChanged && !sessionsChanged && !statesChanged && !forceUIUpdate) {
+        if (sourceChanged) {
           logChannel.appendLine("Jules: Source changed, triggering UI update.");
         }
         this._onDidChangeTreeData.fire();
