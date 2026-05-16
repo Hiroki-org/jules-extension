@@ -2781,13 +2781,13 @@ export function activate(context: vscode.ExtensionContext) {
       setSocksProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
-        `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
+        `Connecting via SOCKS proxy (${safeProxy}).`,
       );
     } else {
       setHttpProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
-        `HTTP/HTTPSプロキシ（${safeProxy}）経由で接続します。`,
+        `Connecting via HTTP/HTTPS proxy (${safeProxy}).`,
       );
     }
   }
@@ -3401,7 +3401,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       const selected = await vscode.window.showQuickPick(items, {
         canPickMany: true,
-        placeHolder: "フィルタするActivityカテゴリを選択（未選択＝全表示）",
+        placeHolder: "Select Activity categories to filter (empty = show all)",
       });
 
       if (selected !== undefined) {
