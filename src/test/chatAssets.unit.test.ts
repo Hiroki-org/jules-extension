@@ -142,6 +142,7 @@ suite("chatAssets unit tests", () => {
     ]);
     assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
     assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
+    assert.deepStrictEqual(sanitizeConfig.USE_PROFILES, { html: true, svg: true, math: false });
     assert.deepStrictEqual(sanitizeConfig.FORBID_TAGS, ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"]);
   });
 
