@@ -1509,8 +1509,10 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(result[1], item2);
     });
 
-    test("should deduplicate items if primary is also in selected array", () => {
-      const result = resolveSelectedSessionItems(item1, [item2, item1]);
+    test("should deduplicate items if primary is also in selected array, and by session.name", () => {
+      const duplicateItem1 = new SessionTreeItem(mockSession1 as any);
+      const duplicateItem2 = new SessionTreeItem(mockSession2 as any);
+      const result = resolveSelectedSessionItems(item1, [item2, item1, duplicateItem1, duplicateItem2]);
       assert.strictEqual(result.length, 2);
       assert.strictEqual(result[0], item1);
       assert.strictEqual(result[1], item2);
@@ -1518,6 +1520,19 @@ suite("Extension helper unit tests", () => {
 
     test("should filter out unknown/non-SessionTreeItem objects from selected array", () => {
       const result = resolveSelectedSessionItems(item1, [item2, { name: "not-an-item" } as any, "string"]);
+      assert.strictEqual(result.length, 2);
+      assert.strictEqual(result[0], item1);
+      assert.strictEqual(result[1], item2);
+    });
+
+    test("should comprehensively resolve selected session items (primary precedence, deduplication, and type filtering)", () => {
+      const duplicateItem1 = new SessionTreeItem(mockSession1 as any);
+      const result = resolveSelectedSessionItems(item1, [
+        item2,
+        duplicateItem1,
+        { name: "invalid" } as any,
+        "string"
+      ]);
       assert.strictEqual(result.length, 2);
       assert.strictEqual(result[0], item1);
       assert.strictEqual(result[1], item2);
