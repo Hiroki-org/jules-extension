@@ -862,7 +862,8 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   }
 
   // Slow path: Check set equality ignoring order
-  // 中間配列の生成を避けるため、new Map(array.map(...)) の代わりに for...of ループを使用する
+  // ⚡ Bolt Optimization: Use a direct for-loop with Map.set() instead of
+  // new Map(array.map(...)) to avoid unnecessary intermediate array allocations.
   const mapA = new Map<string, typeof a[number]>();
   for (const s of a) {
     mapA.set(s.name, s);
