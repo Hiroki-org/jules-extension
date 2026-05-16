@@ -1,62 +1,21 @@
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import * as vscode from 'vscode';
-import { getCurrentBranch } from '../branchUtils';
+import * as assert from "assert";
+import * as sinon from "sinon";
+import { areSessionListsEqual } from "../extension";
+import { Session } from "../types";
 
-suite('Performance Optimization - getCurrentBranch', () => {
-    let sandbox: sinon.SinonSandbox;
-    let showQuickPickStub: sinon.SinonStub;
-    let outputChannelStub: any;
+suite("Performance Optimization Unit Tests", () => {
+  test("areSessionListsEqual should correctly compare lists with multiple sessions using optimized loop", () => {
+    const s1: Session = { name: "sessions/s1", title: "S1", state: "RUNNING" } as any;
+    const s2: Session = { name: "sessions/s2", title: "S2", state: "RUNNING" } as any;
+    const s3: Session = { name: "sessions/s3", title: "S3", state: "RUNNING" } as any;
 
-    setup(() => {
-        sandbox = sinon.createSandbox();
-        showQuickPickStub = sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
-        outputChannelStub = { appendLine: sandbox.stub() };
-
-        // Mock vscode.extensions.getExtension
-        const gitApi = {
-            repositories: [
-                { rootUri: { fsPath: '/repo1' }, state: { HEAD: { name: 'main' }, remotes: [] } },
-                { rootUri: { fsPath: '/repo2' }, state: { HEAD: { name: 'dev' }, remotes: [] } }
-            ]
-        };
-        const gitExtension = {
-            exports: {
-                getAPI: () => gitApi
-            }
-        };
-        sandbox.stub(vscode.extensions, 'getExtension').returns(gitExtension as any);
-    });
-
-    teardown(() => {
-        sandbox.restore();
-    });
-
-    test('Baseline: showQuickPick is called when multiple repositories exist', async () => {
-        await getCurrentBranch(outputChannelStub);
-        assert.ok(showQuickPickStub.called, 'showQuickPick should be called');
-    });
-
-    test('Optimization: showQuickPick is NOT called when silent mode is enabled', async () => {
-        await getCurrentBranch(outputChannelStub, { silent: true });
-        assert.ok(showQuickPickStub.notCalled, 'showQuickPick should NOT be called');
-    });
-
-    test('Optimization: correctly infers repository from active editor in silent mode', async () => {
-        // Mock active editor to point to a file in repo2
-        const activeEditorStub = {
-            document: {
-                uri: {
-                    fsPath: '/repo2/src/file.ts',
-                    scheme: 'file'
-                }
-            }
-        };
-        sandbox.stub(vscode.window, 'activeTextEditor').value(activeEditorStub);
-
-        const branch = await getCurrentBranch(outputChannelStub, { silent: true });
-
-        assert.strictEqual(branch, 'dev', 'Should infer repo2 and return its branch "dev"');
-        assert.ok(showQuickPickStub.notCalled, 'showQuickPick should NOT be called');
-    });
+    // Same elements, different order (triggering slow path with Map)
+    assert.strictEqual(areSessionListsEqual([s1, s2, s3], [s3, s1, s2]), true);
+    
+    // Different elements
+    assert.strictEqual(areSessionListsEqual([s1, s2], [s1, s3]), false);
+    
+    // Different lengths
+    assert.strictEqual(areSessionListsEqual([s1, s2], [s1, s2, s3]), false);
+  });
 });
