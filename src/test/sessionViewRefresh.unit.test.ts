@@ -13,14 +13,22 @@ suite("JulesSessionsProvider Refresh Logic Unit Tests", () => {
     sandbox = sinon.createSandbox();
     fireStub = sandbox.stub();
     
+    const globalStateGetStub = sandbox.stub();
+    // Default returns for unrelated keys
+    globalStateGetStub.withArgs("jules.prStatusCache", sinon.match.any).returns({});
+    globalStateGetStub.withArgs("jules.previousSessionStates", sinon.match.any).returns({});
+    globalStateGetStub.withArgs("jules-extension.hideClosedPRSessions", sinon.match.any).returns(false);
+
     mockContext = {
       globalState: {
-        get: sandbox.stub(),
+        get: globalStateGetStub,
         update: sandbox.stub().resolves(),
       },
       secrets: {
         get: sandbox.stub().resolves("fake-api-key"),
       },
+      extensionMode: vscode.ExtensionMode.Test,
+      subscriptions: [],
     } as any;
 
     provider = new JulesSessionsProvider(mockContext);
@@ -86,5 +94,22 @@ suite("JulesSessionsProvider Refresh Logic Unit Tests", () => {
     await provider.refresh();
     
     assert.strictEqual(fireStub.calledOnce, true);
+  });
+
+  test("should trigger UI update when forceUIUpdate is true even if sessions and source are same", async () => {
+    const fetchStub = sandbox.stub(global, "fetch" as any);
+    
+    const mockSessions = { sessions: [] };
+    fetchStub.resolves({
+      ok: true,
+      json: async () => mockSessions,
+    } as any);
+
+    (mockContext.globalState.get as sinon.SinonStub).withArgs("selected-source").returns({ id: "source-a" });
+    await provider.refresh(); // initial load
+    fireStub.resetHistory();
+
+    await provider.refresh(true); // forceUIUpdate = true
+    assert.strictEqual(fireStub.calledOnce, true, "Should fire when forceUIUpdate is true");
   });
 });
