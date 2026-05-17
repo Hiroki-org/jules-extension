@@ -1124,6 +1124,15 @@ suite("Extension Test Suite", () => {
       const s1 = { name: "1", title: "t1", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
       const s1Modified = { ...s1, state: "COMPLETED" } as Session;
       assert.strictEqual(areSessionListsEqual([s1], [s1Modified]), false);
+      const s2 = { name: "2", title: "t2", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      assert.strictEqual(areSessionListsEqual([s2, s1], [s1Modified, s2]), false);
+    });
+
+    test("should handle missing session in b during slow path", () => {
+      const s1 = { name: "1", title: "t1", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      const s2 = { name: "2", title: "t2", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      const s3 = { name: "3", title: "t3", state: "RUNNING", rawState: "RUNNING", outputs: [] } as Session;
+      assert.strictEqual(areSessionListsEqual([s1, s2], [s2, s3]), false);
     });
 
     test("should return false if size differs", () => {

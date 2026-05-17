@@ -295,4 +295,31 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
 
         assert.strictEqual(children.length, 0);
     });
+
+    test("getChildren handles All Repositories selection and cached sources mapping", async () => {
+        const globalStateGet = mockContext.globalState.get as sinon.SinonStub;
+
+        globalStateGet.withArgs("selected-source").returns({ id: ALL_SOURCES_ID, name: "All repositories" });
+        globalStateGet.withArgs("jules.sources").returns({
+            sources: [{ name: "repo1", isPrivate: false, githubRepo: null }]
+        });
+
+        getConfigurationStub.returns({
+            get: (key: string) => {
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
+                return undefined;
+            }
+        } as any);
+
+        const provider = new JulesSessionsProvider(mockContext);
+        const s1 = createMockSession("s1", "repo1");
+        provider.setSessionsCacheForTests([s1]);
+
+        const children = await provider.getChildren();
+        assert.strictEqual(children.length, 1);
+        // The tree item should resolve the source from the cache rather than using the "All repositories" source
+        assert.strictEqual((children[0] as any).source.name, "repo1");
+    });
 });
