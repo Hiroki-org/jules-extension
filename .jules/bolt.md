@@ -33,3 +33,6 @@
 
 **Learning:** Linux CI環境での共有メモリ不足や、macOS(arm64等)でのGPU関連の初期化エラーにより、Electronアプリ(VSCode E2Eテスト)が起動直後にクラッシュし `Target page closed` エラーになることがある。
 **Action:** PlaywrightからVSCodeをlaunchする引数に `--disable-dev-shm-usage` と `--disable-software-rasterizer` を追加してクラッシュを回避する。
+## 2026-05-18 - Avoid array allocation in Map constructor
+**Learning:** Using `new Map(array.map(...))` creates an unnecessary intermediate array of tuples, increasing memory allocation and garbage collection overhead.
+**Action:** Use a `for...of` loop with `.set()` on an empty `Map` instead to improve memory efficiency and performance.
