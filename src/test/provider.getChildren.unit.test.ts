@@ -320,6 +320,6 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         const children = await provider.getChildren();
         assert.strictEqual(children.length, 1);
         // The tree item should resolve the source from the cache rather than using the "All repositories" source
-        assert.strictEqual((children[0] as any).source.name, "repo1");
+        assert.strictEqual((children[0] as any).selectedSource?.name, "repo1");
     });
 });
