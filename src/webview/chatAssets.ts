@@ -44,6 +44,9 @@ p { margin: 0 0 8px; }
 .activity-details summary:hover { opacity: 1; text-decoration: underline; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+.details-content[aria-busy="true"] { opacity: 0.6; pointer-events: none; animation: pulse 1.5s infinite ease-in-out; }
+@keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 0.3; } 100% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .details-content[aria-busy="true"] { animation: none; opacity: 0.5; } }
 .message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
 .shiki span { color: var(--shiki-light); }
@@ -225,6 +228,10 @@ export const CHAT_JS = `(function() {
         if (details.open) {
           expandedDetails.add(key);
           if (!detailsCache[key]) {
+            const contentDiv = details.querySelector(".details-content");
+            if (contentDiv) {
+              contentDiv.setAttribute("aria-busy", "true");
+            }
             vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
           }
         } else {
@@ -284,6 +291,7 @@ export const CHAT_JS = `(function() {
         if (elIndex === msgIndex) {
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
+            contentDiv.setAttribute("aria-busy", "false");
             contentDiv.innerHTML = sanitizeHtml(html);
           }
         }

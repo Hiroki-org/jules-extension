@@ -9,3 +9,7 @@
 ## 2025-05-11 - Dynamic ARIA Labeling for Context-Aware Inputs
 **Learning:** When using context-aware placeholders (like dynamically changing the placeholder from "Select a session to start typing" to "Enter message (Ctrl/Cmd+Enter to send)"), it is crucial to synchronize these changes with ARIA attributes (`aria-label` and `title`) to ensure screen readers provide accurate, up-to-date context, preventing users from becoming disoriented by outdated or mismatched labels.
 **Action:** Next time an input element's visual cue (like a placeholder) is dynamically updated based on state, immediately map that updated string to the element's `aria-label` and `title` properties within the same DOM update cycle.
+
+## 2026-05-17 - Async Loading Accessibility in Accordions
+**Learning:** When expanding an accordion (`<details>`) that fetches content asynchronously, relying solely on a "Loading..." text string does not fully convey the loading state to screen readers. Adding `aria-busy="true"` to the container (e.g. `.details-content`) and removing it upon resolution explicitly signals the active background loading process to assistive technologies, significantly improving accessibility.
+**Action:** Next time an accordion or dynamic UI section fetches data asynchronously, implement `aria-busy="true"` alongside a visual loading indicator (like CSS animations) during the fetch lifecycle.
