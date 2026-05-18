@@ -33,3 +33,7 @@
 
 **Learning:** Linux CI環境での共有メモリ不足や、macOS(arm64等)でのGPU関連の初期化エラーにより、Electronアプリ(VSCode E2Eテスト)が起動直後にクラッシュし `Target page closed` エラーになることがある。
 **Action:** PlaywrightからVSCodeをlaunchする引数に `--disable-dev-shm-usage` と `--disable-software-rasterizer` を追加してクラッシュを回避する。
+## 2026-05-18 - Single-Pass Deduplication for Context Menu Targets
+
+**Learning:** When resolving target items from a mix of primary and selected objects (e.g., `resolveSelectedSessionItems`), using the spread operator (`...[]`) combined with `.filter()` chaining forces the creation of multiple intermediate array allocations and causes redundant iterations over the same items.
+**Action:** Replace `...` spread and chained `.filter()` calls with a single-pass `for...of` loop. Initialize an empty target array and a tracking `Set`, then iterate over the sources directly, pushing items that pass validation and `!seen.has()` checks to eliminate intermediate allocations.
