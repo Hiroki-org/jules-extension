@@ -1708,9 +1708,14 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   // Activity フィルタ関連のプロパティ
   private activityCategoryFilter: Set<ActivityCategory> = new Set();
   private lastSelectedSessionId: string | undefined;
+  private lastSelectedSourceId: string | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
-  constructor(private context: vscode.ExtensionContext) {}
+  constructor(private context: vscode.ExtensionContext) {
+    const currentSelectedSource =
+      this.context.globalState.get<SourceType>("selected-source");
+    this.lastSelectedSourceId = currentSelectedSource?.id;
+  }
 
   getActivityCategoryFilter(): Set<ActivityCategory> {
     return this.activityCategoryFilter;
@@ -1890,6 +1895,11 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         allSessionsMapped,
       );
 
+      const currentSelectedSource =
+        this.context.globalState.get<SourceType>("selected-source");
+      const currentSelectedSourceId = currentSelectedSource?.id;
+      const sourceChanged = this.lastSelectedSourceId !== currentSelectedSourceId;
+
       if (sessionsChanged) {
         // Optimization: Single pass iteration over sessions to identify notification candidates
         const sessionsToNotifyPlan: Session[] = [];
@@ -1978,6 +1988,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
+      this.lastSelectedSourceId = currentSelectedSourceId;
 
       await this.updateProgressStatusBarForSelectedSession(
         apiKey,
@@ -2002,9 +2013,12 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       }
 
       // Only fire event if meaningful change occurred
-      if (sessionsChanged || statesChanged || forceUIUpdate) {
-        if (forceUIUpdate && !sessionsChanged && !statesChanged) {
+      if (sessionsChanged || statesChanged || sourceChanged || forceUIUpdate) {
+        if (forceUIUpdate && !sessionsChanged && !statesChanged && !sourceChanged) {
           logChannel.appendLine("Jules: Forcing UI update (artifacts changed)");
+        }
+        if (sourceChanged) {
+          logChannel.appendLine("Jules: Source changed, triggering UI update.");
         }
         this._onDidChangeTreeData.fire();
       } else {
