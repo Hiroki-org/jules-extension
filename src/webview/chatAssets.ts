@@ -44,6 +44,9 @@ p { margin: 0 0 8px; }
 .activity-details summary:hover { opacity: 1; text-decoration: underline; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+details[aria-busy="true"] .details-content { animation: pulse 1.5s infinite; opacity: 0.7; }
+@keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { details[aria-busy="true"] .details-content { animation: none; opacity: 0.7; } }
 .message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
 .shiki span { color: var(--shiki-light); }
@@ -66,15 +69,28 @@ export const CHAT_JS = `(function() {
   const messageInput = document.getElementById("messageInput");
   const sendButton = document.getElementById("sendButton");
   const sessionLabel = document.getElementById("sessionLabel");
+  const DETAILS_BUSY_TIMEOUT_MS = 15000;
 
   let state = { sessionId: null, messages: [], isTyping: false };
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
+  let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeout id
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
   const SANITIZED_HTML_CACHE_LIMIT = 500;
   const sanitizedHtmlCache = new Map();
+
+  function createSanitizeConfig(overrides) {
+    return Object.assign({
+      ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
+      ADD_TAGS: ["details", "summary"],
+      ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
+      RETURN_DOM: false,
+      RETURN_DOM_FRAGMENT: false,
+      FORBID_TAGS: ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"],
+    }, overrides || {});
+  }
 
   function rememberSanitizedHtml(html, sanitizedHtml) {
     sanitizedHtmlCache.set(html, sanitizedHtml);
@@ -96,19 +112,125 @@ export const CHAT_JS = `(function() {
     try {
       return rememberSanitizedHtml(
         rawHtml,
-        DOMPurify.sanitize(rawHtml, {
-          ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
-          ADD_TAGS: ["details", "summary"],
-          ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
-          RETURN_DOM: false,
-          RETURN_DOM_FRAGMENT: false,
-          FORBID_TAGS: ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"],
-        }),
+        DOMPurify.sanitize(rawHtml, createSanitizeConfig()),
       );
     } catch (error) {
       console.error("Jules: Failed to sanitize chat HTML", error);
       return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
     }
+  }
+
+  function createUnavailableNode() {
+    const node = document.createElement("span");
+    node.className = "message-unavailable";
+    node.setAttribute("role", "status");
+    node.setAttribute("aria-label", "Message unavailable");
+    node.textContent = "Message unavailable";
+    return node;
+  }
+
+  function replaceChildren(element, nodes) {
+    if (typeof element.replaceChildren === "function") {
+      element.replaceChildren(...nodes);
+      return;
+    }
+    element.textContent = "";
+    nodes.forEach(node => element.appendChild(node));
+  }
+
+  function renderSanitizedDetailsHtml(contentDiv, html) {
+    const rawHtml = typeof html === "string" ? html : "";
+    if (typeof DOMPurify === "undefined") {
+      replaceChildren(contentDiv, [createUnavailableNode()]);
+      return;
+    }
+    try {
+      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({
+        RETURN_DOM_FRAGMENT: true,
+      }));
+      if (fragment && typeof fragment === "object" && "childNodes" in fragment) {
+        replaceChildren(contentDiv, Array.from(fragment.childNodes));
+        return;
+      }
+    } catch (error) {
+      console.error("Jules: Failed to sanitize details HTML", error);
+    }
+    replaceChildren(contentDiv, [createUnavailableNode()]);
+  }
+
+  function getDetailsKey(details) {
+    const activityId = details.getAttribute("data-activity-id");
+    const detailType = details.getAttribute("data-detail-type");
+    if (!activityId || !detailType) {
+      return "";
+    }
+    return activityId + "|" + detailType + "|" + (details.getAttribute("data-index") || "");
+  }
+
+  function hasDetailsCache(key) {
+    return Object.prototype.hasOwnProperty.call(detailsCache, key);
+  }
+
+  function clearDetailsBusyTimeout(key) {
+    if (detailsBusyTimeouts[key]) {
+      clearTimeout(detailsBusyTimeouts[key]);
+      delete detailsBusyTimeouts[key];
+    }
+  }
+
+  function findDetailsByKey(key) {
+    const parts = key.split("|");
+    const activityId = parts[0];
+    const detailType = parts[1];
+    const indexStr = parts.slice(2).join("|");
+    return Array.from(chatContainer.querySelectorAll("details.activity-details")).find(details =>
+      details.getAttribute("data-activity-id") === activityId &&
+      details.getAttribute("data-detail-type") === detailType &&
+      (details.getAttribute("data-index") || "") === indexStr,
+    );
+  }
+
+  function markDetailsBusy(key, details) {
+    clearDetailsBusyTimeout(key);
+    details.setAttribute("aria-busy", "true");
+    detailsBusyTimeouts[key] = setTimeout(() => {
+      const currentDetails = findDetailsByKey(key);
+      if (currentDetails) {
+        currentDetails.setAttribute("aria-busy", "false");
+      }
+      delete detailsBusyTimeouts[key];
+    }, DETAILS_BUSY_TIMEOUT_MS);
+  }
+
+  function clearDetailsBusy(key, details) {
+    clearDetailsBusyTimeout(key);
+    details.setAttribute("aria-busy", "false");
+  }
+
+  function renderCachedDetails(details, key) {
+    if (!hasDetailsCache(key)) {
+      return;
+    }
+    const contentDiv = details.querySelector(".details-content");
+    if (contentDiv) {
+      renderSanitizedDetailsHtml(contentDiv, detailsCache[key]);
+    }
+  }
+
+  function restoreExpandedDetails() {
+    chatContainer.querySelectorAll("details.activity-details").forEach(details => {
+      const key = getDetailsKey(details);
+      if (!key || !expandedDetails.has(key)) {
+        return;
+      }
+      details.open = true;
+      if (hasDetailsCache(key)) {
+        clearDetailsBusy(key, details);
+        renderCachedDetails(details, key);
+      } else if (detailsBusyTimeouts[key]) {
+        details.setAttribute("aria-busy", "true");
+      }
+    });
   }
 
   function updateUI() {
@@ -173,28 +295,7 @@ export const CHAT_JS = `(function() {
         </div>
       \`;
       }).join("");
-
-      // 展開状態とキャッシュされた詳細コンテンツを復元する
-      const detailsEls = chatContainer.querySelectorAll("details.activity-details");
-      detailsEls.forEach(details => {
-        const activityId = details.getAttribute("data-activity-id");
-        const detailType = details.getAttribute("data-detail-type");
-        if (activityId && detailType) {
-          const indexStr = details.getAttribute("data-index");
-          const key = activityId + "|" + detailType + "|" + (indexStr || "");
-
-          if (detailsCache[key]) {
-            const contentDiv = details.querySelector(".details-content");
-            if (contentDiv) {
-              contentDiv.innerHTML = sanitizeHtml(detailsCache[key]);
-            }
-          }
-
-          if (expandedDetails.has(key)) {
-            details.open = true;
-          }
-        }
-      });
+      restoreExpandedDetails();
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -246,10 +347,19 @@ export const CHAT_JS = `(function() {
 
         if (details.open) {
           expandedDetails.add(key);
-          if (!detailsCache[key]) {
-            vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+          if (!hasDetailsCache(key)) {
+            if (!detailsBusyTimeouts[key]) {
+              markDetailsBusy(key, details);
+              vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+            } else {
+              details.setAttribute("aria-busy", "true");
+            }
+          } else {
+            clearDetailsBusy(key, details);
+            renderCachedDetails(details, key);
           }
         } else {
+          clearDetailsBusy(key, details);
           expandedDetails.delete(key);
         }
       }
@@ -304,9 +414,10 @@ export const CHAT_JS = `(function() {
         const elIndex = details.getAttribute("data-index") || "";
         const msgIndex = index !== undefined ? String(index) : "";
         if (elIndex === msgIndex) {
+          clearDetailsBusy(key, details);
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
-            contentDiv.innerHTML = sanitizeHtml(html);
+            renderSanitizedDetailsHtml(contentDiv, html);
           }
         }
       });
