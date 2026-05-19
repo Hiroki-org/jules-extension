@@ -106,41 +106,6 @@ const ACTIVITY_LOG_BASE_KEYS = new Set([
 ]);
 const ACTIVITY_LOG_UNION_KEYS = new Set(ACTIVITY_UNION_KEYS);
 
-type ActivityFilterProvider = Pick<
-  JulesSessionsProvider,
-  "getActivityCategoryFilter" | "setActivityCategoryFilter"
->;
-
-export async function handleFilterActivitiesCommand(
-  sessionsProvider: ActivityFilterProvider,
-): Promise<void> {
-  const categories: ActivityCategory[] = [
-    "Plan",
-    "Progress",
-    "Artifacts",
-    "Messages",
-    "Errors",
-  ];
-  const currentFilter = sessionsProvider.getActivityCategoryFilter();
-
-  const items = categories.map((category) => ({
-    label: category,
-    picked: currentFilter.size === 0 || currentFilter.has(category),
-  }));
-
-  const selected = await vscode.window.showQuickPick(items, {
-    canPickMany: true,
-    placeHolder: "Select Activity categories to filter (empty = show all)",
-  });
-
-  if (selected !== undefined) {
-    const newFilter = new Set<ActivityCategory>(
-      selected.map((item) => item.label as ActivityCategory),
-    );
-    sessionsProvider.setActivityCategoryFilter(newFilter);
-  }
-}
-
 export function isInferredActivityLogKey(key: string): boolean {
   return (
     !ACTIVITY_LOG_BASE_KEYS.has(key) &&
@@ -899,7 +864,7 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   // Slow path: Check set equality ignoring order
   // ⚡ Bolt Optimization: Use a direct for-loop with Map.set() instead of
   // new Map(array.map(...)) to avoid unnecessary intermediate array allocations.
-  const mapA = new Map<string, Session>();
+  const mapA = new Map<string, typeof a[number]>();
   for (const s of a) {
     mapA.set(s.name, s);
   }
@@ -1748,14 +1713,9 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
   // Activity フィルタ関連のプロパティ
   private activityCategoryFilter: Set<ActivityCategory> = new Set();
   private lastSelectedSessionId: string | undefined;
-  private lastSelectedSourceId: string | undefined;
   private progressStatusBarItem: vscode.StatusBarItem | undefined;
 
-  constructor(private context: vscode.ExtensionContext) {
-    const currentSelectedSource =
-      this.context.globalState.get<SourceType>("selected-source");
-    this.lastSelectedSourceId = currentSelectedSource?.id;
-  }
+  constructor(private context: vscode.ExtensionContext) {}
 
   getActivityCategoryFilter(): Set<ActivityCategory> {
     return this.activityCategoryFilter;
@@ -1935,11 +1895,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
         allSessionsMapped,
       );
 
-      const currentSelectedSource =
-        this.context.globalState.get<SourceType>("selected-source");
-      const currentSelectedSourceId = currentSelectedSource?.id;
-      const sourceChanged = this.lastSelectedSourceId !== currentSelectedSourceId;
-
       if (sessionsChanged) {
         // Optimization: Single pass iteration over sessions to identify notification candidates
         const sessionsToNotifyPlan: Session[] = [];
@@ -2028,7 +1983,6 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
       // --- Update the cache ---
       this.sessionsCache = allSessionsMapped;
-      this.lastSelectedSourceId = currentSelectedSourceId;
 
       await this.updateProgressStatusBarForSelectedSession(
         apiKey,
@@ -2053,12 +2007,9 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       }
 
       // Only fire event if meaningful change occurred
-      if (sessionsChanged || statesChanged || sourceChanged || forceUIUpdate) {
-        if (forceUIUpdate && !sessionsChanged && !statesChanged && !sourceChanged) {
+      if (sessionsChanged || statesChanged || forceUIUpdate) {
+        if (forceUIUpdate && !sessionsChanged && !statesChanged) {
           logChannel.appendLine("Jules: Forcing UI update (artifacts changed)");
-        }
-        if (sourceChanged) {
-          logChannel.appendLine("Jules: Source changed, triggering UI update.");
         }
         this._onDidChangeTreeData.fire();
       } else {
@@ -2321,7 +2272,7 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       if (cachedSources?.sources) {
         // ⚡ Bolt Optimization: Use a direct for-loop with Map.set() instead of
         // new Map(array.map(...)) to avoid unnecessary intermediate array allocations.
-        sourcesMap = new Map<string, SourceType>();
+        sourcesMap = new Map<string, typeof cachedSources.sources[number]>();
         for (const s of cachedSources.sources) {
           sourcesMap.set(s.name, s);
         }
@@ -2840,13 +2791,13 @@ export function activate(context: vscode.ExtensionContext) {
       setSocksProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
-        `Connecting via SOCKS proxy (${safeProxy}).`,
+        `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
       );
     } else {
       setHttpProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
-        `Connecting via HTTP/HTTPS proxy (${safeProxy}).`,
+        `HTTP/HTTPSプロキシ（${safeProxy}）経由で接続します。`,
       );
     }
   }
@@ -3443,7 +3394,33 @@ export function activate(context: vscode.ExtensionContext) {
 
   const filterActivitiesCommand = vscode.commands.registerCommand(
     "jules.filterActivities",
-    () => handleFilterActivitiesCommand(sessionsProvider),
+    async () => {
+      const categories: ActivityCategory[] = [
+        "Plan",
+        "Progress",
+        "Artifacts",
+        "Messages",
+        "Errors",
+      ];
+      const currentFilter = sessionsProvider.getActivityCategoryFilter();
+
+      const items = categories.map((category) => ({
+        label: category,
+        picked: currentFilter.size === 0 || currentFilter.has(category),
+      }));
+
+      const selected = await vscode.window.showQuickPick(items, {
+        canPickMany: true,
+        placeHolder: "フィルタするActivityカテゴリを選択（未選択＝全表示）",
+      });
+
+      if (selected !== undefined) {
+        const newFilter = new Set<ActivityCategory>(
+          selected.map((item) => item.label as ActivityCategory),
+        );
+        sessionsProvider.setActivityCategoryFilter(newFilter);
+      }
+    },
   );
 
   const showActivitiesDisposable = vscode.commands.registerCommand(
