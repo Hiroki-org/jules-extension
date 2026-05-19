@@ -45,7 +45,7 @@ p { margin: 0 0 8px; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
 details[aria-busy="true"] .details-content { animation: pulse 1.5s infinite; opacity: 0.7; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) { details[aria-busy="true"] .details-content { animation: none; opacity: 0.7; } }
 .message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
@@ -69,10 +69,12 @@ export const CHAT_JS = `(function() {
   const messageInput = document.getElementById("messageInput");
   const sendButton = document.getElementById("sendButton");
   const sessionLabel = document.getElementById("sessionLabel");
+  const DETAILS_BUSY_TIMEOUT_MS = 15000;
 
   let state = { sessionId: null, messages: [], isTyping: false };
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
+  let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeout id
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
@@ -112,6 +114,27 @@ export const CHAT_JS = `(function() {
       console.error("Jules: Failed to sanitize chat HTML", error);
       return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
     }
+  }
+
+  function clearDetailsBusyTimeout(key) {
+    if (detailsBusyTimeouts[key]) {
+      clearTimeout(detailsBusyTimeouts[key]);
+      delete detailsBusyTimeouts[key];
+    }
+  }
+
+  function markDetailsBusy(key, details) {
+    clearDetailsBusyTimeout(key);
+    details.setAttribute("aria-busy", "true");
+    detailsBusyTimeouts[key] = setTimeout(() => {
+      details.setAttribute("aria-busy", "false");
+      delete detailsBusyTimeouts[key];
+    }, DETAILS_BUSY_TIMEOUT_MS);
+  }
+
+  function clearDetailsBusy(key, details) {
+    clearDetailsBusyTimeout(key);
+    details.setAttribute("aria-busy", "false");
   }
 
   function updateUI() {
@@ -228,10 +251,13 @@ export const CHAT_JS = `(function() {
         if (details.open) {
           expandedDetails.add(key);
           if (!detailsCache[key] && details.getAttribute("aria-busy") !== "true") {
-            details.setAttribute("aria-busy", "true");
+            markDetailsBusy(key, details);
             vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+          } else if (detailsCache[key]) {
+            clearDetailsBusy(key, details);
           }
         } else {
+          clearDetailsBusy(key, details);
           expandedDetails.delete(key);
         }
       }
@@ -286,7 +312,7 @@ export const CHAT_JS = `(function() {
         const elIndex = details.getAttribute("data-index") || "";
         const msgIndex = index !== undefined ? String(index) : "";
         if (elIndex === msgIndex) {
-          details.setAttribute("aria-busy", "false");
+          clearDetailsBusy(key, details);
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
             contentDiv.innerHTML = sanitizeHtml(html);
