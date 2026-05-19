@@ -2,7 +2,7 @@ import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
 function createChatScriptHarness(
-  domPurify?: { sanitize: (html: string, config: any) => string },
+  domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
 ) {
   let chatInnerHTML = "";
@@ -78,6 +78,20 @@ function createChatScriptHarness(
       messageListeners.forEach((listener) => listener({ data }));
     },
   };
+}
+
+function createHtmlFragment(html: string) {
+  return { childNodes: [{ outerHTML: html }] };
+}
+
+function createDetailsContentDiv() {
+  const contentDiv = {
+    innerHTML: "",
+    replaceChildren(...nodes: Array<{ outerHTML?: string; textContent?: string }>) {
+      contentDiv.innerHTML = nodes.map((node) => node.outerHTML ?? node.textContent ?? "").join("");
+    },
+  };
+  return contentDiv;
 }
 
 suite("chatAssets unit tests", () => {
@@ -205,7 +219,7 @@ suite("chatAssets unit tests", () => {
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
     const attributes: Record<string, string> = {};
-    const contentDiv = { innerHTML: "" };
+    const contentDiv = createDetailsContentDiv();
     const details = {
       getAttribute: (name: string) => {
         if (name === "data-index") {
@@ -226,8 +240,11 @@ suite("chatAssets unit tests", () => {
         selector === ".details-content" ? contentDiv : null,
     };
     const harness = createChatScriptHarness({
-      sanitize: (html) => {
+      sanitize: (html, config) => {
         sanitizedInput = html;
+        if (config.RETURN_DOM_FRAGMENT) {
+          return createHtmlFragment("<p>details safe</p>");
+        }
         return "<p>details safe</p>";
       },
     });
@@ -243,6 +260,69 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
     assert.strictEqual(attributes["aria-busy"], "false");
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
+  });
+
+  test("CHAT_JS should restore expanded cached details after rerender", () => {
+    const attributes: Record<string, string> = {};
+    const contentDiv = createDetailsContentDiv();
+    const details = {
+      tagName: "DETAILS",
+      open: true,
+      classList: { contains: (className: string) => className === "activity-details" },
+      getAttribute: (name: string) => {
+        if (name === "data-index") {
+          return "";
+        }
+        if (name === "data-activity-id") {
+          return "act-1";
+        }
+        if (name === "data-detail-type") {
+          return "plan";
+        }
+        return attributes[name] ?? null;
+      },
+      setAttribute: (name: string, value: string) => {
+        attributes[name] = value;
+      },
+      querySelector: (selector: string) =>
+        selector === ".details-content" ? contentDiv : null,
+    };
+    const harness = createChatScriptHarness({
+      sanitize: (html, config) => {
+        if (config.RETURN_DOM_FRAGMENT) {
+          return createHtmlFragment("<p>cached details</p>");
+        }
+        return html;
+      },
+    });
+    harness.elements.chat.querySelectorAll = () => [details];
+
+    harness.postWindowMessage({
+      type: "detailsHtml",
+      activityId: "act-1",
+      detailType: "plan",
+      html: "<p>cached details</p>",
+    });
+    harness.listeners.chat.toggle({ target: details });
+    contentDiv.innerHTML = "";
+    details.open = false;
+
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: {
+        sessionId: "session-1",
+        messages: [{ role: "assistant", html: "<p>message</p>" }],
+        isTyping: false,
+      },
+    });
+
+    assert.strictEqual(details.open, true);
+    assert.strictEqual(attributes["aria-busy"], "false");
+    assert.strictEqual(contentDiv.innerHTML, "<p>cached details</p>");
+    assert.strictEqual(
+      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
+      0,
+    );
   });
 
   test("CHAT_CSS should include activity details layout styles", () => {

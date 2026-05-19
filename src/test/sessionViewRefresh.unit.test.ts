@@ -72,11 +72,8 @@ suite("JulesSessionsProvider Refresh Logic Unit Tests", () => {
     assert.strictEqual(fireStub.calledOnce, true, "Should fire when source changed");
   });
 
-  test("should log source change when only source changed", async () => {
+  test("should refresh the tree when only source changed", async () => {
     const fetchStub = sandbox.stub(global, "fetch" as any);
-    sandbox.stub(vscode.window.createOutputChannel("Jules"), "appendLine");
-    // Note: In extension.ts, logChannel is a shared global. We might need to mock it if possible, 
-    // but testing fire() is more important for coverage of the logic branches.
     
     const mockSessions = { sessions: [] };
     fetchStub.resolves({
