@@ -355,6 +355,45 @@ suite("chatAssets unit tests", () => {
     }
   });
 
+  test("CHAT_JS should avoid duplicate detail requests after rerender while loading", () => {
+    const firstAttributes: Record<string, string> = {};
+    const secondAttributes: Record<string, string> = {};
+    const getAttribute = (attributes: Record<string, string>, name: string) => {
+      if (name === "data-activity-id") {
+        return "act-1";
+      }
+      if (name === "data-detail-type") {
+        return "plan";
+      }
+      if (name === "data-index") {
+        return "";
+      }
+      return attributes[name] ?? null;
+    };
+    const createDetails = (attributes: Record<string, string>) => ({
+      tagName: "DETAILS",
+      open: true,
+      classList: { contains: (className: string) => className === "activity-details" },
+      getAttribute: (name: string) => getAttribute(attributes, name),
+      setAttribute: (name: string, value: string) => {
+        attributes[name] = value;
+      },
+    });
+    const firstDetails = createDetails(firstAttributes);
+    const secondDetails = createDetails(secondAttributes);
+    const harness = createChatScriptHarness();
+
+    harness.listeners.chat.toggle({ target: firstDetails });
+    harness.listeners.chat.toggle({ target: secondDetails });
+
+    assert.strictEqual(firstAttributes["aria-busy"], "true");
+    assert.strictEqual(secondAttributes["aria-busy"], "true");
+    assert.strictEqual(
+      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
+      1,
+    );
+  });
+
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
     assert.ok(CHAT_CSS.includes(".shiki { background-color: transparent !important; }"));
     assert.ok(CHAT_CSS.includes(".shiki span { color: var(--shiki-light); }"));

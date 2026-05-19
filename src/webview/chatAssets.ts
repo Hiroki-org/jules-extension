@@ -265,9 +265,13 @@ export const CHAT_JS = `(function() {
 
         if (details.open) {
           expandedDetails.add(key);
-          if (!detailsCache[key] && details.getAttribute("aria-busy") !== "true") {
-            markDetailsBusy(key, details);
-            vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+          if (!detailsCache[key]) {
+            if (!detailsBusyTimeouts[key]) {
+              markDetailsBusy(key, details);
+              vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+            } else {
+              details.setAttribute("aria-busy", "true");
+            }
           } else if (detailsCache[key]) {
             clearDetailsBusy(key, details);
           }
