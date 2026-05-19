@@ -81,6 +81,17 @@ export const CHAT_JS = `(function() {
   const SANITIZED_HTML_CACHE_LIMIT = 500;
   const sanitizedHtmlCache = new Map();
 
+  function createSanitizeConfig(overrides) {
+    return Object.assign({
+      ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
+      ADD_TAGS: ["details", "summary"],
+      ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
+      RETURN_DOM: false,
+      RETURN_DOM_FRAGMENT: false,
+      FORBID_TAGS: ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"],
+    }, overrides || {});
+  }
+
   function rememberSanitizedHtml(html, sanitizedHtml) {
     sanitizedHtmlCache.set(html, sanitizedHtml);
     if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
@@ -101,19 +112,63 @@ export const CHAT_JS = `(function() {
     try {
       return rememberSanitizedHtml(
         rawHtml,
-        DOMPurify.sanitize(rawHtml, {
-          ALLOWED_URI_REGEXP: DOMPURIFY_ALLOWED_URI_REGEXP,
-          ADD_TAGS: ["details", "summary"],
-          ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
-          RETURN_DOM: false,
-          RETURN_DOM_FRAGMENT: false,
-          FORBID_TAGS: ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"],
-        }),
+        DOMPurify.sanitize(rawHtml, createSanitizeConfig()),
       );
     } catch (error) {
       console.error("Jules: Failed to sanitize chat HTML", error);
       return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
     }
+  }
+
+  function createUnavailableNode() {
+    const node = document.createElement("span");
+    node.className = "message-unavailable";
+    node.setAttribute("role", "status");
+    node.setAttribute("aria-label", "Message unavailable");
+    node.textContent = "Message unavailable";
+    return node;
+  }
+
+  function replaceChildren(element, nodes) {
+    if (typeof element.replaceChildren === "function") {
+      element.replaceChildren(...nodes);
+      return;
+    }
+    element.textContent = "";
+    nodes.forEach(node => element.appendChild(node));
+  }
+
+  function renderSanitizedDetailsHtml(contentDiv, html) {
+    const rawHtml = typeof html === "string" ? html : "";
+    if (typeof DOMPurify === "undefined") {
+      replaceChildren(contentDiv, [createUnavailableNode()]);
+      return;
+    }
+    try {
+      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({
+        RETURN_DOM_FRAGMENT: true,
+      }));
+      if (fragment && typeof fragment === "object" && "childNodes" in fragment) {
+        replaceChildren(contentDiv, Array.from(fragment.childNodes));
+        return;
+      }
+    } catch (error) {
+      console.error("Jules: Failed to sanitize details HTML", error);
+    }
+    replaceChildren(contentDiv, [createUnavailableNode()]);
+  }
+
+  function getDetailsKey(details) {
+    const activityId = details.getAttribute("data-activity-id");
+    const detailType = details.getAttribute("data-detail-type");
+    if (!activityId || !detailType) {
+      return "";
+    }
+    return activityId + "|" + detailType + "|" + (details.getAttribute("data-index") || "");
+  }
+
+  function hasDetailsCache(key) {
+    return Object.prototype.hasOwnProperty.call(detailsCache, key);
   }
 
   function clearDetailsBusyTimeout(key) {
@@ -150,6 +205,32 @@ export const CHAT_JS = `(function() {
   function clearDetailsBusy(key, details) {
     clearDetailsBusyTimeout(key);
     details.setAttribute("aria-busy", "false");
+  }
+
+  function renderCachedDetails(details, key) {
+    if (!hasDetailsCache(key)) {
+      return;
+    }
+    const contentDiv = details.querySelector(".details-content");
+    if (contentDiv) {
+      renderSanitizedDetailsHtml(contentDiv, detailsCache[key]);
+    }
+  }
+
+  function restoreExpandedDetails() {
+    chatContainer.querySelectorAll("details.activity-details").forEach(details => {
+      const key = getDetailsKey(details);
+      if (!key || !expandedDetails.has(key)) {
+        return;
+      }
+      details.open = true;
+      if (hasDetailsCache(key)) {
+        clearDetailsBusy(key, details);
+        renderCachedDetails(details, key);
+      } else if (detailsBusyTimeouts[key]) {
+        details.setAttribute("aria-busy", "true");
+      }
+    });
   }
 
   function updateUI() {
@@ -214,6 +295,7 @@ export const CHAT_JS = `(function() {
         </div>
       \`;
       }).join("");
+      restoreExpandedDetails();
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -265,15 +347,16 @@ export const CHAT_JS = `(function() {
 
         if (details.open) {
           expandedDetails.add(key);
-          if (!detailsCache[key]) {
+          if (!hasDetailsCache(key)) {
             if (!detailsBusyTimeouts[key]) {
               markDetailsBusy(key, details);
               vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
             } else {
               details.setAttribute("aria-busy", "true");
             }
-          } else if (detailsCache[key]) {
+          } else {
             clearDetailsBusy(key, details);
+            renderCachedDetails(details, key);
           }
         } else {
           clearDetailsBusy(key, details);
@@ -334,7 +417,7 @@ export const CHAT_JS = `(function() {
           clearDetailsBusy(key, details);
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
-            contentDiv.innerHTML = sanitizeHtml(html);
+            renderSanitizedDetailsHtml(contentDiv, html);
           }
         }
       });
