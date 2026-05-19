@@ -2647,22 +2647,29 @@ export function resolveSelectedSessionItems(
   primary?: SessionTreeItem,
   selected?: readonly unknown[],
 ): SessionTreeItem[] {
+  const result: SessionTreeItem[] = [];
+  const seen = new Set<string>();
+
   // Keep the right-clicked item first so future bulk actions have a stable
   // primary target while still deduplicating it from the selection.
-  const items = [
-    ...(primary instanceof SessionTreeItem ? [primary] : []),
-    ...(selected ?? []).filter((item): item is SessionTreeItem => item instanceof SessionTreeItem),
-  ];
+  if (primary instanceof SessionTreeItem) {
+    result.push(primary);
+    seen.add(primary.session.name);
+  }
 
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const id = item.session.name;
-    if (seen.has(id)) {
-      return false;
+  if (selected) {
+    for (const item of selected) {
+      if (item instanceof SessionTreeItem) {
+        const id = item.session.name;
+        if (!seen.has(id)) {
+          result.push(item);
+          seen.add(id);
+        }
+      }
     }
-    seen.add(id);
-    return true;
-  });
+  }
+
+  return result;
 }
 
 
