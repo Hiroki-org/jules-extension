@@ -2650,12 +2650,6 @@ export function resolveSelectedSessionItems(
   const result: SessionTreeItem[] = [];
   const seen = new Set<string>();
 
-  // ⚡ Bolt Optimization:
-  // We avoid chained ...(spreads) and .filter() calls to eliminate unnecessary
-  // intermediate array allocations and redundant iterations.
-  // Instead, we populate the final `result` array directly via a single pass,
-  // managing type filtering and deduplication in one loop.
-
   // Keep the right-clicked item first so future bulk actions have a stable
   // primary target while still deduplicating it from the selection.
   if (primary instanceof SessionTreeItem) {
