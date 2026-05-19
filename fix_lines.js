@@ -1,18 +1,66 @@
 const fs = require('fs');
+let content = fs.readFileSync('src/test/sessionContextMenu.checkout.unit.test.ts', 'utf8');
 
-// We have 2 lines that we missed coverage for, lines 568 and 569 in src/sessionContextMenu.ts.
-// Line 568: const rFetchUrlNoGit = r.fetchUrl.endsWith('.git') ? r.fetchUrl.slice(0, -4) : r.fetchUrl;
-// We actually hit both branches. Wait, looking at the codecov patch report it says 80%.
-// The only things modified in this PR were lines around 560-580.
-// We added tests. Let's run pnpm run test:unit again and see if the patch coverage hits.
-// Actually, looking at `BRDA:568,115,0,0` and `BRDA:569,116,0,0` these are branch missed in lcov.
-// What are the exact conditions?
-// 568: `r.fetchUrl.endsWith('.git') ? r.fetchUrl.slice(0, -4) : r.fetchUrl;`
-// We need a test where `r.fetchUrl` does NOT end with `.git` and `rFetchUrlNoGit === headCloneUrlNoGit`.
-// We already added one where `r.fetchUrl` DOES NOT end with `.git`.
-// In `checkoutToBranchForSession covers fallback to headCloneUrl`:
-// `r.fetchUrl = 'https://github.com/fork-owner/fork-repo'`
-// `headCloneUrl = 'https://github.com/fork-owner/fork-repo'`
+const search = `    it('checkoutToBranchForSession covers fallback to headCloneUrl', async () => {`;
 
-// Let's create a test where `r.fetchUrl` ends with `.git` but `headCloneUrl` does NOT end with `.git`,
-// or where `r.fetchUrl` does not end with `.git` but `headCloneUrl` does.
+const replace = `    it('checkoutToBranchForSession covers fallback to headCloneUrl when fetchUrl does not match and does not end with .git', async () => {
+        mockBranchInfo = {
+            headBranch: 'feature/pr-123',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git'
+        };
+
+        const mockRepo = {
+            state: {
+                remotes: [
+                    { remote: 'origin', fetchUrl: 'https://github.com/owner/repo.git' },
+                    { remote: 'fork-remote', fetchUrl: 'https://github.com/other-owner/other-repo.git' } // Ends with .git but different URL
+                ]
+            },
+            fetch: sandbox.stub().rejects(new Error('Stop')),
+            checkout: sandbox.stub().rejects(new Error('Stop')),
+            addRemote: sandbox.stub().rejects(new Error('Stop'))
+        };
+
+        mockGitAPI.repositories = [mockRepo];
+
+        const result = await checkoutToBranchForSession(mockSession);
+        assert.strictEqual(result, false);
+    });
+
+    it('checkoutToBranchForSession covers early exit when both targetRemote and originRemote are found', async () => {
+        // Set up mock repositories and fetch info to trigger the condition
+        mockBranchInfo = {
+            headBranch: 'feature/pr-123',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git'
+        };
+
+        const mockRepo = {
+            state: {
+                remotes: [
+                    { remote: 'origin', fetchUrl: 'https://github.com/owner/repo.git' },
+                    { remote: 'fork-remote', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' },
+                    { remote: 'extra', fetchUrl: 'https://github.com/extra/extra.git' } // Should not be processed if early exit works
+                ]
+            },
+            fetch: sandbox.stub().resolves(),
+            checkout: sandbox.stub().resolves()
+        };
+
+        mockGitAPI.repositories = [mockRepo];
+
+        const result = await checkoutToBranchForSession(mockSession);
+
+        assert.strictEqual(result, true);
+        assert.ok(mockRepo.fetch.calledWith('fork-remote'), 'Should use fork-remote');
+        assert.ok(mockRepo.checkout.calledWith('feature/pr-123'));
+    });
+
+    it('checkoutToBranchForSession covers fallback to headCloneUrl', async () => {`;
+
+content = content.replace(search, replace);
+fs.writeFileSync('src/test/sessionContextMenu.checkout.unit.test.ts', content);
+console.log("Updated tests to hit coverage branch.");
