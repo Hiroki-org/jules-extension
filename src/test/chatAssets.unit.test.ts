@@ -204,6 +204,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
+    const attributes: Record<string, string> = {};
     const contentDiv = { innerHTML: "" };
     const details = {
       getAttribute: (name: string) => {
@@ -216,9 +217,11 @@ suite("chatAssets unit tests", () => {
         if (name === "data-detail-type") {
           return "plan";
         }
-        return null;
+        return attributes[name] ?? null;
       },
-      setAttribute: () => {},
+      setAttribute: (name: string, value: string) => {
+        attributes[name] = value;
+      },
       querySelector: (selector: string) =>
         selector === ".details-content" ? contentDiv : null,
     };
@@ -238,6 +241,7 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
+    assert.strictEqual(attributes["aria-busy"], "false");
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
   });
 
