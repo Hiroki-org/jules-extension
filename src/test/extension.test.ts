@@ -1189,6 +1189,30 @@ suite("Extension Test Suite", () => {
       const s2 = { ...s1, sourceContext: { source: "b" } } as Session;
       assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
     });
+
+    test("should handle list with same elements in different order and identical names but different content in slow path returning true", () => {
+      const s1_a = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      const s1_b = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      const s2_a = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      const s2_b = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      assert.strictEqual(areSessionListsEqual([s1_a, s1_b], [s2_a, s2_b]), true);
+    });
+
+    test("should exit early in slow path if mismatchFound is true", () => {
+        const s1_a = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+        const s1_b = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+        const s2_a = { name: "id2", state: "IN_PROGRESS", rawState: "IN_PROGRESS", title: "test", outputs: [] } as unknown as Session;
+        const s2_b = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+        assert.strictEqual(areSessionListsEqual([s1_a, s1_b], [s2_a, s2_b]), false);
+    });
+
+    test("should handle list with missing element in map slow path", () => {
+      const s1_a = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      const s1_b = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      const s2_a = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      const s2_b = { name: "id3", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
+      assert.strictEqual(areSessionListsEqual([s1_a, s1_b], [s2_a, s2_b]), false);
+    });
   });
 
   suite("updatePreviousStates", () => {
