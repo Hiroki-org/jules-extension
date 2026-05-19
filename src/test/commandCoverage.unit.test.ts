@@ -55,6 +55,10 @@ suite("Command Coverage Unit Tests", () => {
       { label: "Plan", picked: true },
       { label: "Messages", picked: true }
     ] as any);
+    const setFilterStub = sandbox.stub(
+      JulesSessionsProvider.prototype,
+      "setActivityCategoryFilter",
+    );
 
     // Mock fetch for activate
     sandbox.stub(fetchUtils, "fetchWithTimeout").resolves({ ok: true, json: async () => ({ sessions: [] }) } as any);
@@ -64,20 +68,15 @@ suite("Command Coverage Unit Tests", () => {
     // Call activate
     await activate(mockContext);
 
-    // We need to capture the sessionsProvider instance created inside activate.
-    // In our case, the filterHandler closure captures it.
-    // To verify side effects, we'd need to mock JulesSessionsProvider constructor if possible, 
-    // or verify that the handler logic works.
-    
     const filterHandler = registerCommandStub.args.find(args => args[0] === "jules.filterActivities")?.[1];
     assert.ok(filterHandler);
 
     // Execute handler
     await filterHandler();
 
-    // Verify it reached the branches
     assert.ok(showQuickPickStub.calledOnce);
-    // Since we can't easily access the internal sessionsProvider instance here without further refactoring of extension.ts,
-    // we at least ensure it doesn't crash and follows the English path.
+    assert.ok(setFilterStub.calledOnce);
+    const selectedFilter = setFilterStub.firstCall.args[0] as Set<string>;
+    assert.deepStrictEqual([...selectedFilter].sort(), ["Messages", "Plan"]);
   });
 });
