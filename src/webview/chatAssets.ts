@@ -75,6 +75,8 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
   let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeout id
+  let isRestoringDetails = false;
+  let renderedMessageCount = 0;
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
@@ -121,6 +123,16 @@ export const CHAT_JS = `(function() {
       clearTimeout(detailsBusyTimeouts[key]);
       delete detailsBusyTimeouts[key];
     }
+  }
+
+  function getDetailsKey(activityId, detailType, indexStr) {
+    return activityId + "|" + detailType + "|" + (indexStr || "");
+  }
+
+  function resetDetailsState() {
+    Object.keys(detailsBusyTimeouts).forEach(clearDetailsBusyTimeout);
+    detailsCache = {};
+    expandedDetails = new Set();
   }
 
   function findDetailsByKey(key) {
@@ -195,6 +207,9 @@ export const CHAT_JS = `(function() {
   }
 
   function renderMessages() {
+    const previousScrollTop = chatContainer.scrollTop;
+    const shouldScrollToBottom = state.messages.length > renderedMessageCount;
+
     if (state.messages.length === 0 && !state.isTyping) {
       const emptyStateContent = state.sessionId
         ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
@@ -217,28 +232,41 @@ export const CHAT_JS = `(function() {
 
       // 展開状態とキャッシュされた詳細コンテンツを復元する
       const detailsEls = chatContainer.querySelectorAll("details.activity-details");
-      detailsEls.forEach(details => {
-        const activityId = details.getAttribute("data-activity-id");
-        const detailType = details.getAttribute("data-detail-type");
-        if (activityId && detailType) {
-          const indexStr = details.getAttribute("data-index");
-          const key = activityId + "|" + detailType + "|" + (indexStr || "");
+      isRestoringDetails = true;
+      try {
+        detailsEls.forEach(details => {
+          const activityId = details.getAttribute("data-activity-id");
+          const detailType = details.getAttribute("data-detail-type");
+          if (activityId && detailType) {
+            const indexStr = details.getAttribute("data-index");
+            const key = getDetailsKey(activityId, detailType, indexStr);
 
-          if (detailsCache[key]) {
-            const contentDiv = details.querySelector(".details-content");
-            if (contentDiv) {
-              contentDiv.innerHTML = sanitizeHtml(detailsCache[key]);
+            if (detailsCache[key]) {
+              const contentDiv = details.querySelector(".details-content");
+              if (contentDiv) {
+                contentDiv.innerHTML = sanitizeHtml(detailsCache[key]);
+              }
+            }
+
+            if (expandedDetails.has(key)) {
+              details.open = true;
+              if (detailsBusyTimeouts[key]) {
+                details.setAttribute("aria-busy", "true");
+              }
             }
           }
-
-          if (expandedDetails.has(key)) {
-            details.open = true;
-          }
-        }
-      });
+        });
+      } finally {
+        isRestoringDetails = false;
+      }
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    if (shouldScrollToBottom) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    } else {
+      chatContainer.scrollTop = previousScrollTop;
+    }
+    renderedMessageCount = state.messages.length;
     updateUI();
   }
 
@@ -275,6 +303,9 @@ export const CHAT_JS = `(function() {
   });
 
   chatContainer.addEventListener("toggle", e => {
+    if (isRestoringDetails) {
+      return;
+    }
     const details = e.target;
     if (details.tagName === "DETAILS" && details.classList.contains("activity-details")) {
       const activityId = details.getAttribute("data-activity-id");
@@ -283,7 +314,7 @@ export const CHAT_JS = `(function() {
       if (activityId && detailType) {
         const indexStr = details.getAttribute("data-index");
         const index = indexStr ? parseInt(indexStr, 10) : undefined;
-        const key = activityId + "|" + detailType + "|" + (indexStr || "");
+        const key = getDetailsKey(activityId, detailType, indexStr);
 
         if (details.open) {
           expandedDetails.add(key);
@@ -340,11 +371,16 @@ export const CHAT_JS = `(function() {
 
   window.addEventListener("message", e => {
     if (e.data.type === "chatState") {
-      state = e.data.payload || state;
+      const nextState = e.data.payload || state;
+      if (nextState.sessionId !== state.sessionId) {
+        resetDetailsState();
+        renderedMessageCount = 0;
+      }
+      state = nextState;
       renderMessages();
     } else if (e.data.type === "detailsHtml") {
       const { activityId, detailType, index, html } = e.data;
-      const key = activityId + "|" + detailType + "|" + (index !== undefined ? index : "");
+      const key = getDetailsKey(activityId, detailType, index !== undefined ? String(index) : "");
       detailsCache[key] = html;
 
       // Update DOM if currently rendered

@@ -394,6 +394,105 @@ suite("chatAssets unit tests", () => {
     );
   });
 
+  test("CHAT_JS should restore expanded details without duplicate requests during render", () => {
+    const firstAttributes: Record<string, string> = {};
+    const secondAttributes: Record<string, string> = {};
+    const getAttribute = (attributes: Record<string, string>, name: string) => {
+      if (name === "data-activity-id") {
+        return "act-1";
+      }
+      if (name === "data-detail-type") {
+        return "plan";
+      }
+      if (name === "data-index") {
+        return "";
+      }
+      return attributes[name] ?? null;
+    };
+    const createDetails = (
+      attributes: Record<string, string>,
+      onOpenChange?: (details: any) => void,
+    ) => {
+      let open = true;
+      const details = {
+        tagName: "DETAILS",
+        classList: { contains: (className: string) => className === "activity-details" },
+        get open() {
+          return open;
+        },
+        set open(value: boolean) {
+          open = value;
+          onOpenChange?.(details);
+        },
+        getAttribute: (name: string) => getAttribute(attributes, name),
+        setAttribute: (name: string, value: string) => {
+          attributes[name] = value;
+        },
+        querySelector: () => ({ innerHTML: "" }),
+      };
+      return details;
+    };
+    const harness = createChatScriptHarness({
+      sanitize: (html) => html,
+    });
+    const firstDetails = createDetails(firstAttributes);
+
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+    harness.listeners.chat.toggle({ target: firstDetails });
+
+    const secondDetails = createDetails(secondAttributes, (details) => {
+      harness.listeners.chat.toggle({ target: details });
+    });
+    harness.elements.chat.querySelectorAll = () => [secondDetails];
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: {
+        sessionId: "session-1",
+        messages: [{ role: "assistant", html: "<details></details>" }],
+        isTyping: false,
+      },
+    });
+
+    assert.strictEqual(secondDetails.open, true);
+    assert.strictEqual(secondAttributes["aria-busy"], "true");
+    assert.strictEqual(
+      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
+      1,
+    );
+  });
+
+  test("CHAT_JS should preserve scroll position on existing message updates", () => {
+    const harness = createChatScriptHarness({
+      sanitize: (html) => html,
+    });
+    harness.elements.chat.scrollHeight = 100;
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: {
+        sessionId: "session-1",
+        messages: [{ role: "assistant", html: "<p>first</p>" }],
+        isTyping: false,
+      },
+    });
+    assert.strictEqual(harness.elements.chat.scrollTop, 100);
+
+    harness.elements.chat.scrollTop = 40;
+    harness.elements.chat.scrollHeight = 140;
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: {
+        sessionId: "session-1",
+        messages: [{ role: "assistant", html: "<p>updated</p>" }],
+        isTyping: false,
+      },
+    });
+
+    assert.strictEqual(harness.elements.chat.scrollTop, 40);
+  });
+
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
     assert.ok(CHAT_CSS.includes(".shiki { background-color: transparent !important; }"));
     assert.ok(CHAT_CSS.includes(".shiki span { color: var(--shiki-light); }"));
