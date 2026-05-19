@@ -85,6 +85,42 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         assert.strictEqual((children[1] as SessionTreeItem).label, "Title s2");
     });
 
+    test("getChildren should use cached source metadata for all repositories tooltips", async () => {
+        const sessions = [
+            createMockSession("s1", "repo1"),
+            createMockSession("s2", "repo2")
+        ];
+
+        const globalStateGet = mockContext.globalState.get as sinon.SinonStub;
+        globalStateGet.withArgs("selected-source").returns({ id: ALL_SOURCES_ID, name: "All repositories" });
+        globalStateGet.withArgs("jules.sources").returns({
+            sources: [
+                { id: "repo1-id", name: "repo1", isPrivate: true },
+                { id: "repo2-id", name: "repo2", isPrivate: false }
+            ]
+        });
+
+        getConfigurationStub.returns({
+            get: (key: string) => {
+                if (key === "hideClosedPRSessions") {
+                    return false;
+                }
+                return undefined;
+            }
+        } as any);
+
+        const provider = new JulesSessionsProvider(mockContext);
+        provider.setSessionsCacheForTests(sessions);
+
+        const children = await provider.getChildren();
+
+        assert.strictEqual(children.length, 2);
+        const firstTooltip = (children[0] as SessionTreeItem).tooltip as vscode.MarkdownString;
+        const secondTooltip = (children[1] as SessionTreeItem).tooltip as vscode.MarkdownString;
+        assert.ok(firstTooltip.value.includes("Private"));
+        assert.ok(secondTooltip.value.includes("Public"));
+    });
+
     test("getChildren should filter by source", async () => {
         const sessions = [
             createMockSession("s1", "repo1"),
