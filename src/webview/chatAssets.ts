@@ -45,7 +45,7 @@ p { margin: 0 0 8px; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
 details[aria-busy="true"] .details-content { animation: pulse 1.5s infinite; opacity: 0.7; }
-@keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.4; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @media (prefers-reduced-motion: reduce) { details[aria-busy="true"] .details-content { animation: none; opacity: 0.7; } }
 .message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
@@ -227,12 +227,11 @@ export const CHAT_JS = `(function() {
 
         if (details.open) {
           expandedDetails.add(key);
-          if (!detailsCache[key] && details.getAttribute("aria-busy") !== "true") {
+          if (!detailsCache[key]) {
             details.setAttribute("aria-busy", "true");
             vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
           }
         } else {
-          details.setAttribute("aria-busy", "false");
           expandedDetails.delete(key);
         }
       }
