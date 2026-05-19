@@ -44,6 +44,9 @@ p { margin: 0 0 8px; }
 .activity-details summary:hover { opacity: 1; text-decoration: underline; }
 .details-content { margin-top: 6px; padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; max-height: 350px; overflow-y: auto; }
 .details-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+details[aria-busy="true"] .details-content { animation: pulse 1.5s infinite; opacity: 0.7; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) { details[aria-busy="true"] .details-content { animation: none; opacity: 0.7; } }
 .message-unavailable { opacity: 0.75; font-style: italic; }
 .shiki { background-color: transparent !important; }
 .shiki span { color: var(--shiki-light); }
@@ -70,6 +73,7 @@ export const CHAT_JS = `(function() {
   let state = { sessionId: null, messages: [], isTyping: false };
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
+  let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeoutId
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
@@ -225,7 +229,15 @@ export const CHAT_JS = `(function() {
         if (details.open) {
           expandedDetails.add(key);
           if (!detailsCache[key]) {
-            vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+            if (!detailsBusyTimeouts[key]) {
+              details.setAttribute("aria-busy", "true");
+              detailsBusyTimeouts[key] = setTimeout(() => {
+                delete detailsBusyTimeouts[key];
+              }, 30000); // 30s max timeout guard
+              vscode.postMessage({ type: "requestDetails", activityId, detailType, index });
+            } else {
+              details.setAttribute("aria-busy", "true"); // keep visually busy if re-rendered while pending
+            }
           }
         } else {
           expandedDetails.delete(key);
@@ -282,6 +294,11 @@ export const CHAT_JS = `(function() {
         const elIndex = details.getAttribute("data-index") || "";
         const msgIndex = index !== undefined ? String(index) : "";
         if (elIndex === msgIndex) {
+          if (detailsBusyTimeouts[key]) {
+             clearTimeout(detailsBusyTimeouts[key]);
+             delete detailsBusyTimeouts[key];
+          }
+          details.setAttribute("aria-busy", "false");
           const contentDiv = details.querySelector(".details-content");
           if (contentDiv) {
             contentDiv.innerHTML = sanitizeHtml(html);

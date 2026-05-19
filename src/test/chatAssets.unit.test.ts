@@ -217,6 +217,7 @@ suite("chatAssets unit tests", () => {
         }
         return null;
       },
+      setAttribute: () => {},
       querySelector: (selector: string) =>
         selector === ".details-content" ? contentDiv : null,
     };
@@ -239,11 +240,49 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
   });
 
+  test("CHAT_JS should block duplicate details requests via detailsBusyTimeouts", () => {
+    let requests = 0;
+    const details = {
+      tagName: "DETAILS",
+      classList: { contains: () => true },
+      open: true,
+      getAttribute: (name: string) => {
+        if (name === "data-activity-id") { return "act-1"; }
+        if (name === "data-detail-type") { return "plan"; }
+        if (name === "data-index") { return ""; }
+        return null;
+      },
+      setAttribute: () => {}
+    };
+
+    const harness = createChatScriptHarness();
+    // Wrap to intercept vscode postMessages
+    const originalPostMessage = harness.sentMessages.push.bind(harness.sentMessages);
+    harness.sentMessages.push = (msg: any) => {
+      if (msg.type === "requestDetails") {
+        requests++;
+      }
+      return originalPostMessage(msg);
+    };
+
+    harness.elements.chat.dispatchEvent(
+      Object.assign(new Event("toggle"), { target: details })
+    );
+
+    harness.elements.chat.dispatchEvent(
+      Object.assign(new Event("toggle"), { target: details })
+    );
+
+    assert.strictEqual(requests, 1);
+  });
+
   test("CHAT_CSS should include activity details layout styles", () => {
     assert.ok(CHAT_CSS.includes(".activity-details"));
     assert.ok(CHAT_CSS.includes(".details-content"));
     assert.ok(CHAT_CSS.includes("max-height: 350px"));
     assert.ok(CHAT_CSS.includes("overflow-y: auto"));
+    assert.ok(CHAT_CSS.includes("aria-busy"));
+    assert.ok(CHAT_CSS.includes("prefers-reduced-motion: reduce"));
   });
 
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
