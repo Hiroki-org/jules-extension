@@ -8,6 +8,7 @@ function createChatScriptHarness(
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
   const listeners: Record<string, Record<string, any>> = {
+    chat: {},
     messageInput: {},
     composer: {},
   };
@@ -21,7 +22,7 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
-      addEventListener: () => {},
+      addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
       querySelectorAll: () => [],
     },
     typing: { classList: { toggle: () => {} } },
@@ -247,6 +248,39 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_CSS.includes("overflow-y: auto"));
     assert.ok(CHAT_CSS.includes("aria-busy"));
     assert.ok(CHAT_CSS.includes("prefers-reduced-motion: reduce"));
+  });
+
+  test("CHAT_JS should set aria-busy while lazy-loading details", () => {
+    const attributes: Record<string, string> = {};
+    const details = {
+      tagName: "DETAILS",
+      open: true,
+      classList: { contains: (className: string) => className === "activity-details" },
+      getAttribute: (name: string) => {
+        if (name === "data-activity-id") {
+          return "act-1";
+        }
+        if (name === "data-detail-type") {
+          return "plan";
+        }
+        if (name === "data-index") {
+          return "";
+        }
+        return attributes[name] ?? null;
+      },
+      setAttribute: (name: string, value: string) => {
+        attributes[name] = value;
+      },
+    };
+    const harness = createChatScriptHarness();
+
+    harness.listeners.chat.toggle({ target: details });
+    assert.strictEqual(attributes["aria-busy"], "true");
+    assert.ok(harness.sentMessages.some((message) => message.type === "requestDetails"));
+
+    details.open = false;
+    harness.listeners.chat.toggle({ target: details });
+    assert.strictEqual(attributes["aria-busy"], "false");
   });
 
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
