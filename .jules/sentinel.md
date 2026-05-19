@@ -9,6 +9,7 @@
 **Prevention:** To disable specific attack vectors like MathML while preserving default safe tags, use `FORBID_TAGS: ['math', 'annotation', ...]` rather than altering profiles.
 
 ## 2024-05-25 - [innerHTML replacement]
+
 **Vulnerability:** Use of innerHTML in composer.ts to set loading spinner.
 **Learning:** Assigning strings containing HTML to innerHTML is inherently risky and can lead to XSS if user inputs are ever involved. Using document.createElement and appendChild is the safe and secure approach.
 **Prevention:** Avoid .innerHTML and use safer DOM APIs like textContent, document.createElement, and appendChild.
