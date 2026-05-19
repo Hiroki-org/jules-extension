@@ -1516,6 +1516,11 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(result[1], item2);
     });
 
+    test("should deduplicate repeated selected items while preserving order", () => {
+      const result = resolveSelectedSessionItems(undefined, [item1, item2, item1, item3, item2]);
+      assert.deepStrictEqual(result, [item1, item2, item3]);
+    });
+
     test("should filter out unknown/non-SessionTreeItem objects from selected array", () => {
       const result = resolveSelectedSessionItems(item1, [item2, { name: "not-an-item" } as any, "string"]);
       assert.strictEqual(result.length, 2);
