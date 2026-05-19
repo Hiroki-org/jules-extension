@@ -123,11 +123,26 @@ export const CHAT_JS = `(function() {
     }
   }
 
+  function findDetailsByKey(key) {
+    const parts = key.split("|");
+    const activityId = parts[0];
+    const detailType = parts[1];
+    const indexStr = parts.slice(2).join("|");
+    return Array.from(chatContainer.querySelectorAll("details.activity-details")).find(details =>
+      details.getAttribute("data-activity-id") === activityId &&
+      details.getAttribute("data-detail-type") === detailType &&
+      (details.getAttribute("data-index") || "") === indexStr,
+    );
+  }
+
   function markDetailsBusy(key, details) {
     clearDetailsBusyTimeout(key);
     details.setAttribute("aria-busy", "true");
     detailsBusyTimeouts[key] = setTimeout(() => {
-      details.setAttribute("aria-busy", "false");
+      const currentDetails = findDetailsByKey(key);
+      if (currentDetails) {
+        currentDetails.setAttribute("aria-busy", "false");
+      }
       delete detailsBusyTimeouts[key];
     }, DETAILS_BUSY_TIMEOUT_MS);
   }

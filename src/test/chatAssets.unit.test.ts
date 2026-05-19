@@ -299,6 +299,62 @@ suite("chatAssets unit tests", () => {
     );
   });
 
+  test("CHAT_JS should clear aria-busy timeout on the current details node", () => {
+    const oldAttributes: Record<string, string> = {};
+    const currentAttributes: Record<string, string> = {};
+    const getAttribute = (attributes: Record<string, string>, name: string) => {
+      if (name === "data-activity-id") {
+        return "act-1";
+      }
+      if (name === "data-detail-type") {
+        return "plan";
+      }
+      if (name === "data-index") {
+        return "";
+      }
+      return attributes[name] ?? null;
+    };
+    const oldDetails = {
+      tagName: "DETAILS",
+      open: true,
+      classList: { contains: (className: string) => className === "activity-details" },
+      getAttribute: (name: string) => getAttribute(oldAttributes, name),
+      setAttribute: (name: string, value: string) => {
+        oldAttributes[name] = value;
+      },
+    };
+    const currentDetails = {
+      getAttribute: (name: string) => getAttribute(currentAttributes, name),
+      setAttribute: (name: string, value: string) => {
+        currentAttributes[name] = value;
+      },
+    };
+    const harness = createChatScriptHarness();
+    harness.elements.chat.querySelectorAll = () => [currentDetails];
+    const originalSetTimeout = global.setTimeout;
+    const originalClearTimeout = global.clearTimeout;
+    let timeoutCallback: (() => void) | null = null;
+    (global as any).setTimeout = (callback: () => void) => {
+      timeoutCallback = callback;
+      return 1;
+    };
+    (global as any).clearTimeout = () => {};
+
+    try {
+      harness.listeners.chat.toggle({ target: oldDetails });
+      assert.strictEqual(oldAttributes["aria-busy"], "true");
+
+      assert.ok(timeoutCallback);
+      (timeoutCallback as () => void)();
+
+      assert.strictEqual(oldAttributes["aria-busy"], "true");
+      assert.strictEqual(currentAttributes["aria-busy"], "false");
+    } finally {
+      global.setTimeout = originalSetTimeout;
+      global.clearTimeout = originalClearTimeout;
+    }
+  });
+
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
     assert.ok(CHAT_CSS.includes(".shiki { background-color: transparent !important; }"));
     assert.ok(CHAT_CSS.includes(".shiki span { color: var(--shiki-light); }"));
