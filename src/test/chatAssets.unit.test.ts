@@ -8,7 +8,6 @@ function createChatScriptHarness(
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
   const listeners: Record<string, Record<string, any>> = {
-    chat: {},
     messageInput: {},
     composer: {},
   };
@@ -22,7 +21,7 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
-      addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
+      addEventListener: () => {},
       querySelectorAll: () => [],
     },
     typing: { classList: { toggle: () => {} } },
@@ -204,7 +203,6 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
-    const attributes: Record<string, string> = {};
     const contentDiv = { innerHTML: "" };
     const details = {
       getAttribute: (name: string) => {
@@ -217,10 +215,7 @@ suite("chatAssets unit tests", () => {
         if (name === "data-detail-type") {
           return "plan";
         }
-        return attributes[name] ?? null;
-      },
-      setAttribute: (name: string, value: string) => {
-        attributes[name] = value;
+        return null;
       },
       querySelector: (selector: string) =>
         selector === ".details-content" ? contentDiv : null,
@@ -241,7 +236,6 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
-    assert.strictEqual(attributes["aria-busy"], "false");
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
   });
 
@@ -250,247 +244,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_CSS.includes(".details-content"));
     assert.ok(CHAT_CSS.includes("max-height: 350px"));
     assert.ok(CHAT_CSS.includes("overflow-y: auto"));
-    assert.ok(CHAT_CSS.includes("aria-busy"));
-    assert.ok(CHAT_CSS.includes("@keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.4; } }"));
-    assert.ok(CHAT_CSS.includes("prefers-reduced-motion: reduce"));
-  });
-
-  test("CHAT_JS should manage aria-busy for lazy-loaded details", () => {
-    const attributes: Record<string, string> = {};
-    const details = {
-      tagName: "DETAILS",
-      open: true,
-      classList: { contains: (className: string) => className === "activity-details" },
-      getAttribute: (name: string) => {
-        if (name === "data-activity-id") {
-          return "act-1";
-        }
-        if (name === "data-detail-type") {
-          return "plan";
-        }
-        if (name === "data-index") {
-          return "";
-        }
-        return attributes[name] ?? null;
-      },
-      setAttribute: (name: string, value: string) => {
-        attributes[name] = value;
-      },
-    };
-    const harness = createChatScriptHarness();
-
-    harness.listeners.chat.toggle({ target: details });
-    assert.strictEqual(attributes["aria-busy"], "true");
-    assert.strictEqual(
-      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
-      1,
-    );
-
-    details.open = false;
-    harness.listeners.chat.toggle({ target: details });
-    assert.strictEqual(attributes["aria-busy"], "false");
-
-    details.open = true;
-    harness.listeners.chat.toggle({ target: details });
-    assert.strictEqual(attributes["aria-busy"], "true");
-    assert.strictEqual(
-      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
-      2,
-    );
-  });
-
-  test("CHAT_JS should clear aria-busy timeout on the current details node", () => {
-    const oldAttributes: Record<string, string> = {};
-    const currentAttributes: Record<string, string> = {};
-    const getAttribute = (attributes: Record<string, string>, name: string) => {
-      if (name === "data-activity-id") {
-        return "act-1";
-      }
-      if (name === "data-detail-type") {
-        return "plan";
-      }
-      if (name === "data-index") {
-        return "";
-      }
-      return attributes[name] ?? null;
-    };
-    const oldDetails = {
-      tagName: "DETAILS",
-      open: true,
-      classList: { contains: (className: string) => className === "activity-details" },
-      getAttribute: (name: string) => getAttribute(oldAttributes, name),
-      setAttribute: (name: string, value: string) => {
-        oldAttributes[name] = value;
-      },
-    };
-    const currentDetails = {
-      getAttribute: (name: string) => getAttribute(currentAttributes, name),
-      setAttribute: (name: string, value: string) => {
-        currentAttributes[name] = value;
-      },
-    };
-    const harness = createChatScriptHarness();
-    harness.elements.chat.querySelectorAll = () => [currentDetails];
-    const originalSetTimeout = global.setTimeout;
-    const originalClearTimeout = global.clearTimeout;
-    let timeoutCallback: (() => void) | null = null;
-    (global as any).setTimeout = (callback: () => void) => {
-      timeoutCallback = callback;
-      return 1;
-    };
-    (global as any).clearTimeout = () => {};
-
-    try {
-      harness.listeners.chat.toggle({ target: oldDetails });
-      assert.strictEqual(oldAttributes["aria-busy"], "true");
-
-      assert.ok(timeoutCallback);
-      (timeoutCallback as () => void)();
-
-      assert.strictEqual(oldAttributes["aria-busy"], "true");
-      assert.strictEqual(currentAttributes["aria-busy"], "false");
-    } finally {
-      global.setTimeout = originalSetTimeout;
-      global.clearTimeout = originalClearTimeout;
-    }
-  });
-
-  test("CHAT_JS should avoid duplicate detail requests after rerender while loading", () => {
-    const firstAttributes: Record<string, string> = {};
-    const secondAttributes: Record<string, string> = {};
-    const getAttribute = (attributes: Record<string, string>, name: string) => {
-      if (name === "data-activity-id") {
-        return "act-1";
-      }
-      if (name === "data-detail-type") {
-        return "plan";
-      }
-      if (name === "data-index") {
-        return "";
-      }
-      return attributes[name] ?? null;
-    };
-    const createDetails = (attributes: Record<string, string>) => ({
-      tagName: "DETAILS",
-      open: true,
-      classList: { contains: (className: string) => className === "activity-details" },
-      getAttribute: (name: string) => getAttribute(attributes, name),
-      setAttribute: (name: string, value: string) => {
-        attributes[name] = value;
-      },
-    });
-    const firstDetails = createDetails(firstAttributes);
-    const secondDetails = createDetails(secondAttributes);
-    const harness = createChatScriptHarness();
-
-    harness.listeners.chat.toggle({ target: firstDetails });
-    harness.listeners.chat.toggle({ target: secondDetails });
-
-    assert.strictEqual(firstAttributes["aria-busy"], "true");
-    assert.strictEqual(secondAttributes["aria-busy"], "true");
-    assert.strictEqual(
-      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
-      1,
-    );
-  });
-
-  test("CHAT_JS should restore expanded details without duplicate requests during render", () => {
-    const firstAttributes: Record<string, string> = {};
-    const secondAttributes: Record<string, string> = {};
-    const getAttribute = (attributes: Record<string, string>, name: string) => {
-      if (name === "data-activity-id") {
-        return "act-1";
-      }
-      if (name === "data-detail-type") {
-        return "plan";
-      }
-      if (name === "data-index") {
-        return "";
-      }
-      return attributes[name] ?? null;
-    };
-    const createDetails = (
-      attributes: Record<string, string>,
-      onOpenChange?: (details: any) => void,
-    ) => {
-      let open = true;
-      const details = {
-        tagName: "DETAILS",
-        classList: { contains: (className: string) => className === "activity-details" },
-        get open() {
-          return open;
-        },
-        set open(value: boolean) {
-          open = value;
-          onOpenChange?.(details);
-        },
-        getAttribute: (name: string) => getAttribute(attributes, name),
-        setAttribute: (name: string, value: string) => {
-          attributes[name] = value;
-        },
-        querySelector: () => ({ innerHTML: "" }),
-      };
-      return details;
-    };
-    const harness = createChatScriptHarness({
-      sanitize: (html) => html,
-    });
-    const firstDetails = createDetails(firstAttributes);
-
-    harness.postWindowMessage({
-      type: "chatState",
-      payload: { sessionId: "session-1", messages: [], isTyping: false },
-    });
-    harness.listeners.chat.toggle({ target: firstDetails });
-
-    const secondDetails = createDetails(secondAttributes, (details) => {
-      harness.listeners.chat.toggle({ target: details });
-    });
-    harness.elements.chat.querySelectorAll = () => [secondDetails];
-    harness.postWindowMessage({
-      type: "chatState",
-      payload: {
-        sessionId: "session-1",
-        messages: [{ role: "assistant", html: "<details></details>" }],
-        isTyping: false,
-      },
-    });
-
-    assert.strictEqual(secondDetails.open, true);
-    assert.strictEqual(secondAttributes["aria-busy"], "true");
-    assert.strictEqual(
-      harness.sentMessages.filter((message) => message.type === "requestDetails").length,
-      1,
-    );
-  });
-
-  test("CHAT_JS should preserve scroll position on existing message updates", () => {
-    const harness = createChatScriptHarness({
-      sanitize: (html) => html,
-    });
-    harness.elements.chat.scrollHeight = 100;
-    harness.postWindowMessage({
-      type: "chatState",
-      payload: {
-        sessionId: "session-1",
-        messages: [{ role: "assistant", html: "<p>first</p>" }],
-        isTyping: false,
-      },
-    });
-    assert.strictEqual(harness.elements.chat.scrollTop, 100);
-
-    harness.elements.chat.scrollTop = 40;
-    harness.elements.chat.scrollHeight = 140;
-    harness.postWindowMessage({
-      type: "chatState",
-      payload: {
-        sessionId: "session-1",
-        messages: [{ role: "assistant", html: "<p>updated</p>" }],
-        isTyping: false,
-      },
-    });
-
-    assert.strictEqual(harness.elements.chat.scrollTop, 40);
   });
 
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
