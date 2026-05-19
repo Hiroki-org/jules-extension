@@ -111,43 +111,20 @@ export async function initMarkdownRenderer(): Promise<void> {
   return markdownRendererInit;
 }
 
-/**
- * Default options for sanitize-html to prevent XSS.
- * Includes additional obsolete/dangerous tags like xmp, listing, and plaintext in nonTextTags.
- */
-const DEFAULT_SANITIZER_OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-    "img",
-    "details",
-    "summary",
-    "button",
-  ]),
-  allowedAttributes: {
-    ...sanitizeHtml.defaults.allowedAttributes,
-    "*": ["class", "id", "data-*", "aria-*"],
-    button: ["type", "title"],
-  },
-  nonTextTags: [
-    "script",
-    "style",
-    "textarea",
-    "option",
-    "xmp",
-    "listing",
-    "plaintext",
-  ],
-};
-
-/**
- * Renders markdown content to HTML and sanitizes it.
- * @param markdown - The markdown string to render.
- * @returns The sanitized HTML string.
- */
 export function renderChatMarkdown(markdown: string): string {
   if (!markdownRenderer) {
     return escapeHtml(markdown);
   }
-  return sanitizeHtml(markdownRenderer.render(markdown), DEFAULT_SANITIZER_OPTIONS);
+  return sanitizeHtml(markdownRenderer.render(markdown), {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      "img", "details", "summary", "button"
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      "*": ["class", "id", "data-*", "aria-*"],
+      button: ["type", "title"],
+    },
+  });
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
@@ -308,7 +285,16 @@ export function buildChatMessagesFromActivities(
           escapeHtml(combinedText) +
           "</em></div>" +
           detailsHtml,
-        DEFAULT_SANITIZER_OPTIONS
+        {
+          allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+            "img", "details", "summary", "button"
+          ]),
+          allowedAttributes: {
+            ...sanitizeHtml.defaults.allowedAttributes,
+            "*": ["class", "id", "data-*", "aria-*"],
+            button: ["type", "title"],
+          },
+        }
       ),
     });
   });
