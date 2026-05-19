@@ -106,6 +106,41 @@ const ACTIVITY_LOG_BASE_KEYS = new Set([
 ]);
 const ACTIVITY_LOG_UNION_KEYS = new Set(ACTIVITY_UNION_KEYS);
 
+type ActivityFilterProvider = Pick<
+  JulesSessionsProvider,
+  "getActivityCategoryFilter" | "setActivityCategoryFilter"
+>;
+
+export async function handleFilterActivitiesCommand(
+  sessionsProvider: ActivityFilterProvider,
+): Promise<void> {
+  const categories: ActivityCategory[] = [
+    "Plan",
+    "Progress",
+    "Artifacts",
+    "Messages",
+    "Errors",
+  ];
+  const currentFilter = sessionsProvider.getActivityCategoryFilter();
+
+  const items = categories.map((category) => ({
+    label: category,
+    picked: currentFilter.size === 0 || currentFilter.has(category),
+  }));
+
+  const selected = await vscode.window.showQuickPick(items, {
+    canPickMany: true,
+    placeHolder: "Select Activity categories to filter (empty = show all)",
+  });
+
+  if (selected !== undefined) {
+    const newFilter = new Set<ActivityCategory>(
+      selected.map((item) => item.label as ActivityCategory),
+    );
+    sessionsProvider.setActivityCategoryFilter(newFilter);
+  }
+}
+
 export function isInferredActivityLogKey(key: string): boolean {
   return (
     !ACTIVITY_LOG_BASE_KEYS.has(key) &&
@@ -2795,13 +2830,13 @@ export function activate(context: vscode.ExtensionContext) {
       setSocksProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
-        `SOCKSプロキシ（${safeProxy}）経由で接続します。`,
+        `Connecting via SOCKS proxy (${safeProxy}).`,
       );
     } else {
       setHttpProxy(proxy.url);
       const safeProxy = stripUrlCredentials(proxy.url);
       vscode.window.showInformationMessage(
-        `HTTP/HTTPSプロキシ（${safeProxy}）経由で接続します。`,
+        `Connecting via HTTP/HTTPS proxy (${safeProxy}).`,
       );
     }
   }
@@ -3398,33 +3433,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const filterActivitiesCommand = vscode.commands.registerCommand(
     "jules.filterActivities",
-    async () => {
-      const categories: ActivityCategory[] = [
-        "Plan",
-        "Progress",
-        "Artifacts",
-        "Messages",
-        "Errors",
-      ];
-      const currentFilter = sessionsProvider.getActivityCategoryFilter();
-
-      const items = categories.map((category) => ({
-        label: category,
-        picked: currentFilter.size === 0 || currentFilter.has(category),
-      }));
-
-      const selected = await vscode.window.showQuickPick(items, {
-        canPickMany: true,
-        placeHolder: "フィルタするActivityカテゴリを選択（未選択＝全表示）",
-      });
-
-      if (selected !== undefined) {
-        const newFilter = new Set<ActivityCategory>(
-          selected.map((item) => item.label as ActivityCategory),
-        );
-        sessionsProvider.setActivityCategoryFilter(newFilter);
-      }
-    },
+    () => handleFilterActivitiesCommand(sessionsProvider),
   );
 
   const showActivitiesDisposable = vscode.commands.registerCommand(

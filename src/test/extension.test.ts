@@ -690,7 +690,7 @@ suite("Extension Test Suite", () => {
       assert.deepStrictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).firstCall.args, ["http://proxy.example.com:8080"]);
       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
       assert.ok(infoStub.called);
-      assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPSプロキシ")));
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPS proxy")));
     });
 
     test("should configure SOCKS proxy when ALL_PROXY is a socks URL", () => {
@@ -704,7 +704,7 @@ suite("Extension Test Suite", () => {
       assert.deepStrictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).firstCall.args, ["socks5://proxy.example.com:1080"]);
       assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
       assert.ok(infoStub.called);
-      assert.ok(infoStub.args.some((args) => String(args[0]).includes("SOCKSプロキシ")));
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("SOCKS proxy")));
     });
   });
 
