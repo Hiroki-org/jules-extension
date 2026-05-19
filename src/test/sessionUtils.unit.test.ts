@@ -97,7 +97,7 @@ suite("sessionUtils Test Suite", () => {
         assert.strictEqual(url, "https://jules.googleapis.com/v1alpha/sessions/123:sendMessage");
         
         const payload = JSON.parse(options.body);
-        assert.strictEqual(payload.prompt, "test message");
+        assert.strictEqual(payload.prompt, "test message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
     });
 
     test("sendMessage throws error when API fails", async () => {
