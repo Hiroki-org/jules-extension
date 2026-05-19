@@ -217,6 +217,7 @@ suite("chatAssets unit tests", () => {
         }
         return null;
       },
+      setAttribute: () => {},
       querySelector: (selector: string) =>
         selector === ".details-content" ? contentDiv : null,
     };
@@ -244,6 +245,8 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_CSS.includes(".details-content"));
     assert.ok(CHAT_CSS.includes("max-height: 350px"));
     assert.ok(CHAT_CSS.includes("overflow-y: auto"));
+    assert.ok(CHAT_CSS.includes("aria-busy"));
+    assert.ok(CHAT_CSS.includes("prefers-reduced-motion: reduce"));
   });
 
   test("CHAT_CSS should keep shiki theme variable selectors", () => {
