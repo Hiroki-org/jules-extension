@@ -557,16 +557,26 @@ async function fetchAndCheckoutFromPRInfo(
 
         const headCloneUrlNoGit = headCloneUrl.replace(/\.git$/, '');
 
-        // headCloneUrlに一致するリモートを探す
-        let targetRemote = remotes.find(r =>
-            r.fetchUrl === headCloneUrl ||
-            (r.fetchUrl && r.fetchUrl.replace(/\.git$/, '') === headCloneUrlNoGit)
-        );
+        // 1回のループで対象リモートとoriginリモートを特定し、パフォーマンスオーバーヘッドを削減する
+        let targetRemote: typeof remotes[number] | undefined;
+        let originRemote: typeof remotes[number] | undefined;
+
+        for (const r of remotes) {
+            if (!targetRemote && (r.fetchUrl === headCloneUrl || (r.fetchUrl && r.fetchUrl.replace(/\.git$/, '') === headCloneUrlNoGit))) {
+                targetRemote = r;
+            }
+            if (!originRemote && r.remote === 'origin') {
+                originRemote = r;
+            }
+            if (targetRemote && originRemote) {
+                break;
+            }
+        }
 
         // フォークからのPRで、対応するリモートがない場合
         if (!targetRemote) {
             // origin/upstreamを確認
-            const originRemote = remotes.find(r => r.remote === 'origin');
+            // `originRemote` is already identified above.
 
             // originがheadCloneUrlと同じなら、originを使う
             if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {
