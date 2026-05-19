@@ -34,6 +34,11 @@
 **Learning:** Linux CI環境での共有メモリ不足や、macOS(arm64等)でのGPU関連の初期化エラーにより、Electronアプリ(VSCode E2Eテスト)が起動直後にクラッシュし `Target page closed` エラーになることがある。
 **Action:** PlaywrightからVSCodeをlaunchする引数に `--disable-dev-shm-usage` と `--disable-software-rasterizer` を追加してクラッシュを回避する。
 
+## 2026-05-16 - Avoid .map() inside Map constructor
+
+**Learning:** Instantiating a `Map` using `new Map(array.map(...))` creates an intermediate array containing key-value pairs, which causes unnecessary memory allocations and iteration overhead, especially for large arrays or frequently called functions.
+**Action:** Replace `new Map(array.map(...))` with `new Map()` followed by a `for...of` loop that directly calls `.set()` on the `Map` instance to avoid the intermediate array allocation.
+
 ## 2026-05-15 - [Performance] Eliminating spread operators and .filter() chains
 **Learning:** Using spread syntax `...` inside an array literal followed by `.filter()` creates multiple intermediate arrays and forces multiple O(N) iterations, leading to unnecessary memory allocations and CPU overhead during simple array processing.
 **Action:** Use a single-pass `for...of` loop combined with a `Set` to handle array concatenation, type checking, and deduplication simultaneously.
