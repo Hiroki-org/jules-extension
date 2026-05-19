@@ -35,5 +35,6 @@
 **Action:** PlaywrightからVSCodeをlaunchする引数に `--disable-dev-shm-usage` と `--disable-software-rasterizer` を追加してクラッシュを回避する。
 
 ## 2026-05-16 - Avoid .map() inside Map constructor
+
 **Learning:** Instantiating a `Map` using `new Map(array.map(...))` creates an intermediate array containing key-value pairs, which causes unnecessary memory allocations and iteration overhead, especially for large arrays or frequently called functions.
 **Action:** Replace `new Map(array.map(...))` with `new Map()` followed by a `for...of` loop that directly calls `.set()` on the `Map` instance to avoid the intermediate array allocation.

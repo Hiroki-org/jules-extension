@@ -68,6 +68,29 @@ suite('sessionContextMenu checkout coverage suite', () => {
         return { activate, getAPI };
     }
 
+    function stubPullRequestCheckout(
+        repo: any,
+        branchInfoOverrides: Partial<PullRequestBranchInfo> = {}
+    ): Session {
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR',
+            ...branchInfoOverrides
+        });
+        return {
+            name: 'session-pr-checkout',
+            title: 'Session PR Checkout',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } } as any]
+        } as Session;
+    }
+
     test('selectRepository returns the only repository without prompting', async () => {
         const repo = createRepository();
         const result = await sessionContextMenu.selectRepository([repo], () => undefined);
@@ -585,6 +608,91 @@ test('checkoutToBranchForSession fetches successfully when remote is origin and 
 
         const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
         assert.strictEqual(result, true);
+    });
+
+    test('checkoutToBranchForSession prefers the matching fork remote when origin is also present', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [
+                    { remote: 'origin', fetchUrl: 'https://github.com/owner/repo.git' },
+                    { remote: 'fork-owner', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }
+                ]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        const session = stubPullRequestCheckout(repo);
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnceWithExactly('fork-owner'), true);
+        assert.strictEqual((repo.addRemote as sinon.SinonStub).called, false);
+    });
+
+    test('checkoutToBranchForSession falls back to origin when only origin matches owner and repo', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'origin', fetchUrl: 'git@github.com:fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        const session = stubPullRequestCheckout(repo);
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnceWithExactly('origin'), true);
+        assert.strictEqual((repo.addRemote as sinon.SinonStub).called, false);
+    });
+
+    test('checkoutToBranchForSession matches remote fetchUrl with trailing git suffix against clone URL without it', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-owner', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        const session = stubPullRequestCheckout(repo, {
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo'
+        });
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnceWithExactly('fork-owner'), true);
+        assert.strictEqual((repo.addRemote as sinon.SinonStub).called, false);
+    });
+
+    test('checkoutToBranchForSession matches remote fetchUrl without trailing git suffix against clone URL with it', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-owner', fetchUrl: 'https://github.com/fork-owner/fork-repo' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        const session = stubPullRequestCheckout(repo);
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnceWithExactly('fork-owner'), true);
+        assert.strictEqual((repo.addRemote as sinon.SinonStub).called, false);
     });
 
 
