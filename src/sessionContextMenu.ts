@@ -557,16 +557,32 @@ async function fetchAndCheckoutFromPRInfo(
 
         const headCloneUrlNoGit = headCloneUrl.replace(/\.git$/, '');
 
+        // Use Maps to avoid O(N) Array.find calls
+        const remotesByUrl = new Map<string, typeof remotes[number]>();
+        const remotesByName = new Map<string, typeof remotes[number]>();
+
+        for (const r of remotes) {
+            if (!remotesByName.has(r.remote)) {
+                remotesByName.set(r.remote, r);
+            }
+            if (r.fetchUrl) {
+                if (!remotesByUrl.has(r.fetchUrl)) {
+                    remotesByUrl.set(r.fetchUrl, r);
+                }
+                const noGit = r.fetchUrl.replace(/\.git$/, '');
+                if (!remotesByUrl.has(noGit)) {
+                    remotesByUrl.set(noGit, r);
+                }
+            }
+        }
+
         // headCloneUrlに一致するリモートを探す
-        let targetRemote = remotes.find(r =>
-            r.fetchUrl === headCloneUrl ||
-            (r.fetchUrl && r.fetchUrl.replace(/\.git$/, '') === headCloneUrlNoGit)
-        );
+        let targetRemote = remotesByUrl.get(headCloneUrl) || remotesByUrl.get(headCloneUrlNoGit);
 
         // フォークからのPRで、対応するリモートがない場合
         if (!targetRemote) {
             // origin/upstreamを確認
-            const originRemote = remotes.find(r => r.remote === 'origin');
+            const originRemote = remotesByName.get('origin');
 
             // originがheadCloneUrlと同じなら、originを使う
             if (originRemote?.fetchUrl?.includes(`${headOwner}/${headRepo}`)) {
