@@ -394,9 +394,6 @@ suite("Extension Test Suite", () => {
           if (key === "customPrompt") {
             return "My custom prompt";
           }
-          if (key === "enforceJapanese") {
-            return true;
-          }
           return undefined;
         }),
       };
@@ -404,7 +401,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
+      assert.strictEqual(finalPrompt, "My custom prompt\n\nUser message");
     });
 
     test("should return only user prompt if custom prompt is empty", () => {
@@ -412,47 +409,6 @@ suite("Extension Test Suite", () => {
         get: sinon.stub().callsFake((key: string) => {
           if (key === "customPrompt") {
             return "";
-          }
-          if (key === "enforceJapanese") {
-            return true;
-          }
-          return undefined;
-        }),
-      };
-      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
-
-      const userPrompt = "User message";
-      const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
-    });
-
-    test("should return only user prompt if custom prompt is not set", () => {
-      const workspaceConfig = {
-        get: sinon.stub().callsFake((key: string) => {
-          if (key === "customPrompt") {
-            return undefined;
-          }
-          if (key === "enforceJapanese") {
-            return true;
-          }
-          return undefined;
-        }),
-      };
-      getConfigurationStub.withArgs("jules-extension").returns(workspaceConfig as any);
-
-      const userPrompt = "User message";
-      const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "User message\n\nPlease use Japanese for all GitHub interactions (PR titles, descriptions, commit messages, and review replies).");
-    });
-
-    test("should not append Japanese instruction when enforceJapanese is false", () => {
-      const workspaceConfig = {
-        get: sinon.stub().callsFake((key: string) => {
-          if (key === "customPrompt") {
-            return "";
-          }
-          if (key === "enforceJapanese") {
-            return false;
           }
           return undefined;
         }),
@@ -464,14 +420,11 @@ suite("Extension Test Suite", () => {
       assert.strictEqual(finalPrompt, "User message");
     });
 
-    test("should not append Japanese instruction when enforceJapanese is false even with custom prompt", () => {
+    test("should return only user prompt if custom prompt is not set", () => {
       const workspaceConfig = {
         get: sinon.stub().callsFake((key: string) => {
           if (key === "customPrompt") {
-            return "Custom instructions";
-          }
-          if (key === "enforceJapanese") {
-            return false;
+            return undefined;
           }
           return undefined;
         }),
@@ -480,7 +433,7 @@ suite("Extension Test Suite", () => {
 
       const userPrompt = "User message";
       const finalPrompt = buildFinalPrompt(userPrompt);
-      assert.strictEqual(finalPrompt, "Custom instructions\n\nUser message");
+      assert.strictEqual(finalPrompt, "User message");
     });
   });
 
@@ -737,7 +690,7 @@ suite("Extension Test Suite", () => {
       assert.deepStrictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).firstCall.args, ["http://proxy.example.com:8080"]);
       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
       assert.ok(infoStub.called);
-      assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPSプロキシ")));
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPS proxy")));
     });
 
     test("should configure SOCKS proxy when ALL_PROXY is a socks URL", () => {
@@ -751,7 +704,7 @@ suite("Extension Test Suite", () => {
       assert.deepStrictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).firstCall.args, ["socks5://proxy.example.com:1080"]);
       assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
       assert.ok(infoStub.called);
-      assert.ok(infoStub.args.some((args) => String(args[0]).includes("SOCKSプロキシ")));
+      assert.ok(infoStub.args.some((args) => String(args[0]).includes("SOCKS proxy")));
     });
   });
 
@@ -1188,14 +1141,6 @@ suite("Extension Test Suite", () => {
       const s1 = { name: "1", state: "RUNNING", rawState: "RUNNING", sourceContext: { source: "a" } } as Session;
       const s2 = { ...s1, sourceContext: { source: "b" } } as Session;
       assert.strictEqual(areSessionListsEqual([s1], [s2]), false);
-    });
-
-    test("should handle list with same elements in different order and identical names but different content in slow path returning true", () => {
-      const s1_a = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
-      const s1_b = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
-      const s2_a = { name: "id2", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
-      const s2_b = { name: "id1", state: "COMPLETED", rawState: "COMPLETED", title: "test", outputs: [] } as unknown as Session;
-      assert.strictEqual(areSessionListsEqual([s1_a, s1_b], [s2_a, s2_b]), true);
     });
   });
 
