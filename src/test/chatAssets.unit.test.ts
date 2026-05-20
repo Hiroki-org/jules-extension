@@ -41,7 +41,11 @@ function createChatScriptHarness(
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: () => {},
     },
-    sessionLabel: { textContent: "" },
+    sessionLabel: {
+      textContent: "",
+      title: "",
+      setAttribute: function(k: string, v: string) { (this as any)[k] = v; }
+    },
     composer: { addEventListener: (evt: string, cb: any) => { listeners.composer[evt] = cb; } },
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
@@ -636,7 +640,11 @@ suite("chatAssets unit tests", () => {
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
         addEventListener: () => {}
       },
-      sessionLabel: { textContent: "" },
+      sessionLabel: {
+        textContent: "",
+        title: "",
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; }
+      },
       composer: { addEventListener: () => {} },
     };
 
@@ -668,6 +676,8 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton.title, "Select a session to send a message");
     assert.strictEqual(elements.sendButton["aria-label"], "Send (Select a session to send a message)");
     assert.strictEqual(elements.sessionLabel.textContent, "Session: None selected");
+    assert.strictEqual(elements.sessionLabel.title, "Session: None selected");
+    assert.strictEqual(elements.sessionLabel["aria-label"], "Session: None selected");
 
     // (2) sessionId present + empty input value
     elements.messageInput.value = "   "; // whitespace
@@ -677,6 +687,8 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton.title, "Type a message to send");
     assert.strictEqual(elements.sendButton["aria-label"], "Send (Type a message to send)");
     assert.strictEqual(elements.sessionLabel.textContent, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel.title, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel["aria-label"], "Session: session-123");
 
     // (3) sessionId present + non-empty input value
     elements.messageInput.value = "Hello";
