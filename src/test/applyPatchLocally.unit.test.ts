@@ -479,4 +479,28 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.strictEqual(repository.createBranch.called, false);
         assert.strictEqual(repository.getBranch.callCount, 20);
     });
+
+    test('getBranch の gitErrorCode が not found を示す場合もブランチ不在として扱うこと', async () => {
+        repository.getBranch.rejects(Object.assign(new Error('something went wrong'), { gitErrorCode: 'branch not found' }));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
+
+    test('getBranch の name が not found を示す場合もブランチ不在として扱うこと', async () => {
+        repository.getBranch.rejects(Object.assign(new Error('something went wrong'), { name: 'no such branch' }));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
 });
