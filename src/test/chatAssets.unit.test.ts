@@ -7,6 +7,7 @@ function createChatScriptHarness(
 ) {
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
+  const chatAttributes: Record<string, string> = {};
   const listeners: Record<string, Record<string, any>> = {
     chat: {},
     messageInput: {},
@@ -22,7 +23,20 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
+      setAttribute: (name: string, value: string) => { chatAttributes[name] = value; },
+      getAttribute: (name: string) => chatAttributes[name] ?? null,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
+      querySelector: (selector: string) => {
+        if (selector !== ".empty-state" || !chatInnerHTML.includes('class="empty-state"')) {
+          return null;
+        }
+        return {
+          textContent: chatInnerHTML
+            .replace(/<[^>]*>/g, "")
+            .replace(/\s+/g, " ")
+            .trim(),
+        };
+      },
       querySelectorAll: () => [],
     },
     typing: { classList: { toggle: () => {} } },
@@ -511,9 +525,13 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: null, messages: [], isTyping: false },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state" role="status" aria-live="polite" aria-atomic="true"'));
-    assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
-    assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
+    const emptyState = harness.elements.chat.querySelector(".empty-state");
+    assert.ok(emptyState);
+    assert.strictEqual(harness.elements.chat.getAttribute("role"), "status");
+    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), "polite");
+    assert.strictEqual(harness.elements.chat.getAttribute("aria-atomic"), "true");
+    assert.ok(emptyState.textContent.includes("Welcome to Jules"));
+    assert.ok(emptyState.textContent.includes("Select a session or create a new one"));
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -524,9 +542,13 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: "session-1", messages: [], isTyping: false },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state" role="status" aria-live="polite" aria-atomic="true"'));
-    assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
-    assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
+    const emptyState = harness.elements.chat.querySelector(".empty-state");
+    assert.ok(emptyState);
+    assert.strictEqual(harness.elements.chat.getAttribute("role"), "status");
+    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), "polite");
+    assert.strictEqual(harness.elements.chat.getAttribute("aria-atomic"), "true");
+    assert.ok(emptyState.textContent.includes("Ready to assist"));
+    assert.ok(emptyState.textContent.includes("Type a message to start interacting"));
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -619,7 +641,15 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      chat: {
+        innerHTML: "",
+        scrollTop: 0,
+        scrollHeight: 0,
+        addEventListener: () => {},
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        getAttribute: function(k: string) { return (this as any)[k] ?? null; },
+        querySelectorAll: () => [],
+      },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",

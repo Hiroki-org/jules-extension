@@ -71,10 +71,15 @@ export const CHAT_JS = `(function() {
   const sessionLabel = document.getElementById("sessionLabel");
   const DETAILS_BUSY_TIMEOUT_MS = 15000;
 
+  chatContainer.setAttribute("role", "status");
+  chatContainer.setAttribute("aria-live", "polite");
+  chatContainer.setAttribute("aria-atomic", "true");
+
   let state = { sessionId: null, messages: [], isTyping: false };
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
   let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeout id
+  let renderedEmptyStateKey = null;
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
@@ -280,11 +285,14 @@ export const CHAT_JS = `(function() {
       const emptyStateContent = state.sessionId
         ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
         : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
-      const emptyStateHtml = \`<div class="empty-state" role="status" aria-live="polite" aria-atomic="true">\${emptyStateContent}</div>\`;
-      if (chatContainer.innerHTML !== emptyStateHtml) {
+      const emptyStateKey = state.sessionId ? "ready" : "welcome";
+      const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
+      if (renderedEmptyStateKey !== emptyStateKey) {
         chatContainer.innerHTML = emptyStateHtml;
+        renderedEmptyStateKey = emptyStateKey;
       }
     } else {
+      renderedEmptyStateKey = null;
       chatContainer.innerHTML = state.messages.map(m => {
         const sanitizedHtml = sanitizeHtml(m.html);
         const roleClass = m.role === "user" ? "user" : "assistant";
