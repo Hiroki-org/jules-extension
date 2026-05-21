@@ -22,6 +22,40 @@ function approximateTextContent(html: string): string {
   return text;
 }
 
+function createMockClassList(owner: { className?: string }) {
+  const readClasses = () =>
+    new Set(String(owner.className ?? "").split(/\s+/).filter(Boolean));
+  const writeClasses = (classes: Set<string>) => {
+    owner.className = Array.from(classes).join(" ");
+  };
+
+  return {
+    add: (...tokens: string[]) => {
+      const classes = readClasses();
+      tokens.forEach((token) => classes.add(token));
+      writeClasses(classes);
+    },
+    remove: (...tokens: string[]) => {
+      const classes = readClasses();
+      tokens.forEach((token) => classes.delete(token));
+      writeClasses(classes);
+    },
+    toggle: (token: string, force?: boolean) => {
+      const classes = readClasses();
+      const shouldAdd = force ?? !classes.has(token);
+      if (shouldAdd) {
+        classes.add(token);
+      } else {
+        classes.delete(token);
+      }
+      writeClasses(classes);
+      return shouldAdd;
+    },
+    contains: (token: string) => readClasses().has(token),
+    toString: () => String(owner.className ?? ""),
+  };
+}
+
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
@@ -41,6 +75,12 @@ function createChatScriptHarness(
   };
   const elements: Record<string, any> = {
     chat: {
+      childNodes: [] as any[],
+      replaceChildren: function(...nodes: any[]) {
+        this.childNodes = nodes;
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join("");
+      },
       get innerHTML() { return chatInnerHTML; },
       set innerHTML(value: string) {
         chatInnerHTMLSetCount += 1;
@@ -91,6 +131,79 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
+    createElement: (tag: string) => {
+      const attributes: Record<string, string> = {};
+      const el: any = {
+        tag,
+        tagName: tag.toUpperCase(),
+        nodeType: 1,
+        className: "",
+        textContent: "",
+        style: {},
+        childNodes: [],
+      };
+      el.classList = createMockClassList(el);
+      el.setAttribute = function(k: string, v: string) {
+        attributes[k] = v;
+        if (k === "class") {
+          this.className = v;
+        } else {
+          (this as any)[k] = v;
+        }
+      };
+      el.getAttribute = function(k: string) {
+        return attributes[k] ?? (this as any)[k] ?? null;
+      };
+      el.removeAttribute = function(k: string) {
+        delete attributes[k];
+        delete (this as any)[k];
+      };
+      el.appendChild = function(child: any) { this.childNodes.push(child); if (child) { child.parentNode = this; } };
+      el.cloneNode = function(deep = false) {
+        const clone: any = mockDocument.createElement(tag);
+        clone.className = this.className;
+        clone.textContent = this.textContent;
+        clone.innerHTML = this.innerHTML;
+        if (this.role) { clone.role = this.role; }
+        if (this["aria-label"]) { clone["aria-label"] = this["aria-label"]; }
+        if (deep) {
+          this.childNodes.forEach((child: any) => {
+            clone.appendChild(typeof child.cloneNode === "function" ? child.cloneNode(true) : child);
+          });
+        }
+        return clone;
+      };
+      Object.defineProperty(el, "outerHTML", {
+        get: function() {
+          const childrenHtml = this.childNodes.map((c: any) => typeof c === "string" ? c : c.outerHTML || (c.nodeType === 3 ? c.textContent : (c.innerHTML || c.textContent || ""))).join("");
+          let attrs = "";
+          if (this.className) {attrs += ` class="${this.className}"`;}
+          if (this.role) {attrs += ` role="${this.role}"`;}
+          if (this["aria-label"]) {attrs += ` aria-label="${this["aria-label"]}"`;}
+          return `<${this.tag}${attrs}>${this.innerHTML || (this.textContent && this.childNodes.length === 0 ? this.textContent : childrenHtml)}</${this.tag}>`;
+        }
+      });
+      return el;
+    },
+    createDocumentFragment: () => {
+      const frag: any = { childNodes: [], nodeType: 11 };
+      frag.appendChild = function(child: any) {
+        this.childNodes.push(child);
+        if (child) {
+          child.parentNode = this;
+        }
+      };
+      frag.cloneNode = function(deep = false) {
+        const clone = mockDocument.createDocumentFragment();
+        if (deep) {
+          this.childNodes.forEach((child: any) => {
+            clone.appendChild(typeof child.cloneNode === "function" ? child.cloneNode(true) : child);
+          });
+        }
+        return clone;
+      };
+      return frag;
+    }
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
@@ -124,8 +237,16 @@ function createChatScriptHarness(
   };
 }
 
-function createHtmlFragment(html: string) {
-  return { childNodes: [{ outerHTML: html }] };
+function createHtmlFragment(html: string, onClone?: () => void) {
+  const node = {
+    nodeType: 1,
+    outerHTML: html,
+    cloneNode: () => {
+      onClone?.();
+      return { nodeType: 1, outerHTML: html };
+    },
+  };
+  return { childNodes: [node] };
 }
 
 function createDetailsContentDiv() {
@@ -168,6 +289,9 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         sanitizeConfig = config;
+        if (config && config.RETURN_DOM_FRAGMENT) {
+            return { childNodes: [{ nodeType: 1, outerHTML: "<p>safe</p>" }] };
+        }
         return "<p>safe</p>";
       },
     });
@@ -200,7 +324,7 @@ suite("chatAssets unit tests", () => {
       "data-index",
     ]);
     assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
-    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
+    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, true);
     assert.deepStrictEqual(sanitizeConfig.FORBID_TAGS, ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"]);
   });
 
@@ -224,7 +348,12 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should constrain message role class names", () => {
     const harness = createChatScriptHarness({
-      sanitize: (html) => html,
+      sanitize: (html: any, config: any) => {
+        if (config && config.RETURN_DOM_FRAGMENT) {
+            return { childNodes: [{ nodeType: 1, outerHTML: html }] };
+        }
+        return html;
+      },
     });
 
     harness.postWindowMessage({
@@ -242,9 +371,15 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should cache sanitized HTML across renders", () => {
     let sanitizeCalls = 0;
+    let cloneCalls = 0;
     const harness = createChatScriptHarness({
-      sanitize: (html) => {
+      sanitize: (html: any, config: any) => {
         sanitizeCalls += 1;
+        if (config && config.RETURN_DOM_FRAGMENT) {
+          return createHtmlFragment(html, () => {
+            cloneCalls += 1;
+          });
+        }
         return html;
       },
     });
@@ -258,10 +393,12 @@ suite("chatAssets unit tests", () => {
     harness.postWindowMessage({ type: "chatState", payload });
 
     assert.strictEqual(sanitizeCalls, 1);
+    assert.strictEqual(cloneCalls, 2);
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
+    let cloneCalls = 0;
     const attributes: Record<string, string> = {};
     const contentDiv = createDetailsContentDiv();
     const details = {
@@ -287,7 +424,9 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         if (config.RETURN_DOM_FRAGMENT) {
-          return createHtmlFragment("<p>details safe</p>");
+          return createHtmlFragment("<p>details safe</p>", () => {
+            cloneCalls += 1;
+          });
         }
         return "<p>details safe</p>";
       },
@@ -302,6 +441,7 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
+    assert.strictEqual(cloneCalls, 1);
     assert.strictEqual(attributes["aria-busy"], "false");
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
   });
@@ -595,7 +735,9 @@ suite("chatAssets unit tests", () => {
   });
 
   test("CHAT_JS should keep regular message rendering out of the empty state live region", () => {
-    const harness = createChatScriptHarness({ sanitize: (html) => html });
+    const harness = createChatScriptHarness({
+      sanitize: (html, config) => config.RETURN_DOM_FRAGMENT ? createHtmlFragment(html) : html,
+    });
 
     harness.postWindowMessage({
       type: "chatState",
@@ -704,6 +846,11 @@ suite("chatAssets unit tests", () => {
     const elements: any = {
       chat: {
         innerHTML: "",
+        childNodes: [] as any[],
+        replaceChildren: function(...nodes: any[]) {
+          this.childNodes = nodes;
+          this.innerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join("");
+        },
         scrollTop: 0,
         scrollHeight: 0,
         addEventListener: () => {},
@@ -711,6 +858,7 @@ suite("chatAssets unit tests", () => {
         getAttribute: function(k: string) { return (this as any)[k] ?? null; },
         querySelectorAll: () => [],
       },
+      emptyStateStatus: { textContent: "" },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
@@ -733,6 +881,8 @@ suite("chatAssets unit tests", () => {
 
     const mockDocument = {
       getElementById: (id: string) => elements[id],
+      createElement: (tag: string) => ({ tag, className: "", childNodes: [] as any[], setAttribute: function(k: string, v: string) { (this as any)[k] = v; }, appendChild: function(child: any) { this.childNodes.push(child); } }),
+      createDocumentFragment: () => ({ childNodes: [] as any[], appendChild: function(child: any) { this.childNodes.push(child); } })
     };
     let messageListener: any = null;
     const mockWindow = {
