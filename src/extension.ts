@@ -2730,6 +2730,26 @@ export async function deleteSingleSession(
   sessionsProvider.unmarkSessionAsDeleting(session.name);
 }
 
+const BULK_DELETE_CONCURRENCY = 5;
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let nextIndex = 0;
+  const workerCount = Math.min(limit, items.length);
+
+  await Promise.allSettled(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex++;
+        await worker(items[currentIndex]);
+      }
+    }),
+  );
+}
 
 export async function executeDeleteSessionCommand(
   context: vscode.ExtensionContext,
@@ -2789,7 +2809,7 @@ export async function executeDeleteSessionCommand(
       let failCount = 0;
       let completedCount = 0;
 
-      const deletePromises = targets.map(async (target) => {
+      await runWithConcurrency(targets, BULK_DELETE_CONCURRENCY, async (target) => {
         const session = target.session;
         try {
           await deleteSingleSession(context, sessionsProvider, session, apiKey);
@@ -2805,8 +2825,6 @@ export async function executeDeleteSessionCommand(
           progress.report({ message: `Deleting ${completedCount} of ${targets.length}...` });
         }
       });
-
-      await Promise.allSettled(deletePromises);
 
       if (failCount > 0) {
         const failedLabel = `session${failCount === 1 ? "" : "s"}`;
