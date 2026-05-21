@@ -175,6 +175,35 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         ]);
     });
 
+    test('remote branch fallback ignores later remote errors when origin has the branch', async () => {
+        repository.state = { remotes: [{ name: 'upstream' }, { name: 'origin' }] };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            if (branchRef === 'origin/main') {
+                return { name: 'origin/main' };
+            }
+            if (branchRef === 'upstream/main') {
+                throw new Error('network failure');
+            }
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranch.calledWith('origin/main'), true);
+        assert.strictEqual(repository.getBranch.calledWith('upstream/main'), true);
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'origin/main',
+        ]);
+    });
+
     test('gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること', async () => {
         await applyPatchLocallyForSession({
             session: createSession(),
