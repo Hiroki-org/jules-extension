@@ -267,6 +267,8 @@ export const CHAT_JS = `(function() {
     }
 
     sessionLabel.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
+    sessionLabel.title = sessionLabel.textContent;
+    sessionLabel.setAttribute("aria-label", sessionLabel.textContent);
   }
 
   function formatTime(timestamp) {
