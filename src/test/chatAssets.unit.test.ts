@@ -14,6 +14,12 @@ function createChatScriptHarness(
   };
   const elements: Record<string, any> = {
     chat: {
+      childNodes: [] as any[],
+      replaceChildren: function(...nodes: any[]) {
+        this.childNodes = nodes;
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join("");
+      },
       get innerHTML() { return chatInnerHTML; },
       set innerHTML(value: string) {
         chatInnerHTMLSetCount += 1;
@@ -47,6 +53,27 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
+    createElement: (tag: string) => {
+      const el: any = { tag, className: "", classList: { contains: () => false }, textContent: "", style: {}, childNodes: [] };
+      el.setAttribute = function(k: string, v: string) { (this as any)[k] = v; };
+      el.appendChild = function(child: any) { this.childNodes.push(child); if (child) { child.parentNode = this; } };
+      Object.defineProperty(el, "outerHTML", {
+        get: function() {
+          const childrenHtml = this.childNodes.map((c: any) => typeof c === "string" ? c : c.outerHTML || (c.nodeType === 3 ? c.textContent : (c.innerHTML || c.textContent || ""))).join("");
+          let attrs = "";
+          if (this.className) {attrs += ` class="${this.className}"`;}
+          if (this.role) {attrs += ` role="${this.role}"`;}
+          if (this["aria-label"]) {attrs += ` aria-label="${this["aria-label"]}"`;}
+          return `<${this.tag}${attrs}>${this.innerHTML || (this.textContent && this.childNodes.length === 0 ? this.textContent : childrenHtml)}</${this.tag}>`;
+        }
+      });
+      return el;
+    },
+    createDocumentFragment: () => {
+      const frag: any = { childNodes: [] };
+      frag.appendChild = function(child: any) { this.childNodes.push(child); };
+      return frag;
+    }
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
@@ -124,6 +151,9 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         sanitizeConfig = config;
+        if (config && config.RETURN_DOM_FRAGMENT) {
+            return { childNodes: [{ nodeType: 1, outerHTML: "<p>safe</p>" }] };
+        }
         return "<p>safe</p>";
       },
     });
@@ -156,7 +186,7 @@ suite("chatAssets unit tests", () => {
       "data-index",
     ]);
     assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
-    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
+    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, true);
     assert.deepStrictEqual(sanitizeConfig.FORBID_TAGS, ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"]);
   });
 
@@ -180,7 +210,12 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should constrain message role class names", () => {
     const harness = createChatScriptHarness({
-      sanitize: (html) => html,
+      sanitize: (html: any, config: any) => {
+        if (config && config.RETURN_DOM_FRAGMENT) {
+            return { childNodes: [{ nodeType: 1, outerHTML: html }] };
+        }
+        return html;
+      },
     });
 
     harness.postWindowMessage({
@@ -199,8 +234,11 @@ suite("chatAssets unit tests", () => {
   test("CHAT_JS should cache sanitized HTML across renders", () => {
     let sanitizeCalls = 0;
     const harness = createChatScriptHarness({
-      sanitize: (html) => {
+      sanitize: (html: any, config: any) => {
         sanitizeCalls += 1;
+        if (config && config.RETURN_DOM_FRAGMENT) {
+            return { childNodes: [{ nodeType: 1, outerHTML: html }] };
+        }
         return html;
       },
     });
@@ -619,7 +657,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      chat: { innerHTML: "", childNodes: [] as any[], replaceChildren: function(...nodes: any[]) { this.childNodes = nodes; this.innerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join(""); }, scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
@@ -642,6 +680,8 @@ suite("chatAssets unit tests", () => {
 
     const mockDocument = {
       getElementById: (id: string) => elements[id],
+      createElement: (tag: string) => ({ tag, className: "", childNodes: [] as any[], setAttribute: function(k: string, v: string) { (this as any)[k] = v; }, appendChild: function(child: any) { this.childNodes.push(child); } }),
+      createDocumentFragment: () => ({ childNodes: [] as any[], appendChild: function(child: any) { this.childNodes.push(child); } })
     };
     let messageListener: any = null;
     const mockWindow = {
