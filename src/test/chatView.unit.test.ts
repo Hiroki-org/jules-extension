@@ -84,6 +84,8 @@ suite("Chat View Unit Test Suite", () => {
       extensionUri,
     );
     assert.ok(html.includes('id="typing"'));
+    assert.ok(html.includes('id="emptyStateStatus"'));
+    assert.ok(html.includes('class="sr-only"'));
     assert.ok(html.includes('type:"sendMessage"') || html.includes('type: "sendMessage"'));
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));

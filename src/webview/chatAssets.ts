@@ -2,6 +2,7 @@ export const CHAT_CSS = `
 * { box-sizing: border-box; }
 body { margin: 0; padding: 10px; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); height: 100vh; display: flex; flex-direction: column; gap: 10px; }
 #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .message { display: flex; flex-direction: column; max-width: 92%; animation: slide-in .18s ease-out; gap: 4px; }
 .message.user { margin-left: auto; align-items: flex-end; }
 .message.assistant { margin-right: auto; align-items: flex-start; }
@@ -65,15 +66,18 @@ export const CHAT_JS = `(function() {
     : { postMessage: (m) => console.warn("VSCode API unavailable", m) };
 
   const chatContainer = document.getElementById("chat");
+  const emptyStateStatus = document.getElementById("emptyStateStatus");
   const typingIndicator = document.getElementById("typing");
   const messageInput = document.getElementById("messageInput");
   const sendButton = document.getElementById("sendButton");
   const sessionLabel = document.getElementById("sessionLabel");
   const DETAILS_BUSY_TIMEOUT_MS = 15000;
 
-  chatContainer.setAttribute("role", "status");
-  chatContainer.setAttribute("aria-live", "polite");
-  chatContainer.setAttribute("aria-atomic", "true");
+  if (emptyStateStatus) {
+    emptyStateStatus.setAttribute("role", "status");
+    emptyStateStatus.setAttribute("aria-live", "polite");
+    emptyStateStatus.setAttribute("aria-atomic", "true");
+  }
 
   let state = { sessionId: null, messages: [], isTyping: false };
   let detailsCache = {}; // "activityId|detailType|index" -> html
@@ -285,14 +289,23 @@ export const CHAT_JS = `(function() {
       const emptyStateContent = state.sessionId
         ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
         : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
+      const emptyStateAnnouncement = state.sessionId
+        ? "Ready to assist. Type a message to start interacting with Jules."
+        : "Welcome to Jules. Select a session or create a new one to begin.";
       const emptyStateKey = state.sessionId ? "ready" : "welcome";
       const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
       if (renderedEmptyStateKey !== emptyStateKey) {
         chatContainer.innerHTML = emptyStateHtml;
+        if (emptyStateStatus) {
+          emptyStateStatus.textContent = emptyStateAnnouncement;
+        }
         renderedEmptyStateKey = emptyStateKey;
       }
     } else {
       renderedEmptyStateKey = null;
+      if (emptyStateStatus) {
+        emptyStateStatus.textContent = "";
+      }
       chatContainer.innerHTML = state.messages.map(m => {
         const sanitizedHtml = sanitizeHtml(m.html);
         const roleClass = m.role === "user" ? "user" : "assistant";
