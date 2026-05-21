@@ -8,7 +8,11 @@ function createChatScriptHarness(
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
   const chatAttributes: Record<string, string> = {};
-  const emptyStateStatusAttributes: Record<string, string> = {};
+  const emptyStateStatusAttributes: Record<string, string> = {
+    role: "status",
+    "aria-live": "polite",
+    "aria-atomic": "true",
+  };
   const listeners: Record<string, Record<string, any>> = {
     chat: {},
     messageInput: {},
@@ -32,7 +36,7 @@ function createChatScriptHarness(
           return null;
         }
         return {
-          textContent: chatInnerHTML,
+          textContent: chatInnerHTML.replace(/<[^>]+>/g, ""),
         };
       },
       querySelectorAll: () => [],

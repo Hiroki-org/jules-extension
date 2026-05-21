@@ -73,12 +73,6 @@ export const CHAT_JS = `(function() {
   const sessionLabel = document.getElementById("sessionLabel");
   const DETAILS_BUSY_TIMEOUT_MS = 15000;
 
-  if (emptyStateStatus) {
-    emptyStateStatus.setAttribute("role", "status");
-    emptyStateStatus.setAttribute("aria-live", "polite");
-    emptyStateStatus.setAttribute("aria-atomic", "true");
-  }
-
   let state = { sessionId: null, messages: [], isTyping: false };
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
