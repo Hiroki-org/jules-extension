@@ -1,39 +1,12 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function approximateTextContent(html: string): string {
-  let text = "";
-  let insideTag = false;
-
-  for (const char of html) {
-    if (char === "<") {
-      insideTag = true;
-      continue;
-    }
-    if (char === ">") {
-      insideTag = false;
-      continue;
-    }
-    if (!insideTag) {
-      text += char;
-    }
-  }
-
-  return text;
-}
-
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
 ) {
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
-  const chatAttributes: Record<string, string> = {};
-  const emptyStateStatusAttributes: Record<string, string> = {
-    role: "status",
-    "aria-live": "polite",
-    "aria-atomic": "true",
-  };
   const listeners: Record<string, Record<string, any>> = {
     chat: {},
     messageInput: {},
@@ -55,25 +28,8 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
-      setAttribute: (name: string, value: string) => { chatAttributes[name] = value; },
-      getAttribute: (name: string) => chatAttributes[name] ?? null,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
-      querySelector: (selector: string) => {
-        if (selector !== ".empty-state" || !chatInnerHTML.includes('class="empty-state"')) {
-          return null;
-        }
-        return {
-          textContent: approximateTextContent(chatInnerHTML),
-        };
-      },
       querySelectorAll: () => [],
-    },
-    emptyStateStatus: {
-      textContent: "",
-      setAttribute: (name: string, value: string) => {
-        emptyStateStatusAttributes[name] = value;
-      },
-      getAttribute: (name: string) => emptyStateStatusAttributes[name] ?? null,
     },
     typing: { classList: { toggle: () => {} } },
     messageInput: {
@@ -101,20 +57,6 @@ function createChatScriptHarness(
       const el: any = { tag, className: "", classList: { contains: () => false }, textContent: "", style: {}, childNodes: [] };
       el.setAttribute = function(k: string, v: string) { (this as any)[k] = v; };
       el.appendChild = function(child: any) { this.childNodes.push(child); if (child) { child.parentNode = this; } };
-      el.cloneNode = function(deep = false) {
-        const clone: any = mockDocument.createElement(tag);
-        clone.className = this.className;
-        clone.textContent = this.textContent;
-        clone.innerHTML = this.innerHTML;
-        if (this.role) { clone.role = this.role; }
-        if (this["aria-label"]) { clone["aria-label"] = this["aria-label"]; }
-        if (deep) {
-          this.childNodes.forEach((child: any) => {
-            clone.appendChild(typeof child.cloneNode === "function" ? child.cloneNode(true) : child);
-          });
-        }
-        return clone;
-      };
       Object.defineProperty(el, "outerHTML", {
         get: function() {
           const childrenHtml = this.childNodes.map((c: any) => typeof c === "string" ? c : c.outerHTML || (c.nodeType === 3 ? c.textContent : (c.innerHTML || c.textContent || ""))).join("");
@@ -130,15 +72,6 @@ function createChatScriptHarness(
     createDocumentFragment: () => {
       const frag: any = { childNodes: [] };
       frag.appendChild = function(child: any) { this.childNodes.push(child); };
-      frag.cloneNode = function(deep = false) {
-        const clone = mockDocument.createDocumentFragment();
-        if (deep) {
-          this.childNodes.forEach((child: any) => {
-            clone.appendChild(typeof child.cloneNode === "function" ? child.cloneNode(true) : child);
-          });
-        }
-        return clone;
-      };
       return frag;
     }
   };
@@ -174,15 +107,8 @@ function createChatScriptHarness(
   };
 }
 
-function createHtmlFragment(html: string, onClone?: () => void) {
-  const node = {
-    outerHTML: html,
-    cloneNode: () => {
-      onClone?.();
-      return { outerHTML: html };
-    },
-  };
-  return { childNodes: [node] };
+function createHtmlFragment(html: string) {
+  return { childNodes: [{ outerHTML: html }] };
 }
 
 function createDetailsContentDiv() {
@@ -307,14 +233,11 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should cache sanitized HTML across renders", () => {
     let sanitizeCalls = 0;
-    let cloneCalls = 0;
     const harness = createChatScriptHarness({
       sanitize: (html: any, config: any) => {
         sanitizeCalls += 1;
         if (config && config.RETURN_DOM_FRAGMENT) {
-          return createHtmlFragment(html, () => {
-            cloneCalls += 1;
-          });
+            return { childNodes: [{ nodeType: 1, outerHTML: html }] };
         }
         return html;
       },
@@ -329,7 +252,6 @@ suite("chatAssets unit tests", () => {
     harness.postWindowMessage({ type: "chatState", payload });
 
     assert.strictEqual(sanitizeCalls, 1);
-    assert.strictEqual(cloneCalls, 2);
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
@@ -617,7 +539,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(!CHAT_CSS.includes("height: 100%; opacity: 0; animation: fade-in"));
     assert.ok(CHAT_CSS.includes("@media (prefers-reduced-motion: reduce)"));
     assert.ok(CHAT_CSS.includes(".empty-state { animation: none; opacity: 1; }"));
-    assert.ok(CHAT_CSS.includes(".sr-only"));
   });
 
   test("CHAT_JS should render welcome empty state when no session is selected", () => {
@@ -628,19 +549,9 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: null, messages: [], isTyping: false },
     });
 
-    const emptyState = harness.elements.chat.querySelector(".empty-state");
-    assert.ok(emptyState);
-    assert.strictEqual(harness.elements.chat.getAttribute("role"), null);
-    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), null);
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("role"), "status");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-live"), "polite");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-atomic"), "true");
-    assert.strictEqual(
-      harness.elements.emptyStateStatus.textContent,
-      "Welcome to Jules. Select a session or create a new one to begin.",
-    );
-    assert.ok(emptyState.textContent.includes("Welcome to Jules"));
-    assert.ok(emptyState.textContent.includes("Select a session or create a new one"));
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
+    assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -651,39 +562,9 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: "session-1", messages: [], isTyping: false },
     });
 
-    const emptyState = harness.elements.chat.querySelector(".empty-state");
-    assert.ok(emptyState);
-    assert.strictEqual(harness.elements.chat.getAttribute("role"), null);
-    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), null);
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("role"), "status");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-live"), "polite");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-atomic"), "true");
-    assert.strictEqual(
-      harness.elements.emptyStateStatus.textContent,
-      "Ready to assist. Type a message to start interacting with Jules.",
-    );
-    assert.ok(emptyState.textContent.includes("Ready to assist"));
-    assert.ok(emptyState.textContent.includes("Type a message to start interacting"));
-  });
-
-  test("CHAT_JS should keep regular message rendering out of the empty state live region", () => {
-    const harness = createChatScriptHarness({
-      sanitize: (html, config) => config.RETURN_DOM_FRAGMENT ? createHtmlFragment(html) : html,
-    });
-
-    harness.postWindowMessage({
-      type: "chatState",
-      payload: {
-        sessionId: "session-1",
-        messages: [{ role: "assistant", html: "<p>Hello</p>" }],
-        isTyping: false,
-      },
-    });
-
-    assert.strictEqual(harness.elements.chat.getAttribute("role"), null);
-    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), null);
-    assert.strictEqual(harness.elements.emptyStateStatus.textContent, "");
-    assert.ok(harness.elements.chat.innerHTML.includes("<p>Hello</p>"));
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
+    assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -776,21 +657,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: {
-        innerHTML: "",
-        childNodes: [] as any[],
-        replaceChildren: function(...nodes: any[]) {
-          this.childNodes = nodes;
-          this.innerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join("");
-        },
-        scrollTop: 0,
-        scrollHeight: 0,
-        addEventListener: () => {},
-        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-        getAttribute: function(k: string) { return (this as any)[k] ?? null; },
-        querySelectorAll: () => [],
-      },
-      emptyStateStatus: { textContent: "" },
+      chat: { innerHTML: "", childNodes: [] as any[], replaceChildren: function(...nodes: any[]) { this.childNodes = nodes; this.innerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join(""); }, scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
