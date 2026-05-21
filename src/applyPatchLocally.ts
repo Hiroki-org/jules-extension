@@ -250,7 +250,9 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
         return branchRef;
     }
 
-    const remotes = Array.isArray(repository.state?.remotes) ? repository.state.remotes : [];
+    const remotes: { name?: unknown }[] = Array.isArray(repository.state?.remotes)
+        ? repository.state.remotes
+        : [];
     const remoteNames: string[] = [];
     for (const remote of remotes) {
         if (typeof remote.name === "string") {
