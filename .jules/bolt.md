@@ -42,9 +42,6 @@
 ## 2026-05-15 - [Performance] Eliminating spread operators and .filter() chains
 **Learning:** Using spread syntax `...` inside an array literal followed by `.filter()` creates multiple intermediate arrays and forces multiple O(N) iterations, leading to unnecessary memory allocations and CPU overhead during simple array processing.
 **Action:** Use a single-pass `for...of` loop combined with a `Set` to handle array concatenation, type checking, and deduplication simultaneously.
-## 2026-05-20 - Concurrent Deletion of Sessions
-**Learning:** Sequential await loops for network operations block execution and significantly increase total latency, degrading the user experience during bulk actions like session deletion.
-**Action:** Use a worker-pool pattern with `Array.from` and a shared index counter to parallelize network requests with a bounded concurrency limit, combined with `Promise.allSettled()` to wait for all workers and capture individual successes and failures for accurate reporting.
 
 ## 2026-05-20 - [Performance] Single-pass array operations over chaining
 **Learning:** Functional array method chaining like `.map().filter()` or combining `.filter()` with spread operators (`[...array1, ...array2]`) forces multiple iterations over the data and allocates several intermediate temporary arrays. In hot paths or large collections, this results in measurable CPU overhead and increased memory pressure for garbage collection.

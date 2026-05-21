@@ -2730,38 +2730,6 @@ export async function deleteSingleSession(
   sessionsProvider.unmarkSessionAsDeleting(session.name);
 }
 
-const BULK_DELETE_CONCURRENCY = 5;
-
-async function runWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  let nextIndex = 0;
-  const workerCount = Math.min(limit, items.length);
-
-  const results = await Promise.allSettled(
-    Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex;
-        nextIndex++;
-        await worker(items[currentIndex]);
-      }
-    }),
-  );
-  const rejectedResults = results.filter(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (rejectedResults.length === 1) {
-    throw rejectedResults[0].reason;
-  }
-  if (rejectedResults.length > 1) {
-    throw new AggregateError(
-      rejectedResults.map((result) => result.reason),
-      "Multiple concurrent operations failed",
-    );
-  }
-}
 
 export async function executeDeleteSessionCommand(
   context: vscode.ExtensionContext,
@@ -2819,10 +2787,13 @@ export async function executeDeleteSessionCommand(
     async (progress) => {
       let successCount = 0;
       let failCount = 0;
-      let completedCount = 0;
 
-      await runWithConcurrency(targets, BULK_DELETE_CONCURRENCY, async (target) => {
+      for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
         const session = target.session;
+
+        progress.report({ message: `Deleting ${i + 1} of ${targets.length}...` });
+
         try {
           await deleteSingleSession(context, sessionsProvider, session, apiKey);
           successCount++;
@@ -2832,11 +2803,8 @@ export async function executeDeleteSessionCommand(
           failCount++;
 
           sessionsProvider.unmarkSessionAsDeleting(session.name);
-        } finally {
-          completedCount++;
-          progress.report({ message: `Deleting ${completedCount} of ${targets.length}...` });
         }
-      });
+      }
 
       if (failCount > 0) {
         const failedLabel = `session${failCount === 1 ? "" : "s"}`;
@@ -3868,10 +3836,14 @@ export function activate(context: vscode.ExtensionContext) {
         const allKeys = context.globalState.keys();
 
         // Sources & Branches キャッシュをフィルタ
-        const branchCacheKeys = allKeys.filter((key) =>
-          key.startsWith("jules.branches."),
-        );
-        const cacheKeys = ["jules.sources", ...branchCacheKeys];
+        const cacheKeys = ["jules.sources"];
+        let branchCacheCount = 0;
+        for (const key of allKeys) {
+            if (key.startsWith("jules.branches.")) {
+                cacheKeys.push(key);
+                branchCacheCount++;
+            }
+        }
 
         // すべてのキャッシュをクリア
         await Promise.all(
@@ -3882,7 +3854,7 @@ export function activate(context: vscode.ExtensionContext) {
           `Jules cache cleared: ${cacheKeys.length} entries removed`,
         );
         logChannel.appendLine(
-          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheKeys.length} branches)`,
+          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheCount} branches)`,
         );
       } catch (error: any) {
         logChannel.appendLine(`[Jules] Error clearing cache: ${error.message}`);
