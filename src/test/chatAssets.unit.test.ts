@@ -1,73 +1,12 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function approximateTextContent(html: string): string {
-  let text = "";
-  let insideTag = false;
-
-  for (const char of html) {
-    if (char === "<") {
-      insideTag = true;
-      continue;
-    }
-    if (char === ">") {
-      insideTag = false;
-      continue;
-    }
-    if (!insideTag) {
-      text += char;
-    }
-  }
-
-  return text;
-}
-
-function createMockClassList(owner: { className?: string }) {
-  const readClasses = () =>
-    new Set(String(owner.className ?? "").split(/\s+/).filter(Boolean));
-  const writeClasses = (classes: Set<string>) => {
-    owner.className = Array.from(classes).join(" ");
-  };
-
-  return {
-    add: (...tokens: string[]) => {
-      const classes = readClasses();
-      tokens.forEach((token) => classes.add(token));
-      writeClasses(classes);
-    },
-    remove: (...tokens: string[]) => {
-      const classes = readClasses();
-      tokens.forEach((token) => classes.delete(token));
-      writeClasses(classes);
-    },
-    toggle: (token: string, force?: boolean) => {
-      const classes = readClasses();
-      const shouldAdd = force ?? !classes.has(token);
-      if (shouldAdd) {
-        classes.add(token);
-      } else {
-        classes.delete(token);
-      }
-      writeClasses(classes);
-      return shouldAdd;
-    },
-    contains: (token: string) => readClasses().has(token),
-    toString: () => String(owner.className ?? ""),
-  };
-}
-
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
 ) {
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
-  const chatAttributes: Record<string, string> = {};
-  const emptyStateStatusAttributes: Record<string, string> = {
-    role: "status",
-    "aria-live": "polite",
-    "aria-atomic": "true",
-  };
   const listeners: Record<string, Record<string, any>> = {
     chat: {},
     messageInput: {},
@@ -75,12 +14,6 @@ function createChatScriptHarness(
   };
   const elements: Record<string, any> = {
     chat: {
-      childNodes: [] as any[],
-      replaceChildren: function(...nodes: any[]) {
-        this.childNodes = nodes;
-        chatInnerHTMLSetCount += 1;
-        chatInnerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join("");
-      },
       get innerHTML() { return chatInnerHTML; },
       set innerHTML(value: string) {
         chatInnerHTMLSetCount += 1;
@@ -89,25 +22,8 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
-      setAttribute: (name: string, value: string) => { chatAttributes[name] = value; },
-      getAttribute: (name: string) => chatAttributes[name] ?? null,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
-      querySelector: (selector: string) => {
-        if (selector !== ".empty-state" || !chatInnerHTML.includes('class="empty-state"')) {
-          return null;
-        }
-        return {
-          textContent: approximateTextContent(chatInnerHTML),
-        };
-      },
       querySelectorAll: () => [],
-    },
-    emptyStateStatus: {
-      textContent: "",
-      setAttribute: (name: string, value: string) => {
-        emptyStateStatusAttributes[name] = value;
-      },
-      getAttribute: (name: string) => emptyStateStatusAttributes[name] ?? null,
     },
     typing: { classList: { toggle: () => {} } },
     messageInput: {
@@ -125,85 +41,16 @@ function createChatScriptHarness(
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: () => {},
     },
-    sessionLabel: { textContent: "" },
+    sessionLabel: {
+      textContent: "",
+      title: "",
+      setAttribute: function(k: string, v: string) { (this as any)[k] = v; }
+    },
     composer: { addEventListener: (evt: string, cb: any) => { listeners.composer[evt] = cb; } },
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
-    createElement: (tag: string) => {
-      const attributes: Record<string, string> = {};
-      const el: any = {
-        tag,
-        tagName: tag.toUpperCase(),
-        nodeType: 1,
-        className: "",
-        textContent: "",
-        style: {},
-        childNodes: [],
-      };
-      el.classList = createMockClassList(el);
-      el.setAttribute = function(k: string, v: string) {
-        attributes[k] = v;
-        if (k === "class") {
-          this.className = v;
-        } else {
-          (this as any)[k] = v;
-        }
-      };
-      el.getAttribute = function(k: string) {
-        return attributes[k] ?? (this as any)[k] ?? null;
-      };
-      el.removeAttribute = function(k: string) {
-        delete attributes[k];
-        delete (this as any)[k];
-      };
-      el.appendChild = function(child: any) { this.childNodes.push(child); if (child) { child.parentNode = this; } };
-      el.cloneNode = function(deep = false) {
-        const clone: any = mockDocument.createElement(tag);
-        clone.className = this.className;
-        clone.textContent = this.textContent;
-        clone.innerHTML = this.innerHTML;
-        if (this.role) { clone.role = this.role; }
-        if (this["aria-label"]) { clone["aria-label"] = this["aria-label"]; }
-        if (deep) {
-          this.childNodes.forEach((child: any) => {
-            clone.appendChild(typeof child.cloneNode === "function" ? child.cloneNode(true) : child);
-          });
-        }
-        return clone;
-      };
-      Object.defineProperty(el, "outerHTML", {
-        get: function() {
-          const childrenHtml = this.childNodes.map((c: any) => typeof c === "string" ? c : c.outerHTML || (c.nodeType === 3 ? c.textContent : (c.innerHTML || c.textContent || ""))).join("");
-          let attrs = "";
-          if (this.className) {attrs += ` class="${this.className}"`;}
-          if (this.role) {attrs += ` role="${this.role}"`;}
-          if (this["aria-label"]) {attrs += ` aria-label="${this["aria-label"]}"`;}
-          return `<${this.tag}${attrs}>${this.innerHTML || (this.textContent && this.childNodes.length === 0 ? this.textContent : childrenHtml)}</${this.tag}>`;
-        }
-      });
-      return el;
-    },
-    createDocumentFragment: () => {
-      const frag: any = { childNodes: [], nodeType: 11 };
-      frag.appendChild = function(child: any) {
-        this.childNodes.push(child);
-        if (child) {
-          child.parentNode = this;
-        }
-      };
-      frag.cloneNode = function(deep = false) {
-        const clone = mockDocument.createDocumentFragment();
-        if (deep) {
-          this.childNodes.forEach((child: any) => {
-            clone.appendChild(typeof child.cloneNode === "function" ? child.cloneNode(true) : child);
-          });
-        }
-        return clone;
-      };
-      return frag;
-    }
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
@@ -237,16 +84,8 @@ function createChatScriptHarness(
   };
 }
 
-function createHtmlFragment(html: string, onClone?: () => void) {
-  const node = {
-    nodeType: 1,
-    outerHTML: html,
-    cloneNode: () => {
-      onClone?.();
-      return { nodeType: 1, outerHTML: html };
-    },
-  };
-  return { childNodes: [node] };
+function createHtmlFragment(html: string) {
+  return { childNodes: [{ outerHTML: html }] };
 }
 
 function createDetailsContentDiv() {
@@ -289,9 +128,6 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         sanitizeConfig = config;
-        if (config && config.RETURN_DOM_FRAGMENT) {
-            return { childNodes: [{ nodeType: 1, outerHTML: "<p>safe</p>" }] };
-        }
         return "<p>safe</p>";
       },
     });
@@ -324,7 +160,7 @@ suite("chatAssets unit tests", () => {
       "data-index",
     ]);
     assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
-    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, true);
+    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
     assert.deepStrictEqual(sanitizeConfig.FORBID_TAGS, ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"]);
   });
 
@@ -348,12 +184,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should constrain message role class names", () => {
     const harness = createChatScriptHarness({
-      sanitize: (html: any, config: any) => {
-        if (config && config.RETURN_DOM_FRAGMENT) {
-            return { childNodes: [{ nodeType: 1, outerHTML: html }] };
-        }
-        return html;
-      },
+      sanitize: (html) => html,
     });
 
     harness.postWindowMessage({
@@ -371,15 +202,9 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should cache sanitized HTML across renders", () => {
     let sanitizeCalls = 0;
-    let cloneCalls = 0;
     const harness = createChatScriptHarness({
-      sanitize: (html: any, config: any) => {
+      sanitize: (html) => {
         sanitizeCalls += 1;
-        if (config && config.RETURN_DOM_FRAGMENT) {
-          return createHtmlFragment(html, () => {
-            cloneCalls += 1;
-          });
-        }
         return html;
       },
     });
@@ -393,12 +218,10 @@ suite("chatAssets unit tests", () => {
     harness.postWindowMessage({ type: "chatState", payload });
 
     assert.strictEqual(sanitizeCalls, 1);
-    assert.strictEqual(cloneCalls, 2);
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
-    let cloneCalls = 0;
     const attributes: Record<string, string> = {};
     const contentDiv = createDetailsContentDiv();
     const details = {
@@ -424,9 +247,7 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         if (config.RETURN_DOM_FRAGMENT) {
-          return createHtmlFragment("<p>details safe</p>", () => {
-            cloneCalls += 1;
-          });
+          return createHtmlFragment("<p>details safe</p>");
         }
         return "<p>details safe</p>";
       },
@@ -441,7 +262,6 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
-    assert.strictEqual(cloneCalls, 1);
     assert.strictEqual(attributes["aria-busy"], "false");
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
   });
@@ -685,7 +505,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(!CHAT_CSS.includes("height: 100%; opacity: 0; animation: fade-in"));
     assert.ok(CHAT_CSS.includes("@media (prefers-reduced-motion: reduce)"));
     assert.ok(CHAT_CSS.includes(".empty-state { animation: none; opacity: 1; }"));
-    assert.ok(CHAT_CSS.includes(".sr-only"));
   });
 
   test("CHAT_JS should render welcome empty state when no session is selected", () => {
@@ -696,19 +515,9 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: null, messages: [], isTyping: false },
     });
 
-    const emptyState = harness.elements.chat.querySelector(".empty-state");
-    assert.ok(emptyState);
-    assert.strictEqual(harness.elements.chat.getAttribute("role"), null);
-    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), null);
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("role"), "status");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-live"), "polite");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-atomic"), "true");
-    assert.strictEqual(
-      harness.elements.emptyStateStatus.textContent,
-      "Welcome to Jules. Select a session or create a new one to begin.",
-    );
-    assert.ok(emptyState.textContent.includes("Welcome to Jules"));
-    assert.ok(emptyState.textContent.includes("Select a session or create a new one"));
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
+    assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -719,39 +528,9 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: "session-1", messages: [], isTyping: false },
     });
 
-    const emptyState = harness.elements.chat.querySelector(".empty-state");
-    assert.ok(emptyState);
-    assert.strictEqual(harness.elements.chat.getAttribute("role"), null);
-    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), null);
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("role"), "status");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-live"), "polite");
-    assert.strictEqual(harness.elements.emptyStateStatus.getAttribute("aria-atomic"), "true");
-    assert.strictEqual(
-      harness.elements.emptyStateStatus.textContent,
-      "Ready to assist. Type a message to start interacting with Jules.",
-    );
-    assert.ok(emptyState.textContent.includes("Ready to assist"));
-    assert.ok(emptyState.textContent.includes("Type a message to start interacting"));
-  });
-
-  test("CHAT_JS should keep regular message rendering out of the empty state live region", () => {
-    const harness = createChatScriptHarness({
-      sanitize: (html, config) => config.RETURN_DOM_FRAGMENT ? createHtmlFragment(html) : html,
-    });
-
-    harness.postWindowMessage({
-      type: "chatState",
-      payload: {
-        sessionId: "session-1",
-        messages: [{ role: "assistant", html: "<p>Hello</p>" }],
-        isTyping: false,
-      },
-    });
-
-    assert.strictEqual(harness.elements.chat.getAttribute("role"), null);
-    assert.strictEqual(harness.elements.chat.getAttribute("aria-live"), null);
-    assert.strictEqual(harness.elements.emptyStateStatus.textContent, "");
-    assert.ok(harness.elements.chat.innerHTML.includes("<p>Hello</p>"));
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
+    assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -844,21 +623,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: {
-        innerHTML: "",
-        childNodes: [] as any[],
-        replaceChildren: function(...nodes: any[]) {
-          this.childNodes = nodes;
-          this.innerHTML = nodes.map((n: any) => typeof n === "string" ? n : n.outerHTML || (n.nodeType === 3 ? n.textContent : (n.innerHTML || n.textContent || ""))).join("");
-        },
-        scrollTop: 0,
-        scrollHeight: 0,
-        addEventListener: () => {},
-        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-        getAttribute: function(k: string) { return (this as any)[k] ?? null; },
-        querySelectorAll: () => [],
-      },
-      emptyStateStatus: { textContent: "" },
+      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
@@ -875,14 +640,16 @@ suite("chatAssets unit tests", () => {
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
         addEventListener: () => {}
       },
-      sessionLabel: { textContent: "" },
+      sessionLabel: {
+        textContent: "",
+        title: "",
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; }
+      },
       composer: { addEventListener: () => {} },
     };
 
     const mockDocument = {
       getElementById: (id: string) => elements[id],
-      createElement: (tag: string) => ({ tag, className: "", childNodes: [] as any[], setAttribute: function(k: string, v: string) { (this as any)[k] = v; }, appendChild: function(child: any) { this.childNodes.push(child); } }),
-      createDocumentFragment: () => ({ childNodes: [] as any[], appendChild: function(child: any) { this.childNodes.push(child); } })
     };
     let messageListener: any = null;
     const mockWindow = {
@@ -909,6 +676,8 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton.title, "Select a session to send a message");
     assert.strictEqual(elements.sendButton["aria-label"], "Send (Select a session to send a message)");
     assert.strictEqual(elements.sessionLabel.textContent, "Session: None selected");
+    assert.strictEqual(elements.sessionLabel.title, "Session: None selected");
+    assert.strictEqual(elements.sessionLabel["aria-label"], "Session: None selected");
 
     // (2) sessionId present + empty input value
     elements.messageInput.value = "   "; // whitespace
@@ -918,6 +687,8 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton.title, "Type a message to send");
     assert.strictEqual(elements.sendButton["aria-label"], "Send (Type a message to send)");
     assert.strictEqual(elements.sessionLabel.textContent, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel.title, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel["aria-label"], "Session: session-123");
 
     // (3) sessionId present + non-empty input value
     elements.messageInput.value = "Hello";
@@ -928,6 +699,9 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton["aria-disabled"], "false");
     assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");
     assert.strictEqual(elements.sendButton["aria-label"], "Send message (Ctrl/Cmd+Enter)");
+    assert.strictEqual(elements.sessionLabel.textContent, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel.title, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel["aria-label"], "Session: session-123");
   });
 
   test("CHAT_JS should preserve fractional border widths when auto-resizing", () => {

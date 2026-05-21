@@ -1,0 +1,1741 @@
+diff --git a/.jules/bolt.md b/.jules/bolt.md
+index c553c85..1b3ef61 100644
+--- a/.jules/bolt.md
++++ b/.jules/bolt.md
+@@ -42,3 +42,6 @@
+ ## 2026-05-15 - [Performance] Eliminating spread operators and .filter() chains
+ **Learning:** Using spread syntax `...` inside an array literal followed by `.filter()` creates multiple intermediate arrays and forces multiple O(N) iterations, leading to unnecessary memory allocations and CPU overhead during simple array processing.
+ **Action:** Use a single-pass `for...of` loop combined with a `Set` to handle array concatenation, type checking, and deduplication simultaneously.
++## 2025-05-21 - Optimize branch availability checks by fetching all branches once
++**Learning:** Checking for available branch names sequentially using multiple `git branch` spawns introduces unnecessary I/O and process overhead, scaling poorly with repeated collisions (e.g. up to $O(N)$ git spawns).
++**Action:** When searching for an available local entity name (like a branch), prefer a single API call to fetch all existing entities into a memory `Set` ($O(1)$ lookup) and perform the collision checks entirely in memory. Include a graceful fallback for environments where the bulk-fetch API may be unavailable.
+diff --git a/src/applyPatchLocally.ts b/src/applyPatchLocally.ts
+index 420b698..654f121 100644
+--- a/src/applyPatchLocally.ts
++++ b/src/applyPatchLocally.ts
+@@ -1,292 +1,397 @@
+-import * as vscode from 'vscode';
+-import * as childProcess from 'child_process';
+-import * as os from 'os';
+-import * as path from 'path';
+-import * as fs from 'fs/promises';
+-import { Session } from './types';
+-import { ChangeSetSummary, getChangeSetGitPatch, getChangeSetUnidiffPatch } from './sessionArtifacts';
+-import { getGitApi } from './gitUtils';
+-import { selectRepository, handleUncommittedChanges } from './sessionContextMenu';
++import * as vscode from "vscode";
++import * as childProcess from "child_process";
++import * as os from "os";
++import * as path from "path";
++import * as fs from "fs/promises";
++import { Session } from "./types";
++import {
++  ChangeSetSummary,
++  getChangeSetGitPatch,
++  getChangeSetUnidiffPatch,
++} from "./sessionArtifacts";
++import { getGitApi } from "./gitUtils";
++import {
++  selectRepository,
++  handleUncommittedChanges,
++} from "./sessionContextMenu";
+
+ const MAX_BRANCH_NAME_ATTEMPTS = 20;
+
+ export async function applyPatchLocallyForSession(options: {
+-    session: Session;
+-    changeSet: ChangeSetSummary;
+-    outputChannel: vscode.OutputChannel;
++  session: Session;
++  changeSet: ChangeSetSummary;
++  outputChannel: vscode.OutputChannel;
+ }): Promise<void> {
+-    const { session, changeSet, outputChannel } = options;
++  const { session, changeSet, outputChannel } = options;
+
+-    const log = (msg: string) => {
+-        console.log(`[Jules] ${msg}`);
+-        outputChannel.appendLine(`[Jules] ${msg}`);
+-    };
++  const log = (msg: string) => {
++    console.log(`[Jules] ${msg}`);
++    outputChannel.appendLine(`[Jules] ${msg}`);
++  };
+
+-    // 1. Premise check
+-    const gitPatch = getChangeSetGitPatch(changeSet);
+-    if (!gitPatch) {
+-        vscode.window.showErrorMessage("This session's ChangeSet does not contain a gitPatch.");
+-        return;
++  // 1. Premise check
++  const gitPatch = getChangeSetGitPatch(changeSet);
++  if (!gitPatch) {
++    vscode.window.showErrorMessage(
++      "This session's ChangeSet does not contain a gitPatch.",
++    );
++    return;
++  }
++
++  const unidiffPatch = getChangeSetUnidiffPatch(changeSet);
++  const baseCommitId = changeSet.baseCommitId;
++  const suggestedCommitMessage = changeSet.suggestedCommitMessage;
++
++  if (!unidiffPatch) {
++    vscode.window.showErrorMessage(
++      "This session's ChangeSet does not contain a unidiffPatch.",
++    );
++    return;
++  }
++
++  try {
++    // 2. Workspace / Repository selection
++    const gitApi = await getGitApi(outputChannel);
++    const repositories = gitApi.repositories;
++    if (!repositories || repositories.length === 0) {
++      vscode.window.showErrorMessage(
++        "No Git repository found in the workspace.",
++      );
++      return;
++    }
++    const resolvedGitPath =
++      typeof gitApi.git?.path === "string" && gitApi.git.path.trim().length > 0
++        ? gitApi.git.path
++        : undefined;
++    if (!resolvedGitPath) {
++      log(
++        "VS Code Git API did not expose git.path; falling back to 'git' on PATH.",
++      );
++    }
++    const gitExecutable = resolvedGitPath ?? "git";
++
++    const repository = await selectRepository(repositories, log);
++    if (!repository) {
++      return;
+     }
+
+-    const unidiffPatch = getChangeSetUnidiffPatch(changeSet);
+-    const baseCommitId = changeSet.baseCommitId;
+-    const suggestedCommitMessage = changeSet.suggestedCommitMessage;
++    const sessionIdValue = session.name.split("/").pop() || "unknown";
++    const branchName = `jules-patch-${sessionIdValue}`;
+
+-    if (!unidiffPatch) {
+-        vscode.window.showErrorMessage("This session's ChangeSet does not contain a unidiffPatch.");
+-        return;
++    // 3. dirty working tree inspection
++    const canProceed = await handleUncommittedChanges(
++      repository,
++      branchName,
++      log,
++    );
++    if (!canProceed) {
++      return;
+     }
+
++    // 4. fetch
++    log("Fetching from remote...");
+     try {
+-        // 2. Workspace / Repository selection
+-        const gitApi = await getGitApi(outputChannel);
+-        const repositories = gitApi.repositories;
+-        if (!repositories || repositories.length === 0) {
+-            vscode.window.showErrorMessage("No Git repository found in the workspace.");
+-            return;
+-        }
+-        const resolvedGitPath = typeof gitApi.git?.path === "string" && gitApi.git.path.trim().length > 0
+-            ? gitApi.git.path
+-            : undefined;
+-        if (!resolvedGitPath) {
+-            log("VS Code Git API did not expose git.path; falling back to 'git' on PATH.");
+-        }
+-        const gitExecutable = resolvedGitPath ?? "git";
+-
+-        const repository = await selectRepository(repositories, log);
+-        if (!repository) {
+-            return;
+-        }
++      await repository.fetch();
++    } catch (fetchError: any) {
++      vscode.window.showErrorMessage(
++        `Failed to fetch from remote: ${fetchError.message}`,
++      );
++      return;
++    }
+
+-        const sessionIdValue = session.name.split("/").pop() || "unknown";
+-        const branchName = `jules-patch-${sessionIdValue}`;
++    // 5. baseCommitId resolution
++    let commitToBranchFrom = baseCommitId;
++    if (baseCommitId) {
++      try {
++        await repository.getCommit(baseCommitId);
++      } catch (e) {
++        log(`Commit ${baseCommitId} not found in repository after fetch.`);
++        commitToBranchFrom = undefined;
++      }
++    }
+
+-        // 3. dirty working tree inspection
+-        const canProceed = await handleUncommittedChanges(repository, branchName, log);
+-        if (!canProceed) {
+-            return;
++    if (!commitToBranchFrom) {
++      const startingBranch =
++        session.sourceContext?.githubRepoContext?.startingBranch?.trim();
++      const baseCommitStatusMessage = baseCommitId
++        ? `Base commit ${baseCommitId} not found`
++        : "Base commit not specified";
++      if (startingBranch) {
++        const action = await vscode.window.showWarningMessage(
++          `${baseCommitStatusMessage}. Fallback to starting branch "${startingBranch}"?`,
++          { modal: true },
++          "Fallback",
++          "Cancel",
++        );
++        if (action !== "Fallback") {
++          return;
+         }
+-
+-        // 4. fetch
+-        log("Fetching from remote...");
+-        try {
+-            await repository.fetch();
+-        } catch (fetchError: any) {
+-            vscode.window.showErrorMessage(`Failed to fetch from remote: ${fetchError.message}`);
+-            return;
++        commitToBranchFrom = await resolveStartingBranchRef(
++          repository,
++          startingBranch,
++        );
++        if (commitToBranchFrom !== startingBranch) {
++          log(
++            `Resolved starting branch "${startingBranch}" to "${commitToBranchFrom}".`,
++          );
+         }
++      } else {
++        vscode.window.showErrorMessage(
++          `${baseCommitStatusMessage} and no starting branch specified.`,
++        );
++        return;
++      }
++    }
+
+-        // 5. baseCommitId resolution
+-        let commitToBranchFrom = baseCommitId;
+-        if (baseCommitId) {
+-            try {
+-                await repository.getCommit(baseCommitId);
+-            } catch (e) {
+-                log(`Commit ${baseCommitId} not found in repository after fetch.`);
+-                commitToBranchFrom = undefined;
+-            }
+-        }
++    // 6. Create new branch
++    log(`Creating branch ${branchName} from ${commitToBranchFrom}...`);
+
+-        if (!commitToBranchFrom) {
+-            const startingBranch = session.sourceContext?.githubRepoContext?.startingBranch?.trim();
+-            const baseCommitStatusMessage = baseCommitId
+-                ? `Base commit ${baseCommitId} not found`
+-                : "Base commit not specified";
+-            if (startingBranch) {
+-                const action = await vscode.window.showWarningMessage(
+-                    `${baseCommitStatusMessage}. Fallback to starting branch "${startingBranch}"?`,
+-                    { modal: true },
+-                    "Fallback",
+-                    "Cancel"
+-                );
+-                if (action !== "Fallback") {
+-                    return;
+-                }
+-                commitToBranchFrom = await resolveStartingBranchRef(repository, startingBranch);
+-                if (commitToBranchFrom !== startingBranch) {
+-                    log(`Resolved starting branch "${startingBranch}" to "${commitToBranchFrom}".`);
+-                }
+-            } else {
+-                vscode.window.showErrorMessage(`${baseCommitStatusMessage} and no starting branch specified.`);
+-                return;
+-            }
+-        }
++    const finalBranchName = await findAvailableBranchName(
++      repository,
++      branchName,
++    );
++    const originalBranch =
++      typeof repository.state?.HEAD?.name === "string" &&
++      repository.state.HEAD.name.trim().length > 0
++        ? repository.state.HEAD.name
++        : undefined;
+
+-        // 6. Create new branch
+-        log(`Creating branch ${branchName} from ${commitToBranchFrom}...`);
+-
+-        const finalBranchName = await findAvailableBranchName(repository, branchName);
+-        const originalBranch = typeof repository.state?.HEAD?.name === "string" && repository.state.HEAD.name.trim().length > 0
+-            ? repository.state.HEAD.name
+-            : undefined;
+-
+-        try {
+-            await repository.createBranch(finalBranchName, true, commitToBranchFrom);
+-            log(`Checked out to new branch: ${finalBranchName}`);
+-        } catch (branchError: any) {
+-            vscode.window.showErrorMessage(`Failed to create branch: ${branchError.message}`);
+-            return;
+-        }
++    try {
++      await repository.createBranch(finalBranchName, true, commitToBranchFrom);
++      log(`Checked out to new branch: ${finalBranchName}`);
++    } catch (branchError: any) {
++      vscode.window.showErrorMessage(
++        `Failed to create branch: ${branchError.message}`,
++      );
++      return;
++    }
+
+-        // 7. Apply patch
+-        const patchFileName = `jules-${sessionIdValue}-${Date.now()}.patch`;
+-        const patchFilePath = path.join(os.tmpdir(), patchFileName);
+-
+-        await fs.writeFile(patchFilePath, unidiffPatch, { encoding: "utf8", mode: 0o600 });
+-
+-        log(`Applying patch from ${patchFilePath}...`);
+-
+-        try {
+-            await new Promise<void>((resolve, reject) => {
+-                childProcess.execFile(
+-                    gitExecutable,
+-                    ["apply", "--3way", patchFilePath],
+-                    { cwd: repository.rootUri.fsPath, timeout: 30000, killSignal: "SIGKILL" },
+-                    (error, stdout, stderr) => {
+-                        if (error) {
+-                            const failureDetails = stderr || error.message;
+-                            log(`Git apply failed for ${patchFilePath}: ${failureDetails}`);
+-                            reject(new Error(`git apply failed. Check Jules output channel for details.`));
+-                        } else {
+-                            resolve();
+-                        }
+-                    }
+-                );
+-            });
+-
+-            // Clean up patch file on success
+-            await fs.unlink(patchFilePath).catch(() => {});
+-        } catch (applyError: any) {
+-            const branchStateMessage = await restoreOriginalBranchAfterApplyFailure(
+-                repository,
+-                originalBranch,
+-                finalBranchName,
+-                log,
+-            );
+-            log(`Patch file saved at: ${patchFilePath}`);
+-            vscode.window.showErrorMessage(`Failed to apply patch: ${applyError.message}\n${branchStateMessage}\nPatch file saved at: ${patchFilePath}`);
+-            return;
+-        }
++    // 7. Apply patch
++    const patchFileName = `jules-${sessionIdValue}-${Date.now()}.patch`;
++    const patchFilePath = path.join(os.tmpdir(), patchFileName);
+
+-        // 8. Pre-fill commit message
+-        if (suggestedCommitMessage) {
+-            repository.inputBox.value = suggestedCommitMessage;
+-        }
++    await fs.writeFile(patchFilePath, unidiffPatch, {
++      encoding: "utf8",
++      mode: 0o600,
++    });
+
+-        // 9. Completion notification
+-        vscode.window.showInformationMessage(
+-            `Patch applied to branch "${finalBranchName}". Please review the changes in the Source Control view and commit.`
++    log(`Applying patch from ${patchFilePath}...`);
++
++    try {
++      await new Promise<void>((resolve, reject) => {
++        childProcess.execFile(
++          gitExecutable,
++          ["apply", "--3way", patchFilePath],
++          {
++            cwd: repository.rootUri.fsPath,
++            timeout: 30000,
++            killSignal: "SIGKILL",
++          },
++          (error, stdout, stderr) => {
++            if (error) {
++              const failureDetails = stderr || error.message;
++              log(`Git apply failed for ${patchFilePath}: ${failureDetails}`);
++              reject(
++                new Error(
++                  `git apply failed. Check Jules output channel for details.`,
++                ),
++              );
++            } else {
++              resolve();
++            }
++          },
+         );
++      });
++
++      // Clean up patch file on success
++      await fs.unlink(patchFilePath).catch(() => {});
++    } catch (applyError: any) {
++      const branchStateMessage = await restoreOriginalBranchAfterApplyFailure(
++        repository,
++        originalBranch,
++        finalBranchName,
++        log,
++      );
++      log(`Patch file saved at: ${patchFilePath}`);
++      vscode.window.showErrorMessage(
++        `Failed to apply patch: ${applyError.message}\n${branchStateMessage}\nPatch file saved at: ${patchFilePath}`,
++      );
++      return;
++    }
+
+-    } catch (err: any) {
+-        log(`Error applying patch locally: ${err.message}`);
+-        vscode.window.showErrorMessage(`An error occurred: ${err.message}`);
++    // 8. Pre-fill commit message
++    if (suggestedCommitMessage) {
++      repository.inputBox.value = suggestedCommitMessage;
+     }
++
++    // 9. Completion notification
++    vscode.window.showInformationMessage(
++      `Patch applied to branch "${finalBranchName}". Please review the changes in the Source Control view and commit.`,
++    );
++  } catch (err: any) {
++    log(`Error applying patch locally: ${err.message}`);
++    vscode.window.showErrorMessage(`An error occurred: ${err.message}`);
++  }
+ }
+
+ function isBranchNotFoundError(error: unknown): boolean {
+-    const structuredValues = ["code", "gitErrorCode", "name"]
+-        .map((key) => readErrorStringProperty(error, key))
+-        .filter((value): value is string => typeof value === "string");
+-    if (structuredValues.some((value) => /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref/i.test(value))) {
+-        return true;
+-    }
++  const structuredValues = ["code", "gitErrorCode", "name"]
++    .map((key) => readErrorStringProperty(error, key))
++    .filter((value): value is string => typeof value === "string");
++  if (
++    structuredValues.some((value) =>
++      /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref/i.test(
++        value,
++      ),
++    )
++  ) {
++    return true;
++  }
+
+-    const message = error instanceof Error ? error.message : String(error);
+-    return /branch.*not found|not found.*branch|no such branch|does not exist|unknown revision|could not find ref|ブランチ.*(見つかりません|見つからない|存在しません|存在しない)|存在しない.*ブランチ|参照.*(見つかりません|見つからない)|リビジョン.*不明/i.test(message);
++  const message = error instanceof Error ? error.message : String(error);
++  return /branch.*not found|not found.*branch|no such branch|does not exist|unknown revision|could not find ref|ブランチ.*(見つかりません|見つからない|存在しません|存在しない)|存在しない.*ブランチ|参照.*(見つかりません|見つからない)|リビジョン.*不明/i.test(
++    message,
++  );
+ }
+
+-function readErrorStringProperty(error: unknown, propertyName: string): string | undefined {
+-    if (!error || typeof error !== "object") {
+-        return undefined;
+-    }
+-    const value = (error as Record<string, unknown>)[propertyName];
+-    return typeof value === "string" ? value : undefined;
++function readErrorStringProperty(
++  error: unknown,
++  propertyName: string,
++): string | undefined {
++  if (!error || typeof error !== "object") {
++    return undefined;
++  }
++  const value = (error as Record<string, unknown>)[propertyName];
++  return typeof value === "string" ? value : undefined;
+ }
+
+ async function restoreOriginalBranchAfterApplyFailure(
+-    repository: any,
+-    originalBranch: string | undefined,
+-    failedBranchName: string,
+-    log: (msg: string) => void,
++  repository: any,
++  originalBranch: string | undefined,
++  failedBranchName: string,
++  log: (msg: string) => void,
+ ): Promise<string> {
+-    if (!originalBranch || typeof repository.checkout !== "function") {
+-        const message = `Current branch may remain "${failedBranchName}".`;
+-        log(`Patch apply failed on ${failedBranchName}; original branch is unavailable for automatic restore.`);
+-        return message;
+-    }
++  if (!originalBranch || typeof repository.checkout !== "function") {
++    const message = `Current branch may remain "${failedBranchName}".`;
++    log(
++      `Patch apply failed on ${failedBranchName}; original branch is unavailable for automatic restore.`,
++    );
++    return message;
++  }
+
+-    try {
+-        await repository.checkout(originalBranch);
+-        const message = `Restored original branch "${originalBranch}" after patch failure. Failed branch "${failedBranchName}" remains for inspection.`;
+-        log(message);
+-        return message;
+-    } catch (checkoutError: any) {
+-        const message = `Could not restore original branch "${originalBranch}". Current branch may remain "${failedBranchName}".`;
+-        log(`${message} Checkout error: ${checkoutError?.message ?? checkoutError}`);
+-        return message;
+-    }
++  try {
++    await repository.checkout(originalBranch);
++    const message = `Restored original branch "${originalBranch}" after patch failure. Failed branch "${failedBranchName}" remains for inspection.`;
++    log(message);
++    return message;
++  } catch (checkoutError: any) {
++    const message = `Could not restore original branch "${originalBranch}". Current branch may remain "${failedBranchName}".`;
++    log(
++      `${message} Checkout error: ${checkoutError?.message ?? checkoutError}`,
++    );
++    return message;
++  }
+ }
+
+-async function branchExists(repository: any, branchRef: string): Promise<boolean> {
+-    try {
+-        return !!(await repository.getBranch(branchRef));
+-    } catch (error) {
+-        if (isBranchNotFoundError(error)) {
+-            return false;
+-        }
+-        throw error;
++async function branchExists(
++  repository: any,
++  branchRef: string,
++): Promise<boolean> {
++  try {
++    return !!(await repository.getBranch(branchRef));
++  } catch (error) {
++    if (isBranchNotFoundError(error)) {
++      return false;
+     }
++    throw error;
++  }
+ }
+
+-async function resolveStartingBranchRef(repository: any, startingBranch: string): Promise<string> {
+-    const branchRef = startingBranch.trim();
+-    if (branchRef.length === 0) {
+-        return startingBranch;
+-    }
+-    if (await branchExists(repository, branchRef)) {
+-        return branchRef;
+-    }
++async function resolveStartingBranchRef(
++  repository: any,
++  startingBranch: string,
++): Promise<string> {
++  const branchRef = startingBranch.trim();
++  if (branchRef.length === 0) {
++    return startingBranch;
++  }
++  if (await branchExists(repository, branchRef)) {
++    return branchRef;
++  }
+
+-    const remotes = Array.isArray(repository.state?.remotes) ? repository.state.remotes : [];
+-    const remoteNames = remotes
+-        .map((remote: { name?: unknown }) => typeof remote.name === "string" ? remote.name.trim() : "")
+-        .filter((name: string) => name.length > 0)
+-        .sort((a: string, b: string) => {
+-            if (a === "origin") {
+-                return -1;
+-            }
+-            if (b === "origin") {
+-                return 1;
+-            }
+-            return a.localeCompare(b);
+-        });
++  const remotes = Array.isArray(repository.state?.remotes)
++    ? repository.state.remotes
++    : [];
++  const remoteNames = remotes
++    .map((remote: { name?: unknown }) =>
++      typeof remote.name === "string" ? remote.name.trim() : "",
++    )
++    .filter((name: string) => name.length > 0)
++    .sort((a: string, b: string) => {
++      if (a === "origin") {
++        return -1;
++      }
++      if (b === "origin") {
++        return 1;
++      }
++      return a.localeCompare(b);
++    });
+
+-    for (const remoteName of remoteNames) {
+-        const remoteRef = `${remoteName}/${branchRef}`;
+-        if (await branchExists(repository, remoteRef)) {
+-            return remoteRef;
+-        }
++  for (const remoteName of remoteNames) {
++    const remoteRef = `${remoteName}/${branchRef}`;
++    if (await branchExists(repository, remoteRef)) {
++      return remoteRef;
+     }
++  }
+
+-    return branchRef;
++  return branchRef;
+ }
+
+-async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
+-    for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
+-        const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
+-        try {
+-            const branch = await repository.getBranch(candidate);
+-            if (!branch) {
+-                return candidate;
+-            }
+-        } catch (error) {
+-            if (isBranchNotFoundError(error)) {
+-                return candidate;
+-            }
+-            throw error;
++async function findAvailableBranchName(
++  repository: any,
++  branchName: string,
++): Promise<string> {
++  // 1. O(1) Fast path: fetch all local branches once if getBranches is available
++  if (typeof repository.getBranches === "function") {
++    try {
++      const branches = await repository.getBranches({ remote: false });
++      const localBranchNames = new Set(
++        branches
++          .map((b: any) => b.name)
++          .filter((name: any): name is string => typeof name === "string"),
++      );
++
++      for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
++        const candidate =
++          attempt === 1 ? branchName : `${branchName}-${attempt}`;
++        if (!localBranchNames.has(candidate)) {
++          return candidate;
+         }
++      }
++      throw new Error(
++        `Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`,
++      );
++    } catch (error) {
++      // Fallback to sequential getBranch if getBranches fails
++    }
++  }
++
++  // 2. Slow path fallback: sequential queries
++  for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
++    const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
++    try {
++      const branch = await repository.getBranch(candidate);
++      if (!branch) {
++        return candidate;
++      }
++    } catch (error) {
++      if (isBranchNotFoundError(error)) {
++        return candidate;
++      }
++      throw error;
+     }
+-    throw new Error(`Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`);
++  }
++  throw new Error(
++    `Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`,
++  );
+ }
+diff --git a/src/test/applyPatchLocally.unit.test.ts b/src/test/applyPatchLocally.unit.test.ts
+index 4a2d661..831c9da 100644
+--- a/src/test/applyPatchLocally.unit.test.ts
++++ b/src/test/applyPatchLocally.unit.test.ts
+@@ -1,482 +1,612 @@
+-import * as assert from 'assert';
+-import childProcess = require('child_process');
+-import * as fs from 'fs/promises';
+-import * as os from 'os';
+-import * as path from 'path';
+-import * as sinon from 'sinon';
+-import * as vscode from 'vscode';
+-import { applyPatchLocallyForSession } from '../applyPatchLocally';
+-import * as gitUtils from '../gitUtils';
+-import * as sessionContextMenu from '../sessionContextMenu';
+-import { ChangeSetSummary } from '../sessionArtifacts';
+-import { Session } from '../types';
+-
+-suite('applyPatchLocallyForSession ユニットテスト', () => {
+-    let sandbox: sinon.SinonSandbox;
+-    let repository: any;
+-    let outputChannel: vscode.OutputChannel;
+-    let getGitApiStub: sinon.SinonStub;
+-    let execFileStub: sinon.SinonStub;
+-    let showErrorMessageStub: sinon.SinonStub;
+-    let showWarningMessageStub: sinon.SinonStub;
+-
+-    setup(() => {
+-        sandbox = sinon.createSandbox();
+-        repository = {
+-            fetch: sandbox.stub().resolves(),
+-            getCommit: sandbox.stub().resolves({ hash: 'base-sha' }),
+-            getBranch: sandbox.stub().rejects(new Error('branch not found')),
+-            createBranch: sandbox.stub().resolves(),
+-            checkout: sandbox.stub().resolves(),
+-            inputBox: { value: '' },
+-            rootUri: { fsPath: '/repo' },
+-            state: { HEAD: { name: 'main' }, remotes: [] },
+-        };
+-        outputChannel = {
+-            appendLine: sandbox.spy(),
+-        } as any;
+-
+-        getGitApiStub = sandbox.stub(gitUtils, 'getGitApi').resolves({
+-            repositories: [repository],
+-            git: { path: '/custom/git' },
+-        });
+-        sandbox.stub(sessionContextMenu, 'selectRepository').resolves(repository);
+-        sandbox.stub(sessionContextMenu, 'handleUncommittedChanges').resolves(true);
+-        showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
+-        showWarningMessageStub = sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined);
+-        sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
+-        execFileStub = sandbox.stub(childProcess, 'execFile');
+-        execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
+-            callback(null, '', '');
+-            return {} as childProcess.ChildProcess;
+-        }) as any);
++import * as assert from "assert";
++import childProcess = require("child_process");
++import * as fs from "fs/promises";
++import * as os from "os";
++import * as path from "path";
++import * as sinon from "sinon";
++import * as vscode from "vscode";
++import { applyPatchLocallyForSession } from "../applyPatchLocally";
++import * as gitUtils from "../gitUtils";
++import * as sessionContextMenu from "../sessionContextMenu";
++import { ChangeSetSummary } from "../sessionArtifacts";
++import { Session } from "../types";
++
++suite("applyPatchLocallyForSession ユニットテスト", () => {
++  let sandbox: sinon.SinonSandbox;
++  let repository: any;
++  let outputChannel: vscode.OutputChannel;
++  let getGitApiStub: sinon.SinonStub;
++  let execFileStub: sinon.SinonStub;
++  let showErrorMessageStub: sinon.SinonStub;
++  let showWarningMessageStub: sinon.SinonStub;
++
++  setup(() => {
++    sandbox = sinon.createSandbox();
++    repository = {
++      fetch: sandbox.stub().resolves(),
++      getCommit: sandbox.stub().resolves({ hash: "base-sha" }),
++      getBranch: sandbox.stub().rejects(new Error("branch not found")),
++      createBranch: sandbox.stub().resolves(),
++      checkout: sandbox.stub().resolves(),
++      inputBox: { value: "" },
++      rootUri: { fsPath: "/repo" },
++      state: { HEAD: { name: "main" }, remotes: [] },
++    };
++    outputChannel = {
++      appendLine: sandbox.spy(),
++    } as any;
++
++    getGitApiStub = sandbox.stub(gitUtils, "getGitApi").resolves({
++      repositories: [repository],
++      git: { path: "/custom/git" },
+     });
+-
+-    teardown(() => {
+-        sandbox.restore();
++    sandbox.stub(sessionContextMenu, "selectRepository").resolves(repository);
++    sandbox.stub(sessionContextMenu, "handleUncommittedChanges").resolves(true);
++    showErrorMessageStub = sandbox
++      .stub(vscode.window, "showErrorMessage")
++      .resolves(undefined);
++    showWarningMessageStub = sandbox
++      .stub(vscode.window, "showWarningMessage")
++      .resolves(undefined);
++    sandbox.stub(vscode.window, "showInformationMessage").resolves(undefined);
++    execFileStub = sandbox.stub(childProcess, "execFile");
++    execFileStub.callsFake(((
++      _file: string,
++      _args: string[],
++      _options: any,
++      callback: any,
++    ) => {
++      callback(null, "", "");
++      return {} as childProcess.ChildProcess;
++    }) as any);
++  });
++
++  teardown(() => {
++    sandbox.restore();
++  });
++
++  function createSession(): Session {
++    return {
++      name: "sessions/abc",
++      title: "Apply patch session",
++      state: "COMPLETED",
++      rawState: "COMPLETED",
++      sourceContext: {
++        source: "sources/github/Hiroki-org/jules-extension",
++        githubRepoContext: {
++          startingBranch: "main",
++        },
++      },
++    };
++  }
++
++  function createChangeSet(
++    rawGitPatch: Record<string, unknown> = {},
++  ): ChangeSetSummary {
++    return {
++      files: [],
++      raw: {
++        gitPatch: {
++          unidiffPatch:
++            "diff --git a/src/file.ts b/src/file.ts\n--- a/src/file.ts\n+++ b/src/file.ts",
++          baseCommitId: "base-sha",
++          suggestedCommitMessage: "feat: apply patch locally",
++          ...rawGitPatch,
++        },
++      },
++      baseCommitId: "base-sha",
++      suggestedCommitMessage: "feat: apply patch locally",
++    };
++  }
++
++  test("ブランチ名衝突時にユニークなブランチ名で作成し、VS Code Git API の git path を使うこと", async () => {
++    repository.getBranch.resetBehavior();
++    repository.getBranch.onFirstCall().resolves({ name: "jules-patch-abc" });
++    repository.getBranch.onSecondCall().resolves({ name: "jules-patch-abc-2" });
++    repository.getBranch.onThirdCall().rejects(new Error("branch not found"));
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    function createSession(): Session {
+-        return {
+-            name: 'sessions/abc',
+-            title: 'Apply patch session',
+-            state: 'COMPLETED',
+-            rawState: 'COMPLETED',
+-            sourceContext: {
+-                source: 'sources/github/Hiroki-org/jules-extension',
+-                githubRepoContext: {
+-                    startingBranch: 'main',
+-                },
+-            },
+-        };
+-    }
+-
+-    function createChangeSet(rawGitPatch: Record<string, unknown> = {}): ChangeSetSummary {
+-        return {
+-            files: [],
+-            raw: {
+-                gitPatch: {
+-                    unidiffPatch: 'diff --git a/src/file.ts b/src/file.ts\n--- a/src/file.ts\n+++ b/src/file.ts',
+-                    baseCommitId: 'base-sha',
+-                    suggestedCommitMessage: 'feat: apply patch locally',
+-                    ...rawGitPatch,
+-                },
+-            },
+-            baseCommitId: 'base-sha',
+-            suggestedCommitMessage: 'feat: apply patch locally',
+-        };
+-    }
+-
+-    test('ブランチ名衝突時にユニークなブランチ名で作成し、VS Code Git API の git path を使うこと', async () => {
+-        repository.getBranch.resetBehavior();
+-        repository.getBranch.onFirstCall().resolves({ name: 'jules-patch-abc' });
+-        repository.getBranch.onSecondCall().resolves({ name: 'jules-patch-abc-2' });
+-        repository.getBranch.onThirdCall().rejects(new Error('branch not found'));
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
+-
+-        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+-            'jules-patch-abc-3',
+-            true,
+-            'base-sha',
+-        ]);
+-        assert.strictEqual(execFileStub.firstCall.args[0], '/custom/git');
+-        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: 'SIGKILL' });
+-        assert.strictEqual(repository.inputBox.value, 'feat: apply patch locally');
++    assert.deepStrictEqual(repository.createBranch.firstCall.args, [
++      "jules-patch-abc-3",
++      true,
++      "base-sha",
++    ]);
++    assert.strictEqual(execFileStub.firstCall.args[0], "/custom/git");
++    assert.deepStrictEqual(execFileStub.firstCall.args[2], {
++      cwd: "/repo",
++      timeout: 30000,
++      killSignal: "SIGKILL",
+     });
++    assert.strictEqual(repository.inputBox.value, "feat: apply patch locally");
++  });
++
++  test("baseCommitId が解決できない場合は startingBranch へのフォールバック確認を使うこと", async () => {
++    repository.getCommit.rejects(new Error("commit not found"));
++    showWarningMessageStub.resolves("Fallback");
+
+-    test('baseCommitId が解決できない場合は startingBranch へのフォールバック確認を使うこと', async () => {
+-        repository.getCommit.rejects(new Error('commit not found'));
+-        showWarningMessageStub.resolves('Fallback');
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
+-
+-        assert.strictEqual(showWarningMessageStub.calledOnce, true);
+-        assert.match(showWarningMessageStub.firstCall.args[0], /Base commit base-sha not found/);
+-        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+-            'jules-patch-abc',
+-            true,
+-            'main',
+-        ]);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('baseCommitId が未指定の場合は未指定メッセージで startingBranch フォールバック確認を出すこと', async () => {
+-        const changeSet = createChangeSet();
+-        delete changeSet.baseCommitId;
+-        showWarningMessageStub.resolves('Fallback');
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet,
+-            outputChannel,
+-        });
+-
+-        assert.strictEqual(repository.getCommit.called, false);
+-        assert.strictEqual(showWarningMessageStub.calledOnce, true);
+-        assert.match(showWarningMessageStub.firstCall.args[0], /Base commit not specified/);
+-        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+-            'jules-patch-abc',
+-            true,
+-            'main',
+-        ]);
++    assert.strictEqual(showWarningMessageStub.calledOnce, true);
++    assert.match(
++      showWarningMessageStub.firstCall.args[0],
++      /Base commit base-sha not found/,
++    );
++    assert.deepStrictEqual(repository.createBranch.firstCall.args, [
++      "jules-patch-abc",
++      true,
++      "main",
++    ]);
++  });
++
++  test("baseCommitId が未指定の場合は未指定メッセージで startingBranch フォールバック確認を出すこと", async () => {
++    const changeSet = createChangeSet();
++    delete changeSet.baseCommitId;
++    showWarningMessageStub.resolves("Fallback");
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet,
++      outputChannel,
+     });
+
+-    test('startingBranch のローカル branch がない場合は origin の追跡 ref にフォールバックすること', async () => {
+-        repository.state = { remotes: [{ name: 'upstream' }, { name: 'origin' }] };
+-        repository.getCommit.rejects(new Error('commit not found'));
+-        repository.getBranch.callsFake(async (branchRef: string) => {
+-            if (branchRef === 'origin/main') {
+-                return { name: 'origin/main' };
+-            }
+-            throw new Error('branch not found');
+-        });
+-        showWarningMessageStub.resolves('Fallback');
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
+-
+-        assert.strictEqual(repository.getBranch.calledWith('main'), true);
+-        assert.strictEqual(repository.getBranch.calledWith('origin/main'), true);
+-        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+-            'jules-patch-abc',
+-            true,
+-            'origin/main',
+-        ]);
++    assert.strictEqual(repository.getCommit.called, false);
++    assert.strictEqual(showWarningMessageStub.calledOnce, true);
++    assert.match(
++      showWarningMessageStub.firstCall.args[0],
++      /Base commit not specified/,
++    );
++    assert.deepStrictEqual(repository.createBranch.firstCall.args, [
++      "jules-patch-abc",
++      true,
++      "main",
++    ]);
++  });
++
++  test("startingBranch のローカル branch がない場合は origin の追跡 ref にフォールバックすること", async () => {
++    repository.state = { remotes: [{ name: "upstream" }, { name: "origin" }] };
++    repository.getCommit.rejects(new Error("commit not found"));
++    repository.getBranch.callsFake(async (branchRef: string) => {
++      if (branchRef === "origin/main") {
++        return { name: "origin/main" };
++      }
++      throw new Error("branch not found");
+     });
++    showWarningMessageStub.resolves("Fallback");
+
+-    test('gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること', async () => {
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: { files: [], raw: {} },
+-            outputChannel,
+-        });
+-
+-        assert.match(showErrorMessageStub.firstCall.args[0], /gitPatch/);
+-        assert.strictEqual(getGitApiStub.called, false);
+-
+-        showErrorMessageStub.resetHistory();
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: {
+-                files: [],
+-                raw: { gitPatch: {} },
+-            },
+-            outputChannel,
+-        });
+-
+-        assert.match(showErrorMessageStub.firstCall.args[0], /unidiffPatch/);
+-        assert.strictEqual(getGitApiStub.called, false);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('git apply 失敗時は元ブランチへ戻し、保存済み patch パスをエラーに含めること', async () => {
+-        sandbox.stub(Date, 'now').returns(1234);
+-        const expectedPath = path.join(os.tmpdir(), 'jules-abc-1234.patch');
+-        await fs.rm(expectedPath, { force: true });
+-        execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
+-            callback(new Error('apply failed'), '', 'fatal: patch failed');
+-            return {} as childProcess.ChildProcess;
+-        }) as any);
+-
+-        try {
+-            await applyPatchLocallyForSession({
+-                session: createSession(),
+-                changeSet: createChangeSet(),
+-                outputChannel,
+-            });
+-
+-            assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
+-            assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
+-            assert.match(showErrorMessageStub.firstCall.args[0], /Restored original branch "main"/);
+-            assert.ok(
+-                showErrorMessageStub.firstCall.args[0].includes(expectedPath),
+-                'エラーメッセージに patch ファイルの保存先を含めるべき',
+-            );
+-            const patchStats = await fs.stat(expectedPath);
+-            if (process.platform !== 'win32') {
+-                assert.strictEqual(patchStats.mode & 0o777, 0o600);
+-            }
+-        } finally {
+-            await fs.rm(expectedPath, { force: true });
+-        }
++    assert.strictEqual(repository.getBranch.calledWith("main"), true);
++    assert.strictEqual(repository.getBranch.calledWith("origin/main"), true);
++    assert.deepStrictEqual(repository.createBranch.firstCall.args, [
++      "jules-patch-abc",
++      true,
++      "origin/main",
++    ]);
++  });
++
++  test("gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること", async () => {
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: { files: [], raw: {} },
++      outputChannel,
+     });
+
+-    test('git apply タイムアウト時は元ブランチへ戻し、patch ファイルを保持すること', async () => {
+-        sandbox.stub(Date, 'now').returns(5678);
+-        const expectedPath = path.join(os.tmpdir(), 'jules-abc-5678.patch');
+-        await fs.rm(expectedPath, { force: true });
+-        execFileStub.callsFake(((_file: string, _args: string[], _options: any, callback: any) => {
+-            const timeoutError = Object.assign(new Error('Command failed: git apply timed out'), {
+-                killed: true,
+-                signal: 'SIGKILL',
+-            });
+-            callback(timeoutError, '', '');
+-            return {} as childProcess.ChildProcess;
+-        }) as any);
+-
+-        try {
+-            await applyPatchLocallyForSession({
+-                session: createSession(),
+-                changeSet: createChangeSet(),
+-                outputChannel,
+-            });
+-
+-            assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: 'SIGKILL' });
+-            assert.strictEqual(repository.checkout.calledOnceWithExactly('main'), true);
+-            assert.match(showErrorMessageStub.firstCall.args[0], /Failed to apply patch/);
+-            assert.ok(
+-                showErrorMessageStub.firstCall.args[0].includes(expectedPath),
+-                'タイムアウト時も patch ファイルの保存先を含めるべき',
+-            );
+-            await fs.stat(expectedPath);
+-        } finally {
+-            await fs.rm(expectedPath, { force: true });
+-        }
++    assert.match(showErrorMessageStub.firstCall.args[0], /gitPatch/);
++    assert.strictEqual(getGitApiStub.called, false);
++
++    showErrorMessageStub.resetHistory();
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: {
++        files: [],
++        raw: { gitPatch: {} },
++      },
++      outputChannel,
+     });
+
+-    test('Git repository がない場合はエラーを表示して止めること', async () => {
+-        getGitApiStub.resolves({ repositories: [], git: { path: '/custom/git' } });
++    assert.match(showErrorMessageStub.firstCall.args[0], /unidiffPatch/);
++    assert.strictEqual(getGitApiStub.called, false);
++  });
++
++  test("git apply 失敗時は元ブランチへ戻し、保存済み patch パスをエラーに含めること", async () => {
++    sandbox.stub(Date, "now").returns(1234);
++    const expectedPath = path.join(os.tmpdir(), "jules-abc-1234.patch");
++    await fs.rm(expectedPath, { force: true });
++    execFileStub.callsFake(((
++      _file: string,
++      _args: string[],
++      _options: any,
++      callback: any,
++    ) => {
++      callback(new Error("apply failed"), "", "fatal: patch failed");
++      return {} as childProcess.ChildProcess;
++    }) as any);
++
++    try {
++      await applyPatchLocallyForSession({
++        session: createSession(),
++        changeSet: createChangeSet(),
++        outputChannel,
++      });
++
++      assert.match(
++        showErrorMessageStub.firstCall.args[0],
++        /Failed to apply patch/,
++      );
++      assert.strictEqual(
++        repository.checkout.calledOnceWithExactly("main"),
++        true,
++      );
++      assert.match(
++        showErrorMessageStub.firstCall.args[0],
++        /Restored original branch "main"/,
++      );
++      assert.ok(
++        showErrorMessageStub.firstCall.args[0].includes(expectedPath),
++        "エラーメッセージに patch ファイルの保存先を含めるべき",
++      );
++      const patchStats = await fs.stat(expectedPath);
++      if (process.platform !== "win32") {
++        assert.strictEqual(patchStats.mode & 0o777, 0o600);
++      }
++    } finally {
++      await fs.rm(expectedPath, { force: true });
++    }
++  });
++
++  test("git apply タイムアウト時は元ブランチへ戻し、patch ファイルを保持すること", async () => {
++    sandbox.stub(Date, "now").returns(5678);
++    const expectedPath = path.join(os.tmpdir(), "jules-abc-5678.patch");
++    await fs.rm(expectedPath, { force: true });
++    execFileStub.callsFake(((
++      _file: string,
++      _args: string[],
++      _options: any,
++      callback: any,
++    ) => {
++      const timeoutError = Object.assign(
++        new Error("Command failed: git apply timed out"),
++        {
++          killed: true,
++          signal: "SIGKILL",
++        },
++      );
++      callback(timeoutError, "", "");
++      return {} as childProcess.ChildProcess;
++    }) as any);
++
++    try {
++      await applyPatchLocallyForSession({
++        session: createSession(),
++        changeSet: createChangeSet(),
++        outputChannel,
++      });
++
++      assert.deepStrictEqual(execFileStub.firstCall.args[2], {
++        cwd: "/repo",
++        timeout: 30000,
++        killSignal: "SIGKILL",
++      });
++      assert.strictEqual(
++        repository.checkout.calledOnceWithExactly("main"),
++        true,
++      );
++      assert.match(
++        showErrorMessageStub.firstCall.args[0],
++        /Failed to apply patch/,
++      );
++      assert.ok(
++        showErrorMessageStub.firstCall.args[0].includes(expectedPath),
++        "タイムアウト時も patch ファイルの保存先を含めるべき",
++      );
++      await fs.stat(expectedPath);
++    } finally {
++      await fs.rm(expectedPath, { force: true });
++    }
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("Git repository がない場合はエラーを表示して止めること", async () => {
++    getGitApiStub.resolves({ repositories: [], git: { path: "/custom/git" } });
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /No Git repository/);
+-        assert.strictEqual(repository.fetch.called, false);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('repository 選択がキャンセルされた場合は処理を止めること', async () => {
+-        (sessionContextMenu.selectRepository as sinon.SinonStub).resolves(undefined);
++    assert.match(showErrorMessageStub.firstCall.args[0], /No Git repository/);
++    assert.strictEqual(repository.fetch.called, false);
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("repository 選択がキャンセルされた場合は処理を止めること", async () => {
++    (sessionContextMenu.selectRepository as sinon.SinonStub).resolves(
++      undefined,
++    );
+
+-        assert.strictEqual(repository.fetch.called, false);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('未コミット変更チェックで進行不可の場合は処理を止めること', async () => {
+-        (sessionContextMenu.handleUncommittedChanges as sinon.SinonStub).resolves(false);
++    assert.strictEqual(repository.fetch.called, false);
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("未コミット変更チェックで進行不可の場合は処理を止めること", async () => {
++    (sessionContextMenu.handleUncommittedChanges as sinon.SinonStub).resolves(
++      false,
++    );
+
+-        assert.strictEqual(repository.fetch.called, false);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('fetch が失敗した場合はエラーを表示して止めること', async () => {
+-        repository.fetch.rejects(new Error('fetch failed'));
++    assert.strictEqual(repository.fetch.called, false);
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("fetch が失敗した場合はエラーを表示して止めること", async () => {
++    repository.fetch.rejects(new Error("fetch failed"));
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /Failed to fetch from remote: fetch failed/);
+-        assert.strictEqual(repository.createBranch.called, false);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('fallback 確認でキャンセルされた場合は処理を止めること', async () => {
+-        repository.getCommit.rejects(new Error('commit not found'));
+-        showWarningMessageStub.resolves('Cancel');
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
+-
+-        assert.strictEqual(repository.createBranch.called, false);
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /Failed to fetch from remote: fetch failed/,
++    );
++    assert.strictEqual(repository.createBranch.called, false);
++  });
++
++  test("fallback 確認でキャンセルされた場合は処理を止めること", async () => {
++    repository.getCommit.rejects(new Error("commit not found"));
++    showWarningMessageStub.resolves("Cancel");
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('baseCommitId も startingBranch もない場合はエラーを表示すること', async () => {
+-        repository.getCommit.rejects(new Error('commit not found'));
+-        const session = createSession();
+-        session.sourceContext = undefined;
++    assert.strictEqual(repository.createBranch.called, false);
++  });
+
+-        await applyPatchLocallyForSession({
+-            session,
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("baseCommitId も startingBranch もない場合はエラーを表示すること", async () => {
++    repository.getCommit.rejects(new Error("commit not found"));
++    const session = createSession();
++    session.sourceContext = undefined;
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit base-sha not found/);
+-        assert.strictEqual(repository.createBranch.called, false);
++    await applyPatchLocallyForSession({
++      session,
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('baseCommitId 未指定かつ startingBranch もない場合は未指定エラーを表示すること', async () => {
+-        const session = createSession();
+-        session.sourceContext = undefined;
+-        const changeSet = createChangeSet();
+-        delete changeSet.baseCommitId;
+-
+-        await applyPatchLocallyForSession({
+-            session,
+-            changeSet,
+-            outputChannel,
+-        });
+-
+-        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit not specified and no starting branch specified/);
+-        assert.strictEqual(repository.getCommit.called, false);
+-        assert.strictEqual(repository.createBranch.called, false);
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /Base commit base-sha not found/,
++    );
++    assert.strictEqual(repository.createBranch.called, false);
++  });
++
++  test("baseCommitId 未指定かつ startingBranch もない場合は未指定エラーを表示すること", async () => {
++    const session = createSession();
++    session.sourceContext = undefined;
++    const changeSet = createChangeSet();
++    delete changeSet.baseCommitId;
++
++    await applyPatchLocallyForSession({
++      session,
++      changeSet,
++      outputChannel,
+     });
+
+-    test('startingBranch が空白だけの場合はエラーを表示すること', async () => {
+-        repository.getCommit.rejects(new Error('commit not found'));
+-        const session = createSession();
+-        session.sourceContext!.githubRepoContext!.startingBranch = '   ';
+-
+-        await applyPatchLocallyForSession({
+-            session,
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
+-
+-        assert.match(showErrorMessageStub.firstCall.args[0], /Base commit base-sha not found/);
+-        assert.strictEqual(repository.createBranch.called, false);
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /Base commit not specified and no starting branch specified/,
++    );
++    assert.strictEqual(repository.getCommit.called, false);
++    assert.strictEqual(repository.createBranch.called, false);
++  });
++
++  test("startingBranch が空白だけの場合はエラーを表示すること", async () => {
++    repository.getCommit.rejects(new Error("commit not found"));
++    const session = createSession();
++    session.sourceContext!.githubRepoContext!.startingBranch = "   ";
++
++    await applyPatchLocallyForSession({
++      session,
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('createBranch が失敗した場合はエラーを表示すること', async () => {
+-        repository.createBranch.rejects(new Error('branch create failed'));
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /Base commit base-sha not found/,
++    );
++    assert.strictEqual(repository.createBranch.called, false);
++  });
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /Failed to create branch: branch create failed/);
+-        assert.strictEqual(execFileStub.called, false);
+-    });
++  test("createBranch が失敗した場合はエラーを表示すること", async () => {
++    repository.createBranch.rejects(new Error("branch create failed"));
+
+-    test('Git API に git.path がない場合は git コマンド名へフォールバックすること', async () => {
+-        getGitApiStub.resolves({ repositories: [repository], git: {} });
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
+-
+-        assert.strictEqual(execFileStub.firstCall.args[0], 'git');
+-        assert.deepStrictEqual(execFileStub.firstCall.args[2], { cwd: '/repo', timeout: 30000, killSignal: 'SIGKILL' });
+-        assert.strictEqual(
+-            (outputChannel.appendLine as sinon.SinonSpy).calledWithMatch(/falling back to 'git'/),
+-            true,
+-        );
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('getBranch が undefined を返す場合はそのブランチ名を使うこと', async () => {
+-        repository.getBranch.resolves(undefined);
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /Failed to create branch: branch create failed/,
++    );
++    assert.strictEqual(execFileStub.called, false);
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("Git API に git.path がない場合は git コマンド名へフォールバックすること", async () => {
++    getGitApiStub.resolves({ repositories: [repository], git: {} });
+
+-        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('getBranch の構造化された not found コードをブランチ不在として扱うこと', async () => {
+-        repository.getBranch.rejects(Object.assign(new Error('missing ref'), { code: 'BranchNotFound' }));
++    assert.strictEqual(execFileStub.firstCall.args[0], "git");
++    assert.deepStrictEqual(execFileStub.firstCall.args[2], {
++      cwd: "/repo",
++      timeout: 30000,
++      killSignal: "SIGKILL",
++    });
++    assert.strictEqual(
++      (outputChannel.appendLine as sinon.SinonSpy).calledWithMatch(
++        /falling back to 'git'/,
++      ),
++      true,
++    );
++  });
++
++  test("getBranch が undefined を返す場合はそのブランチ名を使うこと", async () => {
++    repository.getBranch.resolves(undefined);
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
++    });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++    assert.strictEqual(
++      repository.createBranch.firstCall.args[0],
++      "jules-patch-abc",
++    );
++  });
++
++  test("getBranch の構造化された not found コードをブランチ不在として扱うこと", async () => {
++    repository.getBranch.rejects(
++      Object.assign(new Error("missing ref"), { code: "BranchNotFound" }),
++    );
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
++    });
+
+-        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
++    assert.strictEqual(
++      repository.createBranch.firstCall.args[0],
++      "jules-patch-abc",
++    );
++  });
++
++  test("getBranch の構造化 ENOENT はブランチ不在として扱わないこと", async () => {
++    repository.getBranch.rejects(
++      Object.assign(new Error("missing binary"), { code: "ENOENT" }),
++    );
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('getBranch の構造化 ENOENT はブランチ不在として扱わないこと', async () => {
+-        repository.getBranch.rejects(Object.assign(new Error('missing binary'), { code: 'ENOENT' }));
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /An error occurred: missing binary/,
++    );
++    assert.strictEqual(repository.createBranch.called, false);
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("getBranch の日本語 not found メッセージをブランチ不在として扱うこと", async () => {
++    repository.getBranch.rejects(new Error("ブランチが見つかりません"));
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /An error occurred: missing binary/);
+-        assert.strictEqual(repository.createBranch.called, false);
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('getBranch の日本語 not found メッセージをブランチ不在として扱うこと', async () => {
+-        repository.getBranch.rejects(new Error('ブランチが見つかりません'));
++    assert.strictEqual(
++      repository.createBranch.firstCall.args[0],
++      "jules-patch-abc",
++    );
++  });
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++  test("getBranch が branch not found 以外のエラーを返す場合は全体エラーにすること", async () => {
++    repository.getBranch.rejects(new Error("repository is locked"));
+
+-        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
+
+-    test('getBranch が branch not found 以外のエラーを返す場合は全体エラーにすること', async () => {
+-        repository.getBranch.rejects(new Error('repository is locked'));
+-
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /An error occurred: repository is locked/,
++    );
++    assert.strictEqual(repository.createBranch.called, false);
++  });
++
++  test("getBranchesが利用可能な場合は、ブランチ一覧を1度だけ取得してローカルで名前の空きを探索すること", async () => {
++    repository.getBranches = sandbox
++      .stub()
++      .resolves([{ name: "jules-patch-abc" }]);
++    // 意図的に getBranch が呼ばれたらエラーにする（呼ばれないはず）
++    repository.getBranch.rejects(new Error("Should not be called"));
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
++    });
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /An error occurred: repository is locked/);
+-        assert.strictEqual(repository.createBranch.called, false);
++    // 1回だけ取得されたこと
++    assert.strictEqual(repository.getBranches.calledOnce, true);
++    assert.deepStrictEqual(repository.getBranches.firstCall.args[0], {
++      remote: false,
+     });
+
+-    test('利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること', async () => {
+-        repository.getBranch.resolves({ name: 'existing' });
++    // 既存の 'jules-patch-abc' をスキップし、'jules-patch-abc-2' が使われること
++    assert.strictEqual(
++      repository.createBranch.firstCall.args[0],
++      "jules-patch-abc-2",
++    );
+
+-        await applyPatchLocallyForSession({
+-            session: createSession(),
+-            changeSet: createChangeSet(),
+-            outputChannel,
+-        });
++    // getBranch は一度も呼ばれないこと
++    assert.strictEqual(repository.getBranch.called, false);
++  });
+
+-        assert.match(showErrorMessageStub.firstCall.args[0], /Could not find an available branch name/);
+-        assert.strictEqual(repository.createBranch.called, false);
+-        assert.strictEqual(repository.getBranch.callCount, 20);
++  test("利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること", async () => {
++    repository.getBranch.resolves({ name: "existing" });
++
++    await applyPatchLocallyForSession({
++      session: createSession(),
++      changeSet: createChangeSet(),
++      outputChannel,
+     });
++
++    assert.match(
++      showErrorMessageStub.firstCall.args[0],
++      /Could not find an available branch name/,
++    );
++    assert.strictEqual(repository.createBranch.called, false);
++    assert.strictEqual(repository.getBranch.callCount, 20);
++  });
+ });
+diff --git a/src/test/extension.test.ts b/src/test/extension.test.ts
+index 53fcb9d..538f41f 100644
+--- a/src/test/extension.test.ts
++++ b/src/test/extension.test.ts
+@@ -525,7 +525,7 @@ suite("Extension Test Suite", () => {
+       const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => { } } as any));
+
+       // Call activate to load and clean cache
+-      activate(mockContext);
++      await activate(mockContext);
+
+
+       // Now trigger PR status checks by calling updatePreviousStates for two completed sessions
+@@ -665,12 +665,12 @@ suite("Extension Test Suite", () => {
+       localSandbox.restore();
+     });
+
+-    test("should stop activation when proxy URL is invalid", () => {
++    test("should stop activation when proxy URL is invalid", async () => {
+       process.env.HTTP_PROXY = "http://";
+       const errorStub = localSandbox.stub(console, "error");
+
+       const mockContext = createProxyActivationContext();
+-      activate(mockContext);
++      await activate(mockContext);
+
+       assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
+       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
+@@ -679,12 +679,12 @@ suite("Extension Test Suite", () => {
+       }
+     });
+
+-    test("should configure HTTP proxy when HTTP_PROXY is set", () => {
++    test("should configure HTTP proxy when HTTP_PROXY is set", async () => {
+       process.env.HTTP_PROXY = "http://proxy.example.com:8080";
+       const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
+
+       const mockContext = createProxyActivationContext();
+-      activate(mockContext);
++      await activate(mockContext);
+
+       assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).calledOnce, true);
+       assert.deepStrictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).firstCall.args, ["http://proxy.example.com:8080"]);
+@@ -693,12 +693,12 @@ suite("Extension Test Suite", () => {
+       assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPS proxy")));
+     });
+
+-    test("should configure SOCKS proxy when ALL_PROXY is a socks URL", () => {
++    test("should configure SOCKS proxy when ALL_PROXY is a socks URL", async () => {
+       process.env.ALL_PROXY = "socks5://proxy.example.com:1080";
+       const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
+
+       const mockContext = createProxyActivationContext();
+-      activate(mockContext);
++      await activate(mockContext);
+
+       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).calledOnce, true);
+       assert.deepStrictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).firstCall.args, ["socks5://proxy.example.com:1080"]);
