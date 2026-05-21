@@ -525,7 +525,7 @@ suite("Extension Test Suite", () => {
       const registerCmdStub = localSandbox.stub(vscode.commands, 'registerCommand').callsFake(() => ({ dispose: () => { } } as any));
 
       // Call activate to load and clean cache
-      await activate(mockContext);
+      activate(mockContext);
 
 
       // Now trigger PR status checks by calling updatePreviousStates for two completed sessions
@@ -665,12 +665,12 @@ suite("Extension Test Suite", () => {
       localSandbox.restore();
     });
 
-    test("should stop activation when proxy URL is invalid", async () => {
+    test("should stop activation when proxy URL is invalid", () => {
       process.env.HTTP_PROXY = "http://";
       const errorStub = localSandbox.stub(console, "error");
 
       const mockContext = createProxyActivationContext();
-      await activate(mockContext);
+      activate(mockContext);
 
       assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).called, false);
       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).called, false);
@@ -679,12 +679,12 @@ suite("Extension Test Suite", () => {
       }
     });
 
-    test("should configure HTTP proxy when HTTP_PROXY is set", async () => {
+    test("should configure HTTP proxy when HTTP_PROXY is set", () => {
       process.env.HTTP_PROXY = "http://proxy.example.com:8080";
       const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
 
       const mockContext = createProxyActivationContext();
-      await activate(mockContext);
+      activate(mockContext);
 
       assert.strictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).calledOnce, true);
       assert.deepStrictEqual((fetchUtils.setHttpProxy as sinon.SinonStub).firstCall.args, ["http://proxy.example.com:8080"]);
@@ -693,12 +693,12 @@ suite("Extension Test Suite", () => {
       assert.ok(infoStub.args.some((args) => String(args[0]).includes("HTTP/HTTPS proxy")));
     });
 
-    test("should configure SOCKS proxy when ALL_PROXY is a socks URL", async () => {
+    test("should configure SOCKS proxy when ALL_PROXY is a socks URL", () => {
       process.env.ALL_PROXY = "socks5://proxy.example.com:1080";
       const infoStub = localSandbox.stub(vscode.window, "showInformationMessage");
 
       const mockContext = createProxyActivationContext();
-      await activate(mockContext);
+      activate(mockContext);
 
       assert.strictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).calledOnce, true);
       assert.deepStrictEqual((fetchUtils.setSocksProxy as sinon.SinonStub).firstCall.args, ["socks5://proxy.example.com:1080"]);
