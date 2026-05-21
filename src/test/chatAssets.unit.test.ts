@@ -334,6 +334,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
     let sanitizedInput = "";
+    let cloneCalls = 0;
     const attributes: Record<string, string> = {};
     const contentDiv = createDetailsContentDiv();
     const details = {
@@ -359,7 +360,9 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         if (config.RETURN_DOM_FRAGMENT) {
-          return createHtmlFragment("<p>details safe</p>");
+          return createHtmlFragment("<p>details safe</p>", () => {
+            cloneCalls += 1;
+          });
         }
         return "<p>details safe</p>";
       },
@@ -374,6 +377,7 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
+    assert.strictEqual(cloneCalls, 1);
     assert.strictEqual(attributes["aria-busy"], "false");
     assert.strictEqual(contentDiv.innerHTML, "<p>details safe</p>");
   });

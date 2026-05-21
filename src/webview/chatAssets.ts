@@ -89,7 +89,7 @@ export const CHAT_JS = `(function() {
       ADD_TAGS: ["details", "summary"],
       ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
       RETURN_DOM: false,
-      RETURN_DOM_FRAGMENT: false,
+      RETURN_DOM_FRAGMENT: true,
       FORBID_TAGS: ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"],
     }, overrides || {});
   }
@@ -127,9 +127,7 @@ export const CHAT_JS = `(function() {
       return rememberSanitizedFragment(rawHtml, createUnavailableFragment());
     }
     try {
-      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({
-        RETURN_DOM_FRAGMENT: true,
-      }));
+      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig());
       if (fragment && typeof fragment === "object" && "childNodes" in fragment) {
         return rememberSanitizedFragment(rawHtml, fragment);
       }
@@ -161,11 +159,9 @@ export const CHAT_JS = `(function() {
       return;
     }
     try {
-      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({
-        RETURN_DOM_FRAGMENT: true,
-      }));
+      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig());
       if (fragment && typeof fragment === "object" && "childNodes" in fragment) {
-        replaceChildren(contentDiv, Array.from(fragment.childNodes));
+        replaceChildren(contentDiv, cloneFragmentChildren(fragment));
         return;
       }
     } catch (error) {
