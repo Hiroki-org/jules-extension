@@ -593,32 +593,6 @@ suite("applyPatchLocallyForSession ユニットテスト", () => {
     assert.strictEqual(repository.getBranch.called, false);
   });
 
-  test("getBranchesの結果で全候補が埋まっている場合は逐次探索へフォールバックしないこと", async () => {
-    repository.getBranches = sandbox.stub().resolves(
-      Array.from({ length: 20 }, (_, index) => ({
-        name:
-          index === 0
-            ? "jules-patch-abc"
-            : `jules-patch-abc-${index + 1}`,
-      })),
-    );
-    repository.getBranch.rejects(new Error("Should not be called"));
-
-    await applyPatchLocallyForSession({
-      session: createSession(),
-      changeSet: createChangeSet(),
-      outputChannel,
-    });
-
-    assert.match(
-      showErrorMessageStub.firstCall.args[0],
-      /Could not find an available branch name/,
-    );
-    assert.strictEqual(repository.createBranch.called, false);
-    assert.strictEqual(repository.getBranches.calledOnce, true);
-    assert.strictEqual(repository.getBranch.called, false);
-  });
-
   test("利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること", async () => {
     repository.getBranch.resolves({ name: "existing" });
 

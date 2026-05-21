@@ -45,7 +45,3 @@
 ## 2025-05-21 - Optimize branch availability checks by fetching all branches once
 **Learning:** Checking for available branch names sequentially using multiple `git branch` spawns introduces unnecessary I/O and process overhead, scaling poorly with repeated collisions (e.g. up to $O(N)$ git spawns).
 **Action:** When searching for an available local entity name (like a branch), prefer a single API call to fetch all existing entities into a memory `Set` ($O(1)$ lookup) and perform the collision checks entirely in memory. Include a graceful fallback for environments where the bulk-fetch API may be unavailable.
-
-## 2026-05-20 - Concurrent Deletion of Sessions
-**Learning:** Sequential await loops for network operations block execution and significantly increase total latency, degrading the user experience during bulk actions like session deletion.
-**Action:** Use a worker-pool pattern with `Array.from` and a shared index counter to parallelize network requests with a bounded concurrency limit, combined with `Promise.allSettled()` to wait for all workers and capture individual successes and failures for accurate reporting.
