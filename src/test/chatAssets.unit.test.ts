@@ -699,6 +699,8 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.sendButton["aria-disabled"], "false");
     assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");
     assert.strictEqual(elements.sendButton["aria-label"], "Send message (Ctrl/Cmd+Enter)");
+    assert.strictEqual(elements.sessionLabel.title, "Session: session-123");
+    assert.strictEqual(elements.sessionLabel["aria-label"], "Session: session-123");
   });
 
   test("CHAT_JS should preserve fractional border widths when auto-resizing", () => {
