@@ -1,6 +1,27 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
+function approximateTextContent(html: string): string {
+  let text = "";
+  let insideTag = false;
+
+  for (const char of html) {
+    if (char === "<") {
+      insideTag = true;
+      continue;
+    }
+    if (char === ">") {
+      insideTag = false;
+      continue;
+    }
+    if (!insideTag) {
+      text += char;
+    }
+  }
+
+  return text;
+}
+
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
@@ -36,7 +57,7 @@ function createChatScriptHarness(
           return null;
         }
         return {
-          textContent: chatInnerHTML.replace(/<[^>]+>/g, ""),
+          textContent: approximateTextContent(chatInnerHTML),
         };
       },
       querySelectorAll: () => [],
