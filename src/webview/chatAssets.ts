@@ -77,9 +77,8 @@ export const CHAT_JS = `(function() {
   let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeout id
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
-  const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
   const SANITIZED_HTML_CACHE_LIMIT = 500;
-  const sanitizedHtmlCache = new Map();
+  const sanitizedFragmentCache = new Map();
 
   function createSanitizeConfig(overrides) {
     return Object.assign({
@@ -92,34 +91,6 @@ export const CHAT_JS = `(function() {
     }, overrides || {});
   }
 
-  function rememberSanitizedHtml(html, sanitizedHtml) {
-    sanitizedHtmlCache.set(html, sanitizedHtml);
-    if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
-      const oldestKey = sanitizedHtmlCache.keys().next().value;
-      sanitizedHtmlCache.delete(oldestKey);
-    }
-    return sanitizedHtml;
-  }
-
-  function sanitizeHtml(html) {
-    const rawHtml = typeof html === "string" ? html : "";
-    if (sanitizedHtmlCache.has(rawHtml)) {
-      return sanitizedHtmlCache.get(rawHtml);
-    }
-    if (typeof DOMPurify === "undefined") {
-      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
-    }
-    try {
-      return rememberSanitizedHtml(
-        rawHtml,
-        DOMPurify.sanitize(rawHtml, createSanitizeConfig()),
-      );
-    } catch (error) {
-      console.error("Jules: Failed to sanitize chat HTML", error);
-      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
-    }
-  }
-
   function createUnavailableNode() {
     const node = document.createElement("span");
     node.className = "message-unavailable";
@@ -127,6 +98,48 @@ export const CHAT_JS = `(function() {
     node.setAttribute("aria-label", "Message unavailable");
     node.textContent = "Message unavailable";
     return node;
+  }
+
+  function createUnavailableFragment() {
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(createUnavailableNode());
+    return fragment;
+  }
+
+  function rememberSanitizedFragment(html, fragment) {
+    sanitizedFragmentCache.set(html, fragment);
+    if (sanitizedFragmentCache.size > SANITIZED_HTML_CACHE_LIMIT) {
+      const oldestKey = sanitizedFragmentCache.keys().next().value;
+      sanitizedFragmentCache.delete(oldestKey);
+    }
+    return fragment;
+  }
+
+  function sanitizeMessageHtmlToFragment(html) {
+    const rawHtml = typeof html === "string" ? html : "";
+    if (sanitizedFragmentCache.has(rawHtml)) {
+      return sanitizedFragmentCache.get(rawHtml);
+    }
+    if (typeof DOMPurify === "undefined") {
+      return rememberSanitizedFragment(rawHtml, createUnavailableFragment());
+    }
+    try {
+      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({
+        RETURN_DOM_FRAGMENT: true,
+      }));
+      if (fragment && typeof fragment === "object" && "childNodes" in fragment) {
+        return rememberSanitizedFragment(rawHtml, fragment);
+      }
+    } catch (error) {
+      console.error("Jules: Failed to sanitize chat HTML", error);
+    }
+    return rememberSanitizedFragment(rawHtml, createUnavailableFragment());
+  }
+
+  function cloneFragmentChildren(fragment) {
+    return Array.from(fragment.childNodes).map(node =>
+      typeof node.cloneNode === "function" ? node.cloneNode(true) : node,
+    );
   }
 
   function replaceChildren(element, nodes) {
@@ -312,28 +325,8 @@ export const CHAT_JS = `(function() {
         const bubbleDiv = document.createElement("div");
         bubbleDiv.className = "bubble";
 
-        let sanitizedFragment;
-        const rawHtml = m.html || "";
-        if (sanitizedHtmlCache.has(rawHtml)) {
-           sanitizedFragment = sanitizedHtmlCache.get(rawHtml);
-        } else {
-           if (typeof DOMPurify !== "undefined") {
-             try {
-               sanitizedFragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({ RETURN_DOM_FRAGMENT: true }));
-               rememberSanitizedHtml(rawHtml, sanitizedFragment);
-             } catch(e) {
-               console.error("Jules: Failed to sanitize chat HTML", e);
-             }
-           }
-        }
-
-        if (sanitizedFragment && typeof sanitizedFragment === "object" && "childNodes" in sanitizedFragment) {
-          // If cached, cloning is necessary to reuse node objects
-          const clonedNodes = Array.from(sanitizedFragment.childNodes).map((node: any) => typeof node.cloneNode === "function" ? node.cloneNode(true) : node);
-          replaceChildren(bubbleDiv, clonedNodes);
-        } else {
-          replaceChildren(bubbleDiv, [createUnavailableNode()]);
-        }
+        const sanitizedFragment = sanitizeMessageHtmlToFragment(m.html || "");
+        replaceChildren(bubbleDiv, cloneFragmentChildren(sanitizedFragment));
 
         const metaDiv = document.createElement("div");
         metaDiv.className = "meta";
