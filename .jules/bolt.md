@@ -42,6 +42,6 @@
 ## 2026-05-15 - [Performance] Eliminating spread operators and .filter() chains
 **Learning:** Using spread syntax `...` inside an array literal followed by `.filter()` creates multiple intermediate arrays and forces multiple O(N) iterations, leading to unnecessary memory allocations and CPU overhead during simple array processing.
 **Action:** Use a single-pass `for...of` loop combined with a `Set` to handle array concatenation, type checking, and deduplication simultaneously.
-## 2026-05-20 - Concurrent Deletion of Sessions
+## 2024-05-20 - Concurrent Deletion of Sessions
 **Learning:** Sequential await loops for network operations block execution and significantly increase total latency, degrading the user experience during bulk actions like session deletion.
-**Action:** Use a worker-pool pattern with `Array.from` and a shared index counter to parallelize network requests with a bounded concurrency limit, combined with `Promise.allSettled()` to wait for all workers and capture individual successes and failures for accurate reporting.
+**Action:** Use `Promise.allSettled()` combined with `Array.prototype.map()` to parallelize network requests safely while still capturing individual successes and failures for accurate reporting.

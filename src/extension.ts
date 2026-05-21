@@ -2730,38 +2730,6 @@ export async function deleteSingleSession(
   sessionsProvider.unmarkSessionAsDeleting(session.name);
 }
 
-const BULK_DELETE_CONCURRENCY = 5;
-
-async function runWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  let nextIndex = 0;
-  const workerCount = Math.min(limit, items.length);
-
-  const results = await Promise.allSettled(
-    Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex;
-        nextIndex++;
-        await worker(items[currentIndex]);
-      }
-    }),
-  );
-  const rejectedResults = results.filter(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (rejectedResults.length === 1) {
-    throw rejectedResults[0].reason;
-  }
-  if (rejectedResults.length > 1) {
-    throw new AggregateError(
-      rejectedResults.map((result) => result.reason),
-      "Multiple concurrent operations failed",
-    );
-  }
-}
 
 export async function executeDeleteSessionCommand(
   context: vscode.ExtensionContext,
@@ -2821,7 +2789,7 @@ export async function executeDeleteSessionCommand(
       let failCount = 0;
       let completedCount = 0;
 
-      await runWithConcurrency(targets, BULK_DELETE_CONCURRENCY, async (target) => {
+      const deletePromises = targets.map(async (target) => {
         const session = target.session;
         try {
           await deleteSingleSession(context, sessionsProvider, session, apiKey);
@@ -2837,6 +2805,8 @@ export async function executeDeleteSessionCommand(
           progress.report({ message: `Deleting ${completedCount} of ${targets.length}...` });
         }
       });
+
+      await Promise.allSettled(deletePromises);
 
       if (failCount > 0) {
         const failedLabel = `session${failCount === 1 ? "" : "s"}`;
