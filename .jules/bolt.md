@@ -46,7 +46,3 @@
 ## 2026-05-20 - [Performance] Single-pass array operations over chaining
 **Learning:** Functional array method chaining like `.map().filter()` or combining `.filter()` with spread operators (`[...array1, ...array2]`) forces multiple iterations over the data and allocates several intermediate temporary arrays. In hot paths or large collections, this results in measurable CPU overhead and increased memory pressure for garbage collection.
 **Action:** Replace functional array method chains with a single `for...of` loop where filtering logic (via `if` conditions) and mapping logic (direct assignment/pushing) are combined into one pass, pushing directly to the final collection.
-
-## 2026-05-20 - Concurrent Deletion of Sessions
-**Learning:** Sequential await loops for network operations block execution and significantly increase total latency, degrading the user experience during bulk actions like session deletion.
-**Action:** Use a worker-pool pattern with `Array.from` and a shared index counter to parallelize network requests with a bounded concurrency limit, combined with `Promise.allSettled()` to wait for all workers and capture individual successes and failures for accurate reporting.

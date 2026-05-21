@@ -240,7 +240,7 @@ export async function handleInlineTask(
     } = branchInfo;
 
     const remoteBranchSet = new Set(remoteBranches);
-    const branchItems: vscode.QuickPickItem[] = [];
+    const branchItems = [];
     for (const branch of branches) {
         if (remoteBranchSet.has(branch)) {
             branchItems.push({
