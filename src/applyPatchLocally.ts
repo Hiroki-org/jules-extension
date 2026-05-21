@@ -337,10 +337,15 @@ async function resolveStartingBranchRef(
       return a.localeCompare(b);
     });
 
-  for (const remoteName of remoteNames) {
-    const remoteRef = `${remoteName}/${branchRef}`;
-    if (await branchExists(repository, remoteRef)) {
-      return remoteRef;
+  const existsResults = await Promise.all(
+    remoteNames.map((remoteName: string) =>
+      branchExists(repository, `${remoteName}/${branchRef}`),
+    ),
+  );
+
+  for (let i = 0; i < remoteNames.length; i += 1) {
+    if (existsResults[i]) {
+      return `${remoteNames[i]}/${branchRef}`;
     }
   }
 
@@ -353,26 +358,30 @@ async function findAvailableBranchName(
 ): Promise<string> {
   // 1. O(1) Fast path: fetch all local branches once if getBranches is available
   if (typeof repository.getBranches === "function") {
+    let localBranchNames: Set<string> | undefined;
     try {
       const branches = await repository.getBranches({ remote: false });
-      const localBranchNames = new Set(
-        branches
-          .map((b: any) => b.name)
-          .filter((name: any): name is string => typeof name === "string"),
-      );
+      localBranchNames = new Set<string>();
+      for (const branch of branches) {
+        if (typeof branch?.name === "string") {
+          localBranchNames.add(branch.name);
+        }
+      }
+    } catch (error) {
+      // Fallback to sequential getBranch if getBranches fails.
+    }
 
+    if (localBranchNames) {
       for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
-        const candidate =
-          attempt === 1 ? branchName : `${branchName}-${attempt}`;
+        const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
         if (!localBranchNames.has(candidate)) {
           return candidate;
         }
       }
+
       throw new Error(
         `Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`,
       );
-    } catch (error) {
-      // Fallback to sequential getBranch if getBranches fails
     }
   }
 
