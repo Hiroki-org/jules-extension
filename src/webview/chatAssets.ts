@@ -88,6 +88,8 @@ export const CHAT_JS = `(function() {
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
   const SANITIZED_HTML_CACHE_LIMIT = 500;
+  const SESSION_LABEL_PREFIX = "Session: ";
+  const SESSION_LABEL_NONE_SELECTED = SESSION_LABEL_PREFIX + "None selected";
   const sanitizedHtmlCache = new Map();
 
   function createSanitizeConfig(overrides) {
@@ -275,7 +277,9 @@ export const CHAT_JS = `(function() {
       sendButton.setAttribute("aria-label", "Send message (Ctrl/Cmd+Enter)");
     }
 
-    sessionLabel.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
+    sessionLabel.textContent = hasSession ? SESSION_LABEL_PREFIX + state.sessionId : SESSION_LABEL_NONE_SELECTED;
+    sessionLabel.title = sessionLabel.textContent;
+    sessionLabel.setAttribute("aria-label", sessionLabel.textContent);
   }
 
   function formatTime(timestamp) {

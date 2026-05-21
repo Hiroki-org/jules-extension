@@ -897,7 +897,10 @@ export function areSessionListsEqual(a: Session[], b: Session[]): boolean {
   }
 
   // Slow path: Check set equality ignoring order
-  const mapA = new Map(a.map((s) => [s.name, s]));
+  const mapA = new Map<string, Session>();
+  for (const s of a) {
+    mapA.set(s.name, s);
+  }
 
   for (const s2 of b) {
     const s1 = mapA.get(s2.name);
@@ -2314,7 +2317,10 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
       const cachedSources =
         this.context.globalState.get<SourcesCache>("jules.sources");
       if (cachedSources?.sources) {
-        sourcesMap = new Map(cachedSources.sources.map((s) => [s.name, s]));
+        sourcesMap = new Map<string, SourceType>();
+        for (const s of cachedSources.sources) {
+          sourcesMap.set(s.name, s);
+        }
       }
     }
 
