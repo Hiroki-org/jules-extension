@@ -42,6 +42,12 @@
 ## 2026-05-15 - [Performance] Eliminating spread operators and .filter() chains
 **Learning:** Using spread syntax `...` inside an array literal followed by `.filter()` creates multiple intermediate arrays and forces multiple O(N) iterations, leading to unnecessary memory allocations and CPU overhead during simple array processing.
 **Action:** Use a single-pass `for...of` loop combined with a `Set` to handle array concatenation, type checking, and deduplication simultaneously.
-## 2024-05-19 - Avoid Chaining Array Methods for UI Lists
+
+## 2026-05-19 - Avoid Chaining Array Methods for UI Lists
+
 **Learning:** Chaining functional array methods like `.filter().map()` to generate lists for UI components (like VS Code's `showQuickPick`) introduces unnecessary intermediate array allocations and redundant sequential traversals. This is particularly relevant when mapping data for dropdowns, quick picks, or tree views where performance matters.
 **Action:** When filtering and transforming arrays for UI components, use a single-pass loop (e.g., `for...of`) to combine both operations. This directly populates the final array, reducing GC pressure and avoiding O(2N) iteration.
+
+## 2026-05-20 - Concurrent Deletion of Sessions
+**Learning:** Sequential await loops for network operations block execution and significantly increase total latency, degrading the user experience during bulk actions like session deletion.
+**Action:** Use a worker-pool pattern with `Array.from` and a shared index counter to parallelize network requests with a bounded concurrency limit, combined with `Promise.allSettled()` to wait for all workers and capture individual successes and failures for accurate reporting.
