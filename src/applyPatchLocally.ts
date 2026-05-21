@@ -353,20 +353,14 @@ async function findAvailableBranchName(
 ): Promise<string> {
   // 1. O(1) Fast path: fetch all local branches once if getBranches is available
   if (typeof repository.getBranches === "function") {
-    let localBranchNames: Set<string> | undefined;
     try {
       const branches = await repository.getBranches({ remote: false });
-      localBranchNames = new Set<string>();
-      for (const branch of branches) {
-        if (typeof branch?.name === "string") {
-          localBranchNames.add(branch.name);
-        }
-      }
-    } catch (error) {
-      // Fallback to sequential getBranch if getBranches fails.
-    }
+      const localBranchNames = new Set(
+        branches
+          .map((b: any) => b?.name)
+          .filter((name: any): name is string => typeof name === "string"),
+      );
 
-    if (localBranchNames) {
       for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
         const candidate =
           attempt === 1 ? branchName : `${branchName}-${attempt}`;
@@ -377,6 +371,15 @@ async function findAvailableBranchName(
       throw new Error(
         `Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`,
       );
+    } catch (error) {
+      // If the error is our own limit error, do not fallback, throw immediately
+      if (
+        error instanceof Error &&
+        error.message.includes("Could not find an available branch name")
+      ) {
+        throw error;
+      }
+      // Fallback to sequential getBranch if getBranches fails
     }
   }
 

@@ -593,13 +593,10 @@ suite("applyPatchLocallyForSession ユニットテスト", () => {
     assert.strictEqual(repository.getBranch.called, false);
   });
 
-  test("getBranches が失敗した場合は従来の getBranch 探索へフォールバックすること", async () => {
-    repository.getBranches = sandbox
-      .stub()
-      .rejects(new Error("getBranches unavailable"));
-    repository.getBranch.rejects(
-      Object.assign(new Error("missing ref"), { code: "BranchNotFound" }),
-    );
+  test("getBranches が例外を投げた場合は、逐次フォールバックが機能すること", async () => {
+    repository.getBranches = sandbox.stub().rejects(new Error("API failure"));
+    repository.getBranch.onFirstCall().resolves({ name: "jules-patch-abc" });
+    repository.getBranch.onSecondCall().rejects(new Error("branch not found"));
 
     await applyPatchLocallyForSession({
       session: createSession(),
@@ -608,22 +605,19 @@ suite("applyPatchLocallyForSession ユニットテスト", () => {
     });
 
     assert.strictEqual(repository.getBranches.calledOnce, true);
-    assert.strictEqual(
-      repository.getBranch.calledOnceWithExactly("jules-patch-abc"),
-      true,
-    );
+    assert.strictEqual(repository.getBranch.callCount, 2);
     assert.strictEqual(
       repository.createBranch.firstCall.args[0],
-      "jules-patch-abc",
+      "jules-patch-abc-2",
     );
   });
 
-  test("getBranches の結果で全候補が埋まっている場合は逐次探索へフォールバックしないこと", async () => {
-    repository.getBranches = sandbox.stub().resolves(
-      Array.from({ length: 20 }, (_, index) => ({
-        name: index === 0 ? "jules-patch-abc" : `jules-patch-abc-${index + 1}`,
-      })),
-    );
+  test("getBranchesの結果で全候補が埋まっている場合は逐次探索へフォールバックしないこと", async () => {
+    // 20回分のブランチ名をすべて返す
+    const branches = Array.from({ length: 20 }, (_, i) => ({
+      name: i === 0 ? "jules-patch-abc" : `jules-patch-abc-${i + 1}`,
+    }));
+    repository.getBranches = sandbox.stub().resolves(branches);
     repository.getBranch.rejects(new Error("Should not be called"));
 
     await applyPatchLocallyForSession({
@@ -632,13 +626,40 @@ suite("applyPatchLocallyForSession ユニットテスト", () => {
       outputChannel,
     });
 
+    assert.strictEqual(repository.getBranches.calledOnce, true);
     assert.match(
       showErrorMessageStub.firstCall.args[0],
       /Could not find an available branch name/,
     );
-    assert.strictEqual(repository.getBranches.calledOnce, true);
-    assert.strictEqual(repository.getBranch.called, false);
     assert.strictEqual(repository.createBranch.called, false);
+    assert.strictEqual(repository.getBranch.called, false);
+  });
+
+  test("getBranchesの戻り値に文字列のnameを持たない要素が含まれていても安全にフィルタされること", async () => {
+    repository.getBranches = sandbox
+      .stub()
+      .resolves([
+        { name: "jules-patch-abc" },
+        { name: null },
+        { notName: "something" },
+        "invalid-string-element",
+        undefined,
+      ]);
+    repository.getBranch.rejects(new Error("Should not be called"));
+
+    await applyPatchLocallyForSession({
+      session: createSession(),
+      changeSet: createChangeSet(),
+      outputChannel,
+    });
+
+    assert.strictEqual(repository.getBranches.calledOnce, true);
+    // jules-patch-abc は使用済みなので、次点の jules-patch-abc-2 が選ばれる
+    assert.strictEqual(repository.createBranch.calledOnce, true, "createBranch should be called");
+    assert.strictEqual(
+      repository.createBranch.firstCall.args[0],
+      "jules-patch-abc-2",
+    );
   });
 
   test("利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること", async () => {
