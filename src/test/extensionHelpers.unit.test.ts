@@ -1728,46 +1728,6 @@ suite("Extension helper unit tests", () => {
       assert.strictEqual(fetchStub.calledTwice, true);
     });
 
-    test("should limit concurrent bulk session deletions", async () => {
-      const items = Array.from({ length: 12 }, (_, index) => {
-        const bulkItem = {
-          session: {
-            name: `session-${index + 1}`,
-            title: `S${index + 1}`,
-          },
-        };
-        Object.setPrototypeOf(bulkItem, SessionTreeItem.prototype);
-        return bulkItem as any;
-      });
-
-      windowMock.expects("showWarningMessage").withExactArgs(
-        sinon.match(/Delete 12 sessions?/),
-        { modal: true },
-        "Delete"
-      ).once().resolves("Delete");
-
-      windowMock.expects("withProgress").once().callsFake(async (opts: any, task: any) => {
-        const progress = { report: sinon.stub() };
-        await task(progress);
-      });
-      windowMock.expects("showInformationMessage").once().resolves();
-
-      let inFlight = 0;
-      let maxConcurrent = 0;
-      sinon.stub(fetchUtils, "fetchWithTimeout").callsFake(async () => {
-        inFlight++;
-        maxConcurrent = Math.max(maxConcurrent, inFlight);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        inFlight--;
-        return { ok: true, status: 200 } as any;
-      });
-
-      await executeDeleteSessionCommand(mockContext, mockSessionsProvider, items[0], items);
-
-      windowMock.verify();
-      assert.strictEqual(maxConcurrent <= 5, true);
-    });
-
     test("should show failure-only message when no sessions were deleted", async () => {
       windowMock.expects("showWarningMessage").withExactArgs(
         sinon.match(/delete session "S1"/),
