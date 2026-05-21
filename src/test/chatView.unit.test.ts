@@ -7,7 +7,9 @@ import {
   isGeneratingSessionState,
   renderChatMarkdown,
   initMarkdownRenderer,
+  DEFAULT_SANITIZER_OPTIONS,
 } from "../chatView";
+import DOMPurify from "isomorphic-dompurify";
 import { Activity } from "../types";
 
 function createActivity(activity: Partial<Activity>): Activity {
@@ -63,6 +65,39 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
     assert.ok(rendered.includes('aria-label="Copy code"'));
+  });
+
+  test("renderChatMarkdown and DOMPurify should sanitize XSS payloads (CVE-2026-44990 / <xmp> / <listing> / <plaintext>)", () => {
+    // 1. Through renderChatMarkdown (MarkdownIt escapes raw HTML, then DOMPurify runs)
+    const xmpMarkdown = renderChatMarkdown("<xmp><script>alert('xss')</script></xmp>");
+    assert.ok(!xmpMarkdown.includes("<script>"));
+    assert.ok(xmpMarkdown.includes("&lt;xmp&gt;"));
+
+    // 2. Directly through DOMPurify.sanitize (simulating raw HTML rendering in detailsHtml)
+    const xmpSanitized = DOMPurify.sanitize("<xmp><script>alert('xss')</script></xmp>", DEFAULT_SANITIZER_OPTIONS);
+    assert.strictEqual(xmpSanitized, "");
+
+    const listingSanitized = DOMPurify.sanitize("<listing><script>alert('xss')</script></listing>", DEFAULT_SANITIZER_OPTIONS);
+    assert.strictEqual(listingSanitized, "");
+
+    const plaintextSanitized = DOMPurify.sanitize("<plaintext><script>alert('xss')</script>", DEFAULT_SANITIZER_OPTIONS);
+    assert.strictEqual(plaintextSanitized, "");
+  });
+
+  test("DOMPurify should allow specified safe tags (img, details, summary, button)", () => {
+    // Raw HTML bypass check for allowed elements (simulating raw HTML rendering in detailsHtml)
+    const rawHtml = '<img src="https://example.com/image.png" alt="test image" />' +
+      '<details><summary>Click me</summary><button type="button">Action</button></details>';
+    
+    const sanitizedHtml = DOMPurify.sanitize(rawHtml, DEFAULT_SANITIZER_OPTIONS);
+
+    assert.ok(sanitizedHtml.includes("<img"));
+    assert.ok(sanitizedHtml.includes('src="https://example.com/image.png"'));
+    assert.ok(sanitizedHtml.includes('alt="test image"'));
+    assert.ok(sanitizedHtml.includes("<details>"));
+    assert.ok(sanitizedHtml.includes("<summary>"));
+    assert.ok(sanitizedHtml.includes("<button"));
+    assert.ok(sanitizedHtml.includes('type="button"'));
   });
 
   test("isGeneratingSessionState should detect active generation states", () => {

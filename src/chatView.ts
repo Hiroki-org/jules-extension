@@ -2,7 +2,7 @@ import { CHAT_CSS, CHAT_JS } from "./webview/chatAssets";
 import * as crypto from "crypto";
 import * as vscode from "vscode";
 import MarkdownIt from "markdown-it";
-import sanitizeHtml from "sanitize-html";
+import DOMPurify from "isomorphic-dompurify";
 import {
   pickFirstNonEmpty,
   getActivitySummaryText,
@@ -112,30 +112,97 @@ export async function initMarkdownRenderer(): Promise<void> {
 }
 
 /**
- * Default options for sanitize-html to prevent XSS.
- * Includes additional obsolete/dangerous tags like xmp, listing, and plaintext in nonTextTags.
+ * Default options for DOMPurify to prevent XSS.
  */
-const DEFAULT_SANITIZER_OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+export const DEFAULT_SANITIZER_OPTIONS: DOMPurify.Config = {
+  ALLOWED_TAGS: [
+    "address",
+    "article",
+    "aside",
+    "footer",
+    "header",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hgroup",
+    "main",
+    "nav",
+    "section",
+    "blockquote",
+    "dd",
+    "div",
+    "dl",
+    "dt",
+    "figcaption",
+    "figure",
+    "hr",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "ul",
+    "a",
+    "abbr",
+    "b",
+    "bdi",
+    "bdo",
+    "br",
+    "cite",
+    "code",
+    "data",
+    "dfn",
+    "em",
+    "i",
+    "kbd",
+    "mark",
+    "q",
+    "rb",
+    "rp",
+    "rt",
+    "rtc",
+    "ruby",
+    "s",
+    "samp",
+    "small",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "time",
+    "u",
+    "var",
+    "wbr",
+    "caption",
+    "col",
+    "colgroup",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
     "img",
     "details",
     "summary",
     "button",
-  ]),
-  allowedAttributes: {
-    ...sanitizeHtml.defaults.allowedAttributes,
-    "*": ["class", "id", "data-*", "aria-*"],
-    button: ["type", "title"],
-  },
-  nonTextTags: [
-    "script",
-    "style",
-    "textarea",
-    "option",
-    "xmp",
-    "listing",
-    "plaintext",
   ],
+  ALLOWED_ATTR: [
+    "class",
+    "id",
+    "href",
+    "name",
+    "target",
+    "src",
+    "alt",
+    "title",
+    "type",
+  ],
+  ALLOW_DATA_ATTR: true,
+  ALLOW_ARIA_ATTR: true,
 };
 
 /**
@@ -147,7 +214,7 @@ export function renderChatMarkdown(markdown: string): string {
   if (!markdownRenderer) {
     return escapeHtml(markdown);
   }
-  return sanitizeHtml(markdownRenderer.render(markdown), DEFAULT_SANITIZER_OPTIONS);
+  return DOMPurify.sanitize(markdownRenderer.render(markdown), DEFAULT_SANITIZER_OPTIONS);
 }
 
 const GENERATING_SESSION_STATES: ReadonlySet<string> = new Set([
@@ -303,7 +370,7 @@ export function buildChatMessagesFromActivities(
       id: activity.id ?? activity.name,
       role: "assistant",
       createTime: activity.createTime,
-      html: sanitizeHtml(
+      html: DOMPurify.sanitize(
         '<div class="activity-log"><em>' +
           escapeHtml(combinedText) +
           "</em></div>" +
