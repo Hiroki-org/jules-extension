@@ -42,3 +42,6 @@
 ## 2026-05-15 - [Performance] Eliminating spread operators and .filter() chains
 **Learning:** Using spread syntax `...` inside an array literal followed by `.filter()` creates multiple intermediate arrays and forces multiple O(N) iterations, leading to unnecessary memory allocations and CPU overhead during simple array processing.
 **Action:** Use a single-pass `for...of` loop combined with a `Set` to handle array concatenation, type checking, and deduplication simultaneously.
+## 2025-05-21 - Optimize branch availability checks by fetching all branches once
+**Learning:** Checking for available branch names sequentially using multiple `git branch` spawns introduces unnecessary I/O and process overhead, scaling poorly with repeated collisions (e.g. up to $O(N)$ git spawns).
+**Action:** When searching for an available local entity name (like a branch), prefer a single API call to fetch all existing entities into a memory `Set` ($O(1)$ lookup) and perform the collision checks entirely in memory. Include a graceful fallback for environments where the bulk-fetch API may be unavailable.
