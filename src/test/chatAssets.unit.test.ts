@@ -31,10 +31,7 @@ function createChatScriptHarness(
           return null;
         }
         return {
-          textContent: chatInnerHTML
-            .replace(/<[^>]*>/g, "")
-            .replace(/\s+/g, " ")
-            .trim(),
+          textContent: chatInnerHTML,
         };
       },
       querySelectorAll: () => [],
