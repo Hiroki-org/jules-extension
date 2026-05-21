@@ -22,6 +22,40 @@ function approximateTextContent(html: string): string {
   return text;
 }
 
+function createMockClassList(owner: { className?: string }) {
+  const readClasses = () =>
+    new Set(String(owner.className ?? "").split(/\s+/).filter(Boolean));
+  const writeClasses = (classes: Set<string>) => {
+    owner.className = Array.from(classes).join(" ");
+  };
+
+  return {
+    add: (...tokens: string[]) => {
+      const classes = readClasses();
+      tokens.forEach((token) => classes.add(token));
+      writeClasses(classes);
+    },
+    remove: (...tokens: string[]) => {
+      const classes = readClasses();
+      tokens.forEach((token) => classes.delete(token));
+      writeClasses(classes);
+    },
+    toggle: (token: string, force?: boolean) => {
+      const classes = readClasses();
+      const shouldAdd = force ?? !classes.has(token);
+      if (shouldAdd) {
+        classes.add(token);
+      } else {
+        classes.delete(token);
+      }
+      writeClasses(classes);
+      return shouldAdd;
+    },
+    contains: (token: string) => readClasses().has(token),
+    toString: () => String(owner.className ?? ""),
+  };
+}
+
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
@@ -98,8 +132,32 @@ function createChatScriptHarness(
   const mockDocument = {
     getElementById: (id: string) => elements[id],
     createElement: (tag: string) => {
-      const el: any = { tag, className: "", classList: { contains: () => false }, textContent: "", style: {}, childNodes: [] };
-      el.setAttribute = function(k: string, v: string) { (this as any)[k] = v; };
+      const attributes: Record<string, string> = {};
+      const el: any = {
+        tag,
+        tagName: tag.toUpperCase(),
+        nodeType: 1,
+        className: "",
+        textContent: "",
+        style: {},
+        childNodes: [],
+      };
+      el.classList = createMockClassList(el);
+      el.setAttribute = function(k: string, v: string) {
+        attributes[k] = v;
+        if (k === "class") {
+          this.className = v;
+        } else {
+          (this as any)[k] = v;
+        }
+      };
+      el.getAttribute = function(k: string) {
+        return attributes[k] ?? (this as any)[k] ?? null;
+      };
+      el.removeAttribute = function(k: string) {
+        delete attributes[k];
+        delete (this as any)[k];
+      };
       el.appendChild = function(child: any) { this.childNodes.push(child); if (child) { child.parentNode = this; } };
       el.cloneNode = function(deep = false) {
         const clone: any = mockDocument.createElement(tag);
@@ -128,8 +186,13 @@ function createChatScriptHarness(
       return el;
     },
     createDocumentFragment: () => {
-      const frag: any = { childNodes: [] };
-      frag.appendChild = function(child: any) { this.childNodes.push(child); };
+      const frag: any = { childNodes: [], nodeType: 11 };
+      frag.appendChild = function(child: any) {
+        this.childNodes.push(child);
+        if (child) {
+          child.parentNode = this;
+        }
+      };
       frag.cloneNode = function(deep = false) {
         const clone = mockDocument.createDocumentFragment();
         if (deep) {
@@ -176,10 +239,11 @@ function createChatScriptHarness(
 
 function createHtmlFragment(html: string, onClone?: () => void) {
   const node = {
+    nodeType: 1,
     outerHTML: html,
     cloneNode: () => {
       onClone?.();
-      return { outerHTML: html };
+      return { nodeType: 1, outerHTML: html };
     },
   };
   return { childNodes: [node] };
