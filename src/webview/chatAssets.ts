@@ -2,6 +2,7 @@ export const CHAT_CSS = `
 * { box-sizing: border-box; }
 body { margin: 0; padding: 10px; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); height: 100vh; display: flex; flex-direction: column; gap: 10px; }
 #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .message { display: flex; flex-direction: column; max-width: 92%; animation: slide-in .18s ease-out; gap: 4px; }
 .message.user { margin-left: auto; align-items: flex-end; }
 .message.assistant { margin-right: auto; align-items: flex-start; }
@@ -65,6 +66,7 @@ export const CHAT_JS = `(function() {
     : { postMessage: (m) => console.warn("VSCode API unavailable", m) };
 
   const chatContainer = document.getElementById("chat");
+  const emptyStateStatus = document.getElementById("emptyStateStatus");
   const typingIndicator = document.getElementById("typing");
   const messageInput = document.getElementById("messageInput");
   const sendButton = document.getElementById("sendButton");
@@ -75,6 +77,7 @@ export const CHAT_JS = `(function() {
   let detailsCache = {}; // "activityId|detailType|index" -> html
   let expandedDetails = new Set(); // set of "activityId|detailType|index"
   let detailsBusyTimeouts = {}; // "activityId|detailType|index" -> timeout id
+  let renderedEmptyStateKey = null;
 
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZED_HTML_CACHE_LIMIT = 500;
@@ -290,33 +293,32 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     if (state.messages.length === 0 && !state.isTyping) {
-      const emptyDiv = document.createElement("div");
-      emptyDiv.className = "empty-state";
-      const h3 = document.createElement("h3");
-      const p = document.createElement("p");
-      if (state.sessionId) {
-        h3.textContent = "Ready to assist";
-        p.textContent = "Type a message to start interacting with Jules.";
-      } else {
-        h3.textContent = "Welcome to Jules";
-        p.textContent = "Select a session or create a new one to begin.";
-      }
-      emptyDiv.appendChild(h3);
-      emptyDiv.appendChild(p);
-
-      let isAlreadyEmpty = false;
-      if (chatContainer.childNodes && chatContainer.childNodes.length === 1) {
-        const firstChild = chatContainer.childNodes[0];
-        if (firstChild.className === "empty-state" && firstChild.childNodes && firstChild.childNodes.length > 0) {
-          if (firstChild.childNodes[0].textContent === h3.textContent) {
-            isAlreadyEmpty = true;
-          }
-        }
-      }
-      if (!isAlreadyEmpty) {
+      const emptyStateTitle = state.sessionId ? "Ready to assist" : "Welcome to Jules";
+      const emptyStateDescription = state.sessionId
+        ? "Type a message to start interacting with Jules."
+        : "Select a session or create a new one to begin.";
+      const emptyStateKey = state.sessionId ? "ready" : "welcome";
+      const emptyStateAnnouncement = emptyStateTitle + ". " + emptyStateDescription;
+      if (renderedEmptyStateKey !== emptyStateKey) {
+        const emptyDiv = document.createElement("div");
+        emptyDiv.className = "empty-state";
+        const h3 = document.createElement("h3");
+        h3.textContent = emptyStateTitle;
+        const p = document.createElement("p");
+        p.textContent = emptyStateDescription;
+        emptyDiv.appendChild(h3);
+        emptyDiv.appendChild(p);
         replaceChildren(chatContainer, [emptyDiv]);
+        if (emptyStateStatus) {
+          emptyStateStatus.textContent = emptyStateAnnouncement;
+        }
+        renderedEmptyStateKey = emptyStateKey;
       }
     } else {
+      renderedEmptyStateKey = null;
+      if (emptyStateStatus) {
+        emptyStateStatus.textContent = "";
+      }
       const fragmentNodes = [];
       state.messages.forEach(m => {
         const messageDiv = document.createElement("div");
