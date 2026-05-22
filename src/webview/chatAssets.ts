@@ -277,24 +277,56 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     if (state.messages.length === 0 && !state.isTyping) {
-      const emptyStateContent = state.sessionId
-        ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
-        : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
-      const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
-      if (chatContainer.innerHTML !== emptyStateHtml) {
-        chatContainer.innerHTML = emptyStateHtml;
+      const emptyStateNode = document.createElement("div");
+      emptyStateNode.className = "empty-state";
+      const h3 = document.createElement("h3");
+      h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
+      const p = document.createElement("p");
+      p.textContent = state.sessionId ? "Type a message to start interacting with Jules." : "Select a session or create a new one to begin.";
+      replaceChildren(emptyStateNode, [h3, p]);
+
+      const currentEmptyState = chatContainer.querySelector(".empty-state");
+      const currentH3 = chatContainer.querySelector("h3");
+      if (!currentEmptyState || !currentH3 || currentH3.textContent !== h3.textContent) {
+        replaceChildren(chatContainer, [emptyStateNode]);
       }
     } else {
-      chatContainer.innerHTML = state.messages.map(m => {
-        const sanitizedHtml = sanitizeHtml(m.html);
-        const roleClass = m.role === "user" ? "user" : "assistant";
-        return \`
-        <div class="message \${roleClass}">
-          <div class="bubble">\${sanitizedHtml}</div>
-          <div class="meta">\${formatTime(m.createTime)}</div>
-        </div>
-      \`;
-      }).join("");
+      const fragment = document.createDocumentFragment();
+      state.messages.forEach(m => {
+        const messageNode = document.createElement("div");
+        messageNode.className = "message " + (m.role === "user" ? "user" : "assistant");
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        const rawHtml = typeof m.html === "string" ? m.html : "";
+        if (typeof DOMPurify === "undefined") {
+          const sanitizedStr = sanitizeHtml(rawHtml);
+          if (sanitizedStr === SANITIZATION_FAILURE_HTML) {
+            replaceChildren(bubble, [createUnavailableNode()]);
+          } else {
+            bubble.innerHTML = sanitizedStr;
+          }
+        } else {
+          try {
+            const domFragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({ RETURN_DOM_FRAGMENT: true }));
+            if (domFragment && typeof domFragment === "object" && "childNodes" in domFragment) {
+              replaceChildren(bubble, Array.from(domFragment.childNodes));
+            } else {
+              replaceChildren(bubble, [createUnavailableNode()]);
+            }
+          } catch (e) {
+            replaceChildren(bubble, [createUnavailableNode()]);
+          }
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = formatTime(m.createTime);
+
+        replaceChildren(messageNode, [bubble, meta]);
+        fragment.appendChild(messageNode);
+      });
+      replaceChildren(chatContainer, Array.from(fragment.childNodes));
       restoreExpandedDetails();
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);

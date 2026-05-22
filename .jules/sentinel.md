@@ -13,3 +13,7 @@
 **Vulnerability:** Use of innerHTML in composer.ts to set loading spinner.
 **Learning:** Assigning strings containing HTML to innerHTML is inherently risky and can lead to XSS if user inputs are ever involved. Using document.createElement and appendChild is the safe and secure approach.
 **Prevention:** Avoid .innerHTML and use safer DOM APIs like textContent, document.createElement, and appendChild.
+## 2025-02-13 - Remove .innerHTML in chat webview
+**Vulnerability:** XSS risk from using `.innerHTML` to render chat messages and empty states.
+**Learning:** Using `.innerHTML` even with sanitized content creates a defense-in-depth weakness.
+**Prevention:** Use DOM manipulation methods like `document.createElement`, `.textContent`, and `DOMPurify.sanitize` with `RETURN_DOM_FRAGMENT: true` to safely build and append nodes.

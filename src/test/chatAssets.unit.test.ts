@@ -19,6 +19,15 @@ function createChatScriptHarness(
         chatInnerHTMLSetCount += 1;
         chatInnerHTML = value;
       },
+      replaceChildren: (...nodes: any[]) => {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = nodes.map(n => n.outerHTML || n.textContent || "").join("");
+      },
+      querySelector: (selector: string) => {
+        if (selector === ".empty-state") return chatInnerHTML.includes("empty-state") ? { textContent: "empty-state" } : null;
+        if (selector === "h3") return chatInnerHTML.includes("Ready to assist") ? { textContent: "Ready to assist" } : (chatInnerHTML.includes("Welcome to Jules") ? { textContent: "Welcome to Jules" } : null);
+        return null;
+      },
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
       scrollHeight: 0,
@@ -47,6 +56,32 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
+    createElement: (tag: string) => {
+      const el: any = {
+        tagName: tag.toUpperCase(),
+        className: "",
+        textContent: "",
+        childNodes: [],
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        appendChild: function(node: any) { this.childNodes.push(node); },
+      };
+      el.replaceChildren = function(...nodes: any[]) { el.childNodes = nodes; };
+      Object.defineProperty(el, 'outerHTML', {
+        get: function() {
+          const classAttr = this.className ? ` class="${this.className}"` : '';
+          const attrs = Object.entries(this)
+            .filter(([k, v]) => typeof v === 'string' && k !== 'tagName' && k !== 'className' && k !== 'textContent' && k !== 'outerHTML')
+            .map(([k, v]) => ` ${k}="${v}"`).join('');
+          const inner = this.childNodes.map((n: any) => n.outerHTML || n.textContent || "").join("") || this.textContent;
+          return `<${this.tagName.toLowerCase()}${classAttr}${attrs}>${inner}</${this.tagName.toLowerCase()}>`;
+        }
+      });
+      return el;
+    },
+    createDocumentFragment: () => ({
+      childNodes: [] as any[],
+      appendChild: function(node: any) { this.childNodes.push(node); },
+    }),
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
