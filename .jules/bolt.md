@@ -45,3 +45,7 @@
 ## 2024-05-19 - Avoid Chaining Array Methods for UI Lists
 **Learning:** Chaining functional array methods like `.filter().map()` to generate lists for UI components (like VS Code's `showQuickPick`) introduces unnecessary intermediate array allocations and redundant sequential traversals. This is particularly relevant when mapping data for dropdowns, quick picks, or tree views where performance matters.
 **Action:** When filtering and transforming arrays for UI components, use a single-pass loop (e.g., `for...of`) to combine both operations. This directly populates the final array, reducing GC pressure and avoiding O(2N) iteration.
+
+## 2026-05-22 - Micro-optimizations on Cold Paths
+**Learning:** Applying array iteration optimizations (like removing `.filter()` and spread operator chains) to infrequent, user-initiated operations (like "Clear Cache") or operations dominated by asynchronous I/O (like VS Code `globalState.update` calls) yields negligible measurable performance benefits, while adding complexity. The time spent awaiting the `update` calls heavily dwarfs any milliseconds saved by avoiding intermediate array allocations.
+**Action:** Always verify if a target optimization is on a "hot path" (e.g., UI rendering, tree view generation, frequent polling loops). Do not perform array consolidation optimizations on cold paths or where I/O is the primary bottleneck.
