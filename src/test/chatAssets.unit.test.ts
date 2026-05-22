@@ -511,7 +511,7 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: null, messages: [], isTyping: false },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state" role="status" aria-live="polite" aria-atomic="true"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
   });
@@ -524,7 +524,7 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: "session-1", messages: [], isTyping: false },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state" role="status" aria-live="polite" aria-atomic="true"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
   });

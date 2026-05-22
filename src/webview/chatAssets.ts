@@ -280,7 +280,7 @@ export const CHAT_JS = `(function() {
       const emptyStateContent = state.sessionId
         ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
         : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
-      const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
+      const emptyStateHtml = \`<div class="empty-state" role="status" aria-live="polite" aria-atomic="true">\${emptyStateContent}</div>\`;
       if (chatContainer.innerHTML !== emptyStateHtml) {
         chatContainer.innerHTML = emptyStateHtml;
       }
