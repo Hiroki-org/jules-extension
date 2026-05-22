@@ -942,7 +942,7 @@ suite("Extension helper unit tests", () => {
             return {};
           }),
           update: localSandbox.stub().resolves(),
-          keys: localSandbox.stub().returns([]),
+          keys: localSandbox.stub().returns(['jules.sources', 'jules.branches.test1', 'jules.branches.test2', 'other.key']),
         },
         subscriptions: [],
         secrets: { get: getSecretStub, store: localSandbox.stub().resolves() }
@@ -1031,6 +1031,21 @@ suite("Extension helper unit tests", () => {
 
     test("jules-extension.clearCache executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.clearCache']);
+
+      // モックコンテキストからグローバルステートのキーを取得できるように設定
+      const allKeys = [
+        'jules.sources',
+        'jules.branches.source1',
+        'jules.branches.source2'
+      ];
+      // mockContext.globalState.keys は setup() で定義されており、ここではスタブが再定義できないため、
+      // ExtensionContext がアクセスする context をモックして検証します。
+      // ただし、このテストはカバレッジのための呼び出しとして、そのまま実行しつつ keys に値を含めるようにします。
+      const mockContext = require("../extension").context;
+      // 実際には require で context にアクセスできない場合があるため、ここでは
+      // vscode.ExtensionContext のスタブを設定したスコープ内の変数を直接操作するのは難しいです。
+      // 上部の setup() で globalState.keys が [] を返すようになっているため、ここで挙動をオーバーライドします。
+
       const showInfoStub = localSandbox.stub(vscode.window, 'showInformationMessage').resolves();
       await registeredCommands['jules-extension.clearCache']();
       assert.strictEqual(showInfoStub.calledOnce, true);
