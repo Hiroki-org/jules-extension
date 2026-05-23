@@ -41,7 +41,7 @@ function createChatScriptHarness(
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: () => {},
     },
-    sessionLabel: { textContent: "" },
+    sessionLabel: { textContent: "", title: "" },
     composer: { addEventListener: (evt: string, cb: any) => { listeners.composer[evt] = cb; } },
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
@@ -636,7 +636,7 @@ suite("chatAssets unit tests", () => {
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
         addEventListener: () => {}
       },
-      sessionLabel: { textContent: "" },
+      sessionLabel: { textContent: "", title: "" },
       composer: { addEventListener: () => {} },
     };
 
