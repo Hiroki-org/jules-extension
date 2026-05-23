@@ -20,6 +20,19 @@ function createChatScriptHarness(
         chatInnerHTML = value;
       },
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
+      replaceChildren: (...nodes: any[]) => {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = nodes.map((n: any) => typeof n === 'string' ? n : n.outerHTML || n.textContent || "").join("");
+      },
+      appendChild: (child: any) => {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML += typeof child === 'string' ? child : child.outerHTML || child.textContent || "";
+      },
+      get textContent() { return chatInnerHTML; },
+      set textContent(value: string) {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = value;
+      },
       scrollTop: 0,
       scrollHeight: 0,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
@@ -47,6 +60,30 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
+    createElement: (tag: string) => {
+      const el: any = {
+        tagName: tag.toUpperCase(),
+        className: "",
+        setAttribute: (key: string, value: string) => {
+          el[key] = value;
+          el.updateOuterHTML();
+        },
+        textContent: "",
+        appendChild: (child: any) => {
+          el.children.push(child);
+          el.updateOuterHTML();
+        },
+        children: [],
+        updateOuterHTML: () => {
+          const attrs = Object.keys(el).filter(k => typeof el[k] === 'string' && k !== 'tagName' && k !== 'outerHTML' && k !== 'textContent' && k !== 'className').map(k => ` ${k}="${el[k]}"`).join("");
+          const classAttr = el.className ? ` class="${el.className}"` : "";
+          const content = el.children.length > 0 ? el.children.map((c: any) => c.outerHTML || c.textContent || "").join("") : el.textContent;
+          el.outerHTML = "<" + tag + classAttr + attrs + ">" + content + "</" + tag + ">";
+        }
+      };
+      el.updateOuterHTML();
+      return el;
+    },
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
@@ -138,8 +175,8 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.strictEqual(sanitizedInput, '<img src=x onerror="alert(1)">');
-    assert.ok(harness.elements.chat.innerHTML.includes("<p>safe</p>"));
-    assert.ok(!harness.elements.chat.innerHTML.includes("onerror"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("<p>safe</p>"));
+    assert.ok(!(harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("onerror"));
     assert.strictEqual(
       sanitizeConfig.ALLOWED_URI_REGEXP.test("command:jules-extension.openSettings"),
       false,
@@ -172,10 +209,10 @@ suite("chatAssets unit tests", () => {
       },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes("message-unavailable"));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-label="Message unavailable"'));
-    assert.ok(!harness.elements.chat.innerHTML.includes("<img"));
-    assert.ok(!harness.elements.chat.innerHTML.includes("onerror"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("message-unavailable"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes('aria-label="Message unavailable"'));
+    assert.ok(!(harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("<img"));
+    assert.ok(!(harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("onerror"));
   });
 
   test("CHAT_JS should constrain message role class names", () => {
@@ -192,8 +229,8 @@ suite("chatAssets unit tests", () => {
       },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="message assistant"'));
-    assert.ok(!harness.elements.chat.innerHTML.includes("onclick"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes('class="message assistant"'));
+    assert.ok(!(harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("onclick"));
   });
 
   test("CHAT_JS should cache sanitized HTML across renders", () => {
@@ -511,9 +548,9 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: null, messages: [], isTyping: false },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
-    assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
-    assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes('class="empty-state"'));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("Welcome to Jules"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("Select a session or create a new one"));
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -524,9 +561,9 @@ suite("chatAssets unit tests", () => {
       payload: { sessionId: "session-1", messages: [], isTyping: false },
     });
 
-    assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
-    assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
-    assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes('class="empty-state"'));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("Ready to assist"));
+    assert.ok((harness.elements.chat.innerHTML || harness.elements.chat.textContent).includes("Type a message to start interacting"));
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -619,7 +656,22 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      chat: {
+        get innerHTML() { return ""; },
+        set innerHTML(value: string) {
+        },
+        replaceChildren: (...nodes: any[]) => {
+        },
+        appendChild: (child: any) => {
+        },
+        get textContent() { return ""; },
+        set textContent(value: string) {
+        },
+        scrollTop: 0,
+        scrollHeight: 0,
+        addEventListener: () => {},
+        querySelectorAll: () => []
+      },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",

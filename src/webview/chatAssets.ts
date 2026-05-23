@@ -282,7 +282,16 @@ export const CHAT_JS = `(function() {
         : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
       const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
       if (chatContainer.innerHTML !== emptyStateHtml) {
-        chatContainer.innerHTML = emptyStateHtml;
+        if (typeof DOMPurify !== "undefined") {
+          const fragment = DOMPurify.sanitize(emptyStateHtml, createSanitizeConfig({ RETURN_DOM_FRAGMENT: true }));
+          if (fragment && typeof fragment === "object" && "childNodes" in fragment) {
+            replaceChildren(chatContainer, Array.from(fragment.childNodes));
+          } else {
+            chatContainer.innerHTML = emptyStateHtml;
+          }
+        } else {
+          chatContainer.innerHTML = emptyStateHtml;
+        }
       }
     } else {
       chatContainer.innerHTML = state.messages.map(m => {
