@@ -175,6 +175,41 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         ]);
     });
 
+    test('startingBranch の remote 候補は空名を除外し origin を優先して探索すること', async () => {
+        repository.state = {
+            remotes: [
+                { name: 'z-remote' },
+                { name: '   ' },
+                { name: 123 },
+                { name: 'origin' },
+            ],
+        };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            if (branchRef === 'z-remote/main') {
+                return { name: 'z-remote/main' };
+            }
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.deepStrictEqual(
+            repository.getBranch.getCalls().map((call: sinon.SinonSpyCall) => call.args[0]),
+            ['main', 'origin/main', 'z-remote/main', 'jules-patch-abc'],
+        );
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'z-remote/main',
+        ]);
+    });
+
     test('gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること', async () => {
         await applyPatchLocallyForSession({
             session: createSession(),
