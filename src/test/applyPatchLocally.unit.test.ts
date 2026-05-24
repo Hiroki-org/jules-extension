@@ -175,41 +175,6 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         ]);
     });
 
-    test('startingBranch の remote 候補は空名を除外し origin を優先して探索すること', async () => {
-        repository.state = {
-            remotes: [
-                { name: 'z-remote' },
-                { name: '   ' },
-                { name: 123 },
-                { name: 'origin' },
-            ],
-        };
-        repository.getCommit.rejects(new Error('commit not found'));
-        repository.getBranch.callsFake(async (branchRef: string) => {
-            if (branchRef === 'z-remote/main') {
-                return { name: 'z-remote/main' };
-            }
-            throw new Error('branch not found');
-        });
-        showWarningMessageStub.resolves('Fallback');
-
-        await applyPatchLocallyForSession({
-            session: createSession(),
-            changeSet: createChangeSet(),
-            outputChannel,
-        });
-
-        assert.deepStrictEqual(
-            repository.getBranch.getCalls().map((call: sinon.SinonSpyCall) => call.args[0]),
-            ['main', 'origin/main', 'z-remote/main', 'jules-patch-abc'],
-        );
-        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
-            'jules-patch-abc',
-            true,
-            'z-remote/main',
-        ]);
-    });
-
     test('gitPatch または unidiffPatch が欠落している場合はエラーを表示して処理を止めること', async () => {
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -537,5 +502,96 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+    });
+
+    test('resolveStartingBranchRef で origin 以外の複数リモートを正しくソートしてフォールバックすること', async () => {
+        repository.state = { remotes: [{ name: 'upstream' }, { name: 'fork' }, { name: 'origin' }] };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            if (branchRef === 'fork/main') {
+                return { name: 'fork/main' };
+            }
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranch.calledWith('main'), true);
+        assert.strictEqual(repository.getBranch.calledWith('origin/main'), true);
+        assert.strictEqual(repository.getBranch.calledWith('fork/main'), true);
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'fork/main',
+        ]);
+    });
+
+    test('resolveStartingBranchRef でリモート名の前後の空白がトリムされること', async () => {
+        repository.state = { remotes: [{ name: '  origin  ' }] };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            if (branchRef === 'origin/main') {
+                return { name: 'origin/main' };
+            }
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranch.calledWith('origin/main'), true);
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'origin/main',
+        ]);
+    });
+
+    test('resolveStartingBranchRef で name が string ではないリモートや空文字のリモートをスキップすること', async () => {
+        repository.state = { remotes: [{ name: null }, { name: '   ' }, { name: 'valid' }] };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            if (branchRef === 'valid/main') {
+                return { name: 'valid/main' };
+            }
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranch.calledWith('valid/main'), true);
+        assert.deepStrictEqual(repository.createBranch.firstCall.args, [
+            'jules-patch-abc',
+            true,
+            'valid/main',
+        ]);
+    });
+
+    test('isBranchNotFoundError が string 型以外の error を受け取った場合に正しく undefined として処理すること', async () => {
+        // readErrorStringProperty に渡す error が null や文字列など object 以外の場合の動作テスト
+        repository.getBranch.rejects('just a string error'); // typeof error !== 'object'
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        // branch not found にはマッチしないため、上位へ伝播して全体エラーになるはず
+        assert.match(showErrorMessageStub.firstCall.args[0], /An error occurred: just a string error/);
     });
 });

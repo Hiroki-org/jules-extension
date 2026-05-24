@@ -3836,10 +3836,14 @@ export function activate(context: vscode.ExtensionContext) {
         const allKeys = context.globalState.keys();
 
         // Sources & Branches キャッシュをフィルタ
-        const branchCacheKeys = allKeys.filter((key) =>
-          key.startsWith("jules.branches."),
-        );
-        const cacheKeys = ["jules.sources", ...branchCacheKeys];
+        const cacheKeys = ["jules.sources"];
+        let branchCacheCount = 0;
+        for (const key of allKeys) {
+            if (key.startsWith("jules.branches.")) {
+                cacheKeys.push(key);
+                branchCacheCount++;
+            }
+        }
 
         // すべてのキャッシュをクリア
         await Promise.all(
@@ -3850,7 +3854,7 @@ export function activate(context: vscode.ExtensionContext) {
           `Jules cache cleared: ${cacheKeys.length} entries removed`,
         );
         logChannel.appendLine(
-          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheKeys.length} branches)`,
+          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheCount} branches)`,
         );
       } catch (error: any) {
         logChannel.appendLine(`[Jules] Error clearing cache: ${error.message}`);
