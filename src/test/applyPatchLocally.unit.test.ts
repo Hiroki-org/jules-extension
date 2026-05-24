@@ -594,4 +594,18 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         // branch not found にはマッチしないため、上位へ伝播して全体エラーになるはず
         assert.ok(showErrorMessageStub.firstCall.args[0].includes('just a string error'));
     });
+
+    test('isBranchNotFoundError が string 型以外の error を受け取った場合に正しく処理すること', async () => {
+        // readErrorStringProperty に渡す error が null や文字列など object 以外の場合の動作テスト
+        repository.getBranch.rejects('just a string error'); // typeof error !== 'object'
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        // branch not found にはマッチしないため、上位へ伝播して全体エラーになるはず
+        assert.ok(showErrorMessageStub.firstCall.args[0].includes('just a string error'));
+    });
 });
