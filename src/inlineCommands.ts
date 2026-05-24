@@ -240,10 +240,13 @@ export async function handleInlineTask(
     } = branchInfo;
 
     const remoteBranchSet = new Set(remoteBranches);
-    const branchItems = [];
+
+    // Performance optimization: Avoid chained .filter().map() to reduce intermediate array allocations.
+    // We combine the filtering and mapping into a single pass using a for...of loop.
+    const quickPickItems: vscode.QuickPickItem[] = [];
     for (const branch of branches) {
         if (remoteBranchSet.has(branch)) {
-            branchItems.push({
+            quickPickItems.push({
                 label: branch,
                 picked: branch === selectedDefaultBranch,
                 description: branch === selectedDefaultBranch && branch === currentBranch
@@ -256,8 +259,9 @@ export async function handleInlineTask(
             });
         }
     }
+
     const selectedBranch = await vscode.window.showQuickPick(
-        branchItems,
+        quickPickItems,
         {
             placeHolder: "Select a remote branch for this session",
             title: "Branch Selection",
