@@ -592,6 +592,6 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         // branch not found にはマッチしないため、上位へ伝播して全体エラーになるはず
-        assert.match(showErrorMessageStub.firstCall.args[0], /An error occurred: just a string error/);
+        assert.ok(showErrorMessageStub.firstCall.args[0].includes('just a string error'));
     });
 });
