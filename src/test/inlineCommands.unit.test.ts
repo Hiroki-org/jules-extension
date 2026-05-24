@@ -407,13 +407,14 @@ suite("inlineCommands Test Suite", () => {
         await generateTestsCallback();
 
         // Assert that the error message was shown
-        assert.ok((vscode.window.showErrorMessage as sinon.SinonSpy).calledWith("No code selected to refactor."));
-        assert.ok((vscode.window.showErrorMessage as sinon.SinonSpy).calledWith("No code selected to generate tests for."));
+        assert.ok((vscode.window.showErrorMessage as sinon.SinonStub).calledWith("No code selected to refactor."));
+        assert.ok((vscode.window.showErrorMessage as sinon.SinonStub).calledTwice);
+        assert.ok((vscode.window.showErrorMessage as sinon.SinonStub).calledWith("No code selected to generate tests for."));
     });
 
     test("handleInlineTask with branch selection falling back to undefined description", async () => {
         const executeStub = sandbox.stub(vscode.commands, "executeCommand").resolves();
-        sandbox.stub(vscode.workspace, "getWorkspaceFolder" as keyof typeof vscode.workspace).returns({} as any);
+        // getWorkspaceFolder is mocked at the module level in this test file
 
         const branches = ["other-branch", "feature"];
         const remoteBranches = ["other-branch", "feature"];
