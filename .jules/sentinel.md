@@ -13,3 +13,8 @@
 **Vulnerability:** Use of innerHTML in composer.ts to set loading spinner.
 **Learning:** Assigning strings containing HTML to innerHTML is inherently risky and can lead to XSS if user inputs are ever involved. Using document.createElement and appendChild is the safe and secure approach.
 **Prevention:** Avoid .innerHTML and use safer DOM APIs like textContent, document.createElement, and appendChild.
+
+## 2024-05-24 - Avoid `.innerHTML` in webviews
+**Vulnerability:** Assigning strings to `.innerHTML` in `src/webview/chatAssets.ts` exposes the UI to Cross-Site Scripting (XSS) risks.
+**Learning:** Even if the payload originates from a sanitized source or static string, using `.innerHTML` inherently breaks defense-in-depth and makes the code brittle to future changes. It also requires strings to be properly escaped (which is error-prone).
+**Prevention:** Use DOM manipulation methods like `document.createElement`, `textContent`, and `replaceChildren()` to build the DOM structure safely. For parsed fragments (like DOMPurify outputs), rely on `RETURN_DOM_FRAGMENT: true` and then insert via `replaceChildren(Array.from(fragment.childNodes))`. Ensure to update unit test mocks correctly to reflect these operations.
