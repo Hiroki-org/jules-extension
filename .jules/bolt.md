@@ -47,5 +47,5 @@
 **Action:** When filtering and transforming arrays for UI components, use a single-pass loop (e.g., `for...of`) to combine both operations. This directly populates the final array, reducing GC pressure and avoiding O(2N) iteration.
 
 ## 2026-05-18 - [Performance] Optimize regex replacement with startsWith/endsWith
-**Learning:** Using regular expressions like `replace(/\.git$/, '')` or `replace(/^sessions\//, '')` in loops or frequently called utility functions introduces unnecessary overhead from regex compilation and execution compared to simple string matching methods.
-**Action:** When conditionally removing a fixed string prefix or suffix, use `.startsWith()` or `.endsWith()` combined with `.slice()` (e.g., `str.endsWith('.git') ? str.slice(0, -4) : str`) instead of `replace()` with a regular expression to improve execution speed.
+**Learning:** Using regular expressions like \`replace(/\\.git$/, '')\` or \`replace(/^sessions\\//, '')\` in loops or frequently called utility functions introduces unnecessary overhead from regex compilation and execution compared to simple string matching methods.
+**Action:** When conditionally removing a fixed string prefix or suffix, use \`.startsWith()\` or \`.endsWith()\` combined with \`.slice()\` (e.g., \`str.endsWith('.git') ? str.slice(0, -4) : str\`) instead of \`replace()\` with a regular expression to improve execution speed.
