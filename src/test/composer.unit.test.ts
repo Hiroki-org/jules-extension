@@ -247,6 +247,7 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes('const validate = () => {'));
       assert.ok(html.includes('const isValid = textarea.value.trim().length > 0;'));
       assert.ok(html.includes('submitButton.disabled = !isValid;'));
+      assert.ok(html.includes("submitButton.setAttribute('aria-disabled', !isValid ? 'true' : 'false');"));
       assert.ok(html.includes('return isValid;'));
     });
 
@@ -602,8 +603,11 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("const srStatus = document.getElementById('sr-status');"));
       assert.ok(html.includes("if (srStatus) srStatus.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
+      assert.ok(html.includes("submitButton.setAttribute('aria-disabled', 'true');"));
       assert.ok(html.includes("textarea.disabled = true;"));
-      assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
+      assert.ok(html.includes("textarea.setAttribute('aria-disabled', 'true');"));
+      assert.ok(html.includes("cancelButton.disabled = true;"));
+      assert.ok(html.includes("cancelButton.setAttribute('aria-disabled', 'true');"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
     });
 
@@ -641,8 +645,10 @@ suite("Composer Test Suite", () => {
         { title: "Test", showCreatePrCheckbox: true, showRequireApprovalCheckbox: true },
         "nonce-123"
       );
-      assert.ok(html.includes("if (createPrCheckbox) createPrCheckbox.disabled = true;"));
-      assert.ok(html.includes("if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;"));
+      assert.ok(html.includes("createPrCheckbox.disabled = true;"));
+      assert.ok(html.includes("createPrCheckbox.setAttribute('aria-disabled', 'true');"));
+      assert.ok(html.includes("requireApprovalCheckbox.disabled = true;"));
+      assert.ok(html.includes("requireApprovalCheckbox.setAttribute('aria-disabled', 'true');"));
     });
   });
 });
