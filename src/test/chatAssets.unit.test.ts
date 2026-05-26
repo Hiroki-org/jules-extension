@@ -224,7 +224,7 @@ suite("chatAssets unit tests", () => {
     harness.postWindowMessage({ type: "chatState", payload });
     harness.postWindowMessage({ type: "chatState", payload });
 
-    assert.ok(sanitizeCalls > 0);
+    assert.strictEqual(sanitizeCalls, 1);
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
@@ -663,7 +663,11 @@ suite("chatAssets unit tests", () => {
           setAttribute(k: string, v: string) { this[k] = v; },
           get innerHTML() { return this._innerHTML || this._children.map((c: any) => c.outerHTML || c.innerHTML || c.textContent || "").join(""); },
           set innerHTML(v) { this._innerHTML = v; },
-          get outerHTML() { return undefined; },
+          get outerHTML() {
+            const tag = this.tagName.toLowerCase();
+            const classAttr = this.className ? ` class="${this.className}"` : "";
+            return `<${tag}${classAttr}>${this.innerHTML}</${tag}>`;
+          },
         };
         return node;
       },
