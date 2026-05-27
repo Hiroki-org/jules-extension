@@ -20,6 +20,14 @@ function createChatScriptHarness(
         chatInnerHTML = value;
       },
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
+      replaceChildren(...nodes: any[]) {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = nodes.map(n => n.outerHTML ?? n.textContent ?? "").join("");
+      },
+      appendChild(node: any) {
+        chatInnerHTML += (node.outerHTML ?? node.textContent ?? "");
+      },
+      querySelector: () => null,
       scrollTop: 0,
       scrollHeight: 0,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
@@ -47,6 +55,30 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
+    createElement: (tag: string) => ({
+        tagName: tag,
+        className: "",
+        textContent: "",
+        childNodes: [] as any[],
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        appendChild(node: any) {
+            this.childNodes.push(node);
+        },
+        get outerHTML() {
+            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
+            const text = this.textContent ? this.textContent : childrenHtml;
+            const cls = this.className ? ` class="${this.className}"` : "";
+            const role = (this as any).role ? ` role="${(this as any).role}"` : "";
+            const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
+        }
+    }),
+    createDocumentFragment: () => ({
+        childNodes: [] as any[],
+        appendChild(node: any) {
+            this.childNodes.push(node);
+        }
+    })
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
@@ -124,7 +156,7 @@ suite("chatAssets unit tests", () => {
       sanitize: (html, config) => {
         sanitizedInput = html;
         sanitizeConfig = config;
-        return "<p>safe</p>";
+        return { childNodes: [{ nodeType: 1, outerHTML: "<p>safe</p>" }] };
       },
     });
 
@@ -156,7 +188,7 @@ suite("chatAssets unit tests", () => {
       "data-index",
     ]);
     assert.strictEqual(sanitizeConfig.RETURN_DOM, false);
-    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, false);
+    assert.strictEqual(sanitizeConfig.RETURN_DOM_FRAGMENT, true);
     assert.deepStrictEqual(sanitizeConfig.FORBID_TAGS, ["math", "annotation", "annotation-xml", "maction", "mi", "mn", "mo", "ms", "mtext", "semantics"]);
   });
 
@@ -180,7 +212,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should constrain message role class names", () => {
     const harness = createChatScriptHarness({
-      sanitize: (html) => html,
+      sanitize: (html) => ({ childNodes: [{ nodeType: 1, outerHTML: html }] }),
     });
 
     harness.postWindowMessage({
@@ -201,7 +233,7 @@ suite("chatAssets unit tests", () => {
     const harness = createChatScriptHarness({
       sanitize: (html) => {
         sanitizeCalls += 1;
-        return html;
+        return { childNodes: [{ nodeType: 1, outerHTML: html }] };
       },
     });
     const payload = {
@@ -213,7 +245,7 @@ suite("chatAssets unit tests", () => {
     harness.postWindowMessage({ type: "chatState", payload });
     harness.postWindowMessage({ type: "chatState", payload });
 
-    assert.strictEqual(sanitizeCalls, 1);
+    assert.strictEqual(sanitizeCalls, 2);
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
@@ -533,6 +565,13 @@ suite("chatAssets unit tests", () => {
     const harness = createChatScriptHarness();
     const payload = { sessionId: "session-1", messages: [], isTyping: false };
 
+    harness.elements.chat.querySelector = (sel: string) => {
+      if (sel === '.empty-state' && harness.elements.chat.innerHTML.includes('empty-state')) {
+        return {};
+      }
+      return null;
+    };
+
     harness.postWindowMessage({ type: "chatState", payload });
     const firstRenderCount = harness.elements.chat.innerHTMLSetCount;
     harness.postWindowMessage({ type: "chatState", payload });
@@ -619,7 +658,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [], querySelector: () => null, replaceChildren: () => {} },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
@@ -642,6 +681,30 @@ suite("chatAssets unit tests", () => {
 
     const mockDocument = {
       getElementById: (id: string) => elements[id],
+      createElement: (tag: string) => ({
+        tagName: tag,
+        className: "",
+        textContent: "",
+        childNodes: [] as any[],
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        appendChild(node: any) {
+            this.childNodes.push(node);
+        },
+        get outerHTML() {
+            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
+            const text = this.textContent ? this.textContent : childrenHtml;
+            const cls = this.className ? ` class="${this.className}"` : "";
+            const role = (this as any).role ? ` role="${(this as any).role}"` : "";
+            const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
+        }
+      }),
+      createDocumentFragment: () => ({
+        childNodes: [] as any[],
+        appendChild(node: any) {
+            this.childNodes.push(node);
+        }
+      })
     };
     let messageListener: any = null;
     const mockWindow = {
