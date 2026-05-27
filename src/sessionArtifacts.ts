@@ -240,32 +240,23 @@ function normalizeStatus(value: unknown): string | undefined {
 
 function parseFilesFromDiff(diff: string): ChangeSetFile[] {
     const files: ChangeSetFile[] = [];
-    let start = 0;
-    const len = diff.length;
-    const searchString = 'diff --git ';
-    const searchLen = searchString.length;
 
     // Instead of allocating an array for all lines via .split('\n'),
-    // we search for 'diff --git ' using indexOf to scan directly.
-    while (start < len) {
-        const found = diff.indexOf(searchString, start);
-        if (found === -1) {
-            break;
-        }
-        start = found;
+    // we use a global regex to extract all 'diff --git ' lines directly.
+    const regex = /(?:^|\n)diff --git (.*)/g;
+    let match;
 
-        // Verify it is actually at the beginning of a line or the start of the file
-        if (start !== 0 && diff[start - 1] !== '\n') {
-            start += searchLen;
+    while ((match = regex.exec(diff)) !== null) {
+        const payload = match[1];
+
+        // Fast path for the most common case: simple unquoted paths without escapes
+        // e.g. "a/path/to/file.ts b/path/to/file.ts"
+        const fastMatch = payload.match(/^a\/(.+?) b\/(.+?)$/);
+        if (fastMatch && !payload.includes('\\') && !payload.includes('"')) {
+            files.push({ path: fastMatch[2] });
             continue;
         }
 
-        let end = diff.indexOf('\n', start);
-        if (end === -1) {
-            end = len;
-        }
-
-        const payload = diff.substring(start + searchLen, end); // everything after 'diff --git '
         let i = 0;
 
         function readPath(): string | undefined {
@@ -325,15 +316,10 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
         // Check if we parsed a valid b/ path
         if (path2?.startsWith('b/')) {
             files.push({ path: path2.slice(2) });
-        } else {
+        } else if (fastMatch) {
             // Fallback for unquoted paths containing spaces (e.g. diff --git a/my file b/my file)
-            const match = payload.match(/^a\/(.+?) b\/(.+?)$/);
-            if (match) {
-                files.push({ path: match[2] });
-            }
+            files.push({ path: fastMatch[2] });
         }
-
-        start = end + 1;
     }
     return files;
 }

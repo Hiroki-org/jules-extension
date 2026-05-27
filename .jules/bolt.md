@@ -45,3 +45,6 @@
 ## 2024-05-19 - Avoid Chaining Array Methods for UI Lists
 **Learning:** Chaining functional array methods like `.filter().map()` to generate lists for UI components (like VS Code's `showQuickPick`) introduces unnecessary intermediate array allocations and redundant sequential traversals. This is particularly relevant when mapping data for dropdowns, quick picks, or tree views where performance matters.
 **Action:** When filtering and transforming arrays for UI components, use a single-pass loop (e.g., `for...of`) to combine both operations. This directly populates the final array, reducing GC pressure and avoiding O(2N) iteration.
+## 2025-02-20 - Optimize `parseFilesFromDiff` with regex
+**Learning:** Iterating large strings with `indexOf` in JS can be slower than global native RegEx evaluations (when capturing specific start-of-line patterns).
+**Action:** Use native `/(?:^|\n)pattern(.*)/g` instead of while loop with manual `indexOf` and substring to extract line segments in massive payloads.
