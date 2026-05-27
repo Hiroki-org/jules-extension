@@ -45,3 +45,7 @@
 ## 2024-05-19 - Avoid Chaining Array Methods for UI Lists
 **Learning:** Chaining functional array methods like `.filter().map()` to generate lists for UI components (like VS Code's `showQuickPick`) introduces unnecessary intermediate array allocations and redundant sequential traversals. This is particularly relevant when mapping data for dropdowns, quick picks, or tree views where performance matters.
 **Action:** When filtering and transforming arrays for UI components, use a single-pass loop (e.g., `for...of`) to combine both operations. This directly populates the final array, reducing GC pressure and avoiding O(2N) iteration.
+## 2025-05-27 - Parallel API Requests
+
+**Learning:** When deleting multiple sessions, using a sequential `for` loop combined with `await` introduces artificial latency proportional to the number of items. Replacing this with `Promise.all` allows parallel execution of the API calls.
+**Action:** When performing bulk I/O operations (like API deletes or fetch requests), prefer mapping the items to Promises and using `Promise.all` instead of sequential awaits, while being careful to maintain the necessary telemetry or UI update tracking (like `progress.report`) within the Promise closures using `finally`.
