@@ -52,6 +52,51 @@ suite('SessionArtifacts ユニットテスト', () => {
     // extractLatestArtifactsFromActivities のテスト
     // =========================================================================
 
+
+    suite('parseFilesFromDiff Edge Cases Coverage', () => {
+        test('parseFilesFromDiff covers fastMatch fallback unquoted spaces without escapes', () => {
+            const diff = 'diff --git a/my file"withquote b/my file"withquote\n';
+            const activities = [
+                {
+                    id: "activity-1",
+                    createTime: new Date().toISOString(),
+                    gitPatch: { diff: diff },
+                    artifacts: [{
+                        changeSet: {
+                            gitPatch: {
+                                unidiffPatch: diff
+                            }
+                        }
+                    }]
+                }
+            ];
+            const artifacts = extractLatestArtifactsFromActivities(activities as any);
+            assert.ok(artifacts.latestChangeSet, 'Should extract changeset');
+            assert.ok(artifacts.latestChangeSet?.files.length > 0, 'Should extract files');
+        });
+
+        test('parseFilesFromDiff handles unquoted paths with spaces correctly', () => {
+            const diff = 'diff --git a/my file with spaces.txt b/my file with spaces.txt\n';
+            const activities = [
+                {
+                    id: "activity-1",
+                    createTime: new Date().toISOString(),
+                    gitPatch: { diff: diff },
+                    artifacts: [{
+                        changeSet: {
+                            gitPatch: {
+                                unidiffPatch: diff
+                            }
+                        }
+                    }]
+                }
+            ];
+            const artifacts = extractLatestArtifactsFromActivities(activities as any);
+            assert.ok(artifacts.latestChangeSet, 'Should extract changeset');
+            assert.ok(artifacts.latestChangeSet?.files.length > 0, 'Should extract files');
+        });
+    });
+
     suite('extractLatestArtifactsFromActivities', () => {
         test('空の配列を渡した場合、空のオブジェクトを返すこと', () => {
             const result = extractLatestArtifactsFromActivities([]);

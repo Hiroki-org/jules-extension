@@ -316,9 +316,6 @@ function parseFilesFromDiff(diff: string): ChangeSetFile[] {
         // Check if we parsed a valid b/ path
         if (path2?.startsWith('b/')) {
             files.push({ path: path2.slice(2) });
-        } else if (fastMatch) {
-            // Fallback for unquoted paths containing spaces (e.g. diff --git a/my file b/my file)
-            files.push({ path: fastMatch[2] });
         }
     }
     return files;
