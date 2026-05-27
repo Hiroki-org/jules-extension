@@ -7,6 +7,35 @@ function createChatScriptHarness(
 ) {
   let chatInnerHTML = "";
   let chatInnerHTMLSetCount = 0;
+
+  const mockDocumentCreateElement = (tag: string) => {
+    const el: any = {
+      tagName: tag.toUpperCase(),
+      className: "",
+      textContent: "",
+      childNodes: [] as any[],
+      attributes: {} as Record<string, string>,
+      setAttribute(name: string, value: string) {
+        this.attributes[name] = value;
+      },
+      getAttribute(name: string) {
+        return this.attributes[name] || null;
+      },
+      appendChild(node: any) {
+        this.childNodes.push(node);
+      },
+      replaceChildren(...nodes: any[]) {
+        this.childNodes = nodes;
+      },
+      get outerHTML(): string {
+        const text = this.textContent || "";
+        const childrenHTML = this.childNodes.map((c: any) => c.outerHTML || c.textContent || "").join("");
+        const attrStr = Object.entries(this.attributes).map(([k, v]) => ` ${k}="${v}"`).join("");
+        return `<${tag}${this.className ? ` class="${this.className}"` : ""}${attrStr}>${text}${childrenHTML}</${tag}>`;
+      }
+    };
+    return el;
+  };
   const listeners: Record<string, Record<string, any>> = {
     chat: {},
     messageInput: {},
@@ -18,6 +47,10 @@ function createChatScriptHarness(
       set innerHTML(value: string) {
         chatInnerHTMLSetCount += 1;
         chatInnerHTML = value;
+      },
+      replaceChildren: (...nodes: any[]) => {
+        chatInnerHTML = nodes.map((node) => node.outerHTML ?? node.textContent ?? "").join("");
+        chatInnerHTMLSetCount += 1;
       },
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       scrollTop: 0,
@@ -47,6 +80,7 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
+    createElement: mockDocumentCreateElement,
   };
   const mockWindow = {
     addEventListener: (evt: string, cb: (event: { data: any }) => void) => {
@@ -619,7 +653,7 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
+      chat: { innerHTML: "", replaceChildren: () => {}, scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [] },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",

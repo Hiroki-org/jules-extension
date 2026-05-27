@@ -277,24 +277,43 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     if (state.messages.length === 0 && !state.isTyping) {
-      const emptyStateContent = state.sessionId
-        ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
-        : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
-      const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
-      if (chatContainer.innerHTML !== emptyStateHtml) {
-        chatContainer.innerHTML = emptyStateHtml;
-      }
+      const isReady = !!state.sessionId;
+      const titleText = isReady ? 'Ready to assist' : 'Welcome to Jules';
+      const descText = isReady ? 'Type a message to start interacting with Jules.' : 'Select a session or create a new one to begin.';
+
+      const emptyStateDiv = document.createElement('div');
+      emptyStateDiv.className = 'empty-state';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = titleText;
+      emptyStateDiv.appendChild(h3);
+
+      const p = document.createElement('p');
+      p.textContent = descText;
+      emptyStateDiv.appendChild(p);
+
+      replaceChildren(chatContainer, [emptyStateDiv]);
     } else {
-      chatContainer.innerHTML = state.messages.map(m => {
-        const sanitizedHtml = sanitizeHtml(m.html);
+      const messageNodes = state.messages.map(m => {
         const roleClass = m.role === "user" ? "user" : "assistant";
-        return \`
-        <div class="message \${roleClass}">
-          <div class="bubble">\${sanitizedHtml}</div>
-          <div class="meta">\${formatTime(m.createTime)}</div>
-        </div>
-      \`;
-      }).join("");
+        const messageDiv = document.createElement('div');
+        messageDiv.className = "message " + roleClass;
+
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = "bubble";
+
+        renderSanitizedDetailsHtml(bubbleDiv, sanitizeHtml(m.html));
+
+        messageDiv.appendChild(bubbleDiv);
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = "meta";
+        metaDiv.textContent = formatTime(m.createTime);
+        messageDiv.appendChild(metaDiv);
+
+        return messageDiv;
+      });
+      replaceChildren(chatContainer, messageNodes);
       restoreExpandedDetails();
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
