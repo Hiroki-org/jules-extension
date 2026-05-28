@@ -9,3 +9,7 @@
 ## 2025-05-11 - Dynamic ARIA Labeling for Context-Aware Inputs
 **Learning:** When using context-aware placeholders (like dynamically changing the placeholder from "Select a session to start typing" to "Enter message (Ctrl/Cmd+Enter to send)"), it is crucial to synchronize these changes with ARIA attributes (`aria-label` and `title`) to ensure screen readers provide accurate, up-to-date context, preventing users from becoming disoriented by outdated or mismatched labels.
 **Action:** Next time an input element's visual cue (like a placeholder) is dynamically updated based on state, immediately map that updated string to the element's `aria-label` and `title` properties within the same DOM update cycle.
+
+## 2025-05-28 - Tooltips for Truncated Text
+**Learning:** When applying CSS text truncation (`text-overflow: ellipsis`) to dynamically populated UI elements (like session labels), users cannot read the full content if it exceeds the container's width. Without an explicit tooltip, the hidden text becomes inaccessible.
+**Action:** Next time an element uses `text-overflow: ellipsis`, ensure that its `title` attribute is synchronized with its `textContent` (e.g., `element.title = element.textContent;`) so the complete information is always available on hover.
