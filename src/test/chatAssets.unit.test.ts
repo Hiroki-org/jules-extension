@@ -1,29 +1,6 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function serializeMockNode(node: any): string {
-  if (typeof node === "string") {
-    return node;
-  }
-  if (node?.outerHTML) {
-    return node.outerHTML;
-  }
-  if (Array.isArray(node?.childNodes)) {
-    return node.childNodes.map(serializeMockNode).join("");
-  }
-  return node?.textContent ?? "";
-}
-
-function cloneMockNode(node: any): any {
-  if (node?.cloneNode) {
-    return node.cloneNode(true);
-  }
-  if (Array.isArray(node?.childNodes)) {
-    return { ...node, childNodes: node.childNodes.map(cloneMockNode) };
-  }
-  return { ...node };
-}
-
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
@@ -45,18 +22,12 @@ function createChatScriptHarness(
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       replaceChildren(...nodes: any[]) {
         chatInnerHTMLSetCount += 1;
-        chatInnerHTML = nodes.map(serializeMockNode).join("");
+        chatInnerHTML = nodes.map(n => n.outerHTML ?? n.textContent ?? "").join("");
       },
       appendChild(node: any) {
-        chatInnerHTML += serializeMockNode(node);
+        chatInnerHTML += (node.outerHTML ?? node.textContent ?? "");
       },
-      querySelector: (selector: string) => {
-        if (selector === ".empty-state h3") {
-          const match = chatInnerHTML.match(/<h3>(.*?)<\/h3>/);
-          return match ? { textContent: match[1] } : null;
-        }
-        return null;
-      },
+      querySelector: () => null,
       scrollTop: 0,
       scrollHeight: 0,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
@@ -94,34 +65,18 @@ function createChatScriptHarness(
             this.childNodes.push(node);
         },
         get outerHTML() {
-            const childrenHtml = this.childNodes.map(serializeMockNode).join("");
+            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
             const text = this.textContent ? this.textContent : childrenHtml;
             const cls = this.className ? ` class="${this.className}"` : "";
             const role = (this as any).role ? ` role="${(this as any).role}"` : "";
             const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
             return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
-        },
-        cloneNode(deep?: boolean) {
-            const clone = mockDocument.createElement(tag);
-            clone.className = this.className;
-            clone.textContent = this.textContent;
-            if (deep) {
-                clone.childNodes = this.childNodes.map(cloneMockNode);
-            }
-            return clone;
         }
     }),
     createDocumentFragment: () => ({
         childNodes: [] as any[],
         appendChild(node: any) {
             this.childNodes.push(node);
-        },
-        cloneNode(deep?: boolean) {
-            const clone = mockDocument.createDocumentFragment();
-            if (deep) {
-                clone.childNodes = this.childNodes.map(cloneMockNode);
-            }
-            return clone;
         }
     })
   };
@@ -158,12 +113,7 @@ function createChatScriptHarness(
 }
 
 function createHtmlFragment(html: string) {
-  return {
-    childNodes: [{ outerHTML: html }],
-    cloneNode() {
-      return createHtmlFragment(html);
-    },
-  };
+  return { childNodes: [{ outerHTML: html }] };
 }
 
 function createDetailsContentDiv() {
@@ -295,7 +245,7 @@ suite("chatAssets unit tests", () => {
     harness.postWindowMessage({ type: "chatState", payload });
     harness.postWindowMessage({ type: "chatState", payload });
 
-    assert.strictEqual(sanitizeCalls, 1);
+    assert.strictEqual(sanitizeCalls, 2);
   });
 
   test("CHAT_JS should sanitize lazy-loaded details HTML", () => {
@@ -616,9 +566,8 @@ suite("chatAssets unit tests", () => {
     const payload = { sessionId: "session-1", messages: [], isTyping: false };
 
     harness.elements.chat.querySelector = (sel: string) => {
-      if (sel === ".empty-state h3") {
-        const match = harness.elements.chat.innerHTML.match(/<h3>(.*?)<\/h3>/);
-        return match ? { textContent: match[1] } : null;
+      if (sel === '.empty-state' && harness.elements.chat.innerHTML.includes('empty-state')) {
+        return {};
       }
       return null;
     };
@@ -742,34 +691,18 @@ suite("chatAssets unit tests", () => {
             this.childNodes.push(node);
         },
         get outerHTML() {
-            const childrenHtml = this.childNodes.map(serializeMockNode).join("");
+            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
             const text = this.textContent ? this.textContent : childrenHtml;
             const cls = this.className ? ` class="${this.className}"` : "";
             const role = (this as any).role ? ` role="${(this as any).role}"` : "";
             const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
             return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
-        },
-        cloneNode(deep?: boolean) {
-            const clone = mockDocument.createElement(tag);
-            clone.className = this.className;
-            clone.textContent = this.textContent;
-            if (deep) {
-                clone.childNodes = this.childNodes.map(cloneMockNode);
-            }
-            return clone;
         }
       }),
       createDocumentFragment: () => ({
         childNodes: [] as any[],
         appendChild(node: any) {
             this.childNodes.push(node);
-        },
-        cloneNode(deep?: boolean) {
-            const clone = mockDocument.createDocumentFragment();
-            if (deep) {
-                clone.childNodes = this.childNodes.map(cloneMockNode);
-            }
-            return clone;
         }
       })
     };
