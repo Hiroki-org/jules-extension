@@ -563,8 +563,7 @@ async function fetchAndCheckoutFromPRInfo(
 
         for (const r of remotes) {
             if (!targetRemote && r.fetchUrl) {
-                const fetchUrlNoGit = r.fetchUrl.endsWith('.git') ? r.fetchUrl.slice(0, -4) : r.fetchUrl;
-                if (r.fetchUrl === headCloneUrl || fetchUrlNoGit === headCloneUrlNoGit) {
+                if (r.fetchUrl === headCloneUrl || (r.fetchUrl.endsWith('.git') ? r.fetchUrl.slice(0, -4) : r.fetchUrl) === headCloneUrlNoGit) {
                     targetRemote = r;
                 }
             }
