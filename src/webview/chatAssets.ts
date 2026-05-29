@@ -266,7 +266,9 @@ export const CHAT_JS = `(function() {
       sendButton.setAttribute("aria-label", "Send message (Ctrl/Cmd+Enter)");
     }
 
-    sessionLabel.textContent = hasSession ? "Session: " + state.sessionId : "Session: None selected";
+    const sessionText = hasSession ? "Session: " + state.sessionId : "Session: None selected";
+    sessionLabel.textContent = sessionText;
+    sessionLabel.title = sessionText;
   }
 
   function formatTime(timestamp) {
