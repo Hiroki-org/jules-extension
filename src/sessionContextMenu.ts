@@ -555,7 +555,7 @@ async function fetchAndCheckoutFromPRInfo(
         // リポジトリのリモート一覧を取得
         const remotes: { remote: string; fetchUrl: string }[] = repository.state?.remotes || [];
 
-        const headCloneUrlNoGit = headCloneUrl.replace(/\.git$/, '');
+        const headCloneUrlNoGit = headCloneUrl.endsWith('.git') ? headCloneUrl.slice(0, -4) : headCloneUrl;
 
         // 必要なリモートだけを1回の走査で探す
         let targetRemote: typeof remotes[number] | undefined;
@@ -563,8 +563,7 @@ async function fetchAndCheckoutFromPRInfo(
 
         for (const r of remotes) {
             if (!targetRemote && r.fetchUrl) {
-                const fetchUrlNoGit = r.fetchUrl.replace(/\.git$/, '');
-                if (r.fetchUrl === headCloneUrl || fetchUrlNoGit === headCloneUrlNoGit) {
+                if (r.fetchUrl === headCloneUrl || (r.fetchUrl.endsWith('.git') ? r.fetchUrl.slice(0, -4) : r.fetchUrl) === headCloneUrlNoGit) {
                     targetRemote = r;
                 }
             }
