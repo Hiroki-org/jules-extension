@@ -1550,12 +1550,14 @@ suite("Extension Test Suite", () => {
   });
 });
 
+
 suite("JulesActivitiesDocumentProvider Unit Tests", () => {
     let provider: any;
     let vscodeMock: any;
+    let extensionModule: any;
 
     setup(async () => {
-        const extensionModule = await import("../extension.js");
+        extensionModule = await import("../extension.js");
         provider = new extensionModule.JulesActivitiesDocumentProvider();
         vscodeMock = require("vscode");
     });
@@ -1578,7 +1580,9 @@ suite("JulesActivitiesDocumentProvider Unit Tests", () => {
         assert.ok(uriString.startsWith("jules-activities://"));
         assert.ok(uriString.includes("abc-123-def"));
         assert.ok(uriString.endsWith("activities.log"));
-        assert.ok(uriString.match(/sessions\/.*abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
+        // URI parser may drop the double slash if we're not careful, but we just want to ensure
+        // the id itself doesn't have "sessions/" inside it.
+        assert.strictEqual(uriString, "jules-activities://sessions/abc-123-def/activities.log");
     });
 
     test("should handle session ID without 'sessions/' prefix", () => {
@@ -1588,25 +1592,6 @@ suite("JulesActivitiesDocumentProvider Unit Tests", () => {
         assert.ok(uriString.startsWith("jules-activities://"));
         assert.ok(uriString.includes("abc-123-def"));
         assert.ok(uriString.endsWith("activities.log"));
-    });
-});
-
-suite("JulesActivitiesDocumentProvider Unit Tests 2", () => {
-    let provider: any;
-    let vscodeMock: any;
-
-    setup(async () => {
-        const extensionModule = await import("../extension.js");
-        provider = new extensionModule.JulesActivitiesDocumentProvider();
-        vscodeMock = require("vscode");
-    });
-
-    test("should handle session ID without 'sessions/' prefix correctly", () => {
-        const uri = provider.buildUri("abc-123-def");
-        const uriString = uri.toString();
-
-        assert.ok(uriString.startsWith("jules-activities://"));
-        assert.ok(uriString.includes("abc-123-def"));
-        assert.ok(uriString.endsWith("activities.log"));
+        assert.strictEqual(uriString, "jules-activities://sessions/abc-123-def/activities.log");
     });
 });
