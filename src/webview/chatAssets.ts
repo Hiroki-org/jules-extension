@@ -93,30 +93,23 @@ export const CHAT_JS = `(function() {
   }
 
   function rememberSanitizedHtml(html, sanitizedHtml) {
-    sanitizedHtmlCache.set(html, sanitizedHtml);
-    if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
-      const oldestKey = sanitizedHtmlCache.keys().next().value;
-      sanitizedHtmlCache.delete(oldestKey);
-    }
     return sanitizedHtml;
   }
 
   function sanitizeHtml(html) {
     const rawHtml = typeof html === "string" ? html : "";
-    if (sanitizedHtmlCache.has(rawHtml)) {
-      return sanitizedHtmlCache.get(rawHtml);
-    }
     if (typeof DOMPurify === "undefined") {
-      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
+      const fragment = document.createDocumentFragment();
+      fragment.appendChild(createUnavailableNode());
+      return fragment;
     }
     try {
-      return rememberSanitizedHtml(
-        rawHtml,
-        DOMPurify.sanitize(rawHtml, createSanitizeConfig()),
-      );
+      return DOMPurify.sanitize(rawHtml, createSanitizeConfig({ RETURN_DOM_FRAGMENT: true }));
     } catch (error) {
       console.error("Jules: Failed to sanitize chat HTML", error);
-      return rememberSanitizedHtml(rawHtml, SANITIZATION_FAILURE_HTML);
+      const fragment = document.createDocumentFragment();
+      fragment.appendChild(createUnavailableNode());
+      return fragment;
     }
   }
 
@@ -279,24 +272,44 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     if (state.messages.length === 0 && !state.isTyping) {
-      const emptyStateContent = state.sessionId
-        ? '<h3>Ready to assist</h3><p>Type a message to start interacting with Jules.</p>'
-        : '<h3>Welcome to Jules</h3><p>Select a session or create a new one to begin.</p>';
-      const emptyStateHtml = \`<div class="empty-state">\${emptyStateContent}</div>\`;
-      if (chatContainer.innerHTML !== emptyStateHtml) {
-        chatContainer.innerHTML = emptyStateHtml;
+      if (!chatContainer.querySelector('.empty-state')) {
+        const emptyStateDiv = document.createElement("div");
+        emptyStateDiv.className = "empty-state";
+
+        const h3 = document.createElement("h3");
+        h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
+
+        const p = document.createElement("p");
+        p.textContent = state.sessionId
+          ? "Type a message to start interacting with Jules."
+          : "Select a session or create a new one to begin.";
+
+        emptyStateDiv.appendChild(h3);
+        emptyStateDiv.appendChild(p);
+        replaceChildren(chatContainer, [emptyStateDiv]);
       }
     } else {
-      chatContainer.innerHTML = state.messages.map(m => {
-        const sanitizedHtml = sanitizeHtml(m.html);
-        const roleClass = m.role === "user" ? "user" : "assistant";
-        return \`
-        <div class="message \${roleClass}">
-          <div class="bubble">\${sanitizedHtml}</div>
-          <div class="meta">\${formatTime(m.createTime)}</div>
-        </div>
-      \`;
-      }).join("");
+      const nodes = state.messages.map(m => {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "message " + (m.role === "user" ? "user" : "assistant");
+
+        const bubbleDiv = document.createElement("div");
+        bubbleDiv.className = "bubble";
+
+        const fragment = sanitizeHtml(m.html);
+        if (fragment && fragment.childNodes) {
+            Array.from(fragment.childNodes).forEach(node => bubbleDiv.appendChild(node));
+        }
+
+        const metaDiv = document.createElement("div");
+        metaDiv.className = "meta";
+        metaDiv.textContent = formatTime(m.createTime);
+
+        messageDiv.appendChild(bubbleDiv);
+        messageDiv.appendChild(metaDiv);
+        return messageDiv;
+      });
+      replaceChildren(chatContainer, nodes);
       restoreExpandedDetails();
     }
     typingIndicator.classList.toggle("visible", !!state.isTyping);
