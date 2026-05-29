@@ -416,3 +416,23 @@ suite("Session Context Menu Artifacts Openers", () => {
         assert.strictEqual(openTextDocumentStub.called, false);
     });
 });
+
+import { JulesPlanDocumentProvider } from '../planDocumentProvider';
+
+suite("JulesPlanDocumentProvider Test Suite", () => {
+    let provider: JulesPlanDocumentProvider;
+
+    setup(() => {
+        provider = new JulesPlanDocumentProvider();
+    });
+
+    test("should build correct URI for plan without sessions prefix", () => {
+        const uri = provider.buildUri("abc-123");
+        assert.strictEqual(uri.toString(), "jules-plan://sessions/abc-123/plan.md");
+    });
+
+    test("should build correct URI for plan with sessions prefix", () => {
+        const uri = provider.buildUri("sessions/def-456");
+        assert.strictEqual(uri.toString(), "jules-plan://sessions/def-456/plan.md");
+    });
+});

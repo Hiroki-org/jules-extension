@@ -802,6 +802,72 @@ test('checkoutToBranchForSession handles createBranch failure missing message pr
 
 
 
+    test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo success when headCloneUrl matches exactly without replace', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-remote', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session = {
+            name: 'session-match-exact',
+            title: 'Session Match Exact',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } }]
+        } as unknown as Session;
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+        assert.strictEqual(result, true);
+    });
+
+    test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo success when headCloneUrl with no git matches fetchUrl with git', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-remote', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session = {
+            name: 'session-match-no-git',
+            title: 'Session Match No Git',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } }]
+        } as unknown as Session;
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+        assert.strictEqual(result, true);
+    });
+
     test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo success when headCloneUrl matches without trailing git suffix against fetchUrl without trailing git suffix', async () => {
         const repo = createRepository({
             state: {
@@ -854,6 +920,72 @@ test('checkoutToBranchForSession handles createBranch failure missing message pr
             headOwner: 'fork-owner',
             headRepo: 'fork-repo',
             headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session = {
+            name: 'session-match-no-git',
+            title: 'Session Match No Git',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } }]
+        } as unknown as Session;
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+        assert.strictEqual(result, true);
+    });
+
+    test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo success when headCloneUrl matches exactly without replace', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-remote', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo.git',
+            state: 'open',
+            title: 'Test PR'
+        });
+
+        const session = {
+            name: 'session-match-exact',
+            title: 'Session Match Exact',
+            outputs: [{ pullRequest: { url: 'https://github.com/owner/repo/pull/123' } }]
+        } as unknown as Session;
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session, createOutputChannel());
+        assert.strictEqual(result, true);
+    });
+
+    test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo success when headCloneUrl with no git matches fetchUrl with git', async () => {
+        const repo = createRepository({
+            state: {
+                HEAD: { name: 'main' },
+                workingTreeChanges: [],
+                indexChanges: [],
+                remotes: [{ remote: 'fork-remote', fetchUrl: 'https://github.com/fork-owner/fork-repo.git' }]
+            },
+            checkout: sandbox.stub().resolves(),
+            fetch: sandbox.stub().resolves()
+        });
+        stubGitExtension([repo]);
+        sandbox.stub(GitHubAuth, 'getToken').resolves('token');
+        sandbox.stub(githubUtils, 'getPullRequestBranchInfo').resolves({
+            headBranch: 'feature/pr-123',
+            baseBranch: 'main',
+            headOwner: 'fork-owner',
+            headRepo: 'fork-repo',
+            headCloneUrl: 'https://github.com/fork-owner/fork-repo',
             state: 'open',
             title: 'Test PR'
         });
