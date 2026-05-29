@@ -257,6 +257,7 @@ export function getComposerHtml(
     const validate = () => {
       const isValid = textarea.value.trim().length > 0;
       submitButton.disabled = !isValid;
+      submitButton.setAttribute('aria-disabled', !isValid ? 'true' : 'false');
       submitButton.title = isValid ? 'Send (Cmd/Ctrl+Enter)' : 'Type a message to send';
       submitButton.setAttribute('aria-label', isValid ? 'Send message (Cmd/Ctrl+Enter)' : 'Type a message to send');
       return isValid;
@@ -268,6 +269,7 @@ export function getComposerHtml(
       }
 
       submitButton.disabled = true;
+      submitButton.setAttribute('aria-disabled', 'true');
       submitButton.textContent = 'Sending... ';
       const spinnerSpan = document.createElement('span');
       spinnerSpan.className = 'spinner';
@@ -278,9 +280,20 @@ export function getComposerHtml(
       const srStatus = document.getElementById('sr-status');
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
-      if (createPrCheckbox) createPrCheckbox.disabled = true;
-      if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
-      document.getElementById('cancel').disabled = true;
+      textarea.setAttribute('aria-disabled', 'true');
+      if (createPrCheckbox) {
+        createPrCheckbox.disabled = true;
+        createPrCheckbox.setAttribute('aria-disabled', 'true');
+      }
+      if (requireApprovalCheckbox) {
+        requireApprovalCheckbox.disabled = true;
+        requireApprovalCheckbox.setAttribute('aria-disabled', 'true');
+      }
+      const cancelButton = document.getElementById('cancel');
+      if (cancelButton) {
+        cancelButton.disabled = true;
+        cancelButton.setAttribute('aria-disabled', 'true');
+      }
       document.body.style.cursor = 'wait';
 
       vscode.postMessage({
