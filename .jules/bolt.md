@@ -49,3 +49,6 @@
 ## 2026-05-21 - Optimize string suffix removal
 **Learning:** Using regular expressions like `.replace(/\.git$/, '')` inside loops or hot paths introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string suffix, prefer using `.endsWith()` combined with `.slice()` (e.g., `str.endsWith('.git') ? str.slice(0, -4) : str`) for better execution speed and reduced memory allocation.
+## 2026-05-29 - Avoid micro-optimizations on cold paths
+**Learning:** Replacing `replace()` regexes with `startsWith()` and `slice()` is technically faster, but applying this to infrequently executed code paths (like `buildUri` for context menus or diff document providers) provides no measurable performance impact. This violates the principle of avoiding premature optimization and micro-optimizations.
+**Action:** Focus performance optimizations only on "hot paths" (e.g., render loops, frequent polling, processing large arrays). Always include inline comments explaining the specific performance benefit of the change.
