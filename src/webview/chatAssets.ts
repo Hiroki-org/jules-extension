@@ -93,18 +93,30 @@ export const CHAT_JS = `(function() {
   }
 
   function rememberSanitizedHtml(html, sanitizedHtml) {
-    return sanitizedHtml;
+    sanitizedHtmlCache.set(html, sanitizedHtml);
+    if (sanitizedHtmlCache.size > SANITIZED_HTML_CACHE_LIMIT) {
+      const oldestKey = sanitizedHtmlCache.keys().next().value;
+      sanitizedHtmlCache.delete(oldestKey);
+    }
+    return sanitizedHtml && typeof sanitizedHtml.cloneNode === "function"
+      ? sanitizedHtml.cloneNode(true)
+      : sanitizedHtml;
   }
 
   function sanitizeHtml(html) {
     const rawHtml = typeof html === "string" ? html : "";
+    if (sanitizedHtmlCache.has(rawHtml)) {
+      const cached = sanitizedHtmlCache.get(rawHtml);
+      return cached && typeof cached.cloneNode === "function" ? cached.cloneNode(true) : cached;
+    }
     if (typeof DOMPurify === "undefined") {
       const fragment = document.createDocumentFragment();
       fragment.appendChild(createUnavailableNode());
       return fragment;
     }
     try {
-      return DOMPurify.sanitize(rawHtml, createSanitizeConfig({ RETURN_DOM_FRAGMENT: true }));
+      const fragment = DOMPurify.sanitize(rawHtml, createSanitizeConfig({ RETURN_DOM_FRAGMENT: true }));
+      return rememberSanitizedHtml(rawHtml, fragment);
     } catch (error) {
       console.error("Jules: Failed to sanitize chat HTML", error);
       const fragment = document.createDocumentFragment();
@@ -270,12 +282,14 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     if (state.messages.length === 0 && !state.isTyping) {
-      if (!chatContainer.querySelector('.empty-state')) {
+      const expectedTitle = state.sessionId ? "Ready to assist" : "Welcome to Jules";
+      const currentTitle = chatContainer.querySelector(".empty-state h3")?.textContent;
+      if (currentTitle !== expectedTitle) {
         const emptyStateDiv = document.createElement("div");
         emptyStateDiv.className = "empty-state";
 
         const h3 = document.createElement("h3");
-        h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
+        h3.textContent = expectedTitle;
 
         const p = document.createElement("p");
         p.textContent = state.sessionId
@@ -295,8 +309,8 @@ export const CHAT_JS = `(function() {
         bubbleDiv.className = "bubble";
 
         const fragment = sanitizeHtml(m.html);
-        if (fragment && fragment.childNodes) {
-            Array.from(fragment.childNodes).forEach(node => bubbleDiv.appendChild(node));
+        if (fragment) {
+            bubbleDiv.appendChild(fragment);
         }
 
         const metaDiv = document.createElement("div");
