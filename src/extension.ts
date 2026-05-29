@@ -1182,7 +1182,7 @@ interface SessionsResponse {
 
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
 
-class JulesActivitiesDocumentProvider
+export class JulesActivitiesDocumentProvider
   implements vscode.TextDocumentContentProvider
 {
   private readonly contents = new Map<string, string>();

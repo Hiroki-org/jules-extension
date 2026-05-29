@@ -1549,3 +1549,64 @@ suite("Extension Test Suite", () => {
     fetchStub.restore();
   });
 });
+
+suite("JulesActivitiesDocumentProvider Unit Tests", () => {
+    let provider: any;
+    let vscodeMock: any;
+
+    setup(async () => {
+        const extensionModule = await import("../extension.js");
+        provider = new extensionModule.JulesActivitiesDocumentProvider();
+        vscodeMock = require("vscode");
+    });
+
+    test("should return empty string for unknown URI", () => {
+        const uri = vscodeMock.Uri.parse("jules-activities://sessions/unknown/activities.log");
+        assert.strictEqual(provider.provideTextDocumentContent(uri), "");
+    });
+
+    test("should store and retrieve content for URI", () => {
+        const uri = vscodeMock.Uri.parse("jules-activities://sessions/test-123/activities.log");
+        provider.setContent(uri, "Log content");
+        assert.strictEqual(provider.provideTextDocumentContent(uri), "Log content");
+    });
+
+    test("should normalize session ID by removing 'sessions/' prefix", () => {
+        const uri = provider.buildUri("sessions/abc-123-def");
+        const uriString = uri.toString();
+
+        assert.ok(uriString.startsWith("jules-activities://"));
+        assert.ok(uriString.includes("abc-123-def"));
+        assert.ok(uriString.endsWith("activities.log"));
+        assert.ok(uriString.match(/sessions\/.*abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
+    });
+
+    test("should handle session ID without 'sessions/' prefix", () => {
+        const uri = provider.buildUri("abc-123-def");
+        const uriString = uri.toString();
+
+        assert.ok(uriString.startsWith("jules-activities://"));
+        assert.ok(uriString.includes("abc-123-def"));
+        assert.ok(uriString.endsWith("activities.log"));
+    });
+});
+
+suite("JulesActivitiesDocumentProvider Unit Tests 2", () => {
+    let provider: any;
+    let vscodeMock: any;
+
+    setup(async () => {
+        const extensionModule = await import("../extension.js");
+        provider = new extensionModule.JulesActivitiesDocumentProvider();
+        vscodeMock = require("vscode");
+    });
+
+    test("should handle session ID without 'sessions/' prefix correctly", () => {
+        const uri = provider.buildUri("abc-123-def");
+        const uriString = uri.toString();
+
+        assert.ok(uriString.startsWith("jules-activities://"));
+        assert.ok(uriString.includes("abc-123-def"));
+        assert.ok(uriString.endsWith("activities.log"));
+    });
+});
