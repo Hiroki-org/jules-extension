@@ -754,7 +754,12 @@ suite("Extension Test Suite", () => {
       (mockContext.globalState.keys as sinon.SinonStub).returns(allKeys);
 
       // キャッシュクリア処理をシミュレート
-      const branchCacheKeys = allKeys.filter(key => key.startsWith('jules.branches.'));
+      const branchCacheKeys: string[] = [];
+      for (const key of allKeys) {
+        if (key.startsWith('jules.branches.')) {
+          branchCacheKeys.push(key);
+        }
+      }
       const cacheKeys = ['jules.sources', ...branchCacheKeys];
 
       // 検証：正しいキーがフィルタされることを確認
