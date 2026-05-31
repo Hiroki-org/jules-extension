@@ -124,7 +124,8 @@ export function getComposerHtml(
     outline: 1px solid var(--vscode-focusBorder);
   }
 
-  textarea:disabled {
+  textarea:disabled,
+  textarea[aria-disabled="true"] {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -177,7 +178,8 @@ export function getComposerHtml(
     outline-offset: 2px;
   }
 
-  button:disabled {
+  button:disabled,
+  button[aria-disabled="true"] {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -193,7 +195,9 @@ export function getComposerHtml(
   }
 
   input[type="checkbox"]:disabled,
-  input[type="checkbox"]:disabled + label {
+  input[type="checkbox"][aria-disabled="true"],
+  input[type="checkbox"]:disabled + label,
+  input[type="checkbox"][aria-disabled="true"] + label {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -257,6 +261,7 @@ export function getComposerHtml(
     const validate = () => {
       const isValid = textarea.value.trim().length > 0;
       submitButton.disabled = !isValid;
+      submitButton.setAttribute('aria-disabled', !isValid ? 'true' : 'false');
       submitButton.title = isValid ? 'Send (Cmd/Ctrl+Enter)' : 'Type a message to send';
       submitButton.setAttribute('aria-label', isValid ? 'Send message (Cmd/Ctrl+Enter)' : 'Type a message to send');
       return isValid;
@@ -268,6 +273,7 @@ export function getComposerHtml(
       }
 
       submitButton.disabled = true;
+      submitButton.setAttribute('aria-disabled', 'true');
       submitButton.textContent = 'Sending... ';
       const spinnerSpan = document.createElement('span');
       spinnerSpan.className = 'spinner';
@@ -278,9 +284,12 @@ export function getComposerHtml(
       const srStatus = document.getElementById('sr-status');
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
-      if (createPrCheckbox) createPrCheckbox.disabled = true;
-      if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
-      document.getElementById('cancel').disabled = true;
+      textarea.setAttribute('aria-disabled', 'true');
+      if (createPrCheckbox) { createPrCheckbox.disabled = true; createPrCheckbox.setAttribute('aria-disabled', 'true'); }
+      if (requireApprovalCheckbox) { requireApprovalCheckbox.disabled = true; requireApprovalCheckbox.setAttribute('aria-disabled', 'true'); }
+      const cancelBtn = document.getElementById('cancel');
+      cancelBtn.disabled = true;
+      cancelBtn.setAttribute('aria-disabled', 'true');
       document.body.style.cursor = 'wait';
 
       vscode.postMessage({

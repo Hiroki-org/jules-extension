@@ -312,7 +312,8 @@ suite("Composer Test Suite", () => {
         { title: "Test" },
         "nonce-123"
       );
-      assert.ok(html.includes('button:disabled {'));
+      assert.ok(html.includes('button:disabled,'));
+      assert.ok(html.includes('button[aria-disabled="true"] {'));
       assert.ok(html.includes('opacity: 0.5;'));
       assert.ok(html.includes('cursor: not-allowed;'));
     });
@@ -602,8 +603,12 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("const srStatus = document.getElementById('sr-status');"));
       assert.ok(html.includes("if (srStatus) srStatus.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
+      assert.ok(html.includes("submitButton.setAttribute('aria-disabled', 'true');"));
       assert.ok(html.includes("textarea.disabled = true;"));
-      assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
+      assert.ok(html.includes("textarea.setAttribute('aria-disabled', 'true');"));
+      assert.ok(html.includes("const cancelBtn = document.getElementById('cancel');"));
+      assert.ok(html.includes("cancelBtn.disabled = true;"));
+      assert.ok(html.includes("cancelBtn.setAttribute('aria-disabled', 'true');"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
     });
 
@@ -641,8 +646,8 @@ suite("Composer Test Suite", () => {
         { title: "Test", showCreatePrCheckbox: true, showRequireApprovalCheckbox: true },
         "nonce-123"
       );
-      assert.ok(html.includes("if (createPrCheckbox) createPrCheckbox.disabled = true;"));
-      assert.ok(html.includes("if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;"));
+      assert.ok(html.includes("if (createPrCheckbox) { createPrCheckbox.disabled = true; createPrCheckbox.setAttribute('aria-disabled', 'true'); }"));
+      assert.ok(html.includes("if (requireApprovalCheckbox) { requireApprovalCheckbox.disabled = true; requireApprovalCheckbox.setAttribute('aria-disabled', 'true'); }"));
     });
   });
 });
