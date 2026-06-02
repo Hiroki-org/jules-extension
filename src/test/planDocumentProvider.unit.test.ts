@@ -305,3 +305,12 @@ suite("reviewPlanForSession", () => {
     });
 });
 
+    test("buildUri should remove 'sessions/' prefix", () => {
+        const provider = new JulesPlanDocumentProvider();
+        const uriWithPrefix = provider.buildUri("sessions/test-session-123");
+        assert.ok(uriWithPrefix.toString().includes("/test-session-123/"));
+        assert.ok(!uriWithPrefix.toString().includes("sessions/sessions/"));
+
+        const uriWithoutPrefix = provider.buildUri("test-session-456");
+        assert.ok(uriWithoutPrefix.toString().includes("/test-session-456/"));
+    });
