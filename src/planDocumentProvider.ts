@@ -22,7 +22,8 @@ export class JulesPlanDocumentProvider implements vscode.TextDocumentContentProv
     }
 
     buildUri(sessionId: string): vscode.Uri {
-        const normalized = sessionId.replace(/^sessions\//, "");
+        // Performance optimization: Use .startsWith() and .slice() instead of regex for faster prefix removal
+        const normalized = sessionId.startsWith("sessions/") ? sessionId.slice(9) : sessionId;
         // Use .md extension to enable Markdown syntax highlighting
         return vscode.Uri.parse(`jules-plan://sessions/${normalized}/plan.md`);
     }
