@@ -1,7 +1,24 @@
 import * as assert from "assert";
+import * as vscode from "vscode";
 import { JulesActivitiesDocumentProvider } from "../extension";
 
 suite("JulesActivitiesDocumentProvider Test Suite", () => {
+    test("should return empty string for unknown URI", () => {
+        const provider = new JulesActivitiesDocumentProvider();
+        const uri = vscode.Uri.parse("jules-activities://sessions/unknown/activities.log");
+        const result = provider.provideTextDocumentContent(uri);
+        assert.strictEqual(result, "");
+    });
+
+    test("should store and retrieve content for URI", () => {
+        const provider = new JulesActivitiesDocumentProvider();
+        const uri = vscode.Uri.parse("jules-activities://sessions/test/activities.log");
+        provider.setContent(uri, "Test Content");
+
+        const result = provider.provideTextDocumentContent(uri);
+        assert.strictEqual(result, "Test Content");
+    });
+
     test("should normalize session ID by removing 'sessions/' prefix", () => {
         const provider = new JulesActivitiesDocumentProvider();
         const sessionIdWithPrefix = "sessions/abc-123-def";
