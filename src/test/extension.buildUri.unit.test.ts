@@ -42,3 +42,13 @@ suite("JulesActivitiesDocumentProvider Test Suite", () => {
         assert.ok(uriString.endsWith("activities.log"), "URI should end with 'activities.log'");
     });
 });
+
+    test("should handle session ID with multiple sessions/ prefixes", () => {
+        const provider = new JulesActivitiesDocumentProvider();
+        const sessionIdWithPrefix = "sessions/sessions/abc-123-def";
+        const uri = provider.buildUri(sessionIdWithPrefix);
+
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-activities://"), "URI should have 'jules-activities' scheme");
+        assert.ok(uriString.includes("sessions/abc-123-def"), "URI should include normalized session ID");
+    });

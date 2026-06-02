@@ -202,6 +202,14 @@ suite("JulesDiffDocumentProvider", () => {
         assert.ok(uriString.match(/sessions\/.*abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
     });
 
+    test("should handle session ID with multiple sessions/ prefixes", () => {
+        const sessionIdWithPrefix = "sessions/sessions/abc-123-def";
+        const uri = provider.buildUri(sessionIdWithPrefix, "after");
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-diff://"));
+        assert.ok(uriString.includes("sessions/abc-123-def"));
+    });
+
     test("should handle session ID without 'sessions/' prefix", () => {
         const sessionIdWithoutPrefix = "abc-123-def";
         const uri = provider.buildUri(sessionIdWithoutPrefix, "before");
