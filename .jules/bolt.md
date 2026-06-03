@@ -49,3 +49,7 @@
 ## 2026-05-21 - Optimize string suffix removal
 **Learning:** Using regular expressions like `.replace(/\.git$/, '')` inside loops or hot paths introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string suffix, prefer using `.endsWith()` combined with `.slice()` (e.g., `str.endsWith('.git') ? str.slice(0, -4) : str`) for better execution speed and reduced memory allocation.
+
+## 2024-05-18 - [Optimize PR Status Fetch Concurrency]
+**Learning:** Sequential nested `mapLimit` iterations over separate repositories causes unnecessary serialization and reduces network parallelization. Using `Promise.all` combined with `.map()` over the repositories while keeping the inner `mapLimit` per-repository respects rate limits (per-repo limit) while drastically reducing overall processing time.
+**Action:** When looping over independent batches or groups that have internal rate limits, use `Promise.all` on the outer layer to parallelize the batches instead of wrapping them in a global `mapLimit`, as long as the concurrent tasks respect the API rate thresholds.

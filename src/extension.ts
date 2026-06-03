@@ -983,13 +983,16 @@ export async function updatePreviousStates(
         urlsByRepo.set(repo, list);
       }
 
-      await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
-        await mapLimit(repoUrls, 5, async (url) => {
-          const isClosed = await checkPRStatus(url, token);
-          prStatusCacheChanged = true;
-          prStatusLookup.set(url, isClosed);
-        });
-      });
+      // Optimization: Fetch from all repositories concurrently while limiting concurrent requests per repository to 5
+      await Promise.all(
+        Array.from(urlsByRepo.values()).map(async (repoUrls) => {
+          await mapLimit(repoUrls, 5, async (url) => {
+            const isClosed = await checkPRStatus(url, token);
+            prStatusCacheChanged = true;
+            prStatusLookup.set(url, isClosed);
+          });
+        }),
+      );
     }
 
     // Populate session statuses based on the fetched unique PR statuses
