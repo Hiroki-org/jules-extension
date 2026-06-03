@@ -263,15 +263,21 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
             return a.localeCompare(b);
         });
 
-    for (const remoteName of remoteNames) {
-        const remoteRef = `${remoteName}/${branchRef}`;
-        if (await branchExists(repository, remoteRef)) {
-            return remoteRef;
+    const existsResults = await Promise.all(
+        remoteNames.map(async (remoteName: string) => {
+            const remoteRef = `${remoteName}/${branchRef}`;
+            const exists = await branchExists(repository, remoteRef);
+            return { remoteRef, exists };
+        })
+    );
+
+    for (const result of existsResults) {
+        if (result.exists) {
+            return result.remoteRef;
         }
     }
 
-    return branchRef;
-}
+    return branchRef;}
 
 async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
     for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
