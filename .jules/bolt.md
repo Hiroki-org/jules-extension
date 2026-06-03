@@ -49,3 +49,7 @@
 ## 2026-05-21 - Optimize string suffix removal
 **Learning:** Using regular expressions like `.replace(/\.git$/, '')` inside loops or hot paths introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string suffix, prefer using `.endsWith()` combined with `.slice()` (e.g., `str.endsWith('.git') ? str.slice(0, -4) : str`) for better execution speed and reduced memory allocation.
+
+## 2026-05-22 - Optimize string prefix removal
+**Learning:** Using regular expressions like `.replace(/^sessions\//, '')` for simple string prefix removal introduces unnecessary compilation and execution overhead compared to basic string operations.
+**Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` (e.g., `str.startsWith('sessions/') ? str.slice(9) : str`) for better execution speed and reduced memory allocation.

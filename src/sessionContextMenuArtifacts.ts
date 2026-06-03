@@ -16,7 +16,8 @@ export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProv
     }
 
     buildUri(sessionId: string, kind: "before" | "after"): vscode.Uri {
-        const normalized = sessionId.replace(/^sessions\//, "");
+        // Performance optimization: conditionally removing a fixed string prefix using startsWith and slice is faster than using regex replace.
+        const normalized = sessionId.startsWith("sessions/") ? sessionId.slice(9) : sessionId;
         return vscode.Uri.parse(`jules-diff://sessions/${normalized}/${kind}.patch`);
     }
 }
