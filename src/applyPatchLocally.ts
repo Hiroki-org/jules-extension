@@ -274,6 +274,29 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
 }
 
 async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
+    if (typeof repository.getBranches === "function") {
+        try {
+            // Fast Path: O(1) in-memory lookup via Set if repository.getBranches is available
+            const branches = await repository.getBranches({ remote: false });
+            const branchNames = new Set<string>();
+            for (const branch of branches) {
+                if (branch && typeof branch.name === "string") {
+                    branchNames.add(branch.name);
+                }
+            }
+
+            for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
+                const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
+                if (!branchNames.has(candidate)) {
+                    return candidate;
+                }
+            }
+            throw new Error(`Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`);
+        } catch (e) {
+            // Fallback to sequential getBranch calls if getBranches fails
+        }
+    }
+
     for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
         const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
         try {

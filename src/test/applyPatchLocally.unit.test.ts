@@ -25,6 +25,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         repository = {
             fetch: sandbox.stub().resolves(),
             getCommit: sandbox.stub().resolves({ hash: 'base-sha' }),
+            getBranches: sandbox.stub().rejects(new Error('not implemented')),
             getBranch: sandbox.stub().rejects(new Error('branch not found')),
             createBranch: sandbox.stub().resolves(),
             checkout: sandbox.stub().resolves(),
@@ -478,5 +479,22 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.match(showErrorMessageStub.firstCall.args[0], /Could not find an available branch name/);
         assert.strictEqual(repository.createBranch.called, false);
         assert.strictEqual(repository.getBranch.callCount, 20);
+    });
+
+    test('getBranches が利用可能な場合は一括取得して O(1) 判定すること', async () => {
+        repository.getBranches.resolves([{ name: 'jules-patch-abc' }]);
+        // To ensure we aren't calling getBranch inside the loop, mock it to fail if called
+        repository.getBranch.rejects(new Error('should not be called'));
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranches.calledOnce, true);
+        assert.deepStrictEqual(repository.getBranches.firstCall.args[0], { remote: false });
+        // It skips 'jules-patch-abc' and uses 'jules-patch-abc-2'
+        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc-2');
     });
 });

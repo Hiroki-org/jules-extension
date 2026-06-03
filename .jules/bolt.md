@@ -49,3 +49,7 @@
 ## 2026-05-21 - Optimize string suffix removal
 **Learning:** Using regular expressions like `.replace(/\.git$/, '')` inside loops or hot paths introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string suffix, prefer using `.endsWith()` combined with `.slice()` (e.g., `str.endsWith('.git') ? str.slice(0, -4) : str`) for better execution speed and reduced memory allocation.
+
+## 2026-06-03 - Optimize local branch existence check
+**Learning:** Replaced N+1 getBranch API calls with a single getBranches batch call to improve performance during branch name generation.
+**Action:** Use getBranches({ remote: false }) where possible when making iterative exist checks.
