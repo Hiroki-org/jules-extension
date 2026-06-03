@@ -65,9 +65,13 @@ export async function initMarkdownRenderer(): Promise<void> {
 
       try {
         // @ts-ignore
-        const { default: Shiki } = await import("@shikijs/markdown-it");
-        // @ts-ignore
-        const { createCssVariablesTheme } = await import("shiki");
+        const [
+          { default: Shiki },
+          { createCssVariablesTheme }
+        ] = await Promise.all([
+          import("@shikijs/markdown-it"),
+          import("shiki")
+        ]);
         const cssVariablesTheme = createCssVariablesTheme({
           name: "css-variables",
           variablePrefix: "--shiki-",
