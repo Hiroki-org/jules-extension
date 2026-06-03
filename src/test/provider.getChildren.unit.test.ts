@@ -265,6 +265,9 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         const provider = new JulesSessionsProvider(mockContext);
         provider.setSessionsCacheForTests([]);
 
+        // Bypass actual fetch
+        sandbox.stub(provider as any, "fetchAndProcessSessions").resolves();
+
         const children = await provider.getChildren();
 
         assert.strictEqual(children.length, 0);
