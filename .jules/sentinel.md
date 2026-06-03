@@ -13,3 +13,7 @@
 **Vulnerability:** Use of innerHTML in composer.ts to set loading spinner.
 **Learning:** Assigning strings containing HTML to innerHTML is inherently risky and can lead to XSS if user inputs are ever involved. Using document.createElement and appendChild is the safe and secure approach.
 **Prevention:** Avoid .innerHTML and use safer DOM APIs like textContent, document.createElement, and appendChild.
+## 2026-06-03 - DOMPurify MathML bypass prevention
+**Vulnerability:** mXSS vulnerability via MathML parsing bypass in DOMPurify.
+**Learning:** Using FORBID_TAGS is insufficient for disabling MathML namespace robustly. DOMPurify's USE_PROFILES configuration is required, but setting { math: false } alone resets defaults and breaks standard HTML tags.
+**Prevention:** Explicitly configure USE_PROFILES: { html: true, svg: true, math: false } to securely disable MathML while preserving expected rendering.
