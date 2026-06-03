@@ -300,7 +300,8 @@ async function performCheckout(
         // If branch not found locally, try to fetch and checkout from remote
         // Note: These error message checks depend on Git CLI's output strings,
         // which may change in future Git versions or vary by locale.
-        if (errorMsg.includes("did not match") || errorMsg.includes("not found") || errorMsg.includes("pathspec")) {
+        // ⚡ Bolt Optimization: Combined multiple includes into a single RegExp test for clarity, readability, and performance.
+        if (/did not match|not found|pathspec/.test(errorMsg)) {
             log(`Branch "${branchName}" not found locally, attempting to fetch from remote...`);
 
             const fetchAndCheckout = await vscode.window.showInformationMessage(
