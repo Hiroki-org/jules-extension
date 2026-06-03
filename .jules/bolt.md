@@ -49,3 +49,6 @@
 ## 2026-05-21 - Optimize string suffix removal
 **Learning:** Using regular expressions like `.replace(/\.git$/, '')` inside loops or hot paths introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string suffix, prefer using `.endsWith()` combined with `.slice()` (e.g., `str.endsWith('.git') ? str.slice(0, -4) : str`) for better execution speed and reduced memory allocation.
+## 2024-05-18 - [Optimize Sequential Async Calls]
+**Learning:** In `getBranchesForSession`, `apiClient.getSource` and `getCurrentBranch` (which checks local Git repository state) were executed sequentially, unnecessarily blocking the thread.
+**Action:** Use `Promise.all` to fetch data from independent data sources concurrently, minimizing the total waiting time for network and local I/O bounds.

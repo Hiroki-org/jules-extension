@@ -182,29 +182,37 @@ export async function getBranchesForSession(
     outputChannel.appendLine(`[Jules] Fetching branches from API...`);
 
     const fetchBranchesLogic = async () => {
-        let branches: string[] = [];
-        let defaultBranch = DEFAULT_FALLBACK_BRANCH;
-        let remoteBranches: string[] = [];
-
-        try {
-            const sourceName = selectedSource.name;
-            if (!sourceName) {
-                throw new Error("Selected source is missing a name.");
+        // ⚡ Bolt 最適化: 直列で実行されていたAPI呼び出しとGitコマンドを並列実行
+        const fetchApiPromise = (async () => {
+            try {
+                const sourceName = selectedSource.name;
+                if (!sourceName) {
+                    throw new Error("Selected source is missing a name.");
+                }
+                const sourceDetail = await apiClient.getSource(sourceName);
+                if (sourceDetail.githubRepo?.branches) {
+                    return {
+                        remoteBranches: sourceDetail.githubRepo.branches.map(b => b.displayName),
+                        defaultBranch: sourceDetail.githubRepo.defaultBranch?.displayName || DEFAULT_FALLBACK_BRANCH
+                    };
+                }
+            } catch (error: unknown) {
+                const msg = error instanceof Error ? error.message : String(error);
+                outputChannel.appendLine(`[Jules] Failed to get branches: ${msg}`);
             }
-            const sourceDetail = await apiClient.getSource(sourceName);
-            if (sourceDetail.githubRepo?.branches) {
-                remoteBranches = sourceDetail.githubRepo.branches.map(b => b.displayName);
-                branches = [...remoteBranches];
-                defaultBranch = sourceDetail.githubRepo.defaultBranch?.displayName || DEFAULT_FALLBACK_BRANCH;
-            }
-        } catch (error: unknown) {
-            const msg = error instanceof Error ? error.message : String(error);
-            outputChannel.appendLine(`[Jules] Failed to get branches: ${msg}`);
-            branches = [defaultBranch];
-        }
+            return { remoteBranches: [], defaultBranch: DEFAULT_FALLBACK_BRANCH };
+        })();
 
-        let repository = null; try { repository = await getActiveRepository(outputChannel, { silent }); } catch (e) { }
-        const currentBranch = await getCurrentBranch(outputChannel, { silent, repository });
+        const fetchBranchPromise = (async () => {
+            let repository = null; try { repository = await getActiveRepository(outputChannel, { silent }); } catch (e) { }
+            return await getCurrentBranch(outputChannel, { silent, repository });
+        })();
+
+        const [apiResult, currentBranch] = await Promise.all([fetchApiPromise, fetchBranchPromise]);
+
+        let remoteBranches = apiResult.remoteBranches;
+        let defaultBranch = apiResult.defaultBranch;
+        let branches = remoteBranches.length > 0 ? [...remoteBranches] : [defaultBranch];
 
         // 警告は1回だけ
         if (currentBranch && !remoteBranches.includes(currentBranch)) {
