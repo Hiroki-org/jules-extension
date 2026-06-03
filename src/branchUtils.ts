@@ -207,7 +207,9 @@ export async function getBranchesForSession(
         const currentBranch = await getCurrentBranch(outputChannel, { silent, repository });
 
         // 警告は1回だけ
-        if (currentBranch && !remoteBranches.includes(currentBranch)) {
+        // ⚡ Bolt 最適化: O(N)のArray.includesをO(1)のSet.hasに置換
+        const remoteBranchesSet = new Set(remoteBranches);
+        if (currentBranch && !remoteBranchesSet.has(currentBranch)) {
             outputChannel.appendLine(`[Jules] Warning: Current branch "${sanitizeForLogging(currentBranch)}" not found on remote`);
             branches.unshift(currentBranch);
         }
