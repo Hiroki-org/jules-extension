@@ -6,7 +6,7 @@
 ## 2024-05-13 - [DOMPurify MathML Tags Disable]
 **Vulnerability:** Unnecessary MathML parsing in DOMPurify could widen the attack surface for Cross-Site Scripting (XSS), but using `USE_PROFILES` incorrectly strips default HTML tags.
 **Learning:** `USE_PROFILES` resets `ALLOWED_TAGS`. If you provide an invalid key or do not include standard profiles like `html`, DOMPurify removes safe HTML tags like `<p>` and `<a>`, causing UI breakage.
-**Prevention:** To disable specific attack vectors like MathML while preserving default safe tags, use `FORBID_TAGS: ['math', 'annotation', ...]` rather than altering profiles.
+**Prevention:** Superseded by the 2026-06-03 entry below. Use explicit `USE_PROFILES: { html: true, svg: true, math: false }`; `FORBID_TAGS` is not sufficient for robustly disabling the MathML namespace.
 
 ## 2024-05-25 - [innerHTML replacement]
 

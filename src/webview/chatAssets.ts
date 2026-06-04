@@ -79,6 +79,7 @@ export const CHAT_JS = `(function() {
   const DOMPURIFY_ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|vscode-webview-resource):|(?![a-z][a-z0-9+.-]*:))/i;
   const SANITIZATION_FAILURE_HTML = '<span class="message-unavailable" role="status" aria-label="Message unavailable">Message unavailable</span>';
   const SANITIZED_HTML_CACHE_LIMIT = 500;
+  const SANITIZE_USE_PROFILES = { html: true, svg: true, math: false };
   const sanitizedHtmlCache = new Map();
 
   function createSanitizeConfig(overrides) {
@@ -88,8 +89,9 @@ export const CHAT_JS = `(function() {
       ADD_ATTR: ["data-activity-id", "data-detail-type", "data-index"],
       RETURN_DOM: false,
       RETURN_DOM_FRAGMENT: false,
-      USE_PROFILES: { html: true, svg: true, math: false },
-    }, overrides || {});
+    }, overrides || {}, {
+      USE_PROFILES: SANITIZE_USE_PROFILES,
+    });
   }
 
   function rememberSanitizedHtml(html, sanitizedHtml) {
