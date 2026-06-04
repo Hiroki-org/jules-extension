@@ -764,8 +764,8 @@ suite("chatAssets unit tests", () => {
     harness.listeners.messageInput.input();
     assert.strictEqual(harness.elements.messageInput.style.height, "53px");
   });
+});
 
   test("CHAT_JS should ignore clicks while copy feedback is active", () => {
     assert.ok(CHAT_JS.includes('copyButton.hasAttribute("data-copy-feedback-active")'));
   });
-});
