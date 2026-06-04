@@ -1196,7 +1196,8 @@ class JulesActivitiesDocumentProvider
   }
 
   buildUri(sessionId: string): vscode.Uri {
-    const normalized = sessionId.replace(/^sessions\//, "");
+    // Performance optimization: Avoid regex replace for fixed string prefix removal to reduce overhead.
+    const normalized = sessionId.startsWith("sessions/") ? sessionId.slice(9) : sessionId;
     return vscode.Uri.parse(
       `jules-activities://sessions/${normalized}/activities.log`,
     );
