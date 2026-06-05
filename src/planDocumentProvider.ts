@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
 import { formatFullPlan, type Plan } from "./planUtils";
 import { isValidSessionId } from "./securityUtils";
-
-const SESSION_URI_PREFIX = "sessions/";
+import { SESSION_URI_PREFIX } from "./julesApiConstants";
 
 /**
  * TextDocumentContentProvider for displaying plan content in a virtual document.

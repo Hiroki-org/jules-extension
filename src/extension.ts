@@ -72,7 +72,7 @@ import {
   type ActivityUnionKey,
 } from "./activityUtils";
 
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID, SESSION_URI_PREFIX } from "./julesApiConstants";
 import {
   createJulesSession,
   sendMessage as sendMessageToApi,
@@ -1181,8 +1181,6 @@ interface SessionsResponse {
 }
 
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
-const SESSION_URI_PREFIX = "sessions/";
-
 export class JulesActivitiesDocumentProvider
   implements vscode.TextDocumentContentProvider
 {

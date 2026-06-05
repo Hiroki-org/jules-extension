@@ -3,8 +3,7 @@ import * as path from "path";
 import { fetchLatestSessionArtifacts, getCachedSessionArtifacts, ChangeSetSummary } from "./sessionArtifacts";
 import { sanitizeError } from "./errorUtils";
 import { isValidSessionId } from "./securityUtils";
-
-const SESSION_URI_PREFIX = "sessions/";
+import { SESSION_URI_PREFIX } from "./julesApiConstants";
 
 export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProvider {
     private readonly contents = new Map<string, string>();
