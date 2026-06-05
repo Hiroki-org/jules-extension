@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import { formatFullPlan, type Plan } from "./planUtils";
 import { isValidSessionId } from "./securityUtils";
 
+const SESSION_URI_PREFIX = "sessions/";
+
 /**
  * TextDocumentContentProvider for displaying plan content in a virtual document.
  * Uses the `jules-plan` URI scheme to provide Markdown-formatted plan content.
@@ -23,7 +25,9 @@ export class JulesPlanDocumentProvider implements vscode.TextDocumentContentProv
 
     buildUri(sessionId: string): vscode.Uri {
         // Performance optimization: Avoid regex replace for fixed string prefix removal to reduce overhead.
-        const normalized = sessionId.startsWith("sessions/") ? sessionId.slice(9) : sessionId;
+        const normalized = sessionId.startsWith(SESSION_URI_PREFIX)
+            ? sessionId.slice(SESSION_URI_PREFIX.length)
+            : sessionId;
         // Use .md extension to enable Markdown syntax highlighting
         return vscode.Uri.parse(`jules-plan://sessions/${normalized}/plan.md`);
     }

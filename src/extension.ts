@@ -1181,6 +1181,7 @@ interface SessionsResponse {
 }
 
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
+const SESSION_URI_PREFIX = "sessions/";
 
 export class JulesActivitiesDocumentProvider
   implements vscode.TextDocumentContentProvider
@@ -1197,7 +1198,9 @@ export class JulesActivitiesDocumentProvider
 
   buildUri(sessionId: string): vscode.Uri {
     // Performance optimization: Avoid regex replace for fixed string prefix removal to reduce overhead.
-    const normalized = sessionId.startsWith("sessions/") ? sessionId.slice(9) : sessionId;
+    const normalized = sessionId.startsWith(SESSION_URI_PREFIX)
+      ? sessionId.slice(SESSION_URI_PREFIX.length)
+      : sessionId;
     return vscode.Uri.parse(
       `jules-activities://sessions/${normalized}/activities.log`,
     );
