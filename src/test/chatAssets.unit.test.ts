@@ -656,7 +656,7 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(harness.elements.messageInput.style.height, "auto");
   });
 
-  test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
+  test("CHAT_JS updateUI should properly configure disabled states", () => {
     const elements: any = {
       chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [], querySelector: () => null, replaceChildren: () => {} },
       typing: { classList: { toggle: () => {} } },
