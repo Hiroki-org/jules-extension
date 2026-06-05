@@ -199,7 +199,7 @@ suite("JulesDiffDocumentProvider", () => {
         assert.ok(uriString.startsWith("jules-diff://"), "URI should have 'jules-diff' scheme");
         assert.ok(uriString.includes("abc-123-def"), "URI should include normalized session ID");
         // Verify no double 'sessions/' prefix in the final URI
-        assert.ok(uriString.match(/sessions\/.*abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
+        assert.ok(uriString.match(/sessions\/abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
     });
 
     test("should handle session ID without 'sessions/' prefix", () => {
