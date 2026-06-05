@@ -13,3 +13,6 @@
 ## 2026-05-26 - Title Tooltip Support for Truncated Text
 **Learning:** When applying CSS `text-overflow: ellipsis` to truncate long dynamically generated content (like a session ID), it is necessary to provide an accessible way for users to view the complete text. Mirroring the `textContent` into the `title` attribute creates a native browser tooltip, enabling hover-based discovery of the full content without requiring custom UI components.
 **Action:** Whenever using `text-overflow: ellipsis` to clip text in the DOM, synchronously update the element's `title` attribute to match the full `textContent`.
+## 2026-06-05 - Native disabled state and ARIA
+**Learning:** HTML elements that natively support the `disabled` attribute (such as `<button>`, `<input>`, `<textarea>`) automatically expose their disabled state to screen readers. Adding `aria-disabled="true"` to these elements is redundant, clutters the DOM, and can cause some assistive technologies to announce the state twice or become confused.
+**Action:** Next time an element's disabled state needs to be managed dynamically, rely entirely on the native HTML `disabled` property, and avoid applying `aria-disabled` to natively supported elements. Update CSS selectors to target `:disabled` instead of `[aria-disabled="true"]`.
