@@ -3,7 +3,6 @@ import * as path from "path";
 import { fetchLatestSessionArtifacts, getCachedSessionArtifacts, ChangeSetSummary } from "./sessionArtifacts";
 import { sanitizeError } from "./errorUtils";
 import { isValidSessionId } from "./securityUtils";
-import { SESSION_URI_PREFIX } from "./julesApiConstants";
 
 export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProvider {
     private readonly contents = new Map<string, string>();
@@ -17,10 +16,7 @@ export class JulesDiffDocumentProvider implements vscode.TextDocumentContentProv
     }
 
     buildUri(sessionId: string, kind: "before" | "after"): vscode.Uri {
-        // Performance optimization: Avoid regex replace for fixed string prefix removal to reduce overhead.
-        const normalized = sessionId.startsWith(SESSION_URI_PREFIX)
-            ? sessionId.slice(SESSION_URI_PREFIX.length)
-            : sessionId;
+        const normalized = sessionId.replace(/^sessions\//, "");
         return vscode.Uri.parse(`jules-diff://sessions/${normalized}/${kind}.patch`);
     }
 }
