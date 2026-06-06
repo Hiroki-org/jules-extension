@@ -312,7 +312,8 @@ suite("Composer Test Suite", () => {
         { title: "Test" },
         "nonce-123"
       );
-      assert.ok(html.includes('button:disabled {'));
+      assert.ok(html.includes('button:disabled,'));
+      assert.ok(html.includes('button[aria-disabled="true"] {'));
       assert.ok(html.includes('opacity: 0.5;'));
       assert.ok(html.includes('cursor: not-allowed;'));
     });
@@ -325,11 +326,11 @@ suite("Composer Test Suite", () => {
       );
       assert.match(
         html,
-        /button\.primary:hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-hoverBackground\);\s*\}/
+        /button\.primary:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\)\s*\{\s*background:\s*var\(--vscode-button-hoverBackground\);\s*\}/
       );
       assert.match(
         html,
-        /button:not\(\.primary\):hover:not\(:disabled\)\s*\{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*\}/
+        /button:not\(\.primary\):hover:not\(:disabled\):not\(\[aria-disabled="true"\]\)\s*\{\s*background:\s*var\(--vscode-button-secondaryHoverBackground\);\s*\}/
       );
     });
 
@@ -509,8 +510,9 @@ suite("Composer Test Suite", () => {
         { title: "Test" },
         "nonce-123"
       );
-      // The validate function should set submitButton.disabled
+      // The validate function should set submitButton.disabled and aria-disabled
       assert.ok(html.includes('submitButton.disabled = !isValid;'));
+      assert.ok(html.includes("submitButton.setAttribute('aria-disabled', (!isValid).toString());"));
     });
 
     test("should prevent default on Cmd/Ctrl+Enter before validation", () => {
@@ -602,8 +604,11 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("const srStatus = document.getElementById('sr-status');"));
       assert.ok(html.includes("if (srStatus) srStatus.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
+      assert.ok(html.includes("submitButton.setAttribute('aria-disabled', 'true');"));
       assert.ok(html.includes("textarea.disabled = true;"));
-      assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
+      assert.ok(html.includes("textarea.setAttribute('aria-disabled', 'true');"));
+      assert.ok(html.includes("cancelButton.disabled = true;"));
+      assert.ok(html.includes("cancelButton.setAttribute('aria-disabled', 'true');"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
     });
 
@@ -641,8 +646,12 @@ suite("Composer Test Suite", () => {
         { title: "Test", showCreatePrCheckbox: true, showRequireApprovalCheckbox: true },
         "nonce-123"
       );
-      assert.ok(html.includes("if (createPrCheckbox) createPrCheckbox.disabled = true;"));
-      assert.ok(html.includes("if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;"));
+      assert.ok(html.includes("if (createPrCheckbox) {"));
+      assert.ok(html.includes("createPrCheckbox.disabled = true;"));
+      assert.ok(html.includes("createPrCheckbox.setAttribute('aria-disabled', 'true');"));
+      assert.ok(html.includes("if (requireApprovalCheckbox) {"));
+      assert.ok(html.includes("requireApprovalCheckbox.disabled = true;"));
+      assert.ok(html.includes("requireApprovalCheckbox.setAttribute('aria-disabled', 'true');"));
     });
   });
 });
