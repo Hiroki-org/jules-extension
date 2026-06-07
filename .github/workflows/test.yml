@@ -53,14 +53,14 @@ jobs:
 
       - name: Upload test results to Codecov
         if: always() && matrix.node-version == 20 && steps.verify-junit.outcome == 'success'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./test-results/junit.xml
           report_type: test_results
       - name: Upload coverage to Codecov
         if: matrix.node-version == 20
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
