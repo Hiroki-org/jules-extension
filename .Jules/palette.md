@@ -13,3 +13,7 @@
 ## 2026-05-26 - Title Tooltip Support for Truncated Text
 **Learning:** When applying CSS `text-overflow: ellipsis` to truncate long dynamically generated content (like a session ID), it is necessary to provide an accessible way for users to view the complete text. Mirroring the `textContent` into the `title` attribute creates a native browser tooltip, enabling hover-based discovery of the full content without requiring custom UI components.
 **Action:** Whenever using `text-overflow: ellipsis` to clip text in the DOM, synchronously update the element's `title` attribute to match the full `textContent`.
+
+## 2026-06-08 - 動的な空状態(Empty State)メッセージのスクリーンリーダー対応
+**Learning:** チャット画面等の初期状態やセッション未選択時に動的に挿入される「Empty State」メッセージは、DOMに後から追加されるため、そのままではスクリーンリーダーユーザーに通知されません。このような動的UI領域に `aria-live="polite"` と `aria-atomic="true"` を設定することで、状態が変化した際に即座にユーザーへ読み上げられ、現在の状況（「メッセージを入力して開始してください」など）を明確に伝えることができます。
+**Action:** 次回、動的に挿入される状態メッセージやガイドテキストを実装する際は、コンテナ要素に必ず `aria-live="polite"` と `aria-atomic="true"` を設定し、DOMの変更がスクリーンリーダーに通知されるようにすること。
