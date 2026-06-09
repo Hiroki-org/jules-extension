@@ -66,7 +66,6 @@ export const CHAT_JS = `(function() {
 
   const chatContainer = document.getElementById("chat");
   chatContainer.setAttribute("aria-live", "polite");
-  chatContainer.setAttribute("aria-atomic", "true");
   const typingIndicator = document.getElementById("typing");
   const messageInput = document.getElementById("messageInput");
   const sendButton = document.getElementById("sendButton");

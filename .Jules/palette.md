@@ -15,5 +15,5 @@
 **Action:** Whenever using `text-overflow: ellipsis` to clip text in the DOM, synchronously update the element's `title` attribute to match the full `textContent`.
 
 ## 2026-06-08 - 動的な空状態(Empty State)メッセージのスクリーンリーダー対応
-**Learning:** チャット画面等の初期状態やセッション未選択時に動的に挿入される「Empty State」メッセージは、DOMに後から追加されるため、そのままではスクリーンリーダーユーザーに通知されません。このような動的UI領域に `aria-live="polite"` と `aria-atomic="true"` を設定することで、状態が変化した際に即座にユーザーへ読み上げられ、現在の状況（「メッセージを入力して開始してください」など）を明確に伝えることができます。
-**Action:** 次回、動的に挿入される状態メッセージやガイドテキストを実装する際は、コンテナ要素に必ず `aria-live="polite"` と `aria-atomic="true"` を設定し、DOMの変更がスクリーンリーダーに通知されるようにすること。
+**Learning:** チャット画面等の初期状態やセッション未選択時に動的に挿入される「Empty State」メッセージは、DOMに後から追加されるため、そのままではスクリーンリーダーユーザーに通知されにくい場合があります。永続するコンテナに `aria-live="polite"` を設定すると状態変化を通知できますが、広いメッセージ履歴コンテナに `aria-atomic="true"` を付けると履歴全体が再読み上げされる可能性があります。
+**Action:** 次回、動的に挿入される状態メッセージやガイドテキストを実装する際は、永続コンテナに `aria-live="polite"` を設定し、`aria-atomic` は読み上げ範囲が十分に小さい専用領域に限って使うこと。

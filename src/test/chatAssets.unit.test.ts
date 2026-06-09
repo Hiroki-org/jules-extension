@@ -550,7 +550,7 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
     assert.strictEqual(harness.elements.chat["aria-live"], "polite");
-    assert.strictEqual(harness.elements.chat["aria-atomic"], "true");
+    assert.strictEqual(harness.elements.chat["aria-atomic"], undefined);
     assert.ok(!harness.elements.chat.innerHTML.includes('aria-live="polite"'));
   });
 
@@ -566,7 +566,7 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
     assert.strictEqual(harness.elements.chat["aria-live"], "polite");
-    assert.strictEqual(harness.elements.chat["aria-atomic"], "true");
+    assert.strictEqual(harness.elements.chat["aria-atomic"], undefined);
     assert.ok(!harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
   });
 
