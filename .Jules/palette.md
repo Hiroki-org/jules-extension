@@ -16,3 +16,7 @@
 ## 2026-06-06 - Prefer Native Disabled for Form Controls
 **Learning:** Native form controls such as `<button>`, `<textarea>`, and `<input>` already expose their disabled state through the `disabled` property. Adding `aria-disabled` to the same disabled controls is redundant and can imply focus behavior that does not match native disabled elements.
 **Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
+
+## 2026-06-09 - 動的な空状態要素に対するスクリーンリーダー対応
+**Learning:** JavaScriptを使用して動的に生成される「空の状態（empty state）」コンテナ（ウェルカムメッセージやプレースホルダーなど）をDOMに挿入する際、要素に`aria-live="polite"`および`aria-atomic="true"`属性を付与することで、スクリーンリーダーが状態の変更を即座にかつ正確にユーザーに通知するようになります。
+**Action:** 次回、動的な空状態コンテナをUIに挿入する実装を行う場合は、初期化時に`aria-live="polite"`と`aria-atomic="true"`を設定することを必須とすること。
