@@ -13,7 +13,10 @@
 ## 2026-05-26 - Title Tooltip Support for Truncated Text
 **Learning:** When applying CSS `text-overflow: ellipsis` to truncate long dynamically generated content (like a session ID), it is necessary to provide an accessible way for users to view the complete text. Mirroring the `textContent` into the `title` attribute creates a native browser tooltip, enabling hover-based discovery of the full content without requiring custom UI components.
 **Action:** Whenever using `text-overflow: ellipsis` to clip text in the DOM, synchronously update the element's `title` attribute to match the full `textContent`.
-
 ## 2026-06-08 - 動的な空状態(Empty State)メッセージのスクリーンリーダー対応
 **Learning:** チャット画面等の初期状態やセッション未選択時に動的に挿入される「Empty State」メッセージは、DOMに後から追加されるため、そのままではスクリーンリーダーユーザーに通知されにくい場合があります。永続するコンテナに `aria-live="polite"` を設定すると状態変化を通知できますが、広いメッセージ履歴コンテナに `aria-atomic="true"` を付けると履歴全体が再読み上げされる可能性があります。
 **Action:** 次回、動的に挿入される状態メッセージやガイドテキストを実装する際は、永続コンテナに `aria-live="polite"` を設定し、`aria-atomic` は読み上げ範囲が十分に小さい専用領域に限って使うこと。
+
+## 2026-06-06 - Prefer Native Disabled for Form Controls
+**Learning:** Native form controls such as `<button>`, `<textarea>`, and `<input>` already expose their disabled state through the `disabled` property. Adding `aria-disabled` to the same disabled controls is redundant and can imply focus behavior that does not match native disabled elements.
+**Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
