@@ -30,6 +30,7 @@ function createChatScriptHarness(
       querySelector: () => null,
       scrollTop: 0,
       scrollHeight: 0,
+      setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
       querySelectorAll: () => [],
     },
@@ -548,6 +549,9 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
+    assert.strictEqual(harness.elements.chat["aria-live"], "polite");
+    assert.strictEqual(harness.elements.chat["aria-atomic"], "true");
+    assert.ok(!harness.elements.chat.innerHTML.includes('aria-live="polite"'));
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -561,6 +565,9 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
+    assert.strictEqual(harness.elements.chat["aria-live"], "polite");
+    assert.strictEqual(harness.elements.chat["aria-atomic"], "true");
+    assert.ok(!harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -660,7 +667,16 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS updateUI should properly configure disabled states", () => {
     const elements: any = {
-      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [], querySelector: () => null, replaceChildren: () => {} },
+      chat: {
+        innerHTML: "",
+        scrollTop: 0,
+        scrollHeight: 0,
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        addEventListener: () => {},
+        querySelectorAll: () => [],
+        querySelector: () => null,
+        replaceChildren: () => {},
+      },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
