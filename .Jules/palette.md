@@ -13,3 +13,6 @@
 ## 2026-05-26 - Title Tooltip Support for Truncated Text
 **Learning:** When applying CSS `text-overflow: ellipsis` to truncate long dynamically generated content (like a session ID), it is necessary to provide an accessible way for users to view the complete text. Mirroring the `textContent` into the `title` attribute creates a native browser tooltip, enabling hover-based discovery of the full content without requiring custom UI components.
 **Action:** Whenever using `text-overflow: ellipsis` to clip text in the DOM, synchronously update the element's `title` attribute to match the full `textContent`.
+## 2026-06-06 - Prefer Native Disabled for Form Controls
+**Learning:** Native form controls such as `<button>`, `<textarea>`, and `<input>` already expose their disabled state through the `disabled` property. Adding `aria-disabled` to the same disabled controls is redundant and can imply focus behavior that does not match native disabled elements.
+**Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
