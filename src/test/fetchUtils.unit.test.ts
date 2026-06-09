@@ -105,7 +105,7 @@ suite('FetchUtils ユニットテスト', () => {
             sandbox.stub(AbortSignal, 'timeout').value(undefined);
         }
 
-        const promise = fetchWithTimeout('https://example.com', { timeout: 1000 });
+        const promise = fetchWithTimeout('https://example.com', { timeout: 500 });
 
         assert.ok(capturedSignal, 'シグナルがfetchに渡されるべき');
         assert.strictEqual(capturedSignal.aborted, false);
@@ -128,7 +128,7 @@ suite('FetchUtils ユニットテスト', () => {
 
             let threw = false;
             try {
-                await fetchWithTimeout('http://example.com/data', { timeout: 2000 });
+                await fetchWithTimeout('http://example.com/data', { timeout: 50 });
             } catch (err: any) {
                 threw = true;
             }
