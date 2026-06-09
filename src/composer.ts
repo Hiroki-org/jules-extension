@@ -124,8 +124,7 @@ export function getComposerHtml(
     outline: 1px solid var(--vscode-focusBorder);
   }
 
-  textarea:disabled,
-  textarea[aria-disabled="true"] {
+  textarea:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -165,11 +164,11 @@ export function getComposerHtml(
     color: var(--vscode-button-foreground);
   }
 
-  button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  button.primary:hover:not(:disabled) {
     background: var(--vscode-button-hoverBackground);
   }
 
-  button:not(.primary):hover:not(:disabled):not([aria-disabled="true"]) {
+  button:not(.primary):hover:not(:disabled) {
     background: var(--vscode-button-secondaryHoverBackground);
   }
 
@@ -178,8 +177,7 @@ export function getComposerHtml(
     outline-offset: 2px;
   }
 
-  button:disabled,
-  button[aria-disabled="true"] {
+  button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -195,9 +193,7 @@ export function getComposerHtml(
   }
 
   input[type="checkbox"]:disabled,
-  input[type="checkbox"][aria-disabled="true"],
-  input[type="checkbox"]:disabled + label,
-  input[type="checkbox"][aria-disabled="true"] + label {
+  input[type="checkbox"]:disabled + label {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -261,7 +257,6 @@ export function getComposerHtml(
     const validate = () => {
       const isValid = textarea.value.trim().length > 0;
       submitButton.disabled = !isValid;
-      submitButton.setAttribute('aria-disabled', (!isValid).toString());
       submitButton.title = isValid ? 'Send (Cmd/Ctrl+Enter)' : 'Type a message to send';
       submitButton.setAttribute('aria-label', isValid ? 'Send message (Cmd/Ctrl+Enter)' : 'Type a message to send');
       return isValid;
@@ -273,7 +268,6 @@ export function getComposerHtml(
       }
 
       submitButton.disabled = true;
-      submitButton.setAttribute('aria-disabled', 'true');
       submitButton.textContent = 'Sending... ';
       const spinnerSpan = document.createElement('span');
       spinnerSpan.className = 'spinner';
@@ -284,18 +278,16 @@ export function getComposerHtml(
       const srStatus = document.getElementById('sr-status');
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
-      textarea.setAttribute('aria-disabled', 'true');
       if (createPrCheckbox) {
         createPrCheckbox.disabled = true;
-        createPrCheckbox.setAttribute('aria-disabled', 'true');
       }
       if (requireApprovalCheckbox) {
         requireApprovalCheckbox.disabled = true;
-        requireApprovalCheckbox.setAttribute('aria-disabled', 'true');
       }
       const cancelButton = document.getElementById('cancel');
-      cancelButton.disabled = true;
-      cancelButton.setAttribute('aria-disabled', 'true');
+      if (cancelButton) {
+        cancelButton.disabled = true;
+      }
       document.body.style.cursor = 'wait';
 
       vscode.postMessage({
