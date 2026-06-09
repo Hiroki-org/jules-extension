@@ -88,6 +88,8 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(html.includes("requestInitialState"));
     assert.ok(html.includes("copy-code-button"));
     assert.ok(html.includes('aria-label="Send message"'));
+    assert.ok(html.includes('<div id="chat" aria-live="polite"></div>'));
+    assert.ok(!html.includes('<div id="chat" aria-live="polite" aria-atomic="true"></div>'));
     assert.match(
       html,
       /<script nonce="nonce-123" src="[^"]*dist(?:[\\/]|%5[cC])purify\.min\.js"><\/script>/,

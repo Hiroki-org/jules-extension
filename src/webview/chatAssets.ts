@@ -65,7 +65,6 @@ export const CHAT_JS = `(function() {
     : { postMessage: (m) => console.warn("VSCode API unavailable", m) };
 
   const chatContainer = document.getElementById("chat");
-  chatContainer.setAttribute("aria-live", "polite");
   const typingIndicator = document.getElementById("typing");
   const messageInput = document.getElementById("messageInput");
   const sendButton = document.getElementById("sendButton");
