@@ -72,7 +72,7 @@ import {
   type ActivityUnionKey,
 } from "./activityUtils";
 
-import { JULES_API_BASE_URL, ALL_SOURCES_ID } from "./julesApiConstants";
+import { JULES_API_BASE_URL, ALL_SOURCES_ID, SESSION_URI_PREFIX } from "./julesApiConstants";
 import {
   createJulesSession,
   sendMessage as sendMessageToApi,
@@ -1181,8 +1181,7 @@ interface SessionsResponse {
 }
 
 const sessionActivitiesCache: Map<string, Activity[]> = new Map();
-
-class JulesActivitiesDocumentProvider
+export class JulesActivitiesDocumentProvider
   implements vscode.TextDocumentContentProvider
 {
   private readonly contents = new Map<string, string>();
@@ -1196,7 +1195,10 @@ class JulesActivitiesDocumentProvider
   }
 
   buildUri(sessionId: string): vscode.Uri {
-    const normalized = sessionId.replace(/^sessions\//, "");
+    // Performance optimization: Avoid regex replace for fixed string prefix removal to reduce overhead.
+    const normalized = sessionId.startsWith(SESSION_URI_PREFIX)
+      ? sessionId.slice(SESSION_URI_PREFIX.length)
+      : sessionId;
     return vscode.Uri.parse(
       `jules-activities://sessions/${normalized}/activities.log`,
     );

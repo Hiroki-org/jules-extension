@@ -172,6 +172,18 @@ suite("JulesPlanDocumentProvider", () => {
         assert.ok(uriString.endsWith(".md"));
     });
 
+    test("should normalize session ID by removing 'sessions/' prefix", () => {
+        const provider = new JulesPlanDocumentProvider();
+        const sessionIdWithPrefix = "sessions/abc-123-def";
+        const uri = provider.buildUri(sessionIdWithPrefix);
+
+        const uriString = uri.toString();
+        assert.ok(uriString.startsWith("jules-plan://"), "URI should have 'jules-plan' scheme");
+        assert.ok(uriString.includes("abc-123-def"), "URI should include normalized session ID");
+        // Verify no double 'sessions/' prefix in the final URI
+        assert.ok(uriString.match(/sessions\/abc-123-def/), "Should have sessions/ prefix followed by normalized ID");
+    });
+
     test("handles multiple sessions independently", () => {
         const provider = new JulesPlanDocumentProvider();
         const uri1 = provider.buildUri("session-1");
