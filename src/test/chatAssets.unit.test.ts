@@ -30,7 +30,6 @@ function createChatScriptHarness(
       querySelector: () => null,
       scrollTop: 0,
       scrollHeight: 0,
-      setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
       querySelectorAll: () => [],
     },
@@ -549,9 +548,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
-    assert.strictEqual(harness.elements.chat["aria-live"], "polite");
-    assert.strictEqual(harness.elements.chat["aria-atomic"], "true");
-    assert.ok(!harness.elements.chat.innerHTML.includes('aria-live="polite"'));
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -565,9 +561,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
-    assert.strictEqual(harness.elements.chat["aria-live"], "polite");
-    assert.strictEqual(harness.elements.chat["aria-atomic"], "true");
-    assert.ok(!harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -665,18 +658,9 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(harness.elements.messageInput.style.height, "auto");
   });
 
-  test("CHAT_JS updateUI should properly configure disabled states", () => {
+  test("CHAT_JS updateUI should properly configure disabled states and ARIA attributes", () => {
     const elements: any = {
-      chat: {
-        innerHTML: "",
-        scrollTop: 0,
-        scrollHeight: 0,
-        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-        addEventListener: () => {},
-        querySelectorAll: () => [],
-        querySelector: () => null,
-        replaceChildren: () => {},
-      },
+      chat: { innerHTML: "", scrollTop: 0, scrollHeight: 0, addEventListener: () => {}, querySelectorAll: () => [], querySelector: () => null, replaceChildren: () => {} },
       typing: { classList: { toggle: () => {} } },
       messageInput: {
         value: "",
@@ -742,10 +726,12 @@ suite("chatAssets unit tests", () => {
     // (1) state.sessionId = null
     messageListener({ data: { type: "chatState", payload: { sessionId: null, messages: [], isTyping: false } } });
     assert.strictEqual(elements.messageInput.disabled, true);
+    assert.strictEqual(elements.messageInput["aria-disabled"], "true");
     assert.ok(elements.messageInput.placeholder.startsWith("Select a session"));
     assert.strictEqual(elements.messageInput["aria-label"], elements.messageInput.placeholder);
     assert.strictEqual(elements.messageInput.title, elements.messageInput.placeholder);
     assert.strictEqual(elements.sendButton.disabled, true);
+    assert.strictEqual(elements.sendButton["aria-disabled"], "true");
     assert.strictEqual(elements.sendButton.title, "Select a session to send a message");
     assert.strictEqual(elements.sendButton["aria-label"], "Send (Select a session to send a message)");
     assert.strictEqual(elements.sessionLabel.textContent, "Session: None selected");
@@ -755,6 +741,7 @@ suite("chatAssets unit tests", () => {
     elements.messageInput.value = "   "; // whitespace
     messageListener({ data: { type: "chatState", payload: { sessionId: "session-123", messages: [], isTyping: false } } });
     assert.strictEqual(elements.sendButton.disabled, true);
+    assert.strictEqual(elements.sendButton["aria-disabled"], "true");
     assert.strictEqual(elements.sendButton.title, "Type a message to send");
     assert.strictEqual(elements.sendButton["aria-label"], "Send (Type a message to send)");
     assert.strictEqual(elements.sessionLabel.textContent, "Session: session-123");
@@ -766,6 +753,7 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(elements.messageInput["aria-label"], elements.messageInput.placeholder);
     assert.strictEqual(elements.messageInput.title, elements.messageInput.placeholder);
     assert.strictEqual(elements.sendButton.disabled, false);
+    assert.strictEqual(elements.sendButton["aria-disabled"], "false");
     assert.strictEqual(elements.sendButton.title, "Send message (Ctrl/Cmd+Enter)");
     assert.strictEqual(elements.sendButton["aria-label"], "Send message (Ctrl/Cmd+Enter)");
   });

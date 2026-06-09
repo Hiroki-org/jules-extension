@@ -9,8 +9,6 @@ env:
 jobs:
   test-unit:
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -54,17 +52,17 @@ jobs:
           fi
 
       - name: Upload test results to Codecov
-        if: always() && matrix.node-version == 20 && steps.verify-junit.outcome == 'success' && env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v7
+        if: always() && matrix.node-version == 20 && steps.verify-junit.outcome == 'success'
+        uses: codecov/codecov-action@v6
         with:
-          token: ${{ env.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./test-results/junit.xml
           report_type: test_results
       - name: Upload coverage to Codecov
-        if: matrix.node-version == 20 && env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v7
+        if: matrix.node-version == 20
+        uses: codecov/codecov-action@v6
         with:
-          token: ${{ env.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           flags: unittests
           name: unit-node20
@@ -72,8 +70,6 @@ jobs:
 
   build-check:
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -101,8 +97,10 @@ jobs:
         run: pnpm run package
 
       - name: Upload Codecov Bundle Analysis
-        if: matrix.node-version == 20 && env.CODECOV_TOKEN != ''
-        run: npx @codecov/bundle-analyzer dist --bundle-name="jules-extension" --upload-token="${CODECOV_TOKEN}"
+        if: matrix.node-version == 20
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: npx @codecov/bundle-analyzer dist --bundle-name="jules-extension" --upload-token="${{ secrets.CODECOV_TOKEN }}"
 
   integration:
     needs: [test-unit, build-check]
