@@ -29,6 +29,7 @@ import {
   resolveSelectedSessionItems,
   deleteSingleSession,
   executeDeleteSessionCommand,
+  JulesActivitiesDocumentProvider,
 } from "../extension";
 import { updateSessionArtifactsCache } from "../sessionArtifacts";
 import * as fetchUtils from "../fetchUtils";
@@ -1752,6 +1753,26 @@ suite("Extension helper unit tests", () => {
 
       windowMock.verify();
       assert.strictEqual(mockSessionsProvider.refresh.calledWith(true), true);
+    });
+  });
+
+  suite("JulesActivitiesDocumentProvider", () => {
+    test("buildUri should build correct URI", () => {
+      const provider = new JulesActivitiesDocumentProvider();
+      const uri = provider.buildUri("sessions/test-session-123");
+      const uriString = uri.toString();
+      assert.ok(uriString.startsWith("jules-activities://"));
+      assert.ok(uriString.includes("test-session-123"));
+      assert.ok(!uriString.includes("sessions/sessions/"));
+    });
+
+    test("buildUri should handle missing sessions/ prefix", () => {
+      const provider = new JulesActivitiesDocumentProvider();
+      const uri = provider.buildUri("test-session-123");
+      const uriString = uri.toString();
+      assert.ok(uriString.startsWith("jules-activities://"));
+      assert.ok(uriString.includes("test-session-123"));
+      assert.ok(uriString.match(/sessions\/test-session-123/));
     });
   });
 });
