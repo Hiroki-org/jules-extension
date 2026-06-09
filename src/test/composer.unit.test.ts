@@ -603,7 +603,8 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("if (srStatus) srStatus.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
       assert.ok(html.includes("textarea.disabled = true;"));
-      assert.ok(html.includes("document.getElementById('cancel').disabled = true;"));
+      assert.ok(html.includes("if (cancelButton) {"));
+      assert.ok(html.includes("cancelButton.disabled = true;"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
     });
 

@@ -120,7 +120,7 @@ export function getComposerHtml(
     line-height: 1.5;
   }
 
-  textarea:focus {
+  textarea:focus-visible {
     outline: 1px solid var(--vscode-focusBorder);
   }
 
@@ -280,7 +280,10 @@ export function getComposerHtml(
       textarea.disabled = true;
       if (createPrCheckbox) createPrCheckbox.disabled = true;
       if (requireApprovalCheckbox) requireApprovalCheckbox.disabled = true;
-      document.getElementById('cancel').disabled = true;
+      const cancelButton = document.getElementById('cancel');
+      if (cancelButton) {
+        cancelButton.disabled = true;
+      }
       document.body.style.cursor = 'wait';
 
       vscode.postMessage({
