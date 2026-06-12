@@ -16,3 +16,7 @@
 ## 2026-06-06 - Prefer Native Disabled for Form Controls
 **Learning:** Native form controls such as `<button>`, `<textarea>`, and `<input>` already expose their disabled state through the `disabled` property. Adding `aria-disabled` to the same disabled controls is redundant and can imply focus behavior that does not match native disabled elements.
 **Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
+
+## 2026-06-12 - Accessible Empty States
+**Learning:** When dynamically inserting an empty state container (e.g., when a user selects a session or no messages exist), screen readers won't announce it unless the container uses `aria-live`.
+**Action:** Always add `aria-live="polite"` and `aria-atomic="true"` when dynamically creating empty state containers in the DOM so that screen readers promptly announce the context change to the user.
