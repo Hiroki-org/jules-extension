@@ -70,7 +70,9 @@ function createChatScriptHarness(
             const cls = this.className ? ` class="${this.className}"` : "";
             const role = (this as any).role ? ` role="${(this as any).role}"` : "";
             const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-            return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
+            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
+            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
         }
     }),
     createDocumentFragment: () => ({
@@ -544,6 +546,8 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes('aria-live="polite"'));
+    assert.ok(harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
   });
@@ -557,6 +561,8 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
+    assert.ok(harness.elements.chat.innerHTML.includes('aria-live="polite"'));
+    assert.ok(harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
   });
@@ -696,7 +702,9 @@ suite("chatAssets unit tests", () => {
             const cls = this.className ? ` class="${this.className}"` : "";
             const role = (this as any).role ? ` role="${(this as any).role}"` : "";
             const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-            return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
+            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
+            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
         }
       }),
       createDocumentFragment: () => ({
