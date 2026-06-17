@@ -1038,9 +1038,6 @@ suite("Extension helper unit tests", () => {
     test("jules-extension.clearCache executes successfully", async () => {
       assert.ok(registeredCommands['jules-extension.clearCache']);
       const showInfoStub = localSandbox.stub(vscode.window, 'showInformationMessage').resolves();
-
-
-
       await registeredCommands['jules-extension.clearCache']();
       assert.strictEqual(showInfoStub.calledOnce, true);
     });
