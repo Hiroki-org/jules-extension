@@ -276,9 +276,6 @@ export const CHAT_JS = `(function() {
         emptyStateDiv.setAttribute("aria-live", "polite");
         emptyStateDiv.setAttribute("aria-atomic", "true");
 
-        // 先に空のコンテナをDOMに挿入する
-        replaceChildren(chatContainer, [emptyStateDiv]);
-
         const h3 = document.createElement("h3");
         h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
 
@@ -287,7 +284,7 @@ export const CHAT_JS = `(function() {
           ? "Type a message to start interacting with Jules."
           : "Select a session or create a new one to begin.";
 
-        // DOM挿入後に子要素を追加することで、スクリーンリーダーがテキストの変更を検知できるようにする
+        replaceChildren(chatContainer, [emptyStateDiv]);
         emptyStateDiv.appendChild(h3);
         emptyStateDiv.appendChild(p);
       }

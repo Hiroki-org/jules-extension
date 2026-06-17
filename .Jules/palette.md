@@ -19,6 +19,5 @@
 **Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
 
 ## 2026-06-11 - 空の状態（Empty State）へのARIAライブリージョンの追加
-
 **Learning:** 動的にDOMへ挿入される「空の状態（例：ウェルカムメッセージやプレースホルダー）」に対して、`aria-live="polite"` および `aria-atomic="true"` を追加することで、状態の変化がスクリーンリーダーによって即座に読み上げられるようになり、ユーザーが現在のアプリケーションの状況を正確に把握できるようになります。
 **Action:** 次回、チャットUIやリストなどで、コンテンツがない場合に表示される一時的なコンテナを動的に生成・挿入する際は、必ずそのコンテナに `aria-live="polite"` と `aria-atomic="true"` を設定すること。
