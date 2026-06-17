@@ -70,7 +70,9 @@ function createChatScriptHarness(
             const cls = this.className ? ` class="${this.className}"` : "";
             const role = (this as any).role ? ` role="${(this as any).role}"` : "";
             const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-            return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
+            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
+            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
         }
     }),
     createDocumentFragment: () => ({
@@ -696,7 +698,9 @@ suite("chatAssets unit tests", () => {
             const cls = this.className ? ` class="${this.className}"` : "";
             const role = (this as any).role ? ` role="${(this as any).role}"` : "";
             const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-            return `<${tag}${cls}${role}${ariaLabel}>${text}</${tag}>`;
+            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
+            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
         }
       }),
       createDocumentFragment: () => ({
