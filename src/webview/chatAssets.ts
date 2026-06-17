@@ -273,8 +273,6 @@ export const CHAT_JS = `(function() {
       if (!chatContainer.querySelector('.empty-state')) {
         const emptyStateDiv = document.createElement("div");
         emptyStateDiv.className = "empty-state";
-        emptyStateDiv.setAttribute("aria-live", "polite");
-        emptyStateDiv.setAttribute("aria-atomic", "true");
 
         const h3 = document.createElement("h3");
         h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";

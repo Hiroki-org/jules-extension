@@ -18,5 +18,5 @@
 **Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
 
 ## 2026-06-09 - 動的な空状態要素に対するスクリーンリーダー対応
-**Learning:** JavaScriptを使用して動的に生成される「空の状態（empty state）」コンテナ（ウェルカムメッセージやプレースホルダーなど）をDOMに挿入する際、要素に`aria-live="polite"`および`aria-atomic="true"`属性を付与することで、スクリーンリーダーが状態の変更を即座にかつ正確にユーザーに通知するようになります。
-**Action:** 次回、動的な空状態コンテナをUIに挿入する実装を行う場合は、初期化時に`aria-live="polite"`と`aria-atomic="true"`を設定することを必須とすること。
+**Learning:** JavaScriptを使用して動的に生成される「空の状態（empty state）」コンテナ（ウェルカムメッセージやプレースホルダーなど）をDOMに挿入する際、動的要素そのものに `aria-live` 属性を付与してコンテンツ入りで一挙にDOMへ挿入する手法は、スクリーンリーダーによって状態変更が正常に検知されない可能性が高いです。
+**Action:** 次回、動的な空状態コンテナをUIに挿入する実装を行う場合は、常にDOMに存在する親コンテナ（例：chatContainer）に`aria-live="polite"`を設定し、そこへコンテンツを追加・更新するアプローチをとること。

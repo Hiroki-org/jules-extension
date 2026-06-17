@@ -546,8 +546,6 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-live="polite"'));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
   });
@@ -561,8 +559,6 @@ suite("chatAssets unit tests", () => {
     });
 
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-live="polite"'));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
   });
