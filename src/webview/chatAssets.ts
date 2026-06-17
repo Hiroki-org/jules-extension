@@ -270,23 +270,31 @@ export const CHAT_JS = `(function() {
 
   function renderMessages() {
     if (state.messages.length === 0 && !state.isTyping) {
-      if (!chatContainer.querySelector('.empty-state')) {
+      const existingEmptyState = chatContainer.querySelector('.empty-state');
+      if (existingEmptyState) {
+        const h3 = existingEmptyState.querySelector("h3");
+        const p = existingEmptyState.querySelector("p");
+        if (h3) h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
+        if (p) p.textContent = state.sessionId
+          ? "Type a message to start interacting with Jules."
+          : "Select a session or create a new one to begin.";
+      } else {
         const emptyStateDiv = document.createElement("div");
         emptyStateDiv.className = "empty-state";
         emptyStateDiv.setAttribute("aria-live", "polite");
         emptyStateDiv.setAttribute("aria-atomic", "true");
 
         const h3 = document.createElement("h3");
-        h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
-
+        emptyStateDiv.appendChild(h3);
         const p = document.createElement("p");
+        emptyStateDiv.appendChild(p);
+
+        replaceChildren(chatContainer, [emptyStateDiv]);
+
+        h3.textContent = state.sessionId ? "Ready to assist" : "Welcome to Jules";
         p.textContent = state.sessionId
           ? "Type a message to start interacting with Jules."
           : "Select a session or create a new one to begin.";
-
-        emptyStateDiv.appendChild(h3);
-        emptyStateDiv.appendChild(p);
-        replaceChildren(chatContainer, [emptyStateDiv]);
       }
     } else {
       const nodes = state.messages.map(m => {
