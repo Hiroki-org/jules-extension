@@ -1,18 +1,17 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function createMockElementOuterHTML(element: any): string {
-  const { tagName, className, textContent, childNodes } = element;
-  const childrenHtml = (childNodes || []).map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
-  const text = textContent || childrenHtml;
-  const attrs = [];
-  if (className) attrs.push(`class="${className}"`);
-  if (element.role) attrs.push(`role="${element.role}"`);
-  if (element["aria-label"]) attrs.push(`aria-label="${element["aria-label"]}"`);
-  if (element["aria-live"]) attrs.push(`aria-live="${element["aria-live"]}"`);
-  if (element["aria-atomic"]) attrs.push(`aria-atomic="${element["aria-atomic"]}"`);
-  const attrsStr = attrs.length ? " " + attrs.join(" ") : "";
-  return `<${tagName}${attrsStr}>${text}</${tagName}>`;
+function createMockElementOuterHTML(element: any, tag: string): string {
+  const childrenHtml = element.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
+  const text = element.textContent ? element.textContent : childrenHtml;
+  const cls = element.className ? `class="${element.className}"` : "";
+  const role = element.role ? `role="${element.role}"` : "";
+  const ariaLabel = element["aria-label"] ? `aria-label="${element["aria-label"]}"` : "";
+  const ariaLive = element["aria-live"] ? `aria-live="${element["aria-live"]}"` : "";
+  const ariaAtomic = element["aria-atomic"] ? `aria-atomic="${element["aria-atomic"]}"` : "";
+  const attrs = [cls, role, ariaLabel, ariaLive, ariaAtomic].filter(Boolean).join(" ");
+  const attrStr = attrs.length > 0 ? ` ${attrs}` : "";
+  return `<${tag}${attrStr}>${text}</${tag}>`;
 }
 
 function createChatScriptHarness(
@@ -28,26 +27,19 @@ function createChatScriptHarness(
   };
   const elements: Record<string, any> = {
     chat: {
-        _childNodes: [] as any[],
-        get innerHTML() {
-          if (this._childNodes.length > 0) {
-            return this._childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
-          }
-          return chatInnerHTML;
-        },
-        set innerHTML(value: string) {
-          chatInnerHTMLSetCount += 1;
-          chatInnerHTML = value;
-          this._childNodes = [];
-        },
-        get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
-        replaceChildren(...nodes: any[]) {
-          chatInnerHTMLSetCount += 1;
-          this._childNodes = nodes;
-        },
-        appendChild(node: any) {
-          this._childNodes.push(node);
-        },
+      get innerHTML() { return chatInnerHTML; },
+      set innerHTML(value: string) {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = value;
+      },
+      get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
+      replaceChildren(...nodes: any[]) {
+        chatInnerHTMLSetCount += 1;
+        chatInnerHTML = nodes.map(n => n.outerHTML ?? n.textContent ?? "").join("");
+      },
+      appendChild(node: any) {
+        chatInnerHTML += (node.outerHTML ?? node.textContent ?? "");
+      },
       querySelector: () => null,
       scrollTop: 0,
       scrollHeight: 0,
@@ -86,7 +78,7 @@ function createChatScriptHarness(
             this.childNodes.push(node);
         },
         get outerHTML() {
-            return createMockElementOuterHTML(this);
+            return createMockElementOuterHTML(this, tag);
         }
     }),
     createDocumentFragment: () => ({
@@ -583,7 +575,7 @@ suite("chatAssets unit tests", () => {
 
     harness.elements.chat.querySelector = (sel: string) => {
       if (sel === '.empty-state' && harness.elements.chat.innerHTML.includes('empty-state')) {
-        return { querySelector: () => null };
+        return {};
       }
       return null;
     };
@@ -707,7 +699,7 @@ suite("chatAssets unit tests", () => {
             this.childNodes.push(node);
         },
         get outerHTML() {
-            return createMockElementOuterHTML(this);
+            return createMockElementOuterHTML(this, tag);
         }
       }),
       createDocumentFragment: () => ({
