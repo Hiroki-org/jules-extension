@@ -2790,12 +2790,10 @@ export async function executeDeleteSessionCommand(
       let successCount = 0;
       let failCount = 0;
 
-      for (let i = 0; i < targets.length; i++) {
-        const target = targets[i];
+      let completedCount = 0;
+
+      await mapLimit(targets, 5, async (target) => {
         const session = target.session;
-
-        progress.report({ message: `Deleting ${i + 1} of ${targets.length}...` });
-
         try {
           await deleteSingleSession(context, sessionsProvider, session, apiKey);
           successCount++;
@@ -2805,8 +2803,11 @@ export async function executeDeleteSessionCommand(
           failCount++;
 
           sessionsProvider.unmarkSessionAsDeleting(session.name);
+        } finally {
+          completedCount++;
+          progress.report({ message: `Deleted ${completedCount} of ${targets.length}...` });
         }
-      }
+      });
 
       if (failCount > 0) {
         const failedLabel = `session${failCount === 1 ? "" : "s"}`;
