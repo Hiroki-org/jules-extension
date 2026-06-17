@@ -1039,17 +1039,7 @@ suite("Extension helper unit tests", () => {
       assert.ok(registeredCommands['jules-extension.clearCache']);
       const showInfoStub = localSandbox.stub(vscode.window, 'showInformationMessage').resolves();
 
-      // Override the mock to return an array of keys including branch caches
-      const mockKeys = [
-        "jules.sources",
-        "jules.branches.source1",
-        "jules.branches.source2",
-        "other.key"
-      ];
-      // mockContext is not directly accessible here, but the active extension has it via activate
-      // We know globalState.keys is stubbed in setup, we can find it
-      const keysStub = (extensionModule as any)._test_mockContext_keys_stub || localSandbox.stub(); // Just overriding the first return if we can't find it easily
-      // Let's rely on sinon's ability to find the stub
+
 
       await registeredCommands['jules-extension.clearCache']();
       assert.strictEqual(showInfoStub.calledOnce, true);
