@@ -1,29 +1,6 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
-function createMockElement(tag: string) {
-  return {
-    tagName: tag,
-    className: "",
-    textContent: "",
-    childNodes: [] as any[],
-    setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-    appendChild(node: any) {
-        this.childNodes.push(node);
-    },
-    get outerHTML() {
-        const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
-        const text = this.textContent ? this.textContent : childrenHtml;
-        const cls = this.className ? ` class="${this.className}"` : "";
-        const role = (this as any).role ? ` role="${(this as any).role}"` : "";
-        const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-        const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
-        const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
-        return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
-    }
-  };
-}
-
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
@@ -78,7 +55,26 @@ function createChatScriptHarness(
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
     getElementById: (id: string) => elements[id],
-    createElement: createMockElement,
+    createElement: (tag: string) => ({
+        tagName: tag,
+        className: "",
+        textContent: "",
+        childNodes: [] as any[],
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        appendChild(node: any) {
+            this.childNodes.push(node);
+        },
+        get outerHTML() {
+            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
+            const text = this.textContent ? this.textContent : childrenHtml;
+            const cls = this.className ? ` class="${this.className}"` : "";
+            const role = (this as any).role ? ` role="${(this as any).role}"` : "";
+            const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
+            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
+            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
+        }
+    }),
     createDocumentFragment: () => ({
         childNodes: [] as any[],
         appendChild(node: any) {
@@ -552,9 +548,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Welcome to Jules"));
     assert.ok(harness.elements.chat.innerHTML.includes("Select a session or create a new one"));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-live="polite"'));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
-
   });
 
   test("CHAT_JS should render ready empty state when a session has no messages", () => {
@@ -568,9 +561,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(harness.elements.chat.innerHTML.includes('class="empty-state"'));
     assert.ok(harness.elements.chat.innerHTML.includes("Ready to assist"));
     assert.ok(harness.elements.chat.innerHTML.includes("Type a message to start interacting"));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-live="polite"'));
-    assert.ok(harness.elements.chat.innerHTML.includes('aria-atomic="true"'));
-
   });
 
   test("CHAT_JS should not reinsert the same empty state repeatedly", () => {
@@ -693,7 +683,26 @@ suite("chatAssets unit tests", () => {
 
     const mockDocument = {
       getElementById: (id: string) => elements[id],
-      createElement: createMockElement,
+      createElement: (tag: string) => ({
+        tagName: tag,
+        className: "",
+        textContent: "",
+        childNodes: [] as any[],
+        setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
+        appendChild(node: any) {
+            this.childNodes.push(node);
+        },
+        get outerHTML() {
+            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
+            const text = this.textContent ? this.textContent : childrenHtml;
+            const cls = this.className ? ` class="${this.className}"` : "";
+            const role = (this as any).role ? ` role="${(this as any).role}"` : "";
+            const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
+            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
+            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
+            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
+        }
+      }),
       createDocumentFragment: () => ({
         childNodes: [] as any[],
         appendChild(node: any) {

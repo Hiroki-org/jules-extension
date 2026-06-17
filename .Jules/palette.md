@@ -18,6 +18,5 @@
 **Action:** Use `disabled` and `:disabled` for native form controls. Reserve `aria-disabled` for custom widgets that must remain focusable while unavailable.
 
 ## 2026-06-16 - 動的コンテナのアクセシビリティ強化
-
 **Learning:** 空の状態（Empty State）など、動的にDOMへ挿入されるコンテナに `aria-live="polite"` と `aria-atomic="true"` を付与することで、スクリーンリーダーが状態変化を即座に感知し、ユーザーに適切に通知できるようになります。
 **Action:** 今後、非同期処理や状態遷移に伴って新しいメッセージコンテナを動的生成する際は、必ず `aria-live` と `aria-atomic` 属性を付与してアクセシビリティを担保すること。
