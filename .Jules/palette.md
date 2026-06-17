@@ -20,3 +20,7 @@
 ## 2026-06-11 - Dynamic Empty State Announcers
 **Learning:** When dynamically inserting empty state indicators (e.g., "Ready to assist" or "Welcome to Jules" placeholder messages) into a chat or feed interface, screen readers might not immediately announce the new content if it is simply appended to the DOM. Adding `aria-live="polite"` and `aria-atomic="true"` directly to the container element ensures the screen reader announces the status change appropriately.
 **Action:** Whenever dynamically creating and injecting a completely new 'empty state' container to replace existing content, apply `aria-live="polite"` and `aria-atomic="true"` to the container so that users relying on assistive technology are immediately aware of the UI change.
+
+## 2026-06-17 - コピーボタンのアクセシビリティ強化
+**Learning:** コピーボタンのように、クリック時に自身のテキストが動的かつ一時的に変更される要素に対しては、`aria-live="polite"`と`aria-atomic="true"`を追加することで、スクリーンリーダーが変更後のテキスト（「Copied」等）を即座に読み上げ、ユーザーが操作の成功を確認しやすくなります。
+**Action:** 今後、テキストが動的に変化するインタラクティブな要素を実装・修正する際は、`aria-live="polite"`と`aria-atomic="true"`を付与して状態変化が正しく伝わるようにすること。
