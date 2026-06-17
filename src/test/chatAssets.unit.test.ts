@@ -1,6 +1,17 @@
 import * as assert from "assert";
 import { CHAT_CSS, CHAT_JS } from "../webview/chatAssets";
 
+export function createMockElementOuterHTML(element: any, tag: string): string {
+    const childrenHtml = element.childNodes ? element.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("") : "";
+    const text = element.textContent ? element.textContent : childrenHtml;
+    const cls = element.className ? ` class="${element.className}"` : "";
+    const role = element.role ? ` role="${element.role}"` : "";
+    const ariaLabel = element["aria-label"] ? ` aria-label="${element["aria-label"]}"` : "";
+    const ariaLive = element["aria-live"] ? ` aria-live="${element["aria-live"]}"` : "";
+    const ariaAtomic = element["aria-atomic"] ? ` aria-atomic="${element["aria-atomic"]}"` : "";
+    return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
+}
+
 function createChatScriptHarness(
   domPurify?: { sanitize: (html: string, config: any) => any },
   computedStyle = { borderTopWidth: "1px", borderBottomWidth: "1px" },
@@ -14,20 +25,32 @@ function createChatScriptHarness(
   };
   const elements: Record<string, any> = {
     chat: {
-      get innerHTML() { return chatInnerHTML; },
+      childNodes: [] as any[],
+      get innerHTML() {
+        if (this.childNodes && this.childNodes.length > 0) {
+            return this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
+        }
+        return chatInnerHTML;
+      },
       set innerHTML(value: string) {
         chatInnerHTMLSetCount += 1;
         chatInnerHTML = value;
+        this.childNodes = [];
       },
       get innerHTMLSetCount() { return chatInnerHTMLSetCount; },
       replaceChildren(...nodes: any[]) {
         chatInnerHTMLSetCount += 1;
-        chatInnerHTML = nodes.map(n => n.outerHTML ?? n.textContent ?? "").join("");
+        this.childNodes = [...nodes];
       },
       appendChild(node: any) {
-        chatInnerHTML += (node.outerHTML ?? node.textContent ?? "");
+        this.childNodes.push(node);
       },
-      querySelector: () => null,
+      querySelector: (sel: string) => {
+        if (sel === '.empty-state') {
+          return elements.chat.childNodes.find((n: any) => n.className === 'empty-state') || null;
+        }
+        return null;
+      },
       scrollTop: 0,
       scrollHeight: 0,
       addEventListener: (evt: string, cb: any) => { listeners.chat[evt] = cb; },
@@ -65,14 +88,7 @@ function createChatScriptHarness(
             this.childNodes.push(node);
         },
         get outerHTML() {
-            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
-            const text = this.textContent ? this.textContent : childrenHtml;
-            const cls = this.className ? ` class="${this.className}"` : "";
-            const role = (this as any).role ? ` role="${(this as any).role}"` : "";
-            const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
-            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
-            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
+            return createMockElementOuterHTML(this, tag);
         }
     }),
     createDocumentFragment: () => ({
@@ -697,14 +713,7 @@ suite("chatAssets unit tests", () => {
             this.childNodes.push(node);
         },
         get outerHTML() {
-            const childrenHtml = this.childNodes.map((n: any) => n.outerHTML ?? n.textContent ?? "").join("");
-            const text = this.textContent ? this.textContent : childrenHtml;
-            const cls = this.className ? ` class="${this.className}"` : "";
-            const role = (this as any).role ? ` role="${(this as any).role}"` : "";
-            const ariaLabel = (this as any)["aria-label"] ? ` aria-label="${(this as any)["aria-label"]}"` : "";
-            const ariaLive = (this as any)["aria-live"] ? ` aria-live="${(this as any)["aria-live"]}"` : "";
-            const ariaAtomic = (this as any)["aria-atomic"] ? ` aria-atomic="${(this as any)["aria-atomic"]}"` : "";
-            return `<${tag}${cls}${role}${ariaLabel}${ariaLive}${ariaAtomic}>${text}</${tag}>`;
+            return createMockElementOuterHTML(this, tag);
         }
       }),
       createDocumentFragment: () => ({
