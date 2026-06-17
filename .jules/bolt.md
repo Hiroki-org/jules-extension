@@ -56,6 +56,5 @@
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
 
 ## 2026-06-10 - Use mapLimit for session deletions
-
 **Learning:** Sequential deletion of sessions using a `for` loop causes slow UI and long waiting times when dealing with multiple items, as each API call must complete before the next starts. However, unconstrained `Promise.all` can overwhelm the API and lead to rate-limit or timeout errors.
 **Action:** Use `mapLimit` (e.g. from `asyncUtils`) when issuing independent network requests (like batch deletions) over an array. This balances parallelism for speed while guarding against rate limits with a controlled concurrency limit.
