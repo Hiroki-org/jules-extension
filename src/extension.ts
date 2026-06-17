@@ -2805,7 +2805,7 @@ export async function executeDeleteSessionCommand(
           sessionsProvider.unmarkSessionAsDeleting(session.name);
         } finally {
           completedCount++;
-          progress.report({ message: `Deleting ${completedCount} of ${targets.length}...` });
+          progress.report({ message: `Deleted ${completedCount} of ${targets.length}...` });
         }
       });
 
