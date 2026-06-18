@@ -63,6 +63,8 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
     assert.ok(rendered.includes('aria-label="Copy code"'));
+    assert.ok(rendered.includes('aria-live="polite"'));
+    assert.ok(rendered.includes('aria-atomic="true"'));
   });
 
   test("isGeneratingSessionState should detect active generation states", () => {
