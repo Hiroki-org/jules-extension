@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-06-04 - [Performance] Array processing optimization in multiple methods
+**Learning:** Using chained \`.filter()\` or passing mapping arrays into Map/Set constructors like \`new Set(activities.map(...))\` causes unnecessary intermediate array allocations, and degrades performance.
+**Action:** Use a single-pass \`for...of\` loop and push to the target collection.

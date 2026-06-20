@@ -3837,11 +3837,14 @@ export function activate(context: vscode.ExtensionContext) {
         // すべてのキーを取得
         const allKeys = context.globalState.keys();
 
+        // ⚡ Bolt: `.filter()` とスプレッド構文による複数の中間配列の生成を防止します。
         // Sources & Branches キャッシュをフィルタ
-        const branchCacheKeys = allKeys.filter((key) =>
-          key.startsWith("jules.branches."),
-        );
-        const cacheKeys = ["jules.sources", ...branchCacheKeys];
+        const cacheKeys = ["jules.sources"];
+        for (const key of allKeys) {
+          if (key.startsWith("jules.branches.")) {
+            cacheKeys.push(key);
+          }
+        }
 
         // すべてのキャッシュをクリア
         await Promise.all(
@@ -3852,7 +3855,7 @@ export function activate(context: vscode.ExtensionContext) {
           `Jules cache cleared: ${cacheKeys.length} entries removed`,
         );
         logChannel.appendLine(
-          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheKeys.length} branches)`,
+          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${cacheKeys.length - 1} branches)`,
         );
       } catch (error: any) {
         logChannel.appendLine(`[Jules] Error clearing cache: ${error.message}`);
