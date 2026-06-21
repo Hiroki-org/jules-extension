@@ -52,7 +52,7 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
 
         // Security Check: Ensure resolved path is still inside the workspace folder
         const relative = path.relative(folderPath, candidatePath);
-        const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
+        const isSafe = (!relative.startsWith('..' + path.sep) && relative !== '..') && !path.isAbsolute(relative);
 
         if (!isSafe) {
             console.warn(`[Security] Rejected path traversal attempt: ${targetPath} -> ${candidatePath}`);

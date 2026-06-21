@@ -75,6 +75,28 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat traversed path");
     });
 
+    test("should allow valid paths that start with '..'", async () => {
+        const rootPath = path.resolve("/workspace");
+        const folder = {
+            uri: vscode.Uri.file(rootPath),
+            name: "root",
+            index: 0
+        };
+        workspaceFoldersStub.value([folder]);
+
+        const targetPath = "..config";
+        const resolvedPath = path.resolve(rootPath, targetPath);
+        const resolvedUri = vscode.Uri.file(resolvedPath);
+
+        // Simulate file exists
+        fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === resolvedUri.fsPath)).resolves({ type: vscode.FileType.File });
+
+        const result = await resolveWorkspaceFile(targetPath);
+
+        assert.ok(result, "Should resolve valid path");
+        assert.strictEqual(result.fsPath, resolvedUri.fsPath);
+    });
+
     test("should allow valid paths within workspace", async () => {
         const rootPath = path.resolve("/workspace");
         const folder = {
