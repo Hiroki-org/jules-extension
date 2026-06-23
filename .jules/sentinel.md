@@ -17,3 +17,8 @@
 **Vulnerability:** mXSS vulnerability via MathML parsing bypass in DOMPurify.
 **Learning:** Using FORBID_TAGS is insufficient for disabling MathML namespace robustly. DOMPurify's USE_PROFILES configuration is required, but setting { math: false } alone resets defaults and breaks standard HTML tags.
 **Prevention:** Explicitly configure USE_PROFILES: { html: true, svg: true, math: false } to securely disable MathML while preserving expected rendering.
+
+## 2024-06-24 - [パストラバーサルチェックの改善]
+**Vulnerability:** '..' の単純な前方一致によるパストラバーサルチェックの誤検知またはバイパス。
+**Learning:** !relative.startsWith('..') を使用すると、'..config' のような正当なファイルやフォルダが誤って拒否される可能性があります。
+**Prevention:** !(relative.startsWith('..' + path.sep) || relative === '..') を使用して、明示的なディレクトリエスケープ試行を正確に検証します。
