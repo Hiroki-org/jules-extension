@@ -48,11 +48,14 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
     const checks = folders.map(async (folder) => {
         const folderPath = folder.uri.fsPath;
         // Use path.resolve to handle relative paths and normalization
-        const candidatePath = path.resolve(folderPath, targetPath);
+        const resolvedFolder = path.resolve(folderPath);
+        const candidatePath = path.resolve(resolvedFolder, targetPath);
 
         // Security Check: Ensure resolved path is still inside the workspace folder
-        const relative = path.relative(folderPath, candidatePath);
-        const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
+        // Use absolute path boundary comparison to avoid OS separator issues and traversal bypasses.
+        // Also handle the case where the workspace folder is a filesystem root (already ends with sep).
+        const workspacePrefix = resolvedFolder.endsWith(path.sep) ? resolvedFolder : resolvedFolder + path.sep;
+        const isSafe = candidatePath.startsWith(workspacePrefix) || candidatePath === resolvedFolder;
 
         if (!isSafe) {
             console.warn(`[Security] Rejected path traversal attempt: ${targetPath} -> ${candidatePath}`);

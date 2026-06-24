@@ -97,6 +97,51 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         assert.strictEqual(result.fsPath, resolvedUri.fsPath);
     });
 
+    test("should allow valid paths when workspace is a filesystem root", async () => {
+        // Handle OS-specific filesystem root
+        const rootPath = path.parse(path.resolve("/")).root;
+        const folder = {
+            uri: vscode.Uri.file(rootPath),
+            name: "root",
+            index: 0
+        };
+        workspaceFoldersStub.value([folder]);
+
+        const targetPath = "config.json";
+        const resolvedPath = path.resolve(rootPath, targetPath);
+        const resolvedUri = vscode.Uri.file(resolvedPath);
+
+        // Simulate file exists
+        fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === resolvedUri.fsPath)).resolves({ type: vscode.FileType.File });
+
+        const result = await resolveWorkspaceFile(targetPath);
+
+        assert.ok(result, "Should resolve config.json at filesystem root");
+        assert.strictEqual(result.fsPath, resolvedUri.fsPath);
+    });
+
+    test("should allow files starting with .. but not traversing up", async () => {
+        const rootPath = path.resolve("/workspace");
+        const folder = {
+            uri: vscode.Uri.file(rootPath),
+            name: "root",
+            index: 0
+        };
+        workspaceFoldersStub.value([folder]);
+
+        const targetPath = "..config.json";
+        const resolvedPath = path.resolve(rootPath, targetPath);
+        const resolvedUri = vscode.Uri.file(resolvedPath);
+
+        // Simulate file exists
+        fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === resolvedUri.fsPath)).resolves({ type: vscode.FileType.File });
+
+        const result = await resolveWorkspaceFile(targetPath);
+
+        assert.ok(result, "Should resolve ..config.json");
+        assert.strictEqual(result.fsPath, resolvedUri.fsPath);
+    });
+
     test("should handle missing files gracefully", async () => {
         const rootPath = path.resolve("/workspace");
         const folder = {
