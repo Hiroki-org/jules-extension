@@ -883,7 +883,6 @@ test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo catch block o
         assert.strictEqual(openExternalStub.callCount, 3);
         assert.strictEqual(showErrorMessageStub.calledTwice, true);
     });
-});
 
     test('checkoutToBranchForSession fetches all remotes when fallback branch not found and remote tracking ref not found', async () => {
         const repo = createRepository();
