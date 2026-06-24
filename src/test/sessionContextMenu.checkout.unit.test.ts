@@ -57,6 +57,7 @@ suite('sessionContextMenu checkout coverage suite', () => {
             addRemote: sandbox.stub().resolves(),
             createBranch: sandbox.stub().resolves(),
             stash: sandbox.stub().resolves(),
+            getBranch: sandbox.stub().rejects(new Error('branch not found')),
             ...overrides
         } as any;
     }
@@ -211,7 +212,8 @@ suite('sessionContextMenu checkout coverage suite', () => {
         const repo = createRepository({
             checkout: sandbox.stub()
                 .onFirstCall().rejects(new Error('pathspec did not match any file(s) known to git'))
-                .onSecondCall().resolves()
+                .onSecondCall().resolves(),
+            getBranch: sandbox.stub().rejects(new Error('branch not found'))
         });
         stubGitExtension([repo]);
         showInformationMessageStub.resolves('Fetch & Checkout');
@@ -220,6 +222,23 @@ suite('sessionContextMenu checkout coverage suite', () => {
 
         assert.strictEqual(result, true);
         assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnce, true);
+        assert.strictEqual((repo.checkout as sinon.SinonStub).callCount, 2);
+    });
+
+    test('checkoutToBranch skips fetch when remote tracking branch exists', async () => {
+        const repo = createRepository({
+            checkout: sandbox.stub()
+                .onFirstCall().rejects(new Error('pathspec did not match any file(s) known to git'))
+                .onSecondCall().resolves(),
+            getBranch: sandbox.stub().resolves({ name: 'origin/feature/test' })
+        });
+        stubGitExtension([repo]);
+        showInformationMessageStub.resolves('Fetch & Checkout');
+
+        const result = await sessionContextMenu.checkoutToBranch('feature/test', createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).called, false);
         assert.strictEqual((repo.checkout as sinon.SinonStub).callCount, 2);
     });
 

@@ -314,9 +314,28 @@ async function performCheckout(
             }
 
             try {
-                // Fetch all remotes
-                await repository.fetch();
-                log("Fetched from remotes successfully");
+                // OPTIMIZATION: Check if we have a remote tracking branch before fetching
+                // This avoids a slow fetch if the branch is already known to Git locally
+                let branchExists = false;
+                try {
+                    const branch = await repository.getBranch(`origin/${branchName}`);
+                    branchExists = !!branch;
+                } catch (e) {
+                    try {
+                        const branch = await repository.getBranch(branchName);
+                        branchExists = !!branch;
+                    } catch (e2) {
+                        // Still not found
+                    }
+                }
+
+                if (!branchExists) {
+                    // Fetch all remotes
+                    await repository.fetch();
+                    log("Fetched from remotes successfully");
+                } else {
+                    log("Branch exists in remote tracking, skipping fetch");
+                }
 
                 // Try checkout again (Git should now see the remote branch)
                 await repository.checkout(branchName);
