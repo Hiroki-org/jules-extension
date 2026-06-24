@@ -884,3 +884,70 @@ test('checkoutToBranchForSession covers fetchAndCheckoutFromPRInfo catch block o
         assert.strictEqual(showErrorMessageStub.calledTwice, true);
     });
 });
+
+    test('checkoutToBranchForSession fetches all remotes when fallback branch not found and remote tracking ref not found', async () => {
+        const repo = createRepository();
+        repo.state = { remotes: [{ name: 'origin', fetchUrl: 'https://github.com/origin/repo.git' }] };
+        const checkoutStub = sandbox.stub();
+        checkoutStub.onFirstCall().rejects(new Error("pathspec 'feature/fallback' did not match any file(s) known to git"));
+        checkoutStub.onSecondCall().resolves();
+        repo.checkout = checkoutStub;
+        repo.getBranch = sandbox.stub().rejects(new Error('not found'));
+        repo.fetch = sandbox.stub().resolves();
+
+        stubGitExtension([repo]);
+        showInformationMessageStub.resolves("Fetch & Checkout" as any);
+        sandbox.stub(GitHubAuth, 'getToken').resolves(undefined);
+
+        const session: Partial<Session> = {
+            name: 'session-fetch',
+            title: 'Session Fetch',
+            sourceContext: {
+                githubRepoContext: { startingBranch: 'feature/fallback' }
+            } as any
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual(checkoutStub.callCount, 2);
+        assert.strictEqual(checkoutStub.getCall(0).calledWithExactly('feature/fallback'), true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).calledOnce, true);
+        assert.strictEqual((repo.getBranch as sinon.SinonStub).calledWithExactly('origin/feature/fallback'), true);
+    });
+
+    test('checkoutToBranchForSession skips fetch when fallback branch not found but remote tracking ref found', async () => {
+        const repo = createRepository();
+        repo.state = { remotes: [{ name: 'origin', fetchUrl: 'https://github.com/origin/repo.git' }, { name: 'upstream', fetchUrl: 'https://github.com/upstream/repo.git' }] };
+        const checkoutStub = sandbox.stub();
+        checkoutStub.onFirstCall().rejects(new Error("pathspec 'feature/fallback' did not match any file(s) known to git"));
+        checkoutStub.onSecondCall().resolves();
+        repo.checkout = checkoutStub;
+        const getBranchStub = sandbox.stub();
+        getBranchStub.onFirstCall().rejects(new Error('not found')); // origin
+        getBranchStub.onSecondCall().resolves({ name: 'upstream/feature/fallback' }); // upstream
+        repo.getBranch = getBranchStub;
+        repo.fetch = sandbox.stub().resolves();
+
+        stubGitExtension([repo]);
+        showInformationMessageStub.resolves("Fetch & Checkout" as any);
+        sandbox.stub(GitHubAuth, 'getToken').resolves(undefined);
+
+        const session: Partial<Session> = {
+            name: 'session-skip-fetch',
+            title: 'Session Skip Fetch',
+            sourceContext: {
+                githubRepoContext: { startingBranch: 'feature/fallback' }
+            } as any
+        };
+
+        const result = await sessionContextMenu.checkoutToBranchForSession(session as Session, createOutputChannel());
+
+        assert.strictEqual(result, true);
+        assert.strictEqual(checkoutStub.callCount, 2);
+        assert.strictEqual(checkoutStub.getCall(0).calledWithExactly('feature/fallback'), true);
+        assert.strictEqual((repo.fetch as sinon.SinonStub).called, false);
+        assert.strictEqual(getBranchStub.callCount, 2);
+    });
+
+});
