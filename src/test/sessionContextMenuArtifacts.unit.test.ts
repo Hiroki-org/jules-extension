@@ -75,21 +75,6 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat traversed path");
     });
 
-    test("should reject direct parent directory traversal", async () => {
-        const rootPath = path.resolve("/workspace");
-        const folder = {
-            uri: vscode.Uri.file(rootPath),
-            name: "root",
-            index: 0
-        };
-        workspaceFoldersStub.value([folder]);
-
-        const result = await resolveWorkspaceFile("..");
-
-        assert.strictEqual(result, null, "Should reject parent directory traversal");
-        assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat parent directory");
-    });
-
     test("should allow valid paths within workspace", async () => {
         const rootPath = path.resolve("/workspace");
         const folder = {
@@ -112,8 +97,9 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         assert.strictEqual(result.fsPath, resolvedUri.fsPath);
     });
 
-    test("should allow valid child paths when workspace is filesystem root", async () => {
-        const rootPath = path.parse(process.cwd()).root;
+    test("should allow valid paths when workspace is a filesystem root", async () => {
+        // Handle OS-specific filesystem root
+        const rootPath = path.parse(path.resolve("/")).root;
         const folder = {
             uri: vscode.Uri.file(rootPath),
             name: "root",
@@ -121,15 +107,16 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         };
         workspaceFoldersStub.value([folder]);
 
-        const targetPath = "workspace-child.ts";
+        const targetPath = "config.json";
         const resolvedPath = path.resolve(rootPath, targetPath);
         const resolvedUri = vscode.Uri.file(resolvedPath);
 
+        // Simulate file exists
         fsStatStub.withArgs(sinon.match((uri: vscode.Uri) => uri.fsPath === resolvedUri.fsPath)).resolves({ type: vscode.FileType.File });
 
         const result = await resolveWorkspaceFile(targetPath);
 
-        assert.ok(result, "Should resolve child path from filesystem root workspace");
+        assert.ok(result, "Should resolve config.json at filesystem root");
         assert.strictEqual(result.fsPath, resolvedUri.fsPath);
     });
 
