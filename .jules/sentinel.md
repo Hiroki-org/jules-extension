@@ -20,5 +20,5 @@
 
 ## 2026-06-19 - [Path Traversal Check Fix]
 **Vulnerability:** legitimate files starting with `..` (e.g., `..config`) could be incorrectly rejected by `!relative.startsWith('..')`.
-**Learning:** When using `path.relative(root, target)`, checking for path traversal should strictly check for `..` followed by `path.sep` or exact match to prevent false positives.
-**Prevention:** Use `!relative.startsWith('..' + path.sep) && relative !== '..'` and `!path.isAbsolute(relative)` for proper boundary validation.
+**Learning:** Boundary checks are more robust when they compare normalized absolute paths instead of parsing relative path prefixes.
+**Prevention:** Resolve the workspace root and candidate path, then allow only exact root matches or candidates starting with `root + path.sep`.
