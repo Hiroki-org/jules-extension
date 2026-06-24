@@ -97,6 +97,21 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         assert.strictEqual(result.fsPath, resolvedUri.fsPath);
     });
 
+    test("should reject direct parent directory traversal", async () => {
+        const rootPath = path.resolve("/workspace");
+        const folder = {
+            uri: vscode.Uri.file(rootPath),
+            name: "root",
+            index: 0
+        };
+        workspaceFoldersStub.value([folder]);
+
+        const result = await resolveWorkspaceFile("..");
+
+        assert.strictEqual(result, null, "Should reject direct parent traversal");
+        assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat parent directory");
+    });
+
     test("should allow valid paths when workspace is a filesystem root", async () => {
         // Handle OS-specific filesystem root
         const rootPath = path.parse(path.resolve("/")).root;

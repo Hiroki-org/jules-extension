@@ -46,8 +46,8 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
 
     // 2. Parallelize file existence checks while preserving folder priority order
     const checks = folders.map(async (folder) => {
-        const folderPath = folder.uri.fsPath;
         // Use path.resolve to handle relative paths and normalization
+        const folderPath = path.resolve(folder.uri.fsPath);
         const candidatePath = path.resolve(folderPath, targetPath);
 
         // Security Check: Ensure resolved path is still inside the workspace folder
