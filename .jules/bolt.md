@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2025-02-23 - Sequential File Lookup for VS Code Workspaces
+**Learning:** Mapping over VS Code workspace folders with `Promise.allSettled` for `fs.stat` triggers unnecessary parallel I/O, scaling poorly with large numbers of folders. When a target file is found early, the remaining promises are wasted work.
+**Action:** Replace `Promise.allSettled` block with a sequential `for...of` loop and a `try/catch` block for `fs.stat` inside `resolveWorkspaceFileAsync` to terminate early and minimize I/O overhead.
