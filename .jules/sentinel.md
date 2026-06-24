@@ -20,5 +20,10 @@
 
 ## 2026-06-19 - [Path Traversal Check Fix]
 **Vulnerability:** legitimate files starting with `..` (e.g., `..config`) could be incorrectly rejected by `!relative.startsWith('..')`.
-**Learning:** Boundary checks are more robust when they compare normalized absolute paths instead of parsing relative path prefixes.
-**Prevention:** Resolve the workspace root and candidate path, then allow only exact root matches or candidates starting with `root + path.sep`.
+**Learning:** When using `path.relative(root, target)`, checking for path traversal should strictly check for `..` followed by `path.sep` or exact match to prevent false positives.
+**Prevention:** Use `!relative.startsWith('..' + path.sep) && relative !== '..'` and `!path.isAbsolute(relative)` for proper boundary validation.
+
+## 2026-06-24 - [絶対パス境界によるパス探索防止]
+**Vulnerability:** 相対パス (`path.relative`) とプレフィックス (`startsWith`) に依存したパス探索検証は、OS間のセパレーター (`/` vs `\`) の違いやエッジケースにより脆弱性 (`..config` の誤検知など) を生む可能性があります。
+**Learning:** ファイルパスが特定のディレクトリ内に収まっているかを安全に検証するには、`path.resolve` で絶対パス化した後、対象パスがルートディレクトリのパス + `path.sep` で始まるか、またはルートディレクトリと完全一致するかを検証するべきです。
+**Prevention:** 常に絶対パスのプレフィックス比較 (`candidatePath.startsWith(folderPath + path.sep) || candidatePath === folderPath`) を使用して境界チェックを実装します。
