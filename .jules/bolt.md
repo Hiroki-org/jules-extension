@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-06-24 - Optimize remote branch lookup with Promise.all
+**Learning:** Using `Promise.all` alongside `.findIndex` to concurrently search through multiple remote branches significantly reduces max latency compared to a sequential loop, especially for users with numerous remotes.
+**Action:** When searching across a variable number of remote or IO-bound sources where early exit on the first truthy value is needed, and the operations are safe to run concurrently, map the async operations to `Promise.all` and evaluate the boolean array, or implement a custom concurrency-limited early-exit race.
