@@ -314,9 +314,29 @@ async function performCheckout(
             }
 
             try {
-                // Fetch all remotes
-                await repository.fetch();
-                log("Fetched from remotes successfully");
+                // ⚡ Bolt: Check if the branch already exists in any remote tracking ref
+                // to avoid an expensive network fetch if we already have it locally.
+                let foundRemoteTracking = false;
+                const remotes = repository.state?.remotes || [];
+                for (const remote of remotes) {
+                    try {
+                        const remoteBranch = await repository.getBranch(`${remote.name}/${branchName}`);
+                        if (remoteBranch) {
+                            foundRemoteTracking = true;
+                            break;
+                        }
+                    } catch {
+                        // Branch not found on this remote
+                    }
+                }
+
+                if (!foundRemoteTracking) {
+                    // Fetch all remotes
+                    await repository.fetch();
+                    log("Fetched from remotes successfully");
+                } else {
+                    log("Remote tracking branch found locally, skipping fetch");
+                }
 
                 // Try checkout again (Git should now see the remote branch)
                 await repository.checkout(branchName);

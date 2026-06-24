@@ -54,3 +54,7 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+
+## 2026-06-24 - リモートブランチ存在チェックによるGit Fetchの最適化
+**Learning:** `performCheckout`において`await repository.fetch()`を常に実行すると、ネットワーク遅延によりUIフローがブロックされる。既にローカルのリモート追跡ブランチ（例: `origin/branchName`）が存在する場合は、全リモートのフェッチをスキップして直接チェックアウトを試みることで、オーバーヘッドを数百ミリ秒から数ミリ秒に短縮できる。
+**Action:** リモートフェッチのようなネットワークI/Oを伴うブロッキング処理を実行する前に、ローカル状態（リモート追跡ブランチの有無など）をチェックして早期リターンまたは処理のスキップができないか検討する。
