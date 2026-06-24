@@ -2149,26 +2149,34 @@ export class JulesSessionsProvider implements vscode.TreeDataProvider<vscode.Tre
 
     let hasChanges = false;
 
-    // Run fetches in parallel
-    const results = await Promise.allSettled(
-      targetSessions.map(async (session) => {
-        const before = getCachedSessionArtifacts(session.name);
-        await fetchLatestSessionArtifacts(
-          apiKey,
-          session.name,
-          JULES_API_BASE_URL,
-          session.updateTime,
-        );
-        const after = getCachedSessionArtifacts(session.name);
+    // Run fetches with controlled concurrency to prevent N+1 API query spikes
+    const PREFETCH_CONCURRENCY = 2;
+    const results = await mapLimit(
+      targetSessions,
+      PREFETCH_CONCURRENCY,
+      async (session) => {
+        try {
+          const before = getCachedSessionArtifacts(session.name);
+          await fetchLatestSessionArtifacts(
+            apiKey,
+            session.name,
+            JULES_API_BASE_URL,
+            session.updateTime,
+          );
+          const after = getCachedSessionArtifacts(session.name);
 
-        // Check if availability of diff/changeset flipped
-        const hadDiff = !!before?.latestDiff;
-        const hasDiff = !!after?.latestDiff;
-        const hadChangeset = !!before?.latestChangeSet;
-        const hasChangeset = !!after?.latestChangeSet;
+          // Check if availability of diff/changeset flipped
+          const hadDiff = !!before?.latestDiff;
+          const hasDiff = !!after?.latestDiff;
+          const hadChangeset = !!before?.latestChangeSet;
+          const hasChangeset = !!after?.latestChangeSet;
 
-        return hadDiff !== hasDiff || hadChangeset !== hasChangeset;
-      }),
+          const value = hadDiff !== hasDiff || hadChangeset !== hasChangeset;
+          return { status: "fulfilled" as const, value };
+        } catch (error) {
+          return { status: "rejected" as const, reason: error };
+        }
+      }
     );
 
     // Log rejected promises for debugging and monitoring
