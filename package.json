@@ -427,20 +427,29 @@
     "serialize-javascript": "^7.0.5",
     "diff": "^8.0.3",
     "debug": "4.4.3",
-    "lodash": "^4.18.1"
+    "lodash": "^4.18.1",
+    "shell-quote": "^1.8.4",
+    "js-yaml": "^4.2.0"
   },
   "resolutions": {
     "serialize-javascript": "^7.0.5",
     "diff": "^8.0.3",
     "debug": "4.4.3",
-    "lodash": "^4.18.1"
+    "lodash": "^4.18.1",
+    "shell-quote": "^1.8.4",
+    "js-yaml": "^4.2.0"
   },
   "pnpm": {
     "overrides": {
       "serialize-javascript": "^7.0.5",
       "diff": "^8.0.3",
       "debug": "4.4.3",
-      "lodash": "^4.18.1"
-    }
+      "lodash": "^4.18.1",
+      "shell-quote": "^1.8.4",
+      "js-yaml": "^4.2.0"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
