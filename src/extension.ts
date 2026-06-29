@@ -134,9 +134,11 @@ export async function handleFilterActivitiesCommand(
   });
 
   if (selected !== undefined) {
-    const newFilter = new Set<ActivityCategory>(
-      selected.map((item) => item.label as ActivityCategory),
-    );
+    // Performance optimization: mapによる中間配列の生成を避け、for...ofループで直接Setを構築します
+    const newFilter = new Set<ActivityCategory>();
+    for (const item of selected) {
+      newFilter.add(item.label as ActivityCategory);
+    }
     sessionsProvider.setActivityCategoryFilter(newFilter);
   }
 }
