@@ -3509,9 +3509,12 @@ export function activate(context: vscode.ExtensionContext) {
         let filteredActivities = mergedActivities;
         const currentFilter = sessionsProvider.getActivityCategoryFilter();
         if (currentFilter.size > 0) {
-          filteredActivities = mergedActivities.filter((activity) =>
-            currentFilter.has(getActivityCategory(activity)),
-          );
+          filteredActivities = [];
+          for (const activity of mergedActivities) {
+            if (currentFilter.has(getActivityCategory(activity))) {
+              filteredActivities.push(activity);
+            }
+          }
         }
 
         addToActivitiesCache(sessionId, mergedActivities);

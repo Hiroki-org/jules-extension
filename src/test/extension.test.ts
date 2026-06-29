@@ -749,21 +749,23 @@ suite("Extension Test Suite", () => {
         'jules.sources',
         'jules.branches.source1',
         'jules.branches.source2',
-        'jules.branches.source3'
+        'jules.branches.source3',
+        'other.key'
       ];
       (mockContext.globalState.keys as sinon.SinonStub).returns(allKeys);
 
-      // キャッシュクリア処理をシミュレート
-      const branchCacheKeys = allKeys.filter(key => key.startsWith('jules.branches.'));
-      const cacheKeys = ['jules.sources', ...branchCacheKeys];
+      const commands = (vscode.commands.registerCommand as sinon.SinonStub).args;
+      const clearCacheCommand = commands.find(args => args[0] === 'jules-extension.clearCache');
+      assert.ok(clearCacheCommand, "clearCache command should be registered");
 
-      // 検証：正しいキーがフィルタされることを確認
-      assert.strictEqual(cacheKeys.length, 4); // 1 sources + 3 branches
-      assert.strictEqual(branchCacheKeys.length, 3);
-      assert.ok(cacheKeys.includes('jules.sources'));
-      assert.ok(cacheKeys.includes('jules.branches.source1'));
-      assert.ok(cacheKeys.includes('jules.branches.source2'));
-      assert.ok(cacheKeys.includes('jules.branches.source3'));
+      const clearCacheFn = clearCacheCommand[1];
+      await clearCacheFn();
+
+      assert.ok((mockContext.globalState.update as sinon.SinonStub).calledWith('jules.sources', undefined));
+      assert.ok((mockContext.globalState.update as sinon.SinonStub).calledWith('jules.branches.source1', undefined));
+      assert.ok((mockContext.globalState.update as sinon.SinonStub).calledWith('jules.branches.source2', undefined));
+      assert.ok((mockContext.globalState.update as sinon.SinonStub).calledWith('jules.branches.source3', undefined));
+      assert.strictEqual((mockContext.globalState.update as sinon.SinonStub).calledWith('other.key', undefined), false);
     });
 
     test("cache should expire after TTL", () => {

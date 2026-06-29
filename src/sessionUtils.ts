@@ -175,7 +175,13 @@ export async function recoverCorruptedActivities(
   activities: Activity[],
   progress?: vscode.Progress<{ message?: string; increment?: number }>,
 ): Promise<void> {
-  const corruptedActivities = activities.filter(isActivityCorrupted);
+  const corruptedActivities: Activity[] = [];
+  for (const activity of activities) {
+    if (isActivityCorrupted(activity)) {
+      corruptedActivities.push(activity);
+    }
+  }
+
   if (corruptedActivities.length === 0) {
     return;
   }
