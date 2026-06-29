@@ -391,10 +391,10 @@ export const CHAT_JS = `(function() {
     const originalTitle = copyButton.title;
     const originalAriaLabel = copyButton.getAttribute("aria-label");
 
-    function setButtonState(text) {
+    function setButtonState(text, ariaLabel) {
       copyButton.textContent = text;
       copyButton.title = text;
-      copyButton.setAttribute("aria-label", text);
+      copyButton.setAttribute("aria-label", ariaLabel || text);
     }
 
     function restoreButtonState() {
@@ -406,10 +406,10 @@ export const CHAT_JS = `(function() {
 
     try {
       await navigator.clipboard.writeText(code);
-      setButtonState("Copied");
+      setButtonState("Copied", "Copied code");
       setTimeout(restoreButtonState, 1200);
     } catch {
-      setButtonState("Failed");
+      setButtonState("Failed", "Failed to copy code");
       setTimeout(restoreButtonState, 1200);
     }
   });
