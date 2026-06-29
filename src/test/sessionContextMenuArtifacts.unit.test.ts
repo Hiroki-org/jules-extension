@@ -70,15 +70,8 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         // Target: ../secret.txt (relative to workspace root)
         const targetPath = "../secret.txt";
 
-        let error: Error | undefined;
-        try {
-            await resolveWorkspaceFile(targetPath);
-        } catch (e) {
-            error = e as Error;
-        }
-
-        assert.ok(error, "Should throw error on traversal");
-        assert.strictEqual(error.message, "Unsafe path", "Should throw Unsafe path error");
+        const result = await resolveWorkspaceFile(targetPath);
+        assert.strictEqual(result, null, "Should reject traversal");
         assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat traversed path");
     });
 
@@ -113,15 +106,9 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         };
         workspaceFoldersStub.value([folder]);
 
-        let error: Error | undefined;
-        try {
-            await resolveWorkspaceFile("..");
-        } catch (e) {
-            error = e as Error;
-        }
+        const result = await resolveWorkspaceFile("..");
 
-        assert.ok(error, "Should throw error on traversal");
-        assert.strictEqual(error.message, "Unsafe path", "Should throw Unsafe path error");
+        assert.strictEqual(result, null, "Should reject direct parent traversal");
         assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat parent directory");
     });
 

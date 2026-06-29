@@ -44,8 +44,8 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
         return null;
     }
 
-    // ⚡ Bolt: Sequential search avoids unnecessary I/O
-    for (const folder of folders) {
+    // 2. Parallelize file existence checks while preserving folder priority order
+    const checks = folders.map(async (folder) => {
         // Use path.resolve to handle relative paths and normalization
         const folderPath = path.resolve(folder.uri.fsPath);
         const candidatePath = path.resolve(folderPath, targetPath);
@@ -62,16 +62,22 @@ async function resolveWorkspaceFileAsync(targetPath: string): Promise<vscode.Uri
         }
 
         const candidateUri = vscode.Uri.file(candidatePath);
+        // Use async fs.stat instead of synchronous fs.existsSync
+        await vscode.workspace.fs.stat(candidateUri);
 
-        try {
-            // Use async fs.stat instead of synchronous fs.existsSync
-            await vscode.workspace.fs.stat(candidateUri);
-            return candidateUri;
-        } catch {
-            // File not found in this folder, continue to the next
-            continue;
+        return { uri: candidateUri };
+    });
+
+        const results = await Promise.allSettled(checks);
+
+        // Promise.allSettled guarantees the results array matches the order of the input iterable.
+        // Thus, iterating from 0 to length - 1 ensures we find the highest priority (first) folder's file.
+        for (let i = 0; i < results.length; i += 1) {
+            const result = results[i];
+            if (result.status === 'fulfilled') {
+                return result.value.uri;
+            }
         }
-    }
 
         return null;
 }
