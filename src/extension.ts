@@ -3837,34 +3837,22 @@ export function activate(context: vscode.ExtensionContext) {
         // すべてのキーを取得
         const allKeys = context.globalState.keys();
 
-        // ⚡ Bolt: パフォーマンス最適化
-        // 不要な中間配列の生成を避けるため、chained な .filter().map() や array spread を避け、
-        // 1回の for...of ループでフィルタとマッピングを統合して処理します。
-        const promises: Thenable<void>[] = [];
-        let branchCacheCount = 0;
-
-        // "jules.sources" キーが存在する場合のみアップデートに追加
-        if (allKeys.includes("jules.sources")) {
-          promises.push(context.globalState.update("jules.sources", undefined));
-        }
-
-        for (const key of allKeys) {
-          if (key.startsWith("jules.branches.")) {
-            promises.push(context.globalState.update(key, undefined));
-            branchCacheCount++;
-          }
-        }
+        // Sources & Branches キャッシュをフィルタ
+        const branchCacheKeys = allKeys.filter((key) =>
+          key.startsWith("jules.branches."),
+        );
+        const cacheKeys = ["jules.sources", ...branchCacheKeys];
 
         // すべてのキャッシュをクリア
-        await Promise.all(promises);
-
-        const totalCleared = branchCacheCount + 1;
+        await Promise.all(
+          cacheKeys.map((key) => context.globalState.update(key, undefined)),
+        );
 
         vscode.window.showInformationMessage(
-          `Jules cache cleared: ${totalCleared} entries removed`,
+          `Jules cache cleared: ${cacheKeys.length} entries removed`,
         );
         logChannel.appendLine(
-          `[Jules] Cache cleared: ${totalCleared} entries (1 sources + ${branchCacheCount} branches)`,
+          `[Jules] Cache cleared: ${cacheKeys.length} entries (1 sources + ${branchCacheKeys.length} branches)`,
         );
       } catch (error: any) {
         logChannel.appendLine(`[Jules] Error clearing cache: ${error.message}`);

@@ -754,25 +754,16 @@ suite("Extension Test Suite", () => {
       (mockContext.globalState.keys as sinon.SinonStub).returns(allKeys);
 
       // キャッシュクリア処理をシミュレート
-      const promises: any[] = [
-        "jules.sources"
-      ];
-      let branchCacheCount = 0;
-
-      for (const key of allKeys) {
-        if (key.startsWith("jules.branches.")) {
-          promises.push(key);
-          branchCacheCount++;
-        }
-      }
+      const branchCacheKeys = allKeys.filter(key => key.startsWith('jules.branches.'));
+      const cacheKeys = ['jules.sources', ...branchCacheKeys];
 
       // 検証：正しいキーがフィルタされることを確認
-      assert.strictEqual(promises.length, 4); // 1 sources + 3 branches
-      assert.strictEqual(branchCacheCount, 3);
-      assert.ok(promises.includes('jules.sources'));
-      assert.ok(promises.includes('jules.branches.source1'));
-      assert.ok(promises.includes('jules.branches.source2'));
-      assert.ok(promises.includes('jules.branches.source3'));
+      assert.strictEqual(cacheKeys.length, 4); // 1 sources + 3 branches
+      assert.strictEqual(branchCacheKeys.length, 3);
+      assert.ok(cacheKeys.includes('jules.sources'));
+      assert.ok(cacheKeys.includes('jules.branches.source1'));
+      assert.ok(cacheKeys.includes('jules.branches.source2'));
+      assert.ok(cacheKeys.includes('jules.branches.source3'));
     });
 
     test("cache should expire after TTL", () => {

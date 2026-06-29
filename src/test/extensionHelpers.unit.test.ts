@@ -943,12 +943,7 @@ suite("Extension helper unit tests", () => {
             return {};
           }),
           update: localSandbox.stub().resolves(),
-          keys: localSandbox.stub().returns([
-            "jules.sources",
-            "jules.branches.source1",
-            "jules.branches.source2",
-            "other.key"
-          ]),
+          keys: localSandbox.stub().returns([]),
         },
         subscriptions: [],
         secrets: { get: getSecretStub, store: localSandbox.stub().resolves() }
