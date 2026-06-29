@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2024-06-25 - PR Rejected: Speculative array optimization
+**Learning:** This codebase rejects speculative performance changes (like consolidating `.filter().map()` to a `for...of` loop) if they are not tied to a demonstrated bug, especially since they overlap with other optimization PRs.
+**Action:** Avoid speculative micro-optimizations that only reduce intermediate arrays unless they are fixing a measurable bottleneck or bug. Only optimize when there is a demonstrated issue.

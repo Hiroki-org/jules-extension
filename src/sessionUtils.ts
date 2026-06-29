@@ -175,32 +175,20 @@ export async function recoverCorruptedActivities(
   activities: Activity[],
   progress?: vscode.Progress<{ message?: string; increment?: number }>,
 ): Promise<void> {
-  // ⚡ Bolt: パフォーマンス最適化
-  // activities.filter() と .map() の連鎖による中間配列の生成を避け、
-  // 1回のループで破損したアクティビティのIDを収集することで、
-  // メモリ割り当てとガベージコレクションのオーバーヘッドを削減します。
-  const corruptedIds = new Set<string>();
-  let corruptedCount = 0;
-
-  for (const act of activities) {
-    if (isActivityCorrupted(act)) {
-      corruptedIds.add(act.id);
-      corruptedCount++;
-    }
-  }
-
-  if (corruptedCount === 0) {
+  const corruptedActivities = activities.filter(isActivityCorrupted);
+  if (corruptedActivities.length === 0) {
     return;
   }
 
   if (progress) {
     progress.report({
-      message: `Recovering ${corruptedCount} corrupted activities...`,
+      message: `Recovering ${corruptedActivities.length} corrupted activities...`,
     });
   }
 
   // Optimize N+1 fetch by fetching activities in bulk via the paginated endpoint.
   // We process directly into a Map and shrink the search Set to avoid intermediate arrays.
+  const corruptedIds = new Set(corruptedActivities.map((a) => a.id));
   const recoveredMap = new Map<string, Activity>();
   let pageToken: string | undefined;
   const MAX_PAGES = 10;
