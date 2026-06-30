@@ -393,8 +393,9 @@ export const CHAT_JS = `(function() {
 
     function setButtonState(text) {
       copyButton.textContent = text;
-      copyButton.title = text;
-      copyButton.setAttribute("aria-label", text);
+      const desc = text === "Copied" ? "Copied code" : (text === "Failed" ? "Failed to copy code" : text);
+      copyButton.title = desc;
+      copyButton.setAttribute("aria-label", desc);
     }
 
     function restoreButtonState() {
