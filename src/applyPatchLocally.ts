@@ -263,10 +263,22 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
             return a.localeCompare(b);
         });
 
-    for (const remoteName of remoteNames) {
-        const remoteRef = `${remoteName}/${branchRef}`;
-        if (await branchExists(repository, remoteRef)) {
-            return remoteRef;
+    if (remoteNames.length > 0) {
+        try {
+            // Use Promise.any to check all remotes concurrently and return the first one that exists.
+            // This avoids waiting for a remote's check to finish before starting the next one.
+            return await Promise.any(
+                remoteNames.map(async (remoteName: string) => {
+                    const remoteRef = `${remoteName}/${branchRef}`;
+                    if (await branchExists(repository, remoteRef)) {
+                        return remoteRef;
+                    }
+                    throw new Error("Branch not found in this remote");
+                })
+            );
+        } catch (e) {
+            // Promise.any throws AggregateError if all promises reject (branch not found in any remote).
+            // Fall through to return branchRef.
         }
     }
 
