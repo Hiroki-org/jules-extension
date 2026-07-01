@@ -216,6 +216,24 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         // Promise.any is skipped when remotes is empty, should just return 'main'
     });
 
+    test('startingBranch の解決時、remotes が空の場合は startingBranch をそのまま返すこと', async () => {
+        repository.state = { remotes: [] };
+        repository.getCommit.rejects(new Error('commit not found'));
+        repository.getBranch.callsFake(async (branchRef: string) => {
+            throw new Error('branch not found');
+        });
+        showWarningMessageStub.resolves('Fallback');
+
+        await applyPatchLocallyForSession({
+            session: createSession(),
+            changeSet: createChangeSet(),
+            outputChannel,
+        });
+
+        assert.strictEqual(repository.getBranch.calledWith('main'), true);
+        // Promise.any is skipped when remotes is empty, should just return 'main'
+    });
+
     test('startingBranch の解決時、すべての remotes で branch が存在しない場合は startingBranch をそのまま返すこと', async () => {
         repository.state = { remotes: [{ name: 'origin' }, { name: 'upstream' }] };
         repository.getCommit.rejects(new Error('commit not found'));
