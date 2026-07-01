@@ -274,18 +274,32 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
 }
 
 async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
-    for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
-        const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
-        try {
-            const branch = await repository.getBranch(candidate);
-            if (!branch) {
-                return candidate;
+    // ⚡ Bolt: Batch branch existence checks using Promise.all to reduce latency from sequential network/IO calls,
+    // significantly speeding up the process when multiple conflicting branches exist.
+    const BATCH_SIZE = 5;
+    for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += BATCH_SIZE) {
+        const candidates: string[] = [];
+        for (let i = 0; i < BATCH_SIZE && (attempt + i) <= MAX_BRANCH_NAME_ATTEMPTS; i++) {
+            const currentAttempt = attempt + i;
+            candidates.push(currentAttempt === 1 ? branchName : `${branchName}-${currentAttempt}`);
+        }
+
+        const results = await Promise.all(candidates.map(async (candidate) => {
+            try {
+                const branch = await repository.getBranch(candidate);
+                return { candidate, exists: !!branch };
+            } catch (error) {
+                if (isBranchNotFoundError(error)) {
+                    return { candidate, exists: false };
+                }
+                throw error;
             }
-        } catch (error) {
-            if (isBranchNotFoundError(error)) {
-                return candidate;
+        }));
+
+        for (const result of results) {
+            if (!result.exists) {
+                return result.candidate;
             }
-            throw error;
         }
     }
     throw new Error(`Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`);
