@@ -54,3 +54,7 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+
+## 2025-07-02 - ⚡ Bolt: Setのコンストラクタでの .map() の回避
+**Learning:** new Set(array.map(...)) を使用すると、キーの配列という不必要な中間配列が作成され、メモリ割り当てとガベージコレクションのオーバーヘッドが増加します。
+**Action:** new Set(array.map(...)) の代わりに、空の Set を初期化し、for...of ループで直接 .add() を呼び出すことで、中間配列の割り当てを回避します。
