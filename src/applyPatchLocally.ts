@@ -186,11 +186,13 @@ export async function applyPatchLocallyForSession(options: {
 }
 
 function isBranchNotFoundError(error: unknown): boolean {
-    const structuredValues = ["code", "gitErrorCode", "name"]
-        .map((key) => readErrorStringProperty(error, key))
-        .filter((value): value is string => typeof value === "string");
-    if (structuredValues.some((value) => /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref/i.test(value))) {
-        return true;
+    // Performance optimization: Avoid intermediate array allocations by combining
+    // property extraction and regex checking into a single loop.
+    for (const key of ["code", "gitErrorCode", "name"]) {
+        const value = readErrorStringProperty(error, key);
+        if (typeof value === "string" && /branch.*not.*found|not.*found.*branch|no.*such.*branch|does.*not.*exist|unknown.*revision|could.*not.*find.*ref/i.test(value)) {
+            return true;
+        }
     }
 
     const message = error instanceof Error ? error.message : String(error);
@@ -250,18 +252,27 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
     }
 
     const remotes = Array.isArray(repository.state?.remotes) ? repository.state.remotes : [];
-    const remoteNames = remotes
-        .map((remote: { name?: unknown }) => typeof remote.name === "string" ? remote.name.trim() : "")
-        .filter((name: string) => name.length > 0)
-        .sort((a: string, b: string) => {
-            if (a === "origin") {
-                return -1;
+
+    // Performance optimization: Avoid chained .map().filter() intermediate arrays.
+    const remoteNames: string[] = [];
+    for (const remote of remotes) {
+        if (typeof remote.name === "string") {
+            const trimmed = remote.name.trim();
+            if (trimmed.length > 0) {
+                remoteNames.push(trimmed);
             }
-            if (b === "origin") {
-                return 1;
-            }
-            return a.localeCompare(b);
-        });
+        }
+    }
+
+    remoteNames.sort((a: string, b: string) => {
+        if (a === "origin") {
+            return -1;
+        }
+        if (b === "origin") {
+            return 1;
+        }
+        return a.localeCompare(b);
+    });
 
     for (const remoteName of remoteNames) {
         const remoteRef = `${remoteName}/${branchRef}`;
