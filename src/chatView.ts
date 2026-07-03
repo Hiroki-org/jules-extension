@@ -57,7 +57,7 @@ export async function initMarkdownRenderer(): Promise<void> {
           ? defaultFence(tokens, idx, options, env, self)
           : self.renderToken(tokens, idx, options);
         return (
-          '<div class="code-block"><button class="copy-code-button" type="button" title="Copy code" aria-label="Copy code">Copy</button>' +
+          '<div class="code-block"><button class="copy-code-button" type="button" title="Copy code" aria-label="Copy code" aria-live="polite" aria-atomic="true">Copy</button>' +
           rendered +
           "</div>"
         );

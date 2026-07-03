@@ -20,3 +20,6 @@
 ## 2026-06-11 - Dynamic Empty State Announcers
 **Learning:** When dynamically inserting empty state indicators (e.g., "Ready to assist" or "Welcome to Jules" placeholder messages) into a chat or feed interface, screen readers might not immediately announce the new content if it is simply appended to the DOM. Adding `aria-live="polite"` and `aria-atomic="true"` directly to the container element ensures the screen reader announces the status change appropriately.
 **Action:** Whenever dynamically creating and injecting a completely new 'empty state' container to replace existing content, apply `aria-live="polite"` and `aria-atomic="true"` to the container so that users relying on assistive technology are immediately aware of the UI change.
+## 2024-07-03 - 動的なボタンテキスト変更時のアクセシビリティ
+**Learning:** 動的にテキストが変わるボタンにおいて、`aria-live="polite"` と `aria-atomic="true"` を付与し、`aria-label` に詳細な説明（「Copied code」など）を設定することで、スクリーンリーダーユーザーにとってコンテキストが明確になる。
+**Action:** ボタンのテキストが動的に変わる実装を行う際は、必ず `aria-live` 属性を追加し、状態に応じた適切な `aria-label` の更新をJavaScript側で同期して行うようにする。
