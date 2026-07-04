@@ -134,9 +134,11 @@ export async function handleFilterActivitiesCommand(
   });
 
   if (selected !== undefined) {
-    const newFilter = new Set<ActivityCategory>(
-      selected.map((item) => item.label as ActivityCategory),
-    );
+    // [Performance] Avoid .map() inside Set constructor to prevent intermediate array allocation
+    const newFilter = new Set<ActivityCategory>();
+    for (const item of selected) {
+      newFilter.add(item.label as ActivityCategory);
+    }
     sessionsProvider.setActivityCategoryFilter(newFilter);
   }
 }
@@ -3258,7 +3260,8 @@ export function activate(context: vscode.ExtensionContext) {
         // キャッシュが古い場合、リモートに存在するブランチが見つからないことがあるため、
         // キャッシュにないブランチが選択された場合は最新のリモートブランチを再取得する
         let currentRemoteBranches = remoteBranches;
-        if (!new Set(remoteBranches).has(startingBranch)) {
+        // [Performance] Use .includes() for single lookup instead of allocating a Set
+        if (!remoteBranches.includes(startingBranch)) {
           logChannel.appendLine(
             `[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`,
           );
@@ -3278,7 +3281,8 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        if (!new Set(currentRemoteBranches).has(startingBranch)) {
+        // [Performance] Use .includes() for single lookup instead of allocating a Set
+        if (!currentRemoteBranches.includes(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(
             `[Jules] Warning: Branch "${startingBranch}" not found on remote`,
