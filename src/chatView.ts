@@ -57,7 +57,7 @@ export async function initMarkdownRenderer(): Promise<void> {
           ? defaultFence(tokens, idx, options, env, self)
           : self.renderToken(tokens, idx, options);
         return (
-          '<div class="code-block"><button class="copy-code-button" type="button" title="Copy code" aria-label="Copy code" aria-live="polite" aria-atomic="true">Copy</button>' +
+          '<div class="code-block"><button class="copy-code-button" type="button" title="Copy code" aria-label="Copy code">Copy</button><span class="copy-code-status" role="status" aria-live="polite" aria-atomic="true"></span>' +
           rendered +
           "</div>"
         );
@@ -124,7 +124,7 @@ const DEFAULT_SANITIZER_OPTIONS: sanitizeHtml.IOptions = {
   ]),
   allowedAttributes: {
     ...sanitizeHtml.defaults.allowedAttributes,
-    "*": ["class", "id", "data-*", "aria-*"],
+    "*": ["class", "id", "data-*", "aria-*", "role"],
     button: ["type", "title"],
   },
   nonTextTags: [
