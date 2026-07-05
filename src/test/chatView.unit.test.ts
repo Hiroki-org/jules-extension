@@ -62,8 +62,9 @@ suite("Chat View Unit Test Suite", () => {
     assert.ok(rendered.includes("<ul>"));
     assert.ok(rendered.includes('class="code-block"'));
     assert.ok(rendered.includes('class="copy-code-button"'));
+    assert.ok(rendered.includes('title="Copy code"'));
     assert.ok(rendered.includes('aria-label="Copy code"'));
-    assert.ok(rendered.includes('class="copy-code-status"'));
+    assert.ok(rendered.includes('class="copy-status-sr"'));
     assert.ok(rendered.includes('role="status"'));
     assert.ok(rendered.includes('aria-live="polite"'));
     assert.ok(rendered.includes('aria-atomic="true"'));
