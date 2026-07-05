@@ -20,7 +20,6 @@ p { margin: 0 0 8px; }
 .copy-code-button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .copy-code-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .copy-code-button:active { transform: scale(0.96); }
-.copy-status-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .typing { display: none; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 0 8px 8px; }
 .typing.visible { display: flex; }
@@ -387,9 +386,7 @@ export const CHAT_JS = `(function() {
     if (!copyButton || copyButton.hasAttribute("data-copy-feedback-active")) return;
     copyButton.setAttribute("data-copy-feedback-active", "true");
 
-    const codeBlock = copyButton.closest(".code-block");
-    const code = codeBlock.querySelector("code").innerText;
-    const status = codeBlock.querySelector(".copy-status-sr");
+    const code = copyButton.closest(".code-block").querySelector("code").innerText;
     const originalText = copyButton.textContent;
     const originalTitle = copyButton.title;
     const originalAriaLabel = copyButton.getAttribute("aria-label");
@@ -397,16 +394,14 @@ export const CHAT_JS = `(function() {
     function setButtonState(text) {
       copyButton.textContent = text;
       copyButton.title = text;
-      const ariaLabel = text === "Copied" ? "Copied code" : text === "Failed" ? "Failed to copy code" : text === "Copy" ? "Copy code" : text;
+      const ariaLabel = text === "Copied" ? "Copied code" : text === "Failed" ? "Failed to copy code" : text;
       copyButton.setAttribute("aria-label", ariaLabel);
-      if (status) status.textContent = ariaLabel;
     }
 
     function restoreButtonState() {
       copyButton.textContent = originalText;
       if (originalTitle) { copyButton.title = originalTitle; } else { copyButton.removeAttribute("title"); }
       if (originalAriaLabel) { copyButton.setAttribute("aria-label", originalAriaLabel); } else { copyButton.removeAttribute("aria-label"); }
-      if (status) status.textContent = "";
       copyButton.removeAttribute("data-copy-feedback-active");
     }
 

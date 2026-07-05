@@ -135,7 +135,6 @@ suite("chatAssets unit tests", () => {
         ".code-block:hover .copy-code-button, .copy-code-button:focus-visible",
       ),
     );
-    assert.ok(CHAT_CSS.includes(".copy-status-sr"));
     assert.ok(CHAT_CSS.includes("#messageInput:focus-visible"));
   });
 
@@ -149,7 +148,6 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_JS.includes("requestInitialState"));
     assert.ok(CHAT_JS.includes('type: "sendMessage"'));
     assert.ok(CHAT_JS.includes("copy-code-button"));
-    assert.ok(CHAT_JS.includes("copy-status-sr"));
     assert.ok(CHAT_JS.includes("navigator.clipboard.writeText"));
   });
 
