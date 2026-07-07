@@ -142,7 +142,7 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("<title>&lt;Title&gt;</title>"));
       assert.ok(
         html.includes(
-          `<textarea id="message" aria-label="Your &quot;placeholder&quot;" placeholder="Your &quot;placeholder&quot;" autofocus>`
+          `<textarea id="message" required aria-label="Your &quot;placeholder&quot;" placeholder="Your &quot;placeholder&quot;" autofocus>`
         )
       );
       assert.ok(html.includes(">Initial &amp; value</textarea>"));

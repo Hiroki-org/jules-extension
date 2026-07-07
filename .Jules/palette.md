@@ -20,3 +20,6 @@
 ## 2026-06-11 - Dynamic Empty State Announcers
 **Learning:** When dynamically inserting empty state indicators (e.g., "Ready to assist" or "Welcome to Jules" placeholder messages) into a chat or feed interface, screen readers might not immediately announce the new content if it is simply appended to the DOM. Adding `aria-live="polite"` and `aria-atomic="true"` directly to the container element ensures the screen reader announces the status change appropriately.
 **Action:** Whenever dynamically creating and injecting a completely new 'empty state' container to replace existing content, apply `aria-live="polite"` and `aria-atomic="true"` to the container so that users relying on assistive technology are immediately aware of the UI change.
+## 2026-07-07 - 送信ボタンを制御するtextareaへの required 属性追加
+**Learning:** 値が空の場合に送信ボタンが無効化されるアクセシブルなフォームでは、対応する入力要素(`<textarea>`や`<input>`)にネイティブの `required` 属性を明示的に追加することで、スクリーンリーダーに意味的なフィードバックを即座に提供できる。
+**Action:** 同様のパターンを実装する際は、スクリプトによる制御だけでなくネイティブの `required` 属性も併用する。
