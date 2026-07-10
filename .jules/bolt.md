@@ -54,3 +54,7 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+
+## 2026-07-10 - isSessionActiveのSetのモジュールレベルへの引き上げと、不要なSet生成の削減
+**Learning:** `isSessionActive` 内で毎回 `Set` をインスタンス化すると不要なメモリ割り当てとGCが発生していました。また、単一要素の存在確認のために `new Set(array).has(value)` を使用するのは、O(N)の時間と空間のオーバーヘッドを伴うアンチパターンでした。
+**Action:** 静的な `Set` やコレクションは関数の外（モジュールレベル）で初期化し、配列内の単一要素の検索には `new Set().has()` ではなくネイティブの `array.includes()` を使用するようにします。
