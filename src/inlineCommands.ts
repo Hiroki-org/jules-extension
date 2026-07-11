@@ -239,13 +239,12 @@ export async function handleInlineTask(
         remoteBranches,
     } = branchInfo;
 
-    const remoteBranchSet = new Set(remoteBranches);
-
     // Performance optimization: Avoid chained .filter().map() to reduce intermediate array allocations.
     // We combine the filtering and mapping into a single pass using a for...of loop.
     const quickPickItems: vscode.QuickPickItem[] = [];
     for (const branch of branches) {
-        if (remoteBranchSet.has(branch)) {
+        // ⚡ Bolt: 1回の検索のためにSetを生成するメモリ割り当てとハッシュ化のオーバーヘッドを避けるため、.includes() を使用します。
+        if (remoteBranches.includes(branch)) {
             quickPickItems.push({
                 label: branch,
                 picked: branch === selectedDefaultBranch,
