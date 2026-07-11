@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-07-11 - [Performance] ブランチ検索時の無駄なSet生成を排除
+**Learning:** 1回限りの検索(要素の存在確認)のために `new Set(array).has()` を使用すると、O(N)のメモリ割り当てとハッシュ化による不必要なオーバーヘッドが発生する。
+**Action:** 1回限りの配列検索では、ネイティブの `array.includes()` を使用して、無駄なGCとCPU時間を節約する。
