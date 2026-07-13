@@ -588,6 +588,10 @@ suite("chatAssets unit tests", () => {
 
   test("CHAT_JS should reset copy button text after failure", () => {
     assert.ok(CHAT_JS.includes('setButtonState("Failed")'));
+    assert.ok(CHAT_JS.includes('text === "Copied" ? "Copied code" : text'));
+    assert.ok(CHAT_JS.includes('text === "Failed" ? "Failed to copy code" : text'));
+    assert.ok(CHAT_JS.includes("copyButton.title = ariaLabel"));
+    assert.ok(CHAT_JS.includes('copyButton.setAttribute("aria-label", ariaLabel)'));
     const resetCount = (
       CHAT_JS.match(
         /setTimeout\(restoreButtonState, 1200\)/g,
