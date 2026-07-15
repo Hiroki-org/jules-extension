@@ -3260,7 +3260,7 @@ export function activate(context: vscode.ExtensionContext) {
         // キャッシュが古い場合、リモートに存在するブランチが見つからないことがあるため、
         // キャッシュにないブランチが選択された場合は最新のリモートブランチを再取得する
         let currentRemoteBranches = remoteBranches;
-        if (!remoteBranches.includes(startingBranch)) {
+        if (!new Set(remoteBranches).has(startingBranch)) {
           logChannel.appendLine(
             `[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`,
           );
@@ -3280,7 +3280,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        if (!currentRemoteBranches.includes(startingBranch)) {
+        if (!new Set(currentRemoteBranches).has(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(
             `[Jules] Warning: Branch "${startingBranch}" not found on remote`,
