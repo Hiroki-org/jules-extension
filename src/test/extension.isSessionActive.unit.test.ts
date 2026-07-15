@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import { isSessionActive } from "../extension";
 import { Session } from "../types";
+import * as vscode from "vscode";
 
 suite("isSessionActive unit test", () => {
   test("should return true for active states", () => {
