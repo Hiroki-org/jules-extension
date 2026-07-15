@@ -25,6 +25,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         repository = {
             fetch: sandbox.stub().resolves(),
             getCommit: sandbox.stub().resolves({ hash: 'base-sha' }),
+            getBranches: sandbox.stub().resolves([]),
             getBranch: sandbox.stub().rejects(new Error('branch not found')),
             createBranch: sandbox.stub().resolves(),
             checkout: sandbox.stub().resolves(),
@@ -88,10 +89,10 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
     }
 
     test('ブランチ名衝突時にユニークなブランチ名で作成し、VS Code Git API の git path を使うこと', async () => {
-        repository.getBranch.resetBehavior();
-        repository.getBranch.onFirstCall().resolves({ name: 'jules-patch-abc' });
-        repository.getBranch.onSecondCall().resolves({ name: 'jules-patch-abc-2' });
-        repository.getBranch.onThirdCall().rejects(new Error('branch not found'));
+        repository.getBranches.resolves([
+            { name: 'jules-patch-abc' },
+            { name: 'jules-patch-abc-2' }
+        ]);
 
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -404,8 +405,8 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         );
     });
 
-    test('getBranch が undefined を返す場合はそのブランチ名を使うこと', async () => {
-        repository.getBranch.resolves(undefined);
+    test('getBranches が空の配列を返す場合はそのブランチ名を使うこと', async () => {
+        repository.getBranches.resolves([]);
 
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -416,8 +417,8 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
     });
 
-    test('getBranch の構造化された not found コードをブランチ不在として扱うこと', async () => {
-        repository.getBranch.rejects(Object.assign(new Error('missing ref'), { code: 'BranchNotFound' }));
+    test('getBranches がエラーを投げた場合は全体エラーとして扱うこと', async () => {
+        repository.getBranches.rejects(new Error('missing ref'));
 
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -425,11 +426,12 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             outputChannel,
         });
 
-        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
+        assert.match(showErrorMessageStub.firstCall.args[0], /missing ref/);
+        assert.strictEqual(repository.createBranch.called, false);
     });
 
-    test('getBranch の構造化 ENOENT はブランチ不在として扱わないこと', async () => {
-        repository.getBranch.rejects(Object.assign(new Error('missing binary'), { code: 'ENOENT' }));
+    test('getBranches の構造化 ENOENT はブランチ不在として扱わないこと', async () => {
+        repository.getBranches.rejects(Object.assign(new Error('missing binary'), { code: 'ENOENT' }));
 
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -441,20 +443,10 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.strictEqual(repository.createBranch.called, false);
     });
 
-    test('getBranch の日本語 not found メッセージをブランチ不在として扱うこと', async () => {
-        repository.getBranch.rejects(new Error('ブランチが見つかりません'));
 
-        await applyPatchLocallyForSession({
-            session: createSession(),
-            changeSet: createChangeSet(),
-            outputChannel,
-        });
 
-        assert.strictEqual(repository.createBranch.firstCall.args[0], 'jules-patch-abc');
-    });
-
-    test('getBranch が branch not found 以外のエラーを返す場合は全体エラーにすること', async () => {
-        repository.getBranch.rejects(new Error('repository is locked'));
+    test('getBranches が branch not found 以外のエラーを返す場合は全体エラーにすること', async () => {
+        repository.getBranches.rejects(new Error('repository is locked'));
 
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -467,7 +459,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
     });
 
     test('利用可能なブランチ名が探索上限まで見つからない場合は全体エラーにすること', async () => {
-        repository.getBranch.resolves({ name: 'existing' });
+        repository.getBranches.resolves(Array.from({ length: 20 }, (_, i) => ({ name: i === 0 ? 'jules-patch-abc' : `jules-patch-abc-${i + 1}` })));
 
         await applyPatchLocallyForSession({
             session: createSession(),
@@ -477,6 +469,5 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
 
         assert.match(showErrorMessageStub.firstCall.args[0], /Could not find an available branch name/);
         assert.strictEqual(repository.createBranch.called, false);
-        assert.strictEqual(repository.getBranch.callCount, 20);
     });
 });
