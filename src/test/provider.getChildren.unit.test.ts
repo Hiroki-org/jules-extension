@@ -263,6 +263,7 @@ suite("JulesSessionsProvider getChildren Test Suite", () => {
         } as any);
 
         const provider = new JulesSessionsProvider(mockContext);
+        sandbox.stub(provider as any, "fetchAndProcessSessions").resolves();
         provider.setSessionsCacheForTests([]);
 
         const children = await provider.getChildren();
