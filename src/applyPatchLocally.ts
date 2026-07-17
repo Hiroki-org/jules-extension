@@ -274,18 +274,14 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
 }
 
 async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
+    // VS Code Git Extension APIの逐次呼び出しオーバーヘッドを避けるため、ブランチ一覧を一括取得してローカルで確認する
+    const branches = await repository.getBranches();
+    const branchNames = branches.map((b: any) => b.name);
+
     for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
         const candidate = attempt === 1 ? branchName : `${branchName}-${attempt}`;
-        try {
-            const branch = await repository.getBranch(candidate);
-            if (!branch) {
-                return candidate;
-            }
-        } catch (error) {
-            if (isBranchNotFoundError(error)) {
-                return candidate;
-            }
-            throw error;
+        if (!branchNames.includes(candidate)) {
+            return candidate;
         }
     }
     throw new Error(`Could not find an available branch name after ${MAX_BRANCH_NAME_ATTEMPTS} attempts.`);
