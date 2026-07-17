@@ -605,9 +605,13 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("if (srStatus) srStatus.textContent = 'Sending message...';"));
       assert.ok(html.includes("submitButton.disabled = true;"));
       assert.ok(html.includes("textarea.disabled = true;"));
+      assert.ok(html.includes("textarea.title = 'Cannot edit while sending';"));
+      assert.ok(html.includes("textarea.setAttribute('aria-label', 'Cannot edit while sending');"));
       assert.ok(html.includes("const cancelButton = document.getElementById('cancel');"));
       assert.ok(html.includes("if (cancelButton) {"));
       assert.ok(html.includes("cancelButton.disabled = true;"));
+      assert.ok(html.includes("cancelButton.title = 'Cannot cancel while sending';"));
+      assert.ok(html.includes("cancelButton.setAttribute('aria-label', 'Cannot cancel while sending');"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
     });
 
@@ -647,8 +651,12 @@ suite("Composer Test Suite", () => {
       );
       assert.ok(html.includes("if (createPrCheckbox) {"));
       assert.ok(html.includes("createPrCheckbox.disabled = true;"));
+      assert.ok(html.includes("createPrCheckbox.title = 'Cannot change while sending';"));
+      assert.ok(html.includes("createPrCheckbox.setAttribute('aria-label', 'Cannot change while sending');"));
       assert.ok(html.includes("if (requireApprovalCheckbox) {"));
       assert.ok(html.includes("requireApprovalCheckbox.disabled = true;"));
+      assert.ok(html.includes("requireApprovalCheckbox.title = 'Cannot change while sending';"));
+      assert.ok(html.includes("requireApprovalCheckbox.setAttribute('aria-label', 'Cannot change while sending');"));
     });
   });
 });
