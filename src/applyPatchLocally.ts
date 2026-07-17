@@ -263,10 +263,18 @@ async function resolveStartingBranchRef(repository: any, startingBranch: string)
             return a.localeCompare(b);
         });
 
-    for (const remoteName of remoteNames) {
-        const remoteRef = `${remoteName}/${branchRef}`;
-        if (await branchExists(repository, remoteRef)) {
-            return remoteRef;
+    // ⚡ Bolt: 直列のforループからPromise.allへ変更し、API呼び出しを並列化してI/O待機時間を短縮。
+    // 副作用（リモートの優先順位など）を防ぐため、結果は配列順に評価する。
+    const existenceChecks = await Promise.all(
+        remoteNames.map(async (remoteName: string) => {
+            const remoteRef = `${remoteName}/${branchRef}`;
+            return { remoteRef, exists: await branchExists(repository, remoteRef) };
+        })
+    );
+
+    for (const check of existenceChecks) {
+        if (check.exists) {
+            return check.remoteRef;
         }
     }
 
