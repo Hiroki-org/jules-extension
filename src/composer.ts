@@ -279,22 +279,22 @@ export function getComposerHtml(
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
       textarea.title = 'Cannot edit while sending';
-      textarea.setAttribute('aria-label', 'Cannot edit while sending');
+      textarea.setAttribute('aria-label', 'Message input (cannot edit while sending)');
       if (createPrCheckbox) {
         createPrCheckbox.disabled = true;
         createPrCheckbox.title = 'Cannot change while sending';
-        createPrCheckbox.setAttribute('aria-label', 'Cannot change while sending');
+        createPrCheckbox.setAttribute('aria-label', 'Create PR automatically? (cannot change while sending)');
       }
       if (requireApprovalCheckbox) {
         requireApprovalCheckbox.disabled = true;
         requireApprovalCheckbox.title = 'Cannot change while sending';
-        requireApprovalCheckbox.setAttribute('aria-label', 'Cannot change while sending');
+        requireApprovalCheckbox.setAttribute('aria-label', 'Require plan approval before execution? (cannot change while sending)');
       }
       const cancelButton = document.getElementById('cancel');
       if (cancelButton) {
         cancelButton.disabled = true;
         cancelButton.title = 'Cannot cancel while sending';
-        cancelButton.setAttribute('aria-label', 'Cannot cancel while sending');
+        cancelButton.setAttribute('aria-label', 'Cancel (Esc) (cannot cancel while sending)');
       }
       document.body.style.cursor = 'wait';
 
