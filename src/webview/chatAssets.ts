@@ -342,6 +342,9 @@ export const CHAT_JS = `(function() {
     e.preventDefault();
     const text = messageInput.value.trim();
     if (state.sessionId && text) {
+      if (document.activeElement === sendButton) {
+        messageInput.focus();
+      }
       vscode.postMessage({ type: "sendMessage", sessionId: state.sessionId, text });
       messageInput.value = "";
       messageInput.style.height = "auto";

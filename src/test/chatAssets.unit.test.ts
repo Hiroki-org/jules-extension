@@ -42,6 +42,7 @@ function createChatScriptHarness(
       scrollHeight: 0,
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: (evt: string, cb: any) => { listeners.messageInput[evt] = cb; },
+      focus: () => {},
     },
     sendButton: {
       disabled: false,
@@ -54,6 +55,7 @@ function createChatScriptHarness(
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
+    activeElement: null as any,
     getElementById: (id: string) => elements[id],
     createElement: (tag: string) => ({
         tagName: tag,
@@ -108,6 +110,7 @@ function createChatScriptHarness(
     elements,
     listeners,
     sentMessages,
+    mockDocument,
     postWindowMessage: (data: any) => {
       messageListeners.forEach((listener) => listener({ data }));
     },
@@ -625,6 +628,25 @@ suite("chatAssets unit tests", () => {
     });
     assert.strictEqual(harness.elements.messageInput.value, "");
     assert.strictEqual(harness.elements.messageInput.style.height, "auto");
+  });
+
+  test("CHAT_JS submit should return focus to messageInput if sendButton was focused to prevent focus loss", () => {
+    const harness = (createChatScriptHarness as any)();
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    harness.elements.messageInput.value = "hello focus";
+
+    let focusCalled = false;
+    harness.elements.messageInput.focus = () => { focusCalled = true; };
+
+    harness.mockDocument.activeElement = harness.elements.sendButton;
+
+    harness.listeners.composer.submit({ preventDefault: () => {} });
+
+    assert.strictEqual(focusCalled, true, "focus should be returned to messageInput");
   });
 
   test("CHAT_JS submit should send trimmed message, clear input, and reset height to auto", () => {
