@@ -205,15 +205,17 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
   }
 }
 
+// ⚡ Bolt: `isSessionActive` が呼ばれるたびに `Set` を生成するオーバーヘッドを削減するため、モジュールレベルに定数を引き上げました。
+const ACTIVE_SESSION_STATES = new Set([
+  "IN_PROGRESS",
+  "QUEUED",
+  "PLANNING",
+  "AWAITING_PLAN_APPROVAL",
+  "AWAITING_USER_FEEDBACK",
+]);
+
 function isSessionActive(session: Session): boolean {
-  const activeStates = new Set([
-    "IN_PROGRESS",
-    "QUEUED",
-    "PLANNING",
-    "AWAITING_PLAN_APPROVAL",
-    "AWAITING_USER_FEEDBACK",
-  ]);
-  return activeStates.has(session.rawState);
+  return ACTIVE_SESSION_STATES.has(session.rawState);
 }
 
 export interface CachedSessionState {
@@ -3258,7 +3260,8 @@ export function activate(context: vscode.ExtensionContext) {
         // キャッシュが古い場合、リモートに存在するブランチが見つからないことがあるため、
         // キャッシュにないブランチが選択された場合は最新のリモートブランチを再取得する
         let currentRemoteBranches = remoteBranches;
-        if (!new Set(remoteBranches).has(startingBranch)) {
+        // ⚡ Bolt: `new Set(array).has()` は O(N) の Set 生成コストとガベージコレクションのオーバーヘッドがかかるため `.includes()` に置き換えました。
+        if (!remoteBranches.includes(startingBranch)) {
           logChannel.appendLine(
             `[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`,
           );
@@ -3278,7 +3281,8 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        if (!new Set(currentRemoteBranches).has(startingBranch)) {
+        // ⚡ Bolt: `new Set(array).has()` を `.includes()` に置き換え、無駄なオブジェクト生成を削減しました。
+        if (!currentRemoteBranches.includes(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(
             `[Jules] Warning: Branch "${startingBranch}" not found on remote`,
