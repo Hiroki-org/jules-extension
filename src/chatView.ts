@@ -127,6 +127,10 @@ const DEFAULT_SANITIZER_OPTIONS: sanitizeHtml.IOptions = {
     "*": ["class", "id", "data-*", "aria-*"],
     button: ["type", "title"],
   },
+  allowedSchemes: ["http", "https", "mailto", "vscode-webview-resource"],
+  allowedSchemesByTag: {
+    img: ["data", "http", "https", "vscode-webview-resource"],
+  },
   nonTextTags: [
     "script",
     "style",
