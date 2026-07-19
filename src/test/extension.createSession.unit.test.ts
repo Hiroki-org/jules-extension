@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { activate, deactivate } from '../extension';
 import { clearSessionArtifactsInMemoryCache } from '../sessionArtifacts';
 
-suite('createSession command branch cache missing test', () => {
+suite('createSession branch validation', () => {
     let sandbox: sinon.SinonSandbox;
     let context: any;
     let commands: Map<string, (...args: any[]) => any>;
@@ -21,12 +21,12 @@ suite('createSession command branch cache missing test', () => {
 
         context = {
             globalState: {
-                get: sandbox.stub().callsFake((key, defaultVal) => {
+                get: sandbox.stub().callsFake((key: string, defaultVal?: any) => {
                     if (key === 'selected-source') return { id: 'test-source', name: 'Test Source' };
                     return defaultVal !== undefined ? defaultVal : {};
                 }),
                 update: sandbox.stub().resolves(),
-                keys: sandbox.stub().returns([]) // Fix for Object.entries on undefined
+                keys: sandbox.stub().returns([])
             },
             secrets: {
                 get: sandbox.stub().resolves('dummy-key'),
@@ -46,15 +46,7 @@ suite('createSession command branch cache missing test', () => {
     });
 
     test('should re-fetch remote branches if selected branch is not in cached remote branches', async () => {
-        activate(context as any);
-        const createSessionCmd = commands.get('jules-extension.createSession');
-        assert.ok(createSessionCmd);
-
-        sandbox.stub(vscode.window, 'showInputBox').resolves('test-session');
-        sandbox.stub(vscode.window, 'showQuickPick').resolves({ label: 'feature-branch' } as any);
-
-        const branchUtils = require('../branchUtils');
-        const getBranchesStub = sandbox.stub(branchUtils, 'getBranchesForSession');
+        const getBranchesStub = sandbox.stub(require('../branchUtils'), 'getBranchesForSession');
 
         getBranchesStub.onFirstCall().resolves({
             branches: ['main', 'feature-branch'],
@@ -67,12 +59,22 @@ suite('createSession command branch cache missing test', () => {
             branches: ['main', 'feature-branch'],
             defaultBranch: 'main',
             currentBranch: 'main',
-            remoteBranches: ['main', 'feature-branch']
+            remoteBranches: ['main', 'feature-branch'] // feature-branch is now in remoteBranches
         });
 
+        sandbox.stub(vscode.window, 'showInputBox').resolves('test-session');
+        sandbox.stub(vscode.window, 'showQuickPick').resolves({ label: 'feature-branch' } as any);
         sandbox.stub(globalThis, 'fetch').resolves({ ok: true, json: async () => ({}) } as any);
         sandbox.stub(require('../sessionUtils'), 'createJulesSession').resolves({});
+
+        // Disable cache restoration to prevent error
+        sandbox.stub(require('../sessionArtifacts'), 'initializeSessionArtifactsCacheFromGlobalState').callsFake(() => {});
         sandbox.stub(require('../sessionArtifacts'), 'updateSessionArtifactsCache').resolves();
+
+        activate(context as any);
+
+        const createSessionCmd = commands.get('jules-extension.createSession');
+        assert.ok(createSessionCmd);
 
         await createSessionCmd();
 
