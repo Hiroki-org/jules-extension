@@ -40,8 +40,10 @@ function createChatScriptHarness(
       placeholder: "",
       style: { height: "" },
       scrollHeight: 0,
+      focusCalls: 0,
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: (evt: string, cb: any) => { listeners.messageInput[evt] = cb; },
+      focus: function() { this.focusCalls++; }
     },
     sendButton: {
       disabled: false,
@@ -54,6 +56,7 @@ function createChatScriptHarness(
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
+    activeElement: null as any,
     getElementById: (id: string) => elements[id],
     createElement: (tag: string) => ({
         tagName: tag,
@@ -108,6 +111,7 @@ function createChatScriptHarness(
     elements,
     listeners,
     sentMessages,
+      mockDocument,
     postWindowMessage: (data: any) => {
       messageListeners.forEach((listener) => listener({ data }));
     },
@@ -636,6 +640,7 @@ suite("chatAssets unit tests", () => {
 
     harness.elements.messageInput.value = "  hello world  ";
     harness.elements.messageInput.style.height = "52px";
+    harness.mockDocument.activeElement = harness.elements.sendButton;
 
     harness.listeners.composer.submit({ preventDefault: () => {} });
 
@@ -644,6 +649,7 @@ suite("chatAssets unit tests", () => {
     assert.deepStrictEqual(sendMessages[0], { type: "sendMessage", sessionId: "session-1", text: "hello world" });
     assert.strictEqual(harness.elements.messageInput.value, "");
     assert.strictEqual(harness.elements.messageInput.style.height, "auto");
+    assert.strictEqual(harness.elements.messageInput.focusCalls, 1);
   });
 
   test("CHAT_JS keydown Ctrl+Enter should send trimmed message, clear input, and reset height to auto", () => {
