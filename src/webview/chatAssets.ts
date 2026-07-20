@@ -345,7 +345,11 @@ export const CHAT_JS = `(function() {
       vscode.postMessage({ type: "sendMessage", sessionId: state.sessionId, text });
       messageInput.value = "";
       messageInput.style.height = "auto";
+      const wasSendButtonFocused = document.activeElement === sendButton;
       updateUI();
+      if (wasSendButtonFocused) {
+        messageInput.focus();
+      }
     }
   });
 

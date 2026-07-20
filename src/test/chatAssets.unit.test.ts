@@ -42,18 +42,21 @@ function createChatScriptHarness(
       scrollHeight: 0,
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: (evt: string, cb: any) => { listeners.messageInput[evt] = cb; },
+      focus: function() { mockDocument.activeElement = this; },
     },
     sendButton: {
       disabled: false,
       title: "",
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: () => {},
+      focus: function() { mockDocument.activeElement = this; },
     },
     sessionLabel: { textContent: "", title: "" },
     composer: { addEventListener: (evt: string, cb: any) => { listeners.composer[evt] = cb; } },
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
-  const mockDocument = {
+  const mockDocument: any = {
+    activeElement: null,
     getElementById: (id: string) => elements[id],
     createElement: (tag: string) => ({
         tagName: tag,
@@ -689,7 +692,8 @@ suite("chatAssets unit tests", () => {
       composer: { addEventListener: () => {} },
     };
 
-    const mockDocument = {
+    const mockDocument: any = {
+      activeElement: null,
       getElementById: (id: string) => elements[id],
       createElement: (tag: string) => ({
         tagName: tag,
