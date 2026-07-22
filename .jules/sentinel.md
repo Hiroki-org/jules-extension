@@ -27,3 +27,8 @@
 **Vulnerability:** 相対パス (`path.relative`) とプレフィックス (`startsWith`) に依存したパス探索検証は、OS間のセパレーター (`/` vs `\`) の違いやエッジケースにより脆弱性 (`..config` の誤検知など) を生む可能性があります。
 **Learning:** ファイルパスが特定のディレクトリ内に収まっているかを安全に検証するには、`path.resolve` で絶対パス化した後、対象パスがルートディレクトリのパス + `path.sep` で始まるか、またはルートディレクトリと完全一致するかを検証するべきです。
 **Prevention:** 常に絶対パスのプレフィックス比較 (`candidatePath.startsWith(folderPath + path.sep) || candidatePath === folderPath`) を使用して境界チェックを実装します。
+
+## 2026-07-20 - [sanitize-htmlのスキーマ設定脆弱性]
+**Vulnerability:** `allowedSchemes` と `allowedSchemesByTag` が明示的に設定されていない場合、sanitize-html はデフォルトで `javascript:` のような危険なスキーマを特定の属性に対して許可します。
+**Learning:** sanitize-html のURLスキーマに関するデフォルト設定は寛容すぎるため、リンクや画像ソースを通じたXSS攻撃を許す可能性があります。
+**Prevention:** `sanitize-html` を使用する際は、常に `allowedSchemes` と `allowedSchemesByTag` を明示的に設定して安全なスキーマのみを許可してください。
