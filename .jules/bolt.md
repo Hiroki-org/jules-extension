@@ -57,3 +57,6 @@
 ## 2026-07-22 - Optimize single-use Set lookups and intermediate Array allocations
 **Learning:** Using `new Set(array).has(value)` for a single lookup incurs unnecessary O(N) space and time overhead for Set instantiation. Similarly, `new Set(array.map(...))` creates an unnecessary intermediate array before instantiating the Set.
 **Action:** Replace `new Set(array).has(value)` with `array.includes(value)`. Replace `new Set(array.map(...))` with an empty Set initialized via a `for...of` loop and `.add()` to eliminate intermediate array allocations.
+## 2026-07-22 - Reverted Set inclusion due to untested code branch
+**Learning:** An optimization attempting to convert `new Set(remoteBranches).has(startingBranch)` to `remoteBranches.includes(startingBranch)` in `src/extension.ts` lowered Codecov coverage because the modified branch lacked existing tests.
+**Action:** Always verify test coverage before submitting performance micro-optimizations, and revert them if adding coverage falls outside the immediate scope.
