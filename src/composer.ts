@@ -267,6 +267,8 @@ export function getComposerHtml(
         return;
       }
 
+      const wasSendButtonFocused = document.activeElement === submitButton;
+
       submitButton.disabled = true;
       submitButton.textContent = 'Sending... ';
       const spinnerSpan = document.createElement('span');
@@ -289,6 +291,10 @@ export function getComposerHtml(
         cancelButton.disabled = true;
       }
       document.body.style.cursor = 'wait';
+
+      if (wasSendButtonFocused) {
+        textarea.focus();
+      }
 
       vscode.postMessage({
         type: 'submit',

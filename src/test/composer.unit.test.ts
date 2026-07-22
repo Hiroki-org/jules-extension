@@ -594,6 +594,7 @@ suite("Composer Test Suite", () => {
         "nonce-123"
       );
       // Check for loading state logic
+      assert.ok(html.includes("const wasSendButtonFocused = document.activeElement === submitButton;"));
       assert.ok(html.includes("submitButton.textContent = 'Sending... ';"));
       assert.ok(html.includes("const spinnerSpan = document.createElement('span');"));
       assert.ok(html.includes("spinnerSpan.className = 'spinner';"));
@@ -609,6 +610,8 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("if (cancelButton) {"));
       assert.ok(html.includes("cancelButton.disabled = true;"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
+      assert.ok(html.includes("if (wasSendButtonFocused) {"));
+      assert.ok(html.includes("textarea.focus();"));
     });
 
     test("should include prefers-reduced-motion media query for spinner", () => {
