@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-07-22 - Optimize single-use Set lookups and intermediate Array allocations
+**Learning:** Using `new Set(array).has(value)` for a single lookup incurs unnecessary O(N) space and time overhead for Set instantiation. Similarly, `new Set(array.map(...))` creates an unnecessary intermediate array before instantiating the Set.
+**Action:** Replace `new Set(array).has(value)` with `array.includes(value)`. Replace `new Set(array.map(...))` with an empty Set initialized via a `for...of` loop and `.add()` to eliminate intermediate array allocations.
