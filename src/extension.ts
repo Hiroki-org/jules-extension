@@ -213,7 +213,7 @@ const ACTIVE_SESSION_STATES = new Set([
   "AWAITING_USER_FEEDBACK",
 ]);
 
-function isSessionActive(session: Session): boolean {
+export function isSessionActive(session: Session): boolean {
   return ACTIVE_SESSION_STATES.has(session.rawState);
 }
 
