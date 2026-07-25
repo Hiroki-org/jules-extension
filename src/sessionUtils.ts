@@ -188,7 +188,11 @@ export async function recoverCorruptedActivities(
 
   // Optimize N+1 fetch by fetching activities in bulk via the paginated endpoint.
   // We process directly into a Map and shrink the search Set to avoid intermediate arrays.
-  const corruptedIds = new Set(corruptedActivities.map((a) => a.id));
+  // パフォーマンス最適化: プロパティのマッピング時に map() による中間配列が生成されるのを防ぐため、for...of ループで直接 Set に追加します。
+  const corruptedIds = new Set<string>();
+  for (const a of corruptedActivities) {
+    corruptedIds.add(a.id);
+  }
   const recoveredMap = new Map<string, Activity>();
   let pageToken: string | undefined;
   const MAX_PAGES = 10;
