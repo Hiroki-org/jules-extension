@@ -136,6 +136,10 @@ const DEFAULT_SANITIZER_OPTIONS: sanitizeHtml.IOptions = {
     "listing",
     "plaintext",
   ],
+  allowedSchemes: ["http", "https", "mailto", "vscode-webview-resource"],
+  allowedSchemesByTag: {
+    img: ["data", "http", "https", "vscode-webview-resource"],
+  },
 };
 
 /**

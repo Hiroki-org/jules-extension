@@ -42,18 +42,21 @@ function createChatScriptHarness(
       scrollHeight: 0,
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: (evt: string, cb: any) => { listeners.messageInput[evt] = cb; },
+      focus: function() { mockDocument.activeElement = this; }
     },
     sendButton: {
       disabled: false,
       title: "",
       setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
       addEventListener: () => {},
+      focus: function() { mockDocument.activeElement = this; }
     },
     sessionLabel: { textContent: "", title: "" },
     composer: { addEventListener: (evt: string, cb: any) => { listeners.composer[evt] = cb; } },
   };
   const messageListeners: Array<(event: { data: any }) => void> = [];
   const mockDocument = {
+    activeElement: null as any,
     getElementById: (id: string) => elements[id],
     createElement: (tag: string) => ({
         tagName: tag,
@@ -149,6 +152,7 @@ suite("chatAssets unit tests", () => {
     assert.ok(CHAT_JS.includes('type: "sendMessage"'));
     assert.ok(CHAT_JS.includes("copy-code-button"));
     assert.ok(CHAT_JS.includes("navigator.clipboard.writeText"));
+    assert.ok(CHAT_JS.includes("document.activeElement === sendButton"));
   });
 
   test("CHAT_JS should sanitize rendered message HTML with the explicit URI allowlist", () => {
@@ -646,6 +650,52 @@ suite("chatAssets unit tests", () => {
     assert.strictEqual(harness.elements.messageInput.style.height, "auto");
   });
 
+  test("CHAT_JS submit should return focus to messageInput if sendButton was focused", () => {
+    let messageInputFocused = false;
+    const harness = createChatScriptHarness();
+    const originalFocus = harness.elements.messageInput.focus;
+    harness.elements.messageInput.focus = function() {
+      messageInputFocused = true;
+      originalFocus.call(this);
+    };
+
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    harness.elements.messageInput.value = "hello";
+    harness.elements.sendButton.focus();
+
+    harness.listeners.composer.submit({ preventDefault: () => {} });
+
+    assert.ok(messageInputFocused, "messageInput.focus() should be called");
+  });
+
+  test("CHAT_JS submit should not change focus if sendButton was not focused", () => {
+    const harness = createChatScriptHarness();
+    let explicitFocusCount = 0;
+    const originalFocus = harness.elements.messageInput.focus;
+
+    harness.postWindowMessage({
+      type: "chatState",
+      payload: { sessionId: "session-1", messages: [], isTyping: false },
+    });
+
+    harness.elements.messageInput.value = "hello";
+    harness.elements.messageInput.focus(); // Focus is on messageInput itself, not sendButton
+
+    // override after the setup focus call
+    harness.elements.messageInput.focus = function() {
+      explicitFocusCount++;
+      originalFocus.call(this);
+    };
+
+    harness.listeners.composer.submit({ preventDefault: () => {} });
+
+    assert.strictEqual(explicitFocusCount, 0, "Focus should not have been explicitly shifted due to button logic");
+  });
+
   test("CHAT_JS keydown Ctrl+Enter should send trimmed message, clear input, and reset height to auto", () => {
     const harness = createChatScriptHarness();
     harness.postWindowMessage({
@@ -677,19 +727,22 @@ suite("chatAssets unit tests", () => {
         title: "",
         style: { height: "" },
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-        addEventListener: () => {}
+        addEventListener: () => {},
+        focus: function() { mockDocument.activeElement = this; }
       },
       sendButton: {
         disabled: false,
         title: "",
         setAttribute: function(k: string, v: string) { (this as any)[k] = v; },
-        addEventListener: () => {}
+        addEventListener: () => {},
+        focus: function() { mockDocument.activeElement = this; }
       },
       sessionLabel: { textContent: "", title: "" },
       composer: { addEventListener: () => {} },
     };
 
     const mockDocument = {
+      activeElement: null as any,
       getElementById: (id: string) => elements[id],
       createElement: (tag: string) => ({
         tagName: tag,

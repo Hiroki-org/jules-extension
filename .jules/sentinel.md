@@ -27,3 +27,7 @@
 **Vulnerability:** 相対パス (`path.relative`) とプレフィックス (`startsWith`) に依存したパス探索検証は、OS間のセパレーター (`/` vs `\`) の違いやエッジケースにより脆弱性 (`..config` の誤検知など) を生む可能性があります。
 **Learning:** ファイルパスが特定のディレクトリ内に収まっているかを安全に検証するには、`path.resolve` で絶対パス化した後、対象パスがルートディレクトリのパス + `path.sep` で始まるか、またはルートディレクトリと完全一致するかを検証するべきです。
 **Prevention:** 常に絶対パスのプレフィックス比較 (`candidatePath.startsWith(folderPath + path.sep) || candidatePath === folderPath`) を使用して境界チェックを実装します。
+## 2026-07-21 - sanitize-html のスキーム設定を安全に設定
+**Vulnerability:** デフォルトの `sanitize-html` 設定はURIスキームの制限が緩く、カスタムプロトコルを通じたXSSのリスクがあります。
+**Learning:** VS CodeのWebview内で `sanitize-html` を使用する際は、`allowedSchemes` を明示的に設定し、安全なプロトコルのみを許可し、`allowedSchemesByTag` を使用して `data` URIを画像のみに制限する必要があります。
+**Prevention:** デフォルトに依存せず、常に `allowedSchemes`（例: `['http', 'https', 'mailto', 'vscode-webview-resource']`）と `allowedSchemesByTag`（例: `img` に対してのみ `data` を許可）を明示的に設定します。
