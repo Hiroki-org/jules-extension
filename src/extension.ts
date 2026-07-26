@@ -3258,8 +3258,7 @@ export function activate(context: vscode.ExtensionContext) {
         // キャッシュが古い場合、リモートに存在するブランチが見つからないことがあるため、
         // キャッシュにないブランチが選択された場合は最新のリモートブランチを再取得する
         let currentRemoteBranches = remoteBranches;
-        // 単発の要素検索のため、無駄な O(N) の Set インスタンス化を避け .includes() を使用
-        if (!remoteBranches.includes(startingBranch)) {
+        if (!new Set(remoteBranches).has(startingBranch)) {
           logChannel.appendLine(
             `[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`,
           );
@@ -3279,8 +3278,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        // 同様に Set のインスタンス化を排除してパフォーマンスを改善
-        if (!currentRemoteBranches.includes(startingBranch)) {
+        if (!new Set(currentRemoteBranches).has(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(
             `[Jules] Warning: Branch "${startingBranch}" not found on remote`,
