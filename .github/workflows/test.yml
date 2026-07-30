@@ -14,7 +14,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ["20.19.x", "22.13.x", "24.x"]
+        include:
+          - node-version: "20.19.x"
+            primary: true
+          - node-version: "22.13.x"
+            primary: false
+          - node-version: "24.x"
+            primary: false
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -35,16 +41,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        if: matrix.node-version != '20.19.x'
+        if: matrix.primary == false
         run: pnpm run test:unit
 
       - name: Run unit tests with coverage
-        if: matrix.node-version == '20.19.x'
+        if: matrix.primary
         run: pnpm run test:coverage
 
       - name: Verify JUnit report exists for Codecov
         id: verify-junit
-        if: always() && matrix.node-version == '20.19.x'
+        if: always() && matrix.primary
         shell: bash
         run: |
           if [[ ! -f ./test-results/junit.xml ]]; then
@@ -54,14 +60,14 @@ jobs:
           fi
 
       - name: Upload test results to Codecov
-        if: always() && matrix.node-version == '20.19.x' && steps.verify-junit.outcome == 'success' && env.CODECOV_TOKEN != ''
+        if: always() && matrix.primary && steps.verify-junit.outcome == 'success' && env.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v7
         with:
           token: ${{ env.CODECOV_TOKEN }}
           files: ./test-results/junit.xml
           report_type: test_results
       - name: Upload coverage to Codecov
-        if: matrix.node-version == '20.19.x' && env.CODECOV_TOKEN != ''
+        if: matrix.primary && env.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v7
         with:
           token: ${{ env.CODECOV_TOKEN }}
@@ -77,7 +83,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ["20.19.x", "22.13.x", "24.x"]
+        include:
+          - node-version: "20.19.x"
+            primary: true
+          - node-version: "22.13.x"
+            primary: false
+          - node-version: "24.x"
+            primary: false
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -101,7 +113,7 @@ jobs:
         run: pnpm run package
 
       - name: Upload Codecov Bundle Analysis
-        if: matrix.node-version == '20.19.x' && env.CODECOV_TOKEN != ''
+        if: matrix.primary && env.CODECOV_TOKEN != ''
         run: npx @codecov/bundle-analyzer dist --bundle-name="jules-extension" --upload-token="${CODECOV_TOKEN}"
 
   integration:
