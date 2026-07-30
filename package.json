@@ -428,8 +428,8 @@
     "diff": "^8.0.3",
     "debug": "4.4.3",
     "lodash": "^4.18.1",
-    "shell-quote": "^1.8.4",
-    "js-yaml": "^4.2.0",
+    "shell-quote": "^1.9.0",
+    "js-yaml": "^4.3.0",
     "undici": "6.27.0"
   },
   "resolutions": {
@@ -437,8 +437,8 @@
     "diff": "^8.0.3",
     "debug": "4.4.3",
     "lodash": "^4.18.1",
-    "shell-quote": "^1.8.4",
-    "js-yaml": "^4.2.0",
+    "shell-quote": "^1.9.0",
+    "js-yaml": "^4.3.0",
     "undici": "6.27.0"
   },
   "pnpm": {
