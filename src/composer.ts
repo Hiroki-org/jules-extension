@@ -25,6 +25,7 @@ export async function showMessageComposer(
     {
       enableScripts: true,
       retainContextWhenHidden: true,
+      localResourceRoots: [],
     }
   );
 
