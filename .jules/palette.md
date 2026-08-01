@@ -1,0 +1,3 @@
+## 2026-08-01 - [Added explicit title tooltip to accessible typing indicator]
+**Learning:** While `aria-label` effectively communicates states like 'working' or 'typing' to screen reader users, sighted users relying on mouse hover might miss this context if visual indicators (like typing dots) are not immediately self-explanatory. Adding a native `title` attribute alongside `aria-label` provides a tooltip, ensuring visual clarity without overriding or conflicting with the accessibility label.
+**Action:** When creating animated or abstract visual indicators (like spinners or typing dots), provide both an `aria-label` for screen readers and a `title` for sighted mouse users.
