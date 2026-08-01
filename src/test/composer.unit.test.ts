@@ -609,7 +609,7 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("if (cancelButton) {"));
       assert.ok(html.includes("cancelButton.disabled = true;"));
       assert.ok(html.includes("cancelButton.title = 'Cannot cancel while sending';"));
-      assert.ok(html.includes("cancelButton.setAttribute('aria-label', 'Cancel (Esc). Cannot cancel while sending');"));
+      assert.ok(html.includes("cancelButton.setAttribute('aria-label', 'Cannot cancel while sending');"));
       assert.ok(html.includes("document.body.style.cursor = 'wait';"));
     });
 
