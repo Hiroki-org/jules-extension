@@ -31,3 +31,7 @@
 **Vulnerability:** デフォルトの `sanitize-html` 設定はURIスキームの制限が緩く、カスタムプロトコルを通じたXSSのリスクがあります。
 **Learning:** VS CodeのWebview内で `sanitize-html` を使用する際は、`allowedSchemes` を明示的に設定し、安全なプロトコルのみを許可し、`allowedSchemesByTag` を使用して `data` URIを画像のみに制限する必要があります。
 **Prevention:** デフォルトに依存せず、常に `allowedSchemes`（例: `['http', 'https', 'mailto', 'vscode-webview-resource']`）と `allowedSchemesByTag`（例: `img` に対してのみ `data` を許可）を明示的に設定します。
+## 2024-05-25 - コンポーザーWebviewのローカルリソースアクセスの制限
+**Vulnerability:** コンポーザーWebviewが `localResourceRoots` を設定せずに初期化されており、Webviewにローカルファイルパスが露出する可能性がありました。
+**Learning:** ローカルリソースへの依存がない `createWebviewPanel` を使用する場合、アクセスを制限するために常に `localResourceRoots: []` を強制する必要があります。
+**Prevention:** すべての `vscode.window.createWebviewPanel` 呼び出しで明示的に `localResourceRoots` を設定します。
