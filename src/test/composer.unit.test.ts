@@ -89,6 +89,29 @@ suite("Composer Test Suite", () => {
       assert.ok(harness.panel.webview.html.includes("<title>Composer</title>"));
     });
 
+    test("should disable local resource access for the composer webview", async () => {
+      const harness = installPanelStub();
+      const createWebviewPanel = (vscode.window as any)
+        .createWebviewPanel as sinon.SinonStub;
+
+      const promise = showMessageComposer({ title: "Composer" });
+
+      sinon.assert.calledOnceWithExactly(
+        createWebviewPanel,
+        "julesMessageComposer",
+        "Composer",
+        vscode.ViewColumn.Active,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [],
+        }
+      );
+
+      harness.emitMessage({ type: "cancel" });
+      await promise;
+    });
+
     test("should resolve undefined on cancel", async () => {
       const harness = installPanelStub();
 
