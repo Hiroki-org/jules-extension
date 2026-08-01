@@ -288,7 +288,7 @@ export function getComposerHtml(
       if (cancelButton) {
         cancelButton.disabled = true;
         cancelButton.title = 'Cannot cancel while sending';
-        cancelButton.setAttribute('aria-label', 'Cannot cancel while sending');
+        cancelButton.setAttribute('aria-label', 'Cancel (Esc). Cannot cancel while sending');
       }
       document.body.style.cursor = 'wait';
 
