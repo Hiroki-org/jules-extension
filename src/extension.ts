@@ -205,15 +205,17 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
   }
 }
 
-function isSessionActive(session: Session): boolean {
-  const activeStates = new Set([
-    "IN_PROGRESS",
-    "QUEUED",
-    "PLANNING",
-    "AWAITING_PLAN_APPROVAL",
-    "AWAITING_USER_FEEDBACK",
-  ]);
-  return activeStates.has(session.rawState);
+// パフォーマンス最適化: 関数が呼び出されるたびにSetを生成するとメモリ確保とガベージコレクションのオーバーヘッドが発生するため、モジュールレベルでインスタンス化します
+const ACTIVE_SESSION_STATES = new Set([
+  "IN_PROGRESS",
+  "QUEUED",
+  "PLANNING",
+  "AWAITING_PLAN_APPROVAL",
+  "AWAITING_USER_FEEDBACK",
+]);
+
+export function isSessionActive(session: Session): boolean {
+  return ACTIVE_SESSION_STATES.has(session.rawState);
 }
 
 export interface CachedSessionState {
