@@ -206,14 +206,15 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
 }
 
 function isSessionActive(session: Session): boolean {
-  const activeStates = new Set([
+  // ⚡ Bolt: 関数呼び出しごとのSetインスタンス化を避け、配列の .includes() を使用してメモリ割り当てを削減
+  const activeStates = [
     "IN_PROGRESS",
     "QUEUED",
     "PLANNING",
     "AWAITING_PLAN_APPROVAL",
     "AWAITING_USER_FEEDBACK",
-  ]);
-  return activeStates.has(session.rawState);
+  ];
+  return activeStates.includes(session.rawState);
 }
 
 export interface CachedSessionState {
