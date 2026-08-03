@@ -206,14 +206,15 @@ export function mapApiStateToSessionState(apiState: string): SessionState {
 }
 
 function isSessionActive(session: Session): boolean {
-  const activeStates = new Set([
+  // ⚡ Bolt: 関数呼び出しごとのSetインスタンス化を避け、配列の .includes() を使用してメモリ割り当てを削減
+  const activeStates = [
     "IN_PROGRESS",
     "QUEUED",
     "PLANNING",
     "AWAITING_PLAN_APPROVAL",
     "AWAITING_USER_FEEDBACK",
-  ]);
-  return activeStates.has(session.rawState);
+  ];
+  return activeStates.includes(session.rawState);
 }
 
 export interface CachedSessionState {
@@ -3258,8 +3259,7 @@ export function activate(context: vscode.ExtensionContext) {
         // キャッシュが古い場合、リモートに存在するブランチが見つからないことがあるため、
         // キャッシュにないブランチが選択された場合は最新のリモートブランチを再取得する
         let currentRemoteBranches = remoteBranches;
-        // ⚡ Bolt: Setのインスタンス化を避け、単一の配列検索に .includes() を使用して O(N) のオーバーヘッドを削減
-        if (!remoteBranches.includes(startingBranch)) {
+        if (!new Set(remoteBranches).has(startingBranch)) {
           logChannel.appendLine(
             `[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`,
           );
@@ -3279,8 +3279,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        // ⚡ Bolt: Setのインスタンス化を避け、単一の配列検索に .includes() を使用して O(N) のオーバーヘッドを削減
-        if (!currentRemoteBranches.includes(startingBranch)) {
+        if (!new Set(currentRemoteBranches).has(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(
             `[Jules] Warning: Branch "${startingBranch}" not found on remote`,

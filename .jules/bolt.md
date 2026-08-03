@@ -54,3 +54,9 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-08-03 - Modifying Uncovered UI Logic Fails Coverage CI
+**Learning:** When applying code changes or micro-optimizations, modifying logic deeply embedded in interactive UI flows that cannot be easily unit-tested will cause the strict 90% `codecov/patch` CI check to fail due to 0% diff coverage.
+**Action:** If diff coverage drops and the lines are too complex to unit test, find an alternative optimization target that is well-covered by tests instead of reverting entirely.
+## 2026-08-03 - Array .includes() vs Module Level Collections
+**Learning:** While replacing a local `new Set([...]).has()` with a local `[...].includes()` avoids the Set constructor overhead, moving the collection instantiation entirely outside the function (to the module level) is an even better optimization that prevents *any* allocation per function call.
+**Action:** When a function relies on a static collection of constant state values, instantiate the collection at the module level rather than inside the function.
