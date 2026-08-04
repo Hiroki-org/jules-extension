@@ -595,6 +595,17 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("submitButton.addEventListener('click', submit);"));
     });
 
+    test("should explicitly return focus to textarea when submit button was focused", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes("const wasSubmitButtonFocused = document.activeElement === submitButton;"));
+      assert.ok(html.includes("if (wasSubmitButtonFocused) {"));
+      assert.ok(html.includes("textarea.focus();"));
+    });
+
     test("validation should not interfere with cancel button functionality", () => {
       const html = getComposerHtml(
         mockWebview,
