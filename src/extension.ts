@@ -134,9 +134,11 @@ export async function handleFilterActivitiesCommand(
   });
 
   if (selected !== undefined) {
-    const newFilter = new Set<ActivityCategory>(
-      selected.map((item) => item.label as ActivityCategory),
-    );
+    // ⚡ Bolt: new Set(array.map(...)) は中間配列を生成するため、for...of ループを使用して直接 Set に追加し、メモリ割り当てを最適化します。
+    const newFilter = new Set<ActivityCategory>();
+    for (const item of selected) {
+      newFilter.add(item.label as ActivityCategory);
+    }
     sessionsProvider.setActivityCategoryFilter(newFilter);
   }
 }
