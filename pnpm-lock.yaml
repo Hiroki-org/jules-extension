@@ -37,8 +37,8 @@ importers:
         specifier: ^14.2.0
         version: 14.2.0
       sanitize-html:
-        specifier: ^2.17.4
-        version: 2.17.4
+        specifier: ^2.17.5
+        version: 2.17.5
       shiki:
         specifier: ^4.0.2
         version: 4.0.2
@@ -1255,8 +1255,8 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  nanoid@3.3.16:
-    resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
+  nanoid@3.3.17:
+    resolution: {integrity: sha512-xQLf0A3HOMlgHq0n247/LRuAOYmB7dXJ/DvAxGvsSBij45XtBSmQycu+F8ODbHwns/XyFZagyL1+J0Offw1E0g==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -1411,8 +1411,8 @@ packages:
   safe-buffer@5.1.2:
     resolution: {integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==}
 
-  sanitize-html@2.17.4:
-    resolution: {integrity: sha512-2HW7v2ol/uAM7sX4hbD8Z59OGWmAPrvjL8E71UWlBcj6m+kcF6ilQBLny+cIgY214QJeJT5tQuxKKqX0SQqjGQ==}
+  sanitize-html@2.17.5:
+    resolution: {integrity: sha512-ZmU1joGRrvoyctKIiuwUxqR6moLoU2Wk+2bMccN6f7UwhAmwYDvWziqPxRDDN2Qip62NqnIrVrT9akbL6Wretg==}
 
   semver@7.7.3:
     resolution: {integrity: sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q==}
@@ -2849,7 +2849,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  nanoid@3.3.16: {}
+  nanoid@3.3.17: {}
 
   natural-compare@1.4.0: {}
 
@@ -2951,7 +2951,7 @@ snapshots:
 
   postcss@8.5.25:
     dependencies:
-      nanoid: 3.3.16
+      nanoid: 3.3.17
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
@@ -3005,7 +3005,7 @@ snapshots:
 
   safe-buffer@5.1.2: {}
 
-  sanitize-html@2.17.4:
+  sanitize-html@2.17.5:
     dependencies:
       deepmerge: 4.3.1
       escape-string-regexp: 4.0.0
