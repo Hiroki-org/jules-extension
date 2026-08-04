@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-08-01 - ⚡ Bolt: PRステータス取得の並行処理の最適化
+**Learning:** ネストされた `mapLimit` 呼び出しは、全体の並行処理リミットを意図した通りに制限できず（たとえばリポジトリごとの上限5 × PRごとの上限5 = 実質25）、特に単一リポジトリに処理が集中した場合に全体的なスループットが低下します。
+**Action:** 複数のグループに対する並行処理を行う場合は、配列をフラット化し、単一のグローバルな並行処理リミット（例: 25）を持つ `mapLimit` またはキューを使用することで、データ分布によらず安定して高いパフォーマンスを維持できるようにします。
