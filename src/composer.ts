@@ -268,6 +268,8 @@ export function getComposerHtml(
         return;
       }
 
+      const wasSubmitButtonFocused = document.activeElement === submitButton;
+
       submitButton.disabled = true;
       submitButton.textContent = 'Sending... ';
       const spinnerSpan = document.createElement('span');
@@ -299,6 +301,10 @@ export function getComposerHtml(
         createPR: createPrCheckbox ? createPrCheckbox.checked : false,
         requireApproval: requireApprovalCheckbox ? requireApprovalCheckbox.checked : false,
       });
+
+      if (wasSubmitButtonFocused) {
+        textarea.focus();
+      }
     };
 
     submitButton.addEventListener('click', submit);
