@@ -123,10 +123,14 @@ export async function handleFilterActivitiesCommand(
   ];
   const currentFilter = sessionsProvider.getActivityCategoryFilter();
 
-  const items = categories.map((category) => ({
-    label: category,
-    picked: currentFilter.size === 0 || currentFilter.has(category),
-  }));
+  // パフォーマンス最適化: chained array methods による中間配列の生成を避けるため、for...of ループを使用
+  const items: vscode.QuickPickItem[] = [];
+  for (const category of categories) {
+    items.push({
+      label: category,
+      picked: currentFilter.size === 0 || currentFilter.has(category),
+    });
+  }
 
   const selected = await vscode.window.showQuickPick(items, {
     canPickMany: true,
@@ -134,9 +138,11 @@ export async function handleFilterActivitiesCommand(
   });
 
   if (selected !== undefined) {
-    const newFilter = new Set<ActivityCategory>(
-      selected.map((item) => item.label as ActivityCategory),
-    );
+    // パフォーマンス最適化: chained array methods による中間配列の生成を避けるため、for...of ループを使用
+    const newFilter = new Set<ActivityCategory>();
+    for (const item of selected) {
+      newFilter.add(item.label as ActivityCategory);
+    }
     sessionsProvider.setActivityCategoryFilter(newFilter);
   }
 }
@@ -3258,8 +3264,7 @@ export function activate(context: vscode.ExtensionContext) {
         // キャッシュが古い場合、リモートに存在するブランチが見つからないことがあるため、
         // キャッシュにないブランチが選択された場合は最新のリモートブランチを再取得する
         let currentRemoteBranches = remoteBranches;
-        // パフォーマンス最適化: 単一のルックアップ時に O(N) のアロケーションを避けるため、new Set().has() の代わりに array.includes() を使用します
-        if (!remoteBranches.includes(startingBranch)) {
+        if (!new Set(remoteBranches).has(startingBranch)) {
           logChannel.appendLine(
             `[Jules] Branch "${startingBranch}" not found in cached remote branches, re-fetching...`,
           );
@@ -3279,8 +3284,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
         }
 
-        // パフォーマンス最適化: 単一のルックアップ時に O(N) のアロケーションを避けるため、new Set().has() の代わりに array.includes() を使用します
-        if (!currentRemoteBranches.includes(startingBranch)) {
+        if (!new Set(currentRemoteBranches).has(startingBranch)) {
           // ローカル専用ブランチの場合
           logChannel.appendLine(
             `[Jules] Warning: Branch "${startingBranch}" not found on remote`,
