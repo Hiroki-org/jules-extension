@@ -675,5 +675,12 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("if (requireApprovalCheckbox) {"));
       assert.ok(html.includes("requireApprovalCheckbox.disabled = true;"));
     });
+
+    test("should restore focus to textarea if submit button was focused during submit", () => {
+      const html = getComposerHtml(mockWebview, { title: "Test" }, "nonce");
+      assert.ok(html.includes("const wasSubmitButtonFocused = document.activeElement === submitButton;"));
+      assert.ok(html.includes("if (wasSubmitButtonFocused) {"));
+      assert.ok(html.includes("textarea.focus();"));
+    });
   });
 });
