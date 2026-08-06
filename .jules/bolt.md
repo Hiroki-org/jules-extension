@@ -54,3 +54,6 @@
 ## 2026-06-04 - [Performance] Optimize string prefix removal
 **Learning:** Using regular expressions like `.replace(/^sessions\//, '')` introduces unnecessary compilation and execution overhead compared to basic string operations.
 **Action:** When conditionally removing a fixed string prefix, prefer using `.startsWith()` combined with `.slice()` for better execution speed and reduced memory allocation.
+## 2026-08-06 - Replacing Promise.allSettled with mapLimit
+**Learning:** When performing parallel async operations like network requests, replacing `Promise.allSettled` with `mapLimit` restricts concurrency. This is critical for preventing API rate limits, network congestion, and overall resource exhaustion. Even though the raw processing time in the client takes longer due to limited concurrency, it preserves system stability at scale.
+**Action:** Use concurrency-limiting utilities like `mapLimit` over naive `Promise.allSettled` or `Promise.all` mapping for operations dealing with external resources.
