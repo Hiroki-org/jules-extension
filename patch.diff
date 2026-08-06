@@ -1,0 +1,52 @@
+--- src/extension.ts
++++ src/extension.ts
+@@ -2150,22 +2150,28 @@
+     let hasChanges = false;
+
+-    // Run fetches in parallel
+-    const results = await Promise.allSettled(
+-      targetSessions.map(async (session) => {
+-        const before = getCachedSessionArtifacts(session.name);
+-        await fetchLatestSessionArtifacts(
+-          apiKey,
+-          session.name,
+-          JULES_API_BASE_URL,
+-          session.updateTime,
+-        );
+-        const after = getCachedSessionArtifacts(session.name);
+-
+-        // Check if availability of diff/changeset flipped
+-        const hadDiff = !!before?.latestDiff;
+-        const hasDiff = !!after?.latestDiff;
+-        const hadChangeset = !!before?.latestChangeSet;
+-        const hasChangeset = !!after?.latestChangeSet;
+-
+-        return hadDiff !== hasDiff || hadChangeset !== hasChangeset;
+-      }),
+-    );
++    // Run fetches in parallel with a concurrency limit to prevent resource exhaustion
++    const results = await mapLimit(targetSessions, 5, async (session) => {
++      try {
++        const before = getCachedSessionArtifacts(session.name);
++        await fetchLatestSessionArtifacts(
++          apiKey,
++          session.name,
++          JULES_API_BASE_URL,
++          session.updateTime,
++        );
++        const after = getCachedSessionArtifacts(session.name);
++
++        // Check if availability of diff/changeset flipped
++        const hadDiff = !!before?.latestDiff;
++        const hasDiff = !!after?.latestDiff;
++        const hadChangeset = !!before?.latestChangeSet;
++        const hasChangeset = !!after?.latestChangeSet;
++
++        return {
++          status: "fulfilled" as const,
++          value: hadDiff !== hasDiff || hadChangeset !== hasChangeset,
++        };
++      } catch (error) {
++        return { status: "rejected" as const, reason: error };
++      }
++    });

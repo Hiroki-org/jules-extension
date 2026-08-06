@@ -1,0 +1,6 @@
+--- src/test/extension.prefetch.unit.test.ts
++++ src/test/extension.prefetch.unit.test.ts
+@@ -46,3 +46,3 @@
+     sandbox.stub(artifacts, "fetchLatestSessionArtifacts").rejects(new Error("mock error"));
+-    sandbox.stub(artifacts, "getCachedSessionArtifacts").returns(null);
++    sandbox.stub(artifacts, "getCachedSessionArtifacts").returns(undefined);
