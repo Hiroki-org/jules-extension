@@ -527,6 +527,15 @@ suite("Composer Test Suite", () => {
       assert.ok(html.includes("base-uri 'none'"));
     });
 
+    test("should include object-src 'none' in Content-Security-Policy", () => {
+      const html = getComposerHtml(
+        mockWebview,
+        { title: "Test" },
+        "nonce-123"
+      );
+      assert.ok(html.includes("object-src 'none'"));
+    });
+
     test("should set submitButton disabled state based on validation result", () => {
       const html = getComposerHtml(
         mockWebview,

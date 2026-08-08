@@ -74,6 +74,20 @@ suite("Chat View Unit Test Suite", () => {
     assert.strictEqual(isGeneratingSessionState(undefined), false);
   });
 
+  test("getChatWebviewHtml should include object-src 'none' in Content-Security-Policy", () => {
+    const extensionUri = vscode.Uri.file("/tmp/jules-extension");
+    const html = getChatWebviewHtml(
+      {
+        cspSource: "https://example.com",
+        asWebviewUri: (uri: vscode.Uri) =>
+          vscode.Uri.parse("vscode-webview-resource://" + uri.fsPath),
+      } as vscode.Webview,
+      "nonce-123",
+      extensionUri,
+    );
+    assert.ok(html.includes("object-src 'none'"));
+  });
+
   test("getChatWebviewHtml should include typing indicator and send flow script", () => {
     const extensionUri = vscode.Uri.file("/tmp/jules-extension");
     const html = getChatWebviewHtml(
