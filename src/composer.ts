@@ -279,11 +279,17 @@ export function getComposerHtml(
       const srStatus = document.getElementById('sr-status');
       if (srStatus) srStatus.textContent = 'Sending message...';
       textarea.disabled = true;
+      textarea.title = 'Cannot edit message while sending';
+      textarea.setAttribute('aria-label', 'Cannot edit message while sending');
       if (createPrCheckbox) {
         createPrCheckbox.disabled = true;
+        createPrCheckbox.title = 'Cannot change PR setting while sending';
+        createPrCheckbox.setAttribute('aria-label', 'Create PR automatically? (Cannot change while sending)');
       }
       if (requireApprovalCheckbox) {
         requireApprovalCheckbox.disabled = true;
+        requireApprovalCheckbox.title = 'Cannot change approval setting while sending';
+        requireApprovalCheckbox.setAttribute('aria-label', 'Require plan approval before execution? (Cannot change while sending)');
       }
       const cancelButton = document.getElementById('cancel');
       if (cancelButton) {
