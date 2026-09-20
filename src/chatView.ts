@@ -504,7 +504,7 @@ export function getChatWebviewHtml(
 ): string {
   const domPurifyScriptUri = getDOMPurifyScriptUri(webview, extensionUri);
   return (
-    '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'; style-src ' +
+    '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'; object-src \'none\'; style-src ' +
     webview.cspSource +
     " 'nonce-" +
     nonce +
