@@ -27,6 +27,8 @@ export async function getGitApi(outputChannel?: vscode.OutputChannel): Promise<a
     return git;
 }
 
+const repoCache = new WeakMap<any, { map: Map<string, any>; length: number }>();
+
 /**
  * Find the Git repository that corresponds to the given workspace folder
  */
@@ -36,9 +38,21 @@ export function getRepositoryForWorkspaceFolder(
     outputChannel?: vscode.OutputChannel,
 ): any {
     const logger = resolveLogger(outputChannel);
-    const repository = git.repositories.find(
-        (repo: any) => repo.rootUri?.fsPath === workspaceFolder.uri.fsPath,
-    );
+
+    let cacheData = repoCache.get(git);
+    if (!cacheData || cacheData.length !== git.repositories.length) {
+        const map = new Map<string, any>();
+        for (const repo of git.repositories) {
+            if (repo.rootUri?.fsPath) {
+                map.set(repo.rootUri.fsPath, repo);
+            }
+        }
+        cacheData = { map, length: git.repositories.length };
+        repoCache.set(git, cacheData);
+    }
+
+    const repository = cacheData.map.get(workspaceFolder.uri.fsPath);
+
     if (!repository) {
         const safeWsPath = sanitizeForLogging(workspaceFolder.uri.fsPath);
         logger.appendLine(
