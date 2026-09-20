@@ -980,9 +980,12 @@ export async function updatePreviousStates(
       for (let i = 0; i < urlsToFetch.length; i += 1) {
         const url = urlsToFetch[i];
         const repo = getPRStatusFetchGroupKey(url);
-        const list = urlsByRepo.get(repo) ?? [];
-        list.push(url);
-        urlsByRepo.set(repo, list);
+        const list = urlsByRepo.get(repo);
+        if (list) {
+          list.push(url);
+        } else {
+          urlsByRepo.set(repo, [url]);
+        }
       }
 
       await mapLimit(Array.from(urlsByRepo.values()), 5, async (repoUrls) => {
