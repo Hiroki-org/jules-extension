@@ -2792,23 +2792,25 @@ export async function executeDeleteSessionCommand(
       let successCount = 0;
       let failCount = 0;
 
-      for (let i = 0; i < targets.length; i++) {
-        const target = targets[i];
-        const session = target.session;
+      let completedCount = 0;
+      await Promise.all(
+        targets.map(async (target) => {
+          const session = target.session;
+          try {
+            await deleteSingleSession(context, sessionsProvider, session, apiKey);
+            successCount++;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            console.error(`Failed to delete session ${session.name}: ${message}`);
+            failCount++;
 
-        progress.report({ message: `Deleting ${i + 1} of ${targets.length}...` });
-
-        try {
-          await deleteSingleSession(context, sessionsProvider, session, apiKey);
-          successCount++;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Unknown error";
-          console.error(`Failed to delete session ${session.name}: ${message}`);
-          failCount++;
-
-          sessionsProvider.unmarkSessionAsDeleting(session.name);
-        }
-      }
+            sessionsProvider.unmarkSessionAsDeleting(session.name);
+          } finally {
+            completedCount++;
+            progress.report({ message: `Deleting ${completedCount} of ${targets.length}...` });
+          }
+        })
+      );
 
       if (failCount > 0) {
         const failedLabel = `session${failCount === 1 ? "" : "s"}`;
