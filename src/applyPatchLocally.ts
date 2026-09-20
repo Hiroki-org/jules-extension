@@ -116,7 +116,7 @@ export async function applyPatchLocallyForSession(options: {
         // 6. Create new branch
         log(`Creating branch ${branchName} from ${commitToBranchFrom}...`);
         
-        const finalBranchName = await findAvailableBranchName(repository, branchName);
+        const finalBranchName = await findAvailableBranchName(repository, branchName, log);
         const originalBranch = typeof repository.state?.HEAD?.name === "string" && repository.state.HEAD.name.trim().length > 0
             ? repository.state.HEAD.name
             : undefined;
@@ -286,7 +286,11 @@ export async function resolveStartingBranchRef(repository: any, startingBranch: 
     return branchRef;
 }
 
-async function findAvailableBranchName(repository: any, branchName: string): Promise<string> {
+async function findAvailableBranchName(
+    repository: any,
+    branchName: string,
+    log: (msg: string) => void,
+): Promise<string> {
     let existingBranchNames: Set<string> | undefined;
 
     try {
@@ -294,8 +298,9 @@ async function findAvailableBranchName(repository: any, branchName: string): Pro
             const branches = await repository.getBranches({ remote: false });
             existingBranchNames = new Set(branches.map((b: any) => b.name));
         }
-    } catch (_e) {
-        // Fallback to sequential checks if getBranches fails
+    } catch (error: any) {
+        const details = error instanceof Error ? error.message : String(error);
+        log(`getBranches failed (${details}); falling back to sequential branch checks.`);
     }
 
     for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {

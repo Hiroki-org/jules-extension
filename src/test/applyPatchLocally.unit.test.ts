@@ -123,7 +123,11 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(repository.getBranch.called, false, 'getBranch should not be called when getBranches is available');
-        assert.strictEqual(repository.getBranches.calledOnce, true, 'getBranches should be called exactly once');
+        assert.strictEqual(
+            repository.getBranches.calledOnceWithExactly({ remote: false }),
+            true,
+            'getBranches should request local branches exactly once',
+        );
         assert.deepStrictEqual(repository.createBranch.firstCall.args, [
             'jules-patch-abc-3',
             true,
