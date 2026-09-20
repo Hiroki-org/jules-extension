@@ -295,7 +295,7 @@ async function findAvailableBranchName(repository: any, branchName: string): Pro
             existingBranchNames = new Set(branches.map((b: any) => b.name));
         }
     } catch (_e) {
-        // getBranches が失敗した場合は逐次チェックへフォールバック
+        // Fallback to sequential checks if getBranches fails
     }
 
     for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {
