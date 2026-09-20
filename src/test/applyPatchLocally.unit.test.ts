@@ -109,7 +109,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         assert.strictEqual(repository.inputBox.value, 'feat: apply patch locally');
     });
 
-    test('getBranches が利用可能な場合は O(1) 探索でユニークなブランチ名を決定すること', async () => {
+test('getBranches が利用可能な場合は O(1) 探索でユニークなブランチ名を決定すること', async () => {
         repository.getBranch.resetBehavior(); // Should not be called
         repository.getBranches = sandbox.stub().resolves([
             { name: 'jules-patch-abc' },
@@ -123,11 +123,8 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(repository.getBranch.called, false, 'getBranch should not be called when getBranches is available');
-        assert.strictEqual(
-            repository.getBranches.calledOnceWithExactly({ remote: false }),
-            true,
-            'getBranches should request local branches exactly once',
-        );
+        assert.strictEqual(repository.getBranches.calledOnce, true, 'getBranches should be called exactly once');
+        assert.deepStrictEqual(repository.getBranches.firstCall.args, [{ remote: false }], 'getBranches should be called with { remote: false }');
         assert.deepStrictEqual(repository.createBranch.firstCall.args, [
             'jules-patch-abc-3',
             true,
@@ -135,7 +132,8 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         ]);
     });
 
-    test('getBranches がエラーを投げた場合はフォールバックして O(N) 探索を行うこと', async () => {
+
+test('getBranches がエラーを投げた場合はフォールバックして O(N) 探索を行うこと', async () => {
         repository.getBranches = sandbox.stub().rejects(new Error('API failed'));
         repository.getBranch.resetBehavior();
         repository.getBranch.onFirstCall().resolves({ name: 'jules-patch-abc' });
@@ -149,6 +147,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
         });
 
         assert.strictEqual(repository.getBranches.calledOnce, true, 'getBranches should be called once');
+        assert.deepStrictEqual(repository.getBranches.firstCall.args, [{ remote: false }], 'getBranches should be called with { remote: false }');
         assert.strictEqual(repository.getBranch.callCount, 3, 'getBranch should be called 3 times as fallback');
         assert.deepStrictEqual(repository.createBranch.firstCall.args, [
             'jules-patch-abc-3',
@@ -156,6 +155,7 @@ suite('applyPatchLocallyForSession ユニットテスト', () => {
             'base-sha',
         ]);
     });
+
 
     test('baseCommitId が解決できない場合は startingBranch へのフォールバック確認を使うこと', async () => {
         repository.getCommit.rejects(new Error('commit not found'));

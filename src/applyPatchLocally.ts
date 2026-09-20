@@ -286,11 +286,7 @@ export async function resolveStartingBranchRef(repository: any, startingBranch: 
     return branchRef;
 }
 
-async function findAvailableBranchName(
-    repository: any,
-    branchName: string,
-    log: (msg: string) => void,
-): Promise<string> {
+async function findAvailableBranchName(repository: any, branchName: string, log?: (msg: string) => void): Promise<string> {
     let existingBranchNames: Set<string> | undefined;
 
     try {
@@ -298,9 +294,10 @@ async function findAvailableBranchName(
             const branches = await repository.getBranches({ remote: false });
             existingBranchNames = new Set(branches.map((b: any) => b.name));
         }
-    } catch (error: any) {
-        const details = error instanceof Error ? error.message : String(error);
-        log(`getBranches failed (${details}); falling back to sequential branch checks.`);
+    } catch (e: any) {
+        if (log) {
+            log(`Failed to fetch branches in bulk (fallback to sequential getBranch): ${e?.message ?? e}`);
+        }
     }
 
     for (let attempt = 1; attempt <= MAX_BRANCH_NAME_ATTEMPTS; attempt += 1) {

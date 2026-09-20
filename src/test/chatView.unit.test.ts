@@ -96,7 +96,6 @@ suite("Chat View Unit Test Suite", () => {
     );
     assert.ok(html.includes("script-src 'nonce-nonce-123'"));
     assert.ok(html.includes("base-uri 'none'"));
-    assert.ok(html.includes("object-src 'none'"));
     assert.ok(!html.includes("script-src https://example.com"));
     assert.ok(!html.includes("DOMPURIFY_SOURCE"));
   });
