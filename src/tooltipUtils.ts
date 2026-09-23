@@ -73,7 +73,7 @@ export function buildSessionTooltip(context: TooltipContext): vscode.MarkdownStr
   if (session.automationMode) {
     const automationLabel = session.automationMode === 'AUTO_CREATE_PR'
       ? '🤖 Auto Create PR'
-      : session.automationMode === 'MANUAL'
+      : session.automationMode === 'MANUAL' || session.automationMode === 'AUTOMATION_MODE_MANUAL'
         ? '✋ Manual'
         : session.automationMode;
     tooltip.appendMarkdown(`\n\nMode: ${automationLabel}`);

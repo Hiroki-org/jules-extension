@@ -56,7 +56,7 @@ suite("sessionUtils Test Suite", () => {
         const payload = JSON.parse(options.body);
         assert.strictEqual(payload.title, "test title");
         assert.strictEqual(payload.sourceContext.source, "sources/repo");
-        assert.strictEqual(payload.automationMode, "MANUAL");
+        assert.strictEqual(payload.automationMode, "AUTOMATION_MODE_MANUAL");
         assert.strictEqual(payload.requirePlanApproval, false);
         assert.strictEqual(payload.sourceContext.githubRepoContext.startingBranch, "main");
         
