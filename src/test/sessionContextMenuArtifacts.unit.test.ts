@@ -176,6 +176,15 @@ suite("Session Context Menu Artifacts Security Suite", () => {
         assert.strictEqual(result, null, "Should return null for missing file");
     });
 
+    test("should return null when no workspace folders are open", async () => {
+        workspaceFoldersStub.value([]);
+
+        const result = await resolveWorkspaceFile("src/main.ts");
+
+        assert.strictEqual(result, null, "Should return null when there are no workspace folders");
+        assert.strictEqual(fsStatStub.called, false, "Should not attempt to stat anything");
+    });
+
     test("should check multiple workspace folders", async () => {
         const root1 = path.resolve("/workspace1");
         const root2 = path.resolve("/workspace2");
@@ -401,6 +410,88 @@ suite("Session Context Menu Artifacts Openers", () => {
 
         assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("No diff available for this session."), true);
         assert.strictEqual(executeCommandStub.called, false);
+    });
+
+    test("openLatestDiffForSession logs and shows an error when fetching artifacts throws", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns(undefined as any);
+        sandbox.stub(sessionArtifacts, "fetchLatestSessionArtifacts").rejects(new Error("network down"));
+        const logChannel = createLogChannel();
+
+        await openLatestDiffForSession({
+            sessionId: "sessions/test-err",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel,
+            diffProvider: new JulesDiffDocumentProvider()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("Failed to open latest diff."), true);
+        assert.strictEqual((logChannel.appendLine as sinon.SinonStub).calledOnce, true);
+        assert.ok((logChannel.appendLine as sinon.SinonStub).firstCall.args[0].includes("Failed to open latest diff"));
+    });
+
+    test("openChangesetForSession rejects invalid session IDs", async () => {
+        await openChangesetForSession({
+            sessionId: "bad id",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("Invalid session ID."), true);
+        assert.strictEqual(withProgressStub.called, false);
+    });
+
+    test("openChangesetForSession shows an error when no changeset is available", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({ latestChangeSet: undefined } as any);
+        sandbox.stub(sessionArtifacts, "fetchLatestSessionArtifacts").resolves({ latestChangeSet: undefined } as any);
+
+        await openChangesetForSession({
+            sessionId: "sessions/test-no-changeset",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel()
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("No changeset available for this session."), true);
+    });
+
+    test("openChangesetForSession returns early when the user cancels the quick pick", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns({
+            latestChangeSet: { files: [{ path: "src/foo.ts", status: "modified" }] }
+        } as any);
+        showQuickPickStub.resolves(undefined);
+
+        await openChangesetForSession({
+            sessionId: "sessions/test-cancel",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel: createLogChannel()
+        });
+
+        assert.strictEqual(openTextDocumentStub.called, false);
+        assert.strictEqual(showErrorMessageStub.called, false);
+    });
+
+    test("openChangesetForSession logs and shows an error when fetching artifacts throws", async () => {
+        withProgressStub.callsFake(async (_options: unknown, callback: () => Promise<unknown>) => callback());
+        sandbox.stub(sessionArtifacts, "getCachedSessionArtifacts").returns(undefined as any);
+        sandbox.stub(sessionArtifacts, "fetchLatestSessionArtifacts").rejects(new Error("network down"));
+        const logChannel = createLogChannel();
+
+        await openChangesetForSession({
+            sessionId: "sessions/test-err",
+            apiKey: "token",
+            apiBaseUrl: "https://api.example.com",
+            logChannel
+        });
+
+        assert.strictEqual(showErrorMessageStub.calledOnceWithExactly("Failed to open changeset."), true);
+        assert.strictEqual((logChannel.appendLine as sinon.SinonStub).calledOnce, true);
+        assert.ok((logChannel.appendLine as sinon.SinonStub).firstCall.args[0].includes("Failed to open changeset"));
     });
 
     test("openChangesetForSession shows an error when no files exist", async () => {
