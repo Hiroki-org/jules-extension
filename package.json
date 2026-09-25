@@ -432,9 +432,10 @@
     "minimatch": "10.2.6",
     "brace-expansion": "5.0.8",
     "shell-quote": "1.10.0",
-    "js-yaml": "4.3.0",
-    "undici": "6.27.0",
-    "ip-address": "^10.3.1"
+    "js-yaml": "4.3.2",
+    "undici": "6.28.0",
+    "ip-address": "^10.3.1",
+    "@humanfs/node": "^0.16.8"
   },
   "resolutions": {
     "serialize-javascript": "^7.0.5",
@@ -444,9 +445,10 @@
     "minimatch": "10.2.6",
     "brace-expansion": "5.0.8",
     "shell-quote": "1.10.0",
-    "js-yaml": "4.3.0",
-    "undici": "6.27.0",
-    "ip-address": "^10.3.1"
+    "js-yaml": "4.3.2",
+    "undici": "6.28.0",
+    "ip-address": "^10.3.1",
+    "@humanfs/node": "^0.16.8"
   },
   "pnpm": {
     "overrides": {
@@ -457,11 +459,12 @@
       "minimatch": "10.2.6",
       "brace-expansion": "5.0.8",
       "shell-quote": "1.10.0",
-      "js-yaml": "4.3.0",
+      "js-yaml": "4.3.2",
       "linkify-it": "5.0.2",
       "postcss": "8.5.25",
-      "undici": "6.27.0",
-      "ip-address": "^10.3.1"
+      "undici": "6.28.0",
+      "ip-address": "^10.3.1",
+      "@humanfs/node": "^0.16.8"
     },
     "onlyBuiltDependencies": [
       "esbuild"
