@@ -15,7 +15,7 @@ export interface CreateSessionRequest {
       startingBranch: string;
     };
   };
-  automationMode: "AUTO_CREATE_PR" | "MANUAL";
+  automationMode: "AUTO_CREATE_PR" | "AUTOMATION_MODE_MANUAL";
   title: string;
   requirePlanApproval?: boolean;
 }
@@ -48,6 +48,8 @@ export async function createJulesSession(
   }
 
   const finalPrompt = buildFinalPrompt(prompt);
+  const apiAutomationMode =
+    automationMode === "MANUAL" ? "AUTOMATION_MODE_MANUAL" : "AUTO_CREATE_PR";
 
   return vscode.window.withProgress(
     {
@@ -65,7 +67,7 @@ export async function createJulesSession(
             startingBranch: startingBranch,
           },
         },
-        automationMode,
+        automationMode: apiAutomationMode,
         title,
         requirePlanApproval,
       };

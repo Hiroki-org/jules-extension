@@ -194,6 +194,17 @@ suite("tooltipUtils Unit Tests", () => {
       assert.ok(manualTooltip.includes("Artifacts: 📁 Changeset"));
       assert.ok(manualTooltip.includes("Source: 🌐 `custom/source/path` (Public)"));
 
+      const apiManualModeSession: Session = {
+        ...manualSession,
+        automationMode: "AUTOMATION_MODE_MANUAL",
+      };
+      const apiManualTooltip = buildSessionTooltip({
+        session: apiManualModeSession,
+        hasDiff: false,
+        hasChangeset: false,
+      }).value;
+      assert.ok(apiManualTooltip.includes("Mode: ✋ Manual"));
+
       const customModeSession: Session = {
         ...manualSession,
         name: "sessions/custom",

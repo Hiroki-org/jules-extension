@@ -56,11 +56,43 @@ suite("sessionUtils Test Suite", () => {
         const payload = JSON.parse(options.body);
         assert.strictEqual(payload.title, "test title");
         assert.strictEqual(payload.sourceContext.source, "sources/repo");
-        assert.strictEqual(payload.automationMode, "MANUAL");
+        assert.strictEqual(payload.automationMode, "AUTOMATION_MODE_MANUAL");
         assert.strictEqual(payload.requirePlanApproval, false);
         assert.strictEqual(payload.sourceContext.githubRepoContext.startingBranch, "main");
         
         assert.ok(context.globalState.update.calledWith("active-session-id", "sessions/123"));
+    });
+
+    test("createJulesSession sends AUTO_CREATE_PR automation mode unchanged", async () => {
+        const mockSession = { name: "sessions/456" };
+        fetchStub.resolves({
+            ok: true,
+            json: async () => mockSession,
+        } as Response);
+
+        windowProgressStub.callsFake(async (options, task) => {
+            return await task({ report: sinon.stub() } as any, new vscode.CancellationTokenSource().token);
+        });
+
+        const context = {
+            globalState: {
+                update: sinon.stub().resolves(),
+            },
+        } as any;
+
+        await createJulesSession(
+            context,
+            { name: "sources/repo" } as any,
+            "dummy-key",
+            "main",
+            "test prompt",
+            "test title",
+            "AUTO_CREATE_PR"
+        );
+
+        const [, options] = fetchStub.firstCall.args;
+        const payload = JSON.parse(options.body);
+        assert.strictEqual(payload.automationMode, "AUTO_CREATE_PR");
     });
 
     test("createJulesSession throws error when response is not ok", async () => {
