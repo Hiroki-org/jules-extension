@@ -94,6 +94,7 @@ export interface Artifact {
 }
 /* c8 ignore stop */
 
+/* c8 ignore start */
 export interface Activity {
     name: string;
     createTime: string;
