@@ -112,10 +112,6 @@ jobs:
       - name: Run build/package
         run: pnpm run package
 
-      - name: Upload Codecov Bundle Analysis
-        if: matrix.primary && env.CODECOV_TOKEN != ''
-        run: npx @codecov/bundle-analyzer dist --bundle-name="jules-extension" --upload-token="${CODECOV_TOKEN}"
-
   integration:
     needs: [test-unit, build-check]
     runs-on: ${{ matrix.os }}

@@ -26,8 +26,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Security Audit (pnpm)
-        continue-on-error: true
         shell: bash
+        # CVE-2026-93687 has no patched release and is reachable only through
+        # @vscode/test-cli's dev-only watcher with repository-controlled globs.
+        # package.json scopes the audit exception to that CVE.
         run: pnpm audit --audit-level=moderate
 
       - name: Type Check
