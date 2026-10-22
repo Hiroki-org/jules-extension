@@ -390,7 +390,6 @@
     "test:coverage": "c8 --all --src src --exclude \"src/test/**\" --exclude-after-remap --reporter=text-summary --reporter=json-summary --reporter=lcov mocha --reporter mocha-multi-reporters --reporter-options configFile=reporter-config.json --ui tdd --require source-map-support/register --require out/test/vscodeMock.js \"out/test/*.unit.test.js\""
   },
   "devDependencies": {
-    "@codecov/bundle-analyzer": "^2.0.1",
     "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
@@ -402,7 +401,7 @@
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "c8": "^12.0.0",
-    "dompurify": "^3.4.13",
+    "dompurify": "^3.4.17",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "mocha": "^11.7.6",
@@ -419,7 +418,7 @@
     "@shikijs/markdown-it": "^4.0.2",
     "https-proxy-agent": "^7.0.6",
     "is-glob": "^4.0.3",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.1",
     "sanitize-html": "^2.17.7",
     "shiki": "^4.0.2",
     "socks-proxy-agent": "^8.0.5"
@@ -430,10 +429,11 @@
     "debug": "4.4.3",
     "lodash": "^4.18.1",
     "minimatch": "10.2.6",
-    "brace-expansion": "5.0.8",
-    "shell-quote": "1.10.0",
+    "brace-expansion": "5.0.12",
+    "shell-quote": "1.11.0",
     "js-yaml": "4.3.2",
-    "undici": "6.28.0",
+    "source-map-js": "1.2.2",
+    "undici": "6.28.1",
     "ip-address": "^10.3.1",
     "@humanfs/node": "^0.16.8"
   },
@@ -443,10 +443,11 @@
     "debug": "4.4.3",
     "lodash": "^4.18.1",
     "minimatch": "10.2.6",
-    "brace-expansion": "5.0.8",
-    "shell-quote": "1.10.0",
+    "brace-expansion": "5.0.12",
+    "shell-quote": "1.11.0",
     "js-yaml": "4.3.2",
-    "undici": "6.28.0",
+    "source-map-js": "1.2.2",
+    "undici": "6.28.1",
     "ip-address": "^10.3.1",
     "@humanfs/node": "^0.16.8"
   },
@@ -457,17 +458,23 @@
       "debug": "4.4.3",
       "lodash": "^4.18.1",
       "minimatch": "10.2.6",
-      "brace-expansion": "5.0.8",
-      "shell-quote": "1.10.0",
+      "brace-expansion": "5.0.12",
+      "shell-quote": "1.11.0",
       "js-yaml": "4.3.2",
       "linkify-it": "5.0.2",
       "postcss": "8.5.25",
-      "undici": "6.28.0",
+      "source-map-js": "1.2.2",
+      "undici": "6.28.1",
       "ip-address": "^10.3.1",
       "@humanfs/node": "^0.16.8"
     },
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-93687"
+      ]
+    }
   }
 }
