@@ -424,7 +424,7 @@
     "socks-proxy-agent": "^8.0.5"
   },
   "overrides": {
-    "serialize-javascript": "^7.0.5",
+    "serialize-javascript": "^7.1.3",
     "diff": "^8.0.3",
     "debug": "4.4.3",
     "lodash": "^4.18.1",
@@ -438,7 +438,7 @@
     "@humanfs/node": "^0.16.8"
   },
   "resolutions": {
-    "serialize-javascript": "^7.0.5",
+    "serialize-javascript": "^7.1.3",
     "diff": "^8.0.3",
     "debug": "4.4.3",
     "lodash": "^4.18.1",
@@ -453,7 +453,7 @@
   },
   "pnpm": {
     "overrides": {
-      "serialize-javascript": "^7.0.5",
+      "serialize-javascript": "^7.1.3",
       "diff": "^8.0.3",
       "debug": "4.4.3",
       "lodash": "^4.18.1",
